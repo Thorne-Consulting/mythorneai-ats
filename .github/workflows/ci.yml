@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: src/web/package-lock.json
+      - name: build web
+        working-directory: src/web
+        run: |
+          npm ci
+          npm audit --audit-level=high
+          npm run build
+      - name: restore .NET
+        run: dotnet restore tests/server/MyThorneAI.Ats.Api.Tests.csproj
+      - name: build .NET
+        run: dotnet build tests/server/MyThorneAI.Ats.Api.Tests.csproj --no-restore
+      - name: run integration tests
+        run: dotnet run --project tests/server/MyThorneAI.Ats.Api.Tests.csproj --no-build

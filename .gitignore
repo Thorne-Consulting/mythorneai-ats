@@ -1,0 +1,30 @@
+# .NET
+**/bin/
+**/obj/
+*.user
+*.suo
+
+# Node
+**/node_modules/
+**/dist/
+src/server/wwwroot/
+
+# Local data and secrets
+.env
+.env.*
+!.env.example
+/data/
+/uploads/
+src/server/uploads/
+appsettings.Local.json
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+
+# Test output
+TestResults/
+coverage/
+playwright-report/
+test-results/

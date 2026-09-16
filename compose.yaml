@@ -1,0 +1,44 @@
+services:
+  app:
+    build:
+      context: .
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      ConnectionStrings__AtsDatabase: Host=database;Port=5432;Database=${POSTGRES_DB:-mythorneai_ats_mvp};Username=${POSTGRES_USER:-ats};Password=${POSTGRES_PASSWORD:-ats-local-only}
+      Auth__Mode: ${AUTH_MODE:-Development}
+      Auth__Authority: ${AUTH_AUTHORITY:-}
+      Auth__ClientId: ${AUTH_CLIENT_ID:-}
+      Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
+      Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-ATS administrator}
+      DataProtection__KeyPath: /app/data-protection-keys
+      FileStorage__RootPath: /app/uploads
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ats-data-protection:/app/data-protection-keys
+      - ats-uploads:/app/uploads
+    restart: unless-stopped
+
+  database:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mythorneai_ats_mvp}
+      POSTGRES_USER: ${POSTGRES_USER:-ats}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ats-local-only}
+    volumes:
+      - ats-database:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  ats-database:
+  ats-data-protection:
+  ats-uploads:

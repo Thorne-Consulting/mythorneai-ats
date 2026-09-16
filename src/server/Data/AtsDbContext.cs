@@ -1,0 +1,82 @@
+using Microsoft.EntityFrameworkCore;
+using MyThorneAI.Ats.Api.Domain;
+
+namespace MyThorneAI.Ats.Api.Data;
+
+public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbContext(options)
+{
+    public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<Requisition> Requisitions => Set<Requisition>();
+    public DbSet<PipelineStage> PipelineStages => Set<PipelineStage>();
+    public DbSet<Candidate> Candidates => Set<Candidate>();
+    public DbSet<Application> Applications => Set<Application>();
+    public DbSet<ApplicationNote> Notes => Set<ApplicationNote>();
+    public DbSet<TaskItem> Tasks => Set<TaskItem>();
+    public DbSet<Interview> Interviews => Set<Interview>();
+    public DbSet<Scorecard> Scorecards => Set<Scorecard>();
+    public DbSet<Offer> Offers => Set<Offer>();
+    public DbSet<Communication> Communications => Set<Communication>();
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.HasPostgresExtension("pg_trgm");
+
+        modelBuilder.Entity<AppUser>(entity =>
+        {
+            entity.HasIndex(x => x.Email).IsUnique();
+            entity.Property(x => x.Email).HasMaxLength(320);
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<Requisition>(entity =>
+        {
+            entity.HasIndex(x => x.Code).IsUnique();
+            entity.HasIndex(x => new { x.Status, x.UpdatedAt });
+            entity.Property(x => x.Code).HasMaxLength(40);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.HasMany(x => x.Stages).WithOne(x => x.Requisition).HasForeignKey(x => x.RequisitionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PipelineStage>(entity =>
+        {
+            entity.HasIndex(x => new { x.RequisitionId, x.SortOrder }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(80);
+            entity.Property(x => x.Color).HasMaxLength(24);
+        });
+
+        modelBuilder.Entity<Candidate>(entity =>
+        {
+            entity.HasIndex(x => x.Email);
+            entity.HasIndex(x => new { x.LastName, x.FirstName });
+            entity.Property(x => x.Email).HasMaxLength(320);
+            entity.Property(x => x.Tags).HasColumnType("text[]");
+        });
+
+        modelBuilder.Entity<Application>(entity =>
+        {
+            entity.HasIndex(x => new { x.RequisitionId, x.Status, x.PipelineStageId });
+            entity.HasIndex(x => new { x.CandidateId, x.RequisitionId });
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.HasOne(x => x.PipelineStage).WithMany(x => x.Applications).HasForeignKey(x => x.PipelineStageId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Interview>(entity =>
+        {
+            entity.Property(x => x.InterviewerEmails).HasColumnType("text[]");
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<Scorecard>(entity =>
+        {
+            entity.HasIndex(x => new { x.InterviewId, x.InterviewerEmail }).IsUnique();
+            entity.Property(x => x.Recommendation).HasConversion<string>().HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<Offer>(entity => entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32));
+        modelBuilder.Entity<AuditEvent>(entity => entity.HasIndex(x => new { x.EntityType, x.EntityId, x.OccurredAt }));
+    }
+}
