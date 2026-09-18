@@ -17,7 +17,7 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
@@ -277,43 +277,51 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("Candidates");
                 });
 
-            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Communication", b =>
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.IntegrationOutboxItem", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ApplicationId")
-                        .HasColumnType("uuid");
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
 
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Recipient")
-                        .IsRequired()
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LastError")
                         .HasColumnType("text");
 
-                    b.Property<string>("SenderEmail")
+                    b.Property<DateTimeOffset?>("LockedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Operation")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Subject")
-                        .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ApplicationId");
+                    b.HasIndex("Operation", "EntityId")
+                        .IsUnique();
 
-                    b.ToTable("Communications");
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("IntegrationOutbox");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Interview", b =>
@@ -325,8 +333,24 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<Guid>("ApplicationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CalendarError")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CalendarProvider")
+                        .HasColumnType("text");
+
+                    b.Property<string>("CalendarStatus")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("EndsAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExternalEventId")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("InterviewKitId")
+                        .HasColumnType("uuid");
 
                     b.PrimitiveCollection<string[]>("InterviewerEmails")
                         .IsRequired()
@@ -355,44 +379,122 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
 
                     b.HasIndex("ApplicationId");
 
+                    b.HasIndex("InterviewKitId");
+
                     b.ToTable("Interviews");
                 });
 
-            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Offer", b =>
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewCriterion", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ApplicationId")
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("InterviewKitId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("BaseSalary")
-                        .HasColumnType("numeric");
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("Question")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Weight")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InterviewKitId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("InterviewCriteria");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewKit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Currency")
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Instructions")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<DateOnly>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Status")
+                    b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
 
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<Guid>("RequisitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ApplicationId");
+                    b.HasIndex("RequisitionId", "SortOrder")
+                        .IsUnique();
 
-                    b.ToTable("Offers");
+                    b.ToTable("InterviewKits");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewRecording", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("ConsentConfirmed")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("InterviewId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UploadedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InterviewId", "RecordedAt");
+
+                    b.ToTable("InterviewRecordings");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PipelineStage", b =>
@@ -505,6 +607,10 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Concerns")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Evidence")
                         .IsRequired()
                         .HasColumnType("text");
@@ -524,6 +630,10 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
+                    b.Property<string>("Strengths")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("SubmittedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -535,40 +645,33 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("Scorecards");
                 });
 
-            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.TaskItem", b =>
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ScorecardCriterionRating", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("ApplicationId")
+                    b.Property<string>("Evidence")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("InterviewCriterionId")
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AssigneeEmail")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
 
-                    b.Property<DateTimeOffset?>("CompletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateOnly?>("DueDate")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<Guid>("ScorecardId")
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ApplicationId");
+                    b.HasIndex("InterviewCriterionId");
 
-                    b.ToTable("Tasks");
+                    b.HasIndex("ScorecardId", "InterviewCriterionId")
+                        .IsUnique();
+
+                    b.ToTable("ScorecardCriterionRatings");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Application", b =>
@@ -620,17 +723,6 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Candidate");
                 });
 
-            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Communication", b =>
-                {
-                    b.HasOne("MyThorneAI.Ats.Api.Domain.Application", "Application")
-                        .WithMany("Communications")
-                        .HasForeignKey("ApplicationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Application");
-                });
-
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Interview", b =>
                 {
                     b.HasOne("MyThorneAI.Ats.Api.Domain.Application", "Application")
@@ -639,18 +731,47 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.InterviewKit", "InterviewKit")
+                        .WithMany("Interviews")
+                        .HasForeignKey("InterviewKitId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Application");
+
+                    b.Navigation("InterviewKit");
                 });
 
-            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Offer", b =>
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewCriterion", b =>
                 {
-                    b.HasOne("MyThorneAI.Ats.Api.Domain.Application", "Application")
-                        .WithMany("Offers")
-                        .HasForeignKey("ApplicationId")
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.InterviewKit", "InterviewKit")
+                        .WithMany("Criteria")
+                        .HasForeignKey("InterviewKitId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Application");
+                    b.Navigation("InterviewKit");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewKit", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Requisition", "Requisition")
+                        .WithMany("InterviewKits")
+                        .HasForeignKey("RequisitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Requisition");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewRecording", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Interview", "Interview")
+                        .WithMany("Recordings")
+                        .HasForeignKey("InterviewId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Interview");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PipelineStage", b =>
@@ -675,26 +796,30 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Interview");
                 });
 
-            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.TaskItem", b =>
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ScorecardCriterionRating", b =>
                 {
-                    b.HasOne("MyThorneAI.Ats.Api.Domain.Application", "Application")
-                        .WithMany("Tasks")
-                        .HasForeignKey("ApplicationId");
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.InterviewCriterion", "InterviewCriterion")
+                        .WithMany("Ratings")
+                        .HasForeignKey("InterviewCriterionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
-                    b.Navigation("Application");
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Scorecard", "Scorecard")
+                        .WithMany("CriterionRatings")
+                        .HasForeignKey("ScorecardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InterviewCriterion");
+
+                    b.Navigation("Scorecard");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Application", b =>
                 {
-                    b.Navigation("Communications");
-
                     b.Navigation("Interviews");
 
                     b.Navigation("Notes");
-
-                    b.Navigation("Offers");
-
-                    b.Navigation("Tasks");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Candidate", b =>
@@ -706,7 +831,21 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Interview", b =>
                 {
+                    b.Navigation("Recordings");
+
                     b.Navigation("Scorecards");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewCriterion", b =>
+                {
+                    b.Navigation("Ratings");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.InterviewKit", b =>
+                {
+                    b.Navigation("Criteria");
+
+                    b.Navigation("Interviews");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PipelineStage", b =>
@@ -718,7 +857,14 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                 {
                     b.Navigation("Applications");
 
+                    b.Navigation("InterviewKits");
+
                     b.Navigation("Stages");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Scorecard", b =>
+                {
+                    b.Navigation("CriterionRatings");
                 });
 #pragma warning restore 612, 618
         }

@@ -6,7 +6,6 @@ public enum UserRole
     Recruiter,
     HiringManager,
     Interviewer,
-    Hr
 }
 
 public enum RequisitionStatus
@@ -16,7 +15,7 @@ public enum RequisitionStatus
     OnHold,
     Filled,
     Closed,
-    Cancelled
+    Cancelled,
 }
 
 public enum ApplicationStatus
@@ -24,7 +23,7 @@ public enum ApplicationStatus
     Active,
     Rejected,
     Withdrawn,
-    Hired
+    Hired,
 }
 
 public enum InterviewStatus
@@ -32,7 +31,7 @@ public enum InterviewStatus
     Scheduled,
     Completed,
     Cancelled,
-    NoShow
+    NoShow,
 }
 
 public enum Recommendation
@@ -41,17 +40,21 @@ public enum Recommendation
     No,
     Mixed,
     Yes,
-    StrongYes
+    StrongYes,
 }
 
-public enum OfferStatus
+public enum IntegrationOperation
 {
-    Draft,
-    Approved,
-    Sent,
-    Accepted,
-    Declined,
-    Withdrawn
+    CreateCalendarEvent,
+    CancelCalendarEvent,
+}
+
+public enum IntegrationOutboxStatus
+{
+    Pending,
+    Processing,
+    Succeeded,
+    Failed,
 }
 
 public sealed class AppUser
@@ -84,6 +87,7 @@ public sealed class Requisition
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<PipelineStage> Stages { get; set; } = [];
+    public List<InterviewKit> InterviewKits { get; set; } = [];
     public List<Application> Applications { get; set; } = [];
 }
 
@@ -135,9 +139,6 @@ public sealed class Application
     public DateTimeOffset LastActivityAt { get; set; } = DateTimeOffset.UtcNow;
     public List<ApplicationNote> Notes { get; set; } = [];
     public List<Interview> Interviews { get; set; } = [];
-    public List<TaskItem> Tasks { get; set; } = [];
-    public List<Offer> Offers { get; set; } = [];
-    public List<Communication> Communications { get; set; } = [];
 }
 
 public sealed class ApplicationNote
@@ -151,24 +152,13 @@ public sealed class ApplicationNote
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
-public sealed class TaskItem
-{
-    public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid? ApplicationId { get; set; }
-    public Application? Application { get; set; }
-    public required string Title { get; set; }
-    public required string AssigneeEmail { get; set; }
-    public DateOnly? DueDate { get; set; }
-    public bool IsCompleted { get; set; }
-    public DateTimeOffset? CompletedAt { get; set; }
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-}
-
 public sealed class Interview
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid ApplicationId { get; set; }
     public Application? Application { get; set; }
+    public Guid? InterviewKitId { get; set; }
+    public InterviewKit? InterviewKit { get; set; }
     public required string Title { get; set; }
     public DateTimeOffset StartsAt { get; set; }
     public DateTimeOffset EndsAt { get; set; }
@@ -176,7 +166,39 @@ public sealed class Interview
     public string? MeetingLink { get; set; }
     public string[] InterviewerEmails { get; set; } = [];
     public InterviewStatus Status { get; set; } = InterviewStatus.Scheduled;
+    public string CalendarStatus { get; set; } = "NotConfigured";
+    public string? CalendarProvider { get; set; }
+    public string? ExternalEventId { get; set; }
+    public string? CalendarError { get; set; }
     public List<Scorecard> Scorecards { get; set; } = [];
+    public List<InterviewRecording> Recordings { get; set; } = [];
+}
+
+public sealed class InterviewKit
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid RequisitionId { get; set; }
+    public Requisition? Requisition { get; set; }
+    public required string Name { get; set; }
+    public string Instructions { get; set; } = "";
+    public int DurationMinutes { get; set; } = 60;
+    public int SortOrder { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<InterviewCriterion> Criteria { get; set; } = [];
+    public List<Interview> Interviews { get; set; } = [];
+}
+
+public sealed class InterviewCriterion
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid InterviewKitId { get; set; }
+    public InterviewKit? InterviewKit { get; set; }
+    public required string Name { get; set; }
+    public required string Question { get; set; }
+    public string Description { get; set; } = "";
+    public int Weight { get; set; } = 1;
+    public int SortOrder { get; set; }
+    public List<ScorecardCriterionRating> Ratings { get; set; } = [];
 }
 
 public sealed class Scorecard
@@ -188,33 +210,49 @@ public sealed class Scorecard
     public Recommendation Recommendation { get; set; }
     public int Rating { get; set; }
     public required string Evidence { get; set; }
+    public required string Strengths { get; set; }
+    public required string Concerns { get; set; }
     public DateTimeOffset SubmittedAt { get; set; } = DateTimeOffset.UtcNow;
+    public List<ScorecardCriterionRating> CriterionRatings { get; set; } = [];
 }
 
-public sealed class Offer
+public sealed class ScorecardCriterionRating
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid ApplicationId { get; set; }
-    public Application? Application { get; set; }
-    public decimal BaseSalary { get; set; }
-    public required string Currency { get; set; }
-    public DateOnly StartDate { get; set; }
-    public OfferStatus Status { get; set; } = OfferStatus.Draft;
-    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public Guid ScorecardId { get; set; }
+    public Scorecard? Scorecard { get; set; }
+    public Guid InterviewCriterionId { get; set; }
+    public InterviewCriterion? InterviewCriterion { get; set; }
+    public int Rating { get; set; }
+    public required string Evidence { get; set; }
 }
 
-public sealed class Communication
+public sealed class InterviewRecording
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public Guid ApplicationId { get; set; }
-    public Application? Application { get; set; }
-    public required string Recipient { get; set; }
-    public required string Subject { get; set; }
-    public required string Body { get; set; }
-    public required string SenderEmail { get; set; }
-    public string Status { get; set; } = "Logged";
+    public Guid InterviewId { get; set; }
+    public Interview? Interview { get; set; }
+    public required string OriginalFileName { get; set; }
+    public required string StoredFileName { get; set; }
+    public required string ContentType { get; set; }
+    public long Length { get; set; }
+    public required string UploadedBy { get; set; }
+    public bool ConsentConfirmed { get; set; }
+    public DateTimeOffset RecordedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public sealed class IntegrationOutboxItem
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public IntegrationOperation Operation { get; set; }
+    public Guid EntityId { get; set; }
+    public IntegrationOutboxStatus Status { get; set; } = IntegrationOutboxStatus.Pending;
+    public int Attempts { get; set; }
+    public DateTimeOffset NextAttemptAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? LockedUntil { get; set; }
+    public string? LastError { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
 }
 
 public sealed class Attachment

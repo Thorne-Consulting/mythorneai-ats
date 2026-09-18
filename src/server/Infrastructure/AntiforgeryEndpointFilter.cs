@@ -8,10 +8,13 @@ public sealed class AntiforgeryEndpointFilter(IAntiforgery antiforgery) : IEndpo
     {
         HttpMethods.Get,
         HttpMethods.Head,
-        HttpMethods.Options
+        HttpMethods.Options,
     };
 
-    public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
+    public async ValueTask<object?> InvokeAsync(
+        EndpointFilterInvocationContext context,
+        EndpointFilterDelegate next
+    )
     {
         if (!SafeMethods.Contains(context.HttpContext.Request.Method))
         {
@@ -21,7 +24,9 @@ public sealed class AntiforgeryEndpointFilter(IAntiforgery antiforgery) : IEndpo
             }
             catch (AntiforgeryValidationException)
             {
-                return Results.BadRequest(new { message = "The security token is missing or invalid." });
+                return Results.BadRequest(
+                    new { message = "The security token is missing or invalid." }
+                );
             }
         }
 

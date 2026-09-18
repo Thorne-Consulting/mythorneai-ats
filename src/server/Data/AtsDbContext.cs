@@ -11,11 +11,14 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<Candidate> Candidates => Set<Candidate>();
     public DbSet<Application> Applications => Set<Application>();
     public DbSet<ApplicationNote> Notes => Set<ApplicationNote>();
-    public DbSet<TaskItem> Tasks => Set<TaskItem>();
     public DbSet<Interview> Interviews => Set<Interview>();
+    public DbSet<InterviewKit> InterviewKits => Set<InterviewKit>();
+    public DbSet<InterviewCriterion> InterviewCriteria => Set<InterviewCriterion>();
     public DbSet<Scorecard> Scorecards => Set<Scorecard>();
-    public DbSet<Offer> Offers => Set<Offer>();
-    public DbSet<Communication> Communications => Set<Communication>();
+    public DbSet<ScorecardCriterionRating> ScorecardCriterionRatings =>
+        Set<ScorecardCriterionRating>();
+    public DbSet<InterviewRecording> InterviewRecordings => Set<InterviewRecording>();
+    public DbSet<IntegrationOutboxItem> IntegrationOutbox => Set<IntegrationOutboxItem>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
@@ -38,7 +41,16 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Code).HasMaxLength(40);
             entity.Property(x => x.Title).HasMaxLength(200);
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
-            entity.HasMany(x => x.Stages).WithOne(x => x.Requisition).HasForeignKey(x => x.RequisitionId).OnDelete(DeleteBehavior.Cascade);
+            entity
+                .HasMany(x => x.Stages)
+                .WithOne(x => x.Requisition)
+                .HasForeignKey(x => x.RequisitionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity
+                .HasMany(x => x.InterviewKits)
+                .WithOne(x => x.Requisition)
+                .HasForeignKey(x => x.RequisitionId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<PipelineStage>(entity =>
@@ -58,16 +70,43 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
 
         modelBuilder.Entity<Application>(entity =>
         {
-            entity.HasIndex(x => new { x.RequisitionId, x.Status, x.PipelineStageId });
+            entity.HasIndex(x => new
+            {
+                x.RequisitionId,
+                x.Status,
+                x.PipelineStageId,
+            });
             entity.HasIndex(x => new { x.CandidateId, x.RequisitionId });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
-            entity.HasOne(x => x.PipelineStage).WithMany(x => x.Applications).HasForeignKey(x => x.PipelineStageId).OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(x => x.PipelineStage)
+                .WithMany(x => x.Applications)
+                .HasForeignKey(x => x.PipelineStageId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Interview>(entity =>
         {
             entity.Property(x => x.InterviewerEmails).HasColumnType("text[]");
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity
+                .HasOne(x => x.InterviewKit)
+                .WithMany(x => x.Interviews)
+                .HasForeignKey(x => x.InterviewKitId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<InterviewKit>(entity =>
+        {
+            entity.HasIndex(x => new { x.RequisitionId, x.SortOrder }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<InterviewCriterion>(entity =>
+        {
+            entity.HasIndex(x => new { x.InterviewKitId, x.SortOrder }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(120);
+            entity.Property(x => x.Question).HasMaxLength(1000);
         });
 
         modelBuilder.Entity<Scorecard>(entity =>
@@ -76,7 +115,44 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Recommendation).HasConversion<string>().HasMaxLength(32);
         });
 
-        modelBuilder.Entity<Offer>(entity => entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32));
-        modelBuilder.Entity<AuditEvent>(entity => entity.HasIndex(x => new { x.EntityType, x.EntityId, x.OccurredAt }));
+        modelBuilder.Entity<ScorecardCriterionRating>(entity =>
+        {
+            entity.HasIndex(x => new { x.ScorecardId, x.InterviewCriterionId }).IsUnique();
+            entity
+                .HasOne(x => x.Scorecard)
+                .WithMany(x => x.CriterionRatings)
+                .HasForeignKey(x => x.ScorecardId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity
+                .HasOne(x => x.InterviewCriterion)
+                .WithMany(x => x.Ratings)
+                .HasForeignKey(x => x.InterviewCriterionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InterviewRecording>(entity =>
+        {
+            entity.HasIndex(x => new { x.InterviewId, x.RecordedAt });
+            entity
+                .HasOne(x => x.Interview)
+                .WithMany(x => x.Recordings)
+                .HasForeignKey(x => x.InterviewId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<IntegrationOutboxItem>(entity =>
+        {
+            entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
+            entity.HasIndex(x => new { x.Operation, x.EntityId }).IsUnique();
+            entity.Property(x => x.Operation).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        });
+        modelBuilder.Entity<AuditEvent>(entity =>
+            entity.HasIndex(x => new
+            {
+                x.EntityType,
+                x.EntityId,
+                x.OccurredAt,
+            })
+        );
     }
 }

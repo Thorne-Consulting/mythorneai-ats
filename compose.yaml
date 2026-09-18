@@ -1,20 +1,31 @@
 services:
-  app:
+  api:
     build:
       context: .
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
-      ConnectionStrings__AtsDatabase: Host=database;Port=5432;Database=${POSTGRES_DB:-mythorneai_ats_mvp};Username=${POSTGRES_USER:-ats};Password=${POSTGRES_PASSWORD:-ats-local-only}
+      ConnectionStrings__AtsDatabase: Host=database;Port=5432;Database=${POSTGRES_DB:-internal_ats};Username=${POSTGRES_USER:-ats};Password=${POSTGRES_PASSWORD:-ats-local-only}
       Auth__Mode: ${AUTH_MODE:-Development}
       Auth__Authority: ${AUTH_AUTHORITY:-}
       Auth__ClientId: ${AUTH_CLIENT_ID:-}
       Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
       Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
       Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-ATS administrator}
+      Integrations__Provider: ${INTEGRATIONS_PROVIDER:-None}
+      Integrations__Microsoft365__TenantId: ${MICROSOFT365_TENANT_ID:-}
+      Integrations__Microsoft365__ClientId: ${MICROSOFT365_CLIENT_ID:-}
+      Integrations__Microsoft365__ClientSecret: ${MICROSOFT365_CLIENT_SECRET:-}
+      Integrations__Microsoft365__SenderUserId: ${MICROSOFT365_SENDER_USER_ID:-}
+      Integrations__Microsoft365__CreateOnlineMeetings: ${MICROSOFT365_CREATE_ONLINE_MEETINGS:-true}
+      Integrations__GoogleWorkspace__ImpersonatedUser: ${GOOGLE_WORKSPACE_IMPERSONATED_USER:-}
+      Integrations__GoogleWorkspace__CalendarId: ${GOOGLE_WORKSPACE_CALENDAR_ID:-primary}
+      Integrations__GoogleWorkspace__ServiceAccountJsonPath: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH:-}
+      Integrations__GoogleWorkspace__ServiceAccountJsonBase64: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_BASE64:-}
+      Integrations__GoogleWorkspace__CreateOnlineMeetings: ${GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS:-true}
       DataProtection__KeyPath: /app/data-protection-keys
       FileStorage__RootPath: /app/uploads
-    ports:
-      - "${APP_PORT:-8080}:8080"
+    expose:
+      - "8080"
     depends_on:
       database:
         condition: service_healthy
@@ -23,10 +34,21 @@ services:
       - ats-uploads:/app/uploads
     restart: unless-stopped
 
+  web:
+    build:
+      context: ./src/web
+      args:
+        API_ORIGIN: http://api:8080
+    ports:
+      - "${APP_PORT:-8080}:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
   database:
     image: postgres:18-alpine
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-mythorneai_ats_mvp}
+      POSTGRES_DB: ${POSTGRES_DB:-internal_ats}
       POSTGRES_USER: ${POSTGRES_USER:-ats}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ats-local-only}
     volumes:

@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Recruiter' | 'HiringManager' | 'Interviewer' | 'Hr';
+export type Role = 'Admin' | 'Recruiter' | 'HiringManager' | 'Interviewer';
 
 export interface User {
   id: string;
@@ -12,9 +12,6 @@ export interface DashboardData {
   openRequisitions: number;
   activeCandidates: number;
   interviewsThisWeek: number;
-  offersPending: number;
-  myOpenTasks: number;
-  myOverdueTasks: number;
   recentApplications: Array<{
     id: string;
     candidateName: string;
@@ -64,6 +61,25 @@ export interface RequisitionDetail extends RequisitionSummary {
   description: string;
   createdAt: string;
   stages: Stage[];
+  interviewKits: InterviewKit[];
+}
+
+export interface InterviewCriterion {
+  id: string;
+  name: string;
+  question: string;
+  description: string;
+  weight: number;
+  sortOrder: number;
+}
+
+export interface InterviewKit {
+  id: string;
+  name: string;
+  instructions: string;
+  durationMinutes: number;
+  sortOrder?: number;
+  criteria: InterviewCriterion[];
 }
 
 export interface CandidateSummary {
@@ -118,18 +134,48 @@ export interface BoardData {
   id: string;
   code: string;
   title: string;
-  stages: Array<Stage & {
-    applications: Array<{
-      id: string;
-      candidateId: string;
-      candidateName: string;
-      currentTitle?: string;
-      location?: string;
-      source: string;
-      rating?: number;
-      lastActivityAt: string;
-    }>;
+  stages: Array<
+    Stage & {
+      applications: Array<{
+        id: string;
+        candidateId: string;
+        candidateName: string;
+        currentTitle?: string;
+        location?: string;
+        source: string;
+        rating?: number;
+        lastActivityAt: string;
+      }>;
+    }
+  >;
+}
+
+export interface ApplicantPage {
+  items: Array<{
+    id: string;
+    candidateId: string;
+    candidateName: string;
+    email: string;
+    location?: string;
+    currentTitle?: string;
+    tags: string[];
+    hasResume: boolean;
+    resumeCount: number;
+    requisitionId: string;
+    requisitionCode: string;
+    requisitionTitle: string;
+    team: string;
+    stageId: string;
+    stage: string;
+    status: string;
+    source: string;
+    rating?: number;
+    appliedAt: string;
+    lastActivityAt: string;
   }>;
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface ApplicationDetailResponse {
@@ -154,35 +200,67 @@ export interface ApplicationDetailResponse {
     appliedAt: string;
     lastActivityAt: string;
     stages: Stage[];
-    notes: Array<{ id: string; body: string; authorEmail: string; isPrivate: boolean; createdAt: string }>;
-    tasks: TaskItem[];
+    interviewKits: InterviewKit[];
+    notes: Array<{
+      id: string;
+      body: string;
+      authorEmail: string;
+      isPrivate: boolean;
+      createdAt: string;
+    }>;
     interviews: Array<{
       id: string;
       title: string;
+      interviewKitId?: string;
+      interviewKitName?: string;
+      interviewKitInstructions?: string;
+      criteria: InterviewCriterion[];
       startsAt: string;
       endsAt: string;
       timeZone: string;
       meetingLink?: string;
       interviewerEmails: string[];
+      calendarStatus: string;
+      calendarProvider?: string;
       status: string;
-      scorecards: Array<{ id: string; interviewerEmail: string; recommendation: string; rating: number; evidence: string; submittedAt: string }>;
+      submittedScorecards: number;
+      scorecardsVisible: boolean;
+      scorecards: Array<{
+        id: string;
+        interviewerEmail: string;
+        recommendation: string;
+        rating: number;
+        evidence: string;
+        strengths: string;
+        concerns: string;
+        submittedAt: string;
+        criteria: Array<{
+          criterionId: string;
+          criterionName: string;
+          rating: number;
+          evidence: string;
+        }>;
+      }>;
+      recordings: Array<{
+        id: string;
+        originalFileName: string;
+        contentType: string;
+        length: number;
+        uploadedBy: string;
+        consentConfirmed: boolean;
+        recordedAt: string;
+      }>;
     }>;
-    offers: Array<{ id: string; baseSalary: number; currency: string; startDate: string; status: string; createdAt: string; updatedAt: string }>;
-    communications: Array<{ id: string; recipient: string; subject: string; body: string; senderEmail: string; status: string; createdAt: string }>;
   };
-  audit: Array<{ id: number; entityType: string; entityId: string; action: string; actorEmail: string; details?: string; occurredAt: string }>;
-}
-
-export interface TaskItem {
-  id: string;
-  applicationId?: string;
-  title: string;
-  assigneeEmail: string;
-  dueDate?: string;
-  isCompleted: boolean;
-  completedAt?: string;
-  candidateName?: string;
-  requisitionTitle?: string;
+  audit: Array<{
+    id: number;
+    entityType: string;
+    entityId: string;
+    action: string;
+    actorEmail: string;
+    details?: string;
+    occurredAt: string;
+  }>;
 }
 
 export interface AdminUser extends User {

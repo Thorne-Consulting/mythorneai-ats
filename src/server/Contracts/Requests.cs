@@ -13,7 +13,8 @@ public sealed record CreateRequisitionRequest(
     string OwnerEmail,
     string RecruiterEmail,
     string Description,
-    DateOnly? TargetStartDate);
+    DateOnly? TargetStartDate
+);
 
 public sealed record UpdateRequisitionRequest(
     string Title,
@@ -25,9 +26,24 @@ public sealed record UpdateRequisitionRequest(
     string OwnerEmail,
     string RecruiterEmail,
     string Description,
-    DateOnly? TargetStartDate);
+    DateOnly? TargetStartDate
+);
 
 public sealed record ChangeRequisitionStatusRequest(RequisitionStatus Status, string? Reason);
+
+public sealed record CreateInterviewKitRequest(
+    string Name,
+    string Instructions,
+    int DurationMinutes,
+    InterviewCriterionRequest[]? Criteria
+);
+
+public sealed record InterviewCriterionRequest(
+    string Name,
+    string Question,
+    string Description,
+    int Weight
+);
 
 public sealed record CreateCandidateRequest(
     string FirstName,
@@ -38,7 +54,8 @@ public sealed record CreateCandidateRequest(
     string? CurrentTitle,
     string? LinkedInUrl,
     string Source,
-    string[]? Tags);
+    string[]? Tags
+);
 
 public sealed record UpdateCandidateRequest(
     string FirstName,
@@ -50,24 +67,62 @@ public sealed record UpdateCandidateRequest(
     string? LinkedInUrl,
     string Source,
     string[]? Tags,
-    bool DoNotContact);
+    bool DoNotContact
+);
 
 public sealed record CreateApplicationRequest(Guid CandidateId, Guid RequisitionId, string Source);
-public sealed record MoveApplicationRequest(Guid StageId, ApplicationStatus Status, string? DispositionReason);
+
+public sealed record MoveApplicationRequest(
+    Guid StageId,
+    ApplicationStatus Status,
+    string? DispositionReason
+);
+
+public sealed record BulkMoveApplicationsRequest(
+    Guid[] ApplicationIds,
+    Guid StageId,
+    ApplicationStatus Status,
+    string? DispositionReason
+);
+
 public sealed record AddNoteRequest(string Body, bool IsPrivate);
-public sealed record CreateTaskRequest(Guid? ApplicationId, string Title, string AssigneeEmail, DateOnly? DueDate);
-public sealed record CompleteTaskRequest(bool IsCompleted);
 
 public sealed record ScheduleInterviewRequest(
     string Title,
+    Guid? InterviewKitId,
     DateTimeOffset StartsAt,
     DateTimeOffset EndsAt,
     string TimeZone,
     string? MeetingLink,
-    string[] InterviewerEmails);
+    string[] InterviewerEmails
+);
 
-public sealed record SubmitScorecardRequest(Recommendation Recommendation, int Rating, string Evidence);
-public sealed record CreateOfferRequest(decimal BaseSalary, string Currency, DateOnly StartDate);
-public sealed record ChangeOfferStatusRequest(OfferStatus Status);
-public sealed record LogCommunicationRequest(string Subject, string Body);
-public sealed record UpsertUserRequest(string Email, string DisplayName, UserRole Role, string? Department, bool IsActive);
+public sealed record UpdateInterviewRequest(
+    string Title,
+    Guid? InterviewKitId,
+    DateTimeOffset StartsAt,
+    DateTimeOffset EndsAt,
+    string TimeZone,
+    string? MeetingLink,
+    string[] InterviewerEmails,
+    InterviewStatus Status
+);
+
+public sealed record SubmitScorecardRequest(
+    Recommendation Recommendation,
+    int Rating,
+    string Evidence,
+    string Strengths,
+    string Concerns,
+    ScorecardCriterionRatingRequest[]? Criteria
+);
+
+public sealed record ScorecardCriterionRatingRequest(Guid CriterionId, int Rating, string Evidence);
+
+public sealed record UpsertUserRequest(
+    string Email,
+    string DisplayName,
+    UserRole Role,
+    string? Department,
+    bool IsActive
+);

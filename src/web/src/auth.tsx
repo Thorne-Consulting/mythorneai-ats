@@ -1,9 +1,11 @@
+'use client';
+
 import { createContext, useContext } from 'react';
 import { Center, Loader } from '@mantine/core';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, api } from './api';
 import type { User } from './types';
-import { LoginPage } from './pages/LoginPage';
+import { LoginPage } from './features/LoginPage';
 
 const AuthContext = createContext<User | null>(null);
 
@@ -15,7 +17,11 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   });
 
   if (query.isPending) {
-    return <Center mih="100vh"><Loader size="sm" /></Center>;
+    return (
+      <Center mih="100vh">
+        <Loader size="sm" />
+      </Center>
+    );
   }
 
   if (query.error instanceof ApiError && query.error.status === 401) {

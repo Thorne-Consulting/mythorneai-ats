@@ -22,8 +22,10 @@ async function ensureCsrfToken() {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   const method = (options.method ?? 'GET').toUpperCase();
-  if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
-  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) headers.set('X-CSRF-TOKEN', await ensureCsrfToken());
+  if (options.body && !(options.body instanceof FormData))
+    headers.set('Content-Type', 'application/json');
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method))
+    headers.set('X-CSRF-TOKEN', await ensureCsrfToken());
 
   const response = await fetch(path, { ...options, headers, credentials: 'include' });
   if (!response.ok) {
@@ -33,9 +35,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     } catch {
       details = undefined;
     }
-    const message = typeof details === 'object' && details && 'message' in details
-      ? String((details as { message: unknown }).message)
-      : response.status === 401 ? 'Please sign in.' : 'The request could not be completed.';
+    const message =
+      typeof details === 'object' && details && 'message' in details
+        ? String((details as { message: unknown }).message)
+        : response.status === 401
+          ? 'Please sign in.'
+          : 'The request could not be completed.';
     throw new ApiError(message, response.status, details);
   }
   if (response.status === 204) return undefined as T;
@@ -44,7 +49,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: 'POST',
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
   devLogin: async (email: string) => {
     const response = await fetch('/api/auth/dev-login', {
       method: 'POST',
@@ -59,8 +68,11 @@ export const api = {
     body.append('file', file);
     return request<T>(path, { method: 'POST', body });
   },
-  put: <T>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
-  patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  put: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
+  patch: <T>(path: string, body: unknown) =>
+    request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
 export function resetCsrfToken() {

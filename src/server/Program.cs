@@ -7,6 +7,7 @@ using MyThorneAI.Ats.Api.Api;
 using MyThorneAI.Ats.Api.Auth;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Infrastructure;
+using MyThorneAI.Ats.Api.Integrations;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,42 +21,48 @@ builder.Services.AddOpenApi();
 var dataProtectionPath = builder.Configuration["DataProtection:KeyPath"];
 if (!string.IsNullOrWhiteSpace(dataProtectionPath))
 {
-    builder.Services.AddDataProtection()
+    builder
+        .Services.AddDataProtection()
         .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionPath))
-        .SetApplicationName("MyThorneAI.Ats");
+        .SetApplicationName("Internal.Ats");
 }
 builder.Services.AddAntiforgery(options =>
 {
     options.HeaderName = "X-CSRF-TOKEN";
-    options.Cookie.Name = "mythorneai.ats.csrf";
+    options.Cookie.Name = "internal.ats.csrf";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Strict;
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 builder.Services.AddDbContext<AtsDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("AtsDatabase")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("AtsDatabase"))
+);
 builder.Services.AddAtsAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<AntiforgeryEndpointFilter>();
 builder.Services.AddSingleton<LocalFileStore>();
+builder.Services.AddWorkplaceIntegrations(builder.Configuration);
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-});
+app.UseForwardedHeaders(
+    new ForwardedHeadersOptions
+    {
+        ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+    }
+);
 app.UseExceptionHandler();
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["Referrer-Policy"] = "no-referrer";
-    context.Response.Headers["X-Frame-Options"] = "DENY";
-    context.Response.Headers["Content-Security-Policy"] = "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
-    await next();
-});
-app.UseDefaultFiles();
-app.UseStaticFiles();
+app.Use(
+    async (context, next) =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+        context.Response.Headers["X-Frame-Options"] = "SAMEORIGIN";
+        context.Response.Headers["Content-Security-Policy"] =
+            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'";
+        await next();
+    }
+);
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
@@ -68,18 +75,20 @@ if (app.Environment.IsDevelopment())
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapAtsAuth(app.Configuration, app.Environment);
-app.MapGet("/api/auth/csrf", (HttpContext context, IAntiforgery antiforgery) =>
-{
-    var tokens = antiforgery.GetAndStoreTokens(context);
-    return Results.Ok(new { token = tokens.RequestToken });
-}).RequireAuthorization();
+app.MapGet(
+        "/api/auth/csrf",
+        (HttpContext context, IAntiforgery antiforgery) =>
+        {
+            var tokens = antiforgery.GetAndStoreTokens(context);
+            return Results.Ok(new { token = tokens.RequestToken });
+        }
+    )
+    .RequireAuthorization();
 
 var api = app.MapGroup("/api")
     .RequireAuthorization(AtsPolicies.Read)
     .AddEndpointFilter<AntiforgeryEndpointFilter>();
 api.MapAtsEndpoints();
-
-app.MapFallbackToFile("index.html").AllowAnonymous();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {

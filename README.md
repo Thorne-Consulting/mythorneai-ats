@@ -1,6 +1,6 @@
-# MyThorneAI ATS
+# internal ATS
 
-An in-house applicant tracking system for MyThorneAI.
+A company-agnostic, self-hosted applicant tracking system focused on resume review, applicant decisions, interview scheduling, structured evaluation, and feedback.
 
 The source is available to inspect and modify for permitted internal business
 use. It may not be sold, sublicensed, transferred, or redistributed. See the
@@ -8,6 +8,3 @@ use. It may not be sold, sublicensed, transferred, or redistributed. See the
 
 This is a single-company internal application. It is not a SaaS product and
 does not include a marketing or landing page.
-
-The initial product research and proposed feature scope are in the
-[ATS feature blueprint](docs/ats-feature-blueprint.md).
