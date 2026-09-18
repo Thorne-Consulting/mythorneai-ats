@@ -1,10 +1,6 @@
-'use client';
+import { ApplicationHistory } from '@/features/applications/ApplicationHistory';
 
-import { useParams } from 'next/navigation';
-import { ApplicationHistory } from '../../../../../features/ApplicationDetailPage';
-
-export default function Page() {
-  const id = useParams<{ id: string }>()?.id;
-  if (!id) return null;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return <ApplicationHistory id={id} />;
 }

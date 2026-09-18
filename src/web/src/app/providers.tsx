@@ -14,9 +14,13 @@ import {
 } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ApiError } from '../api';
 
 const theme = createTheme({
   primaryColor: 'indigo',
+  // Shade 7 (#4263eb), not the default 6: white on shade 6 measures 4.32:1 and
+  // fails AA on our own primary button. Shade 7 clears it at 4.98:1.
+  primaryShade: 7,
   defaultRadius: 'md',
   autoContrast: true,
   cursorType: 'pointer',
@@ -76,15 +80,53 @@ const theme = createTheme({
   },
 });
 
+/**
+ * Token overrides that must beat Mantine's runtime-injected variables. A
+ * stylesheet cannot win that fight on source order, so they belong here.
+ * Both values exist for one reason: the defaults fail WCAG AA.
+ */
+const cssVariablesResolver = () => ({
+  variables: {},
+  light: {
+    // #868e96 is 3.32:1 on white.
+    '--mantine-color-dimmed': '#6b7280',
+    // Accent text on a 10% accent wash is ~4.2:1; darken the text, keep the wash.
+    '--mantine-color-indigo-light-color': 'var(--mantine-color-indigo-9)',
+    '--mantine-primary-color-light-color': 'var(--mantine-color-indigo-9)',
+  },
+  dark: {
+    '--mantine-color-dimmed': '#9aa1a9',
+  },
+});
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
       new QueryClient({
-        defaultOptions: { queries: { staleTime: 20_000, retry: 1, refetchOnWindowFocus: false } },
+        defaultOptions: {
+          queries: {
+            staleTime: 20_000,
+            // A 4xx will not become a 2xx on a second try, and retrying it only
+            // delays the error the user needs to see.
+            retry: (failureCount: number, error: unknown) =>
+              !(error instanceof ApiError && error.status >= 400 && error.status < 500) &&
+              failureCount < 1,
+            refetchOnWindowFocus: false,
+            // Default 'online' pauses a retry whenever the online heuristic says
+            // offline, and a paused query never becomes an error: the UI sits on a
+            // loading skeleton forever. Always attempt the request and let a real
+            // failure surface as a real error.
+            networkMode: 'offlineFirst',
+          },
+        },
       }),
   );
   return (
-    <MantineProvider theme={theme} defaultColorScheme="light">
+    <MantineProvider
+      theme={theme}
+      defaultColorScheme="light"
+      cssVariablesResolver={cssVariablesResolver}
+    >
       <Notifications position="top-right" limit={3} />
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </MantineProvider>

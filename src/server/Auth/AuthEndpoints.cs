@@ -138,10 +138,15 @@ public static partial class AuthExtensions
         return endpoints;
     }
 
+    // "//evil.com" is a well-formed *relative* URI that starts with '/', so the
+    // obvious guard lets it through, and a browser reads it as protocol-relative
+    // and leaves the site. Everything else hostile ("https://evil.com", "/\evil.com")
+    // already fails IsWellFormedUriString.
     private static string SafeReturnUrl(string? returnUrl) =>
         !string.IsNullOrWhiteSpace(returnUrl)
         && Uri.IsWellFormedUriString(returnUrl, UriKind.Relative)
         && returnUrl.StartsWith('/')
+        && !returnUrl.StartsWith("//", StringComparison.Ordinal)
             ? returnUrl
             : "/";
 

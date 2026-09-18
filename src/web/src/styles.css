@@ -15,7 +15,7 @@
 
 [data-mantine-color-scheme='dark'] {
   --surface-sunken: var(--mantine-color-dark-8);
-  --surface-header: rgba(26, 27, 30, 0.82);
+  --surface-header: rgba(36, 36, 36, 0.82);
 }
 
 body {
@@ -181,6 +181,12 @@ select {
 
 .candidate-card[data-dragging] {
   opacity: 0.4;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
 }
 
 .stage-dot {

@@ -17,15 +17,14 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { IconArrowRight, IconBriefcase2 } from '@tabler/icons-react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { api, resetCsrfToken } from '../api';
-import { humanize, initials } from '../components/Common';
-import type { User } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import { api, resetCsrfToken } from '@/api';
+import { humanize, initials } from '@/lib/format';
+import type { User } from '@/types';
 
 type DevUser = Pick<User, 'email' | 'displayName' | 'role'>;
 
 export function LoginPage({ unavailable = false }: { unavailable?: boolean }) {
-  const queryClient = useQueryClient();
   const [signingIn, setSigningIn] = useState<string | null>(null);
   const users = useQuery({
     queryKey: ['dev-users'],
@@ -38,7 +37,7 @@ export function LoginPage({ unavailable = false }: { unavailable?: boolean }) {
     try {
       resetCsrfToken();
       await api.devLogin(email);
-      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      window.location.assign('/');
     } finally {
       setSigningIn(null);
     }

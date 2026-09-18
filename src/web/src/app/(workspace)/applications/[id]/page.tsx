@@ -1,10 +1,6 @@
-'use client';
+import { ApplicationRecord } from '@/features/applications/ApplicationRecord';
 
-import { useParams } from 'next/navigation';
-import { ApplicationRecord } from '../../../../features/ApplicationDetailPage';
-
-export default function Page() {
-  const id = useParams<{ id: string }>()?.id;
-  if (!id) return null;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   return <ApplicationRecord id={id} />;
 }

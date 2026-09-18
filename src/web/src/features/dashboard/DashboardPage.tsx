@@ -17,16 +17,13 @@ import {
 import { IconArrowRight, IconBriefcase2, IconCalendarEvent, IconUsers } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { api } from '../api';
-import {
-  formatDateTime,
-  initials,
-  LoadingBlock,
-  PageHeader,
-  SectionCard,
-} from '../components/Common';
-import type { DashboardData } from '../types';
-import { useCurrentUser } from '../auth';
+import { api } from '@/api';
+import { SectionCard } from '@/components/ui/Cards';
+import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { PageHeader } from '@/components/ui/PageHeaders';
+import { formatDateTime, initials } from '@/lib/format';
+import type { DashboardData } from '@/types';
+import { useCurrentUser } from '@/auth';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -35,12 +32,13 @@ function greeting() {
   return 'Good evening';
 }
 
-export function DashboardPage() {
+export function DashboardPage({ initialData }: { initialData: DashboardData }) {
   const user = useCurrentUser();
   const router = useRouter();
   const query = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => api.get<DashboardData>('/api/dashboard'),
+    initialData,
   });
   const firstName = user.displayName.split(' ')[0];
   const header = (

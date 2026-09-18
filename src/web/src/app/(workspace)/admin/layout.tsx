@@ -1,7 +1,6 @@
-'use client';
+import type { ReactNode } from 'react';
+import { AdminShell } from '@/features/admin/AdminShell';
 
-import { AdminShell } from '../../../features/AdminPage';
-
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default function Layout({ children }: { children: ReactNode }) {
   return <AdminShell>{children}</AdminShell>;
 }

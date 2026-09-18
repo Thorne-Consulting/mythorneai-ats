@@ -4,17 +4,12 @@ import { useMemo, useState } from 'react';
 import {
   Badge,
   Button,
-  Checkbox,
   Collapse,
   Group,
-  Modal,
-  Pagination,
   Paper,
-  Rating,
   Select,
   SimpleGrid,
   Stack,
-  Table,
   Text,
   TextInput,
 } from '@mantine/core';
@@ -26,23 +21,21 @@ import {
   IconSearch,
   IconUserCheck,
   IconUserOff,
-  IconUserSearch,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { api } from '../api';
-import {
-  EmptyState,
-  formatDate,
-  LoadingBlock,
-  PageHeader,
-  rowLinkProps,
-  StageBadge,
-} from '../components/Common';
-import type { ApplicantPage, RequisitionDetail, RequisitionSummary } from '../types';
+import { api } from '@/api';
+import { PageHeader } from '@/components/ui/PageHeaders';
+import type { ApplicantPage, RequisitionDetail, RequisitionSummary } from '@/types';
+import { ApplicantResults } from './ApplicantResults';
+import { RejectManyModal } from './RejectManyModal';
 
-export function ApplicantsPage() {
-  const router = useRouter();
+export function ApplicantsPage({
+  initialApplicants,
+  initialSessions,
+}: {
+  initialApplicants: ApplicantPage;
+  initialSessions: RequisitionSummary[];
+}) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -63,6 +56,7 @@ export function ApplicantsPage() {
   const sessions = useQuery({
     queryKey: ['requisitions', 'applicant-filter'],
     queryFn: () => api.get<RequisitionSummary[]>('/api/requisitions'),
+    initialData: initialSessions,
   });
   const params = useMemo(() => {
     const value = new URLSearchParams({ page: String(page), pageSize: '50', sort });
@@ -80,6 +74,10 @@ export function ApplicantsPage() {
   const applicants = useQuery({
     queryKey: ['applicants', params.toString()],
     queryFn: () => api.get<ApplicantPage>(`/api/applications?${params}`),
+    initialData:
+      params.toString() === 'page=1&pageSize=50&sort=newest&status=Active'
+        ? initialApplicants
+        : undefined,
   });
   const runBulk = useMutation({
     mutationFn: ({ nextStatus, reason }: { nextStatus: string; reason?: string }) =>
@@ -113,7 +111,6 @@ export function ApplicantsPage() {
     queryFn: () => api.get<RequisitionDetail>(`/api/requisitions/${bulkJobId}`),
     enabled: Boolean(bulkJobId),
   });
-  const allSelected = items.length > 0 && items.every((item) => selected.includes(item.id));
   const resetPage =
     <T,>(setter: (value: T) => void) =>
     (value: T) => {
@@ -285,126 +282,13 @@ export function ApplicantsPage() {
           </Group>
         </Paper>
       )}
-      {!applicants.data ? (
-        <LoadingBlock rows={6} />
-      ) : items.length === 0 ? (
-        <EmptyState
-          icon={IconUserSearch}
-          title="No applicants match these filters"
-          description="Clear a filter or widen the search to see more people."
-        />
-      ) : (
-        <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
-          <Table.ScrollContainer minWidth={1100}>
-            <Table verticalSpacing="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={44}>
-                    <Checkbox
-                      aria-label="Select all applicants on this page"
-                      checked={allSelected}
-                      indeterminate={selected.length > 0 && !allSelected}
-                      onChange={(event) =>
-                        setSelected(event.currentTarget.checked ? items.map((item) => item.id) : [])
-                      }
-                    />
-                  </Table.Th>
-                  <Table.Th>Applicant</Table.Th>
-                  <Table.Th>Job</Table.Th>
-                  <Table.Th>Stage</Table.Th>
-                  <Table.Th>Source</Table.Th>
-                  <Table.Th>Resume</Table.Th>
-                  <Table.Th>Rating</Table.Th>
-                  <Table.Th>Applied</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {items.map((item) => (
-                  <Table.Tr
-                    key={item.id}
-                    {...rowLinkProps(`Open ${item.candidateName}`, () =>
-                      router.push(`/applications/${item.id}`),
-                    )}
-                  >
-                    <Table.Td onClick={(event) => event.stopPropagation()}>
-                      <Checkbox
-                        aria-label={`Select ${item.candidateName}`}
-                        checked={selected.includes(item.id)}
-                        onChange={(event) => {
-                          // Read the event before setSelected: React may run the
-                          // updater after the synthetic event has been released.
-                          const { checked } = event.currentTarget;
-                          setSelected((current) =>
-                            checked
-                              ? [...current, item.id]
-                              : current.filter((id) => id !== item.id),
-                          );
-                        }}
-                      />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text fw={650} size="sm">
-                        {item.candidateName}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {item.currentTitle ?? item.email} · {item.location ?? 'No location'}
-                      </Text>
-                      <Group gap={4} mt={4}>
-                        {item.tags.slice(0, 4).map((value) => (
-                          <Badge key={value} size="xs" variant="light" color="gray">
-                            {value}
-                          </Badge>
-                        ))}
-                      </Group>
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{item.requisitionTitle}</Text>
-                      <Text size="xs" c="dimmed">
-                        {item.requisitionCode} · {item.team}
-                      </Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <StageBadge stage={item.stage} />
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{item.source}</Text>
-                    </Table.Td>
-                    <Table.Td>
-                      <Badge color={item.hasResume ? 'teal' : 'orange'} variant="light">
-                        {item.hasResume
-                          ? `${item.resumeCount} file${item.resumeCount === 1 ? '' : 's'}`
-                          : 'Missing'}
-                      </Badge>
-                    </Table.Td>
-                    <Table.Td>
-                      {item.rating ? (
-                        <Rating value={item.rating} readOnly size="xs" />
-                      ) : (
-                        <Text c="dimmed">—</Text>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      <Text size="sm">{formatDate(item.appliedAt)}</Text>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        </Paper>
-      )}
-      {applicants.data && applicants.data.total > applicants.data.pageSize && (
-        <Group justify="space-between" mt="lg">
-          <Text size="sm" c="dimmed">
-            {applicants.data.total} applicants
-          </Text>
-          <Pagination
-            value={page}
-            onChange={setPage}
-            total={Math.ceil(applicants.data.total / applicants.data.pageSize)}
-          />
-        </Group>
-      )}
+      <ApplicantResults
+        data={applicants.data}
+        selected={selected}
+        setSelected={setSelected}
+        page={page}
+        setPage={setPage}
+      />
       <RejectManyModal
         opened={rejectOpened}
         onClose={rejectModal.close}
@@ -412,56 +296,5 @@ export function ApplicantsPage() {
         onReject={(reason) => runBulk.mutate({ nextStatus: 'Rejected', reason })}
       />
     </>
-  );
-}
-
-function RejectManyModal({
-  opened,
-  onClose,
-  loading,
-  onReject,
-}: {
-  opened: boolean;
-  onClose: () => void;
-  loading: boolean;
-  onReject: (reason: string) => void;
-}) {
-  const [reason, setReason] = useState<string | null>(null);
-  return (
-    <Modal opened={opened} onClose={onClose} title="Reject selected applicants">
-      <Stack>
-        <Select
-          label="Disposition reason"
-          value={reason}
-          onChange={setReason}
-          data={[
-            'Does not meet minimum requirements',
-            'Skills mismatch',
-            'Experience mismatch',
-            'Compensation mismatch',
-            'Location or availability',
-            'Withdrew',
-            'Position closed',
-            'Other',
-          ]}
-        />
-        <Text size="sm" c="dimmed">
-          The same job-related reason is recorded for each selected applicant.
-        </Text>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            color="red"
-            disabled={!reason}
-            loading={loading}
-            onClick={() => reason && onReject(reason)}
-          >
-            Reject applicants
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
   );
 }
