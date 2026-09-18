@@ -89,6 +89,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
         {
             entity.Property(x => x.InterviewerEmails).HasColumnType("text[]");
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.MeetingNotesSource).HasMaxLength(120);
             entity
                 .HasOne(x => x.InterviewKit)
                 .WithMany(x => x.Interviews)
