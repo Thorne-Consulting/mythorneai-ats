@@ -5,25 +5,40 @@ import {
   Badge,
   Button,
   Checkbox,
+  Collapse,
   Group,
   Modal,
   Pagination,
   Paper,
   Rating,
   Select,
+  SimpleGrid,
   Stack,
   Table,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSearch, IconUserCheck, IconUserOff } from '@tabler/icons-react';
+import {
+  IconChevronDown,
+  IconChevronUp,
+  IconSearch,
+  IconUserCheck,
+  IconUserOff,
+  IconUserSearch,
+} from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '../api';
-import { formatDate, LoadingBlock, PageHeader, StatusBadge } from '../components/Common';
+import {
+  EmptyState,
+  formatDate,
+  LoadingBlock,
+  PageHeader,
+  rowLinkProps,
+  StageBadge,
+} from '../components/Common';
 import type { ApplicantPage, RequisitionDetail, RequisitionSummary } from '../types';
 
 export function ApplicantsPage() {
@@ -43,14 +58,11 @@ export function ApplicantsPage() {
   const [selected, setSelected] = useState<string[]>([]);
   const [targetStage, setTargetStage] = useState<string | null>(null);
   const [rejectOpened, rejectModal] = useDisclosure();
+  const [showMore, { toggle: toggleMore }] = useDisclosure(false);
+  const activeExtraFilters = [source, tag, location, resume, rating].filter(Boolean).length;
   const sessions = useQuery({
     queryKey: ['requisitions', 'applicant-filter'],
     queryFn: () => api.get<RequisitionSummary[]>('/api/requisitions'),
-  });
-  const session = useQuery({
-    queryKey: ['requisition', sessionId],
-    queryFn: () => api.get<RequisitionDetail>(`/api/requisitions/${sessionId}`),
-    enabled: Boolean(sessionId),
   });
   const params = useMemo(() => {
     const value = new URLSearchParams({ page: String(page), pageSize: '50', sort });
@@ -88,6 +100,19 @@ export function ApplicantsPage() {
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
   const items = applicants.data?.items ?? [];
+  // Bulk moves need one job's stages. Use the filter when it is set, otherwise
+  // infer it from the selection so nobody has to filter first.
+  const selectedJobIds = [
+    ...new Set(
+      items.filter((item) => selected.includes(item.id)).map((item) => item.requisitionId),
+    ),
+  ];
+  const bulkJobId = sessionId ?? (selectedJobIds.length === 1 ? selectedJobIds[0] : null);
+  const session = useQuery({
+    queryKey: ['requisition', bulkJobId],
+    queryFn: () => api.get<RequisitionDetail>(`/api/requisitions/${bulkJobId}`),
+    enabled: Boolean(bulkJobId),
+  });
   const allSelected = items.length > 0 && items.every((item) => selected.includes(item.id));
   const resetPage =
     <T,>(setter: (value: T) => void) =>
@@ -97,124 +122,140 @@ export function ApplicantsPage() {
       setSelected([]);
     };
   return (
-    <div>
+    <>
       <PageHeader
-        title="Applicants"
-        description="Review, filter, and move applicants across every hiring session."
+        title="Applications"
+        description="Every application across every job, in one list."
       />
-      <Stack gap="sm" mb="lg">
-        <Group align="flex-end">
-          <TextInput
-            label="Search"
-            placeholder="Name, email, title, or tag"
-            value={search}
-            onChange={(event) => resetPage(setSearch)(event.currentTarget.value)}
-            leftSection={<IconSearch size={15} />}
-            style={{ flex: 1 }}
-          />
-          <Select
-            searchable
-            clearable
-            label="Hiring session"
-            placeholder="All sessions"
-            value={sessionId}
-            onChange={(value) => {
-              resetPage(setSessionId)(value);
-              setStageId(null);
-              setTargetStage(null);
-            }}
-            data={
-              sessions.data?.map((item) => ({
-                value: item.id,
-                label: `${item.code} · ${item.title}`,
-              })) ?? []
-            }
-            w={300}
-          />
-          <Select
-            clearable
-            label="Stage"
-            placeholder="All stages"
-            value={stageId}
-            onChange={resetPage(setStageId)}
-            disabled={!sessionId}
-            data={session.data?.stages.map((item) => ({ value: item.id, label: item.name })) ?? []}
-            w={180}
-          />
-          <Select
-            clearable
-            label="Status"
-            value={status}
-            onChange={resetPage(setStatus)}
-            data={['Active', 'Rejected', 'Withdrawn', 'Hired']}
-            w={150}
-          />
-        </Group>
-        <Group align="flex-end">
-          <TextInput
-            label="Source"
-            value={source}
-            onChange={(event) => resetPage(setSource)(event.currentTarget.value)}
-            w={170}
-          />
-          <TextInput
-            label="Tag or skill"
-            value={tag}
-            onChange={(event) => resetPage(setTag)(event.currentTarget.value)}
-            w={170}
-          />
-          <TextInput
-            label="Location"
-            value={location}
-            onChange={(event) => resetPage(setLocation)(event.currentTarget.value)}
-            w={180}
-          />
-          <Select
-            clearable
-            label="Resume"
-            value={resume}
-            onChange={resetPage(setResume)}
-            data={[
-              { value: 'true', label: 'Has resume' },
-              { value: 'false', label: 'Missing resume' },
-            ]}
-            w={160}
-          />
-          <Select
-            clearable
-            label="Minimum rating"
-            value={rating}
-            onChange={resetPage(setRating)}
-            data={['1', '2', '3', '4', '5']}
-            w={150}
-          />
-          <Select
-            label="Sort"
-            value={sort}
-            onChange={(value) => value && resetPage(setSort)(value)}
-            data={[
-              { value: 'newest', label: 'Newest first' },
-              { value: 'oldest', label: 'Oldest first' },
-              { value: 'name', label: 'Name' },
-              { value: 'rating', label: 'Highest rating' },
-            ]}
-            w={170}
-          />
-        </Group>
-      </Stack>
-      {selected.length > 0 && (
-        <Paper withBorder p="sm" mb="md">
-          <Group>
-            <Text fw={650}>{selected.length} selected</Text>
+      <Paper withBorder radius="lg" p="md" mb="lg">
+        <Stack gap="sm">
+          <Group gap="sm" wrap="wrap" align="flex-end">
+            <TextInput
+              label="Search"
+              placeholder="Name, email, title, or tag"
+              value={search}
+              onChange={(event) => resetPage(setSearch)(event.currentTarget.value)}
+              leftSection={<IconSearch size={15} />}
+              style={{ flex: '2 1 260px' }}
+            />
             <Select
-              placeholder="Move to stage"
-              value={targetStage}
-              onChange={setTargetStage}
+              searchable
+              clearable
+              label="Job"
+              placeholder="All jobs"
+              value={sessionId}
+              onChange={(value) => {
+                resetPage(setSessionId)(value);
+                setStageId(null);
+                setTargetStage(null);
+              }}
+              data={
+                sessions.data?.map((item) => ({
+                  value: item.id,
+                  label: `${item.code} · ${item.title}`,
+                })) ?? []
+              }
+              style={{ flex: '2 1 240px' }}
+            />
+            <Select
+              clearable
+              label="Stage"
+              placeholder={sessionId ? 'All stages' : 'Pick a job first'}
+              value={stageId}
+              onChange={resetPage(setStageId)}
               disabled={!sessionId}
               data={
                 session.data?.stages.map((item) => ({ value: item.id, label: item.name })) ?? []
               }
-              w={200}
+              style={{ flex: '1 1 160px' }}
+            />
+            <Select
+              clearable
+              label="Status"
+              value={status}
+              onChange={resetPage(setStatus)}
+              data={['Active', 'Rejected', 'Withdrawn', 'Hired']}
+              style={{ flex: '1 1 140px' }}
+            />
+            <Button
+              variant={showMore ? 'light' : 'default'}
+              onClick={toggleMore}
+              rightSection={showMore ? <IconChevronUp size={15} /> : <IconChevronDown size={15} />}
+            >
+              Filters
+              {activeExtraFilters > 0 && (
+                <Badge ml={8} size="xs" circle variant="filled">
+                  {activeExtraFilters}
+                </Badge>
+              )}
+            </Button>
+          </Group>
+          <Collapse in={showMore}>
+            <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, lg: 6 }} spacing="sm" pt={4}>
+              <TextInput
+                label="Source"
+                value={source}
+                onChange={(event) => resetPage(setSource)(event.currentTarget.value)}
+              />
+              <TextInput
+                label="Tag or skill"
+                value={tag}
+                onChange={(event) => resetPage(setTag)(event.currentTarget.value)}
+              />
+              <TextInput
+                label="Location"
+                value={location}
+                onChange={(event) => resetPage(setLocation)(event.currentTarget.value)}
+              />
+              <Select
+                clearable
+                label="Resume"
+                placeholder="Any"
+                value={resume}
+                onChange={resetPage(setResume)}
+                data={[
+                  { value: 'true', label: 'Has resume' },
+                  { value: 'false', label: 'Missing resume' },
+                ]}
+              />
+              <Select
+                clearable
+                label="Minimum rating"
+                placeholder="Any"
+                value={rating}
+                onChange={resetPage(setRating)}
+                data={['1', '2', '3', '4', '5']}
+              />
+              <Select
+                label="Sort"
+                value={sort}
+                onChange={(value) => value && resetPage(setSort)(value)}
+                data={[
+                  { value: 'newest', label: 'Newest first' },
+                  { value: 'oldest', label: 'Oldest first' },
+                  { value: 'name', label: 'Name' },
+                  { value: 'rating', label: 'Highest rating' },
+                ]}
+              />
+            </SimpleGrid>
+          </Collapse>
+        </Stack>
+      </Paper>
+      {selected.length > 0 && (
+        <Paper withBorder radius="lg" p="sm" mb="md" pos="sticky" top={72} style={{ zIndex: 2 }}>
+          <Group gap="sm" wrap="wrap">
+            <Text fw={650} size="sm">
+              {selected.length} selected
+            </Text>
+            <Select
+              placeholder="Move to stage"
+              value={targetStage}
+              onChange={setTargetStage}
+              disabled={!bulkJobId}
+              data={
+                session.data?.stages.map((item) => ({ value: item.id, label: item.name })) ?? []
+              }
+              style={{ flex: '0 1 200px' }}
             />
             <Button
               leftSection={<IconUserCheck size={15} />}
@@ -232,22 +273,35 @@ export function ApplicantsPage() {
             >
               Reject
             </Button>
-            <Button variant="subtle" color="gray" onClick={() => setSelected([])}>
+            {!bulkJobId && (
+              <Text size="xs" c="dimmed">
+                These people are spread across {selectedJobIds.length} jobs. Select from one job to
+                move them together.
+              </Text>
+            )}
+            <Button variant="subtle" color="gray" ml="auto" onClick={() => setSelected([])}>
               Clear
             </Button>
           </Group>
         </Paper>
       )}
       {!applicants.data ? (
-        <LoadingBlock />
+        <LoadingBlock rows={6} />
+      ) : items.length === 0 ? (
+        <EmptyState
+          icon={IconUserSearch}
+          title="No applicants match these filters"
+          description="Clear a filter or widen the search to see more people."
+        />
       ) : (
-        <Paper withBorder className="table-shell">
+        <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
           <Table.ScrollContainer minWidth={1100}>
-            <Table verticalSpacing="sm" highlightOnHover>
+            <Table verticalSpacing="sm">
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>
+                  <Table.Th w={44}>
                     <Checkbox
+                      aria-label="Select all applicants on this page"
                       checked={allSelected}
                       indeterminate={selected.length > 0 && !allSelected}
                       onChange={(event) =>
@@ -256,7 +310,7 @@ export function ApplicantsPage() {
                     />
                   </Table.Th>
                   <Table.Th>Applicant</Table.Th>
-                  <Table.Th>Hiring session</Table.Th>
+                  <Table.Th>Job</Table.Th>
                   <Table.Th>Stage</Table.Th>
                   <Table.Th>Source</Table.Th>
                   <Table.Th>Resume</Table.Th>
@@ -268,19 +322,24 @@ export function ApplicantsPage() {
                 {items.map((item) => (
                   <Table.Tr
                     key={item.id}
-                    className="clickable-row"
-                    onClick={() => router.push(`/applications/${item.id}`)}
+                    {...rowLinkProps(`Open ${item.candidateName}`, () =>
+                      router.push(`/applications/${item.id}`),
+                    )}
                   >
                     <Table.Td onClick={(event) => event.stopPropagation()}>
                       <Checkbox
+                        aria-label={`Select ${item.candidateName}`}
                         checked={selected.includes(item.id)}
-                        onChange={(event) =>
+                        onChange={(event) => {
+                          // Read the event before setSelected: React may run the
+                          // updater after the synthetic event has been released.
+                          const { checked } = event.currentTarget;
                           setSelected((current) =>
-                            event.currentTarget.checked
+                            checked
                               ? [...current, item.id]
                               : current.filter((id) => id !== item.id),
-                          )
-                        }
+                          );
+                        }}
                       />
                     </Table.Td>
                     <Table.Td>
@@ -305,7 +364,7 @@ export function ApplicantsPage() {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <StatusBadge status={item.stage} />
+                      <StageBadge stage={item.stage} />
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{item.source}</Text>
@@ -352,7 +411,7 @@ export function ApplicantsPage() {
         loading={runBulk.isPending}
         onReject={(reason) => runBulk.mutate({ nextStatus: 'Rejected', reason })}
       />
-    </div>
+    </>
   );
 }
 
@@ -369,11 +428,7 @@ function RejectManyModal({
 }) {
   const [reason, setReason] = useState<string | null>(null);
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Reject selected applicants</Title>}
-    >
+    <Modal opened={opened} onClose={onClose} title="Reject selected applicants">
       <Stack>
         <Select
           label="Disposition reason"

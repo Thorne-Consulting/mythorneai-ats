@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActionIcon,
   Alert,
@@ -8,10 +8,10 @@ import {
   Avatar,
   Badge,
   Box,
-  Breadcrumbs,
   Button,
   Checkbox,
   Divider,
+  Grid,
   Group,
   Menu,
   Modal,
@@ -35,6 +35,7 @@ import {
   IconClock,
   IconCopy,
   IconDots,
+  IconNotes,
   IconPlayerRecord,
   IconPlayerStop,
   IconPlus,
@@ -46,10 +47,15 @@ import Link from 'next/link';
 import { useCurrentUser } from '../auth';
 import { api } from '../api';
 import {
+  DetailHeader,
+  EmptyState,
   formatDate,
   formatDateTime,
+  humanize,
   initials,
   LoadingBlock,
+  PageTabs,
+  SectionCard,
   StatusBadge,
 } from '../components/Common';
 import type { ApplicationDetailResponse, InterviewCriterion, InterviewKit } from '../types';
@@ -57,10 +63,8 @@ import type { ApplicationDetailResponse, InterviewCriterion, InterviewKit } from
 type ModalProps = { opened: boolean; onClose: () => void; onSaved: () => void };
 type Interview = ApplicationDetailResponse['application']['interviews'][number];
 
-export function ApplicationDetailPage({ id }: { id: string }) {
-  const queryClient = useQueryClient();
-  const user = useCurrentUser();
-  const query = useQuery({
+function useApplication(id: string) {
+  return useQuery({
     queryKey: ['application', id],
     queryFn: () => api.get<ApplicationDetailResponse>(`/api/applications/${id}`),
     refetchInterval: (current) =>
@@ -70,16 +74,27 @@ export function ApplicationDetailPage({ id }: { id: string }) {
         ? 2000
         : false,
   });
-  const [noteOpened, noteModal] = useDisclosure();
-  const [interviewOpened, interviewModal] = useDisclosure();
-  const [rejectOpened, rejectModal] = useDisclosure();
-  const canManage = ['Admin', 'Recruiter', 'HiringManager'].includes(user.role);
-  const invalidate = () => {
+}
+
+function useInvalidateApplication(id: string) {
+  const queryClient = useQueryClient();
+  return () => {
     queryClient.invalidateQueries({ queryKey: ['application', id] });
     queryClient.invalidateQueries({ queryKey: ['board'] });
     queryClient.invalidateQueries({ queryKey: ['applicants'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
+}
+
+const canManageRole = (role: string) => ['Admin', 'Recruiter', 'HiringManager'].includes(role);
+
+/** Candidate header, stage control, and section links shared by every application route. */
+export function ApplicationShell({ id, children }: { id: string; children: React.ReactNode }) {
+  const user = useCurrentUser();
+  const query = useApplication(id);
+  const invalidate = useInvalidateApplication(id);
+  const [rejectOpened, rejectModal] = useDisclosure();
+  const canManage = canManageRole(user.role);
   const stageMutation = useMutation({
     mutationFn: (stageId: string) =>
       api.patch<void>(`/api/applications/${id}/stage`, {
@@ -93,211 +108,59 @@ export function ApplicationDetailPage({ id }: { id: string }) {
     },
   });
 
-  if (!query.data) return <LoadingBlock />;
+  if (!query.data) return <LoadingBlock rows={5} />;
   const application = query.data.application;
+
   return (
-    <div>
-      <Breadcrumbs mb="lg" separator="/">
-        <Link href={`/requisitions/${application.requisitionId}`} className="quiet-link">
-          {application.requisitionCode}
-        </Link>
-        <Text size="sm" c="dimmed">
-          {application.candidateName}
-        </Text>
-      </Breadcrumbs>
-      <Group justify="space-between" align="flex-start" mb="xl">
-        <Group align="flex-start" wrap="nowrap">
-          <Avatar size={58} radius="xl" color="indigo" variant="light">
+    <>
+      <DetailHeader
+        backHref={`/requisitions/${application.requisitionId}`}
+        backLabel={application.requisitionCode}
+        current={application.candidateName}
+        avatar={
+          <Avatar size={56} radius="xl" color="indigo" variant="light">
             {initials(application.candidateName)}
           </Avatar>
-          <div>
-            <Group gap="sm">
-              <Title order={1} fz={{ base: 27, sm: 34 }}>
-                {application.candidateName}
-              </Title>
-              <StatusBadge status={application.status} />
-            </Group>
-            <Text c="dimmed" mt={4}>
-              {application.candidateTitle ?? 'Applicant'} · {application.requisitionTitle}
-            </Text>
-          </div>
-        </Group>
-        {canManage && (
-          <Group>
-            <Select
-              value={application.stageId}
-              onChange={(value) => value && stageMutation.mutate(value)}
-              data={application.stages.map((stage) => ({ value: stage.id, label: stage.name }))}
-              w={160}
-              allowDeselect={false}
-              disabled={stageMutation.isPending}
-            />
-            <Button
-              color="red"
-              variant="light"
-              leftSection={<IconUserOff size={16} />}
-              onClick={rejectModal.open}
-            >
-              Reject
-            </Button>
-          </Group>
-        )}
-      </Group>
-      <Tabs defaultValue="record">
-        <Tabs.List mb="xl">
-          <Tabs.Tab value="record">Applicant record</Tabs.Tab>
-          <Tabs.Tab value="interviews">
-            Interviews{' '}
-            <Badge ml={6} size="xs" variant="light" circle>
-              {application.interviews.length}
-            </Badge>
-          </Tabs.Tab>
-          <Tabs.Tab value="activity">History</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="record">
-          <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="xl">
-            <Paper withBorder radius="lg" p="lg">
-              <Text fw={700} mb="md">
-                Applicant
-              </Text>
-              <Stack gap="sm">
-                <Pair label="Email" value={application.candidateEmail} />
-                <Pair label="Phone" value={application.candidatePhone ?? '—'} />
-                <Pair label="Location" value={application.candidateLocation ?? '—'} />
-                <Pair label="Source" value={application.source} />
-                <Pair label="Applied" value={formatDate(application.appliedAt)} />
-              </Stack>
-              {application.candidateTags.length > 0 && (
-                <Group gap={6} mt="md">
-                  {application.candidateTags.map((tag) => (
-                    <Badge key={tag} variant="light" color="gray">
-                      {tag}
-                    </Badge>
-                  ))}
-                </Group>
-              )}
-              <Button
-                component={Link}
-                href={`/candidates/${application.candidateId}`}
-                variant="light"
-                fullWidth
-                mt="lg"
-              >
-                Open resumes and full record
-              </Button>
-            </Paper>
-            <Paper withBorder radius="lg" style={{ gridColumn: 'span 2' }}>
-              <Group justify="space-between" p="lg">
-                <div>
-                  <Text fw={700}>Review notes</Text>
-                  <Text size="sm" c="dimmed">
-                    Job-related facts and decision context
-                  </Text>
-                </div>
-                {canManage && (
-                  <Button
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconPlus size={14} />}
-                    onClick={noteModal.open}
-                  >
-                    Add note
-                  </Button>
-                )}
-              </Group>
-              <Divider />
-              <Stack gap={0}>
-                {application.notes.map((note) => (
-                  <Box key={note.id} className="list-row">
-                    <Group justify="space-between" mb={5}>
-                      <Text size="sm" fw={650}>
-                        {note.authorEmail}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {formatDateTime(note.createdAt)}
-                      </Text>
-                    </Group>
-                    <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                      {note.body}
-                    </Text>
-                  </Box>
-                ))}
-                {application.notes.length === 0 && (
-                  <Text p="xl" c="dimmed">
-                    No review notes yet.
-                  </Text>
-                )}
-              </Stack>
-            </Paper>
-          </SimpleGrid>
-        </Tabs.Panel>
-        <Tabs.Panel value="interviews">
-          <Group justify="space-between" mb="lg">
-            <div>
-              <Title order={3}>Interview plan</Title>
-              <Text c="dimmed" size="sm">
-                Scheduling, recordings, structured evaluations, and independent feedback
-              </Text>
-            </div>
-            {canManage && (
-              <Button leftSection={<IconPlus size={16} />} onClick={interviewModal.open}>
-                Schedule interview
-              </Button>
-            )}
-          </Group>
-          <Stack>
-            {application.interviews.map((interview) => (
-              <InterviewCard
-                key={interview.id}
-                interview={interview}
-                applicationId={id}
-                currentEmail={user.email}
-                canManage={canManage}
-                interviewKits={application.interviewKits}
-                onUpdated={invalidate}
+        }
+        title={application.candidateName}
+        badges={<StatusBadge status={application.status} />}
+        subtitle={`${application.candidateTitle ?? 'Applicant'} · ${application.requisitionTitle}`}
+        actions={
+          canManage && (
+            <>
+              <Select
+                aria-label="Current stage"
+                value={application.stageId}
+                onChange={(value) => value && stageMutation.mutate(value)}
+                data={application.stages.map((stage) => ({ value: stage.id, label: stage.name }))}
+                w={170}
+                allowDeselect={false}
+                disabled={stageMutation.isPending}
               />
-            ))}
-            {application.interviews.length === 0 && (
-              <Paper withBorder p="xl">
-                <Text c="dimmed">No interviews scheduled.</Text>
-              </Paper>
-            )}
-          </Stack>
-        </Tabs.Panel>
-        <Tabs.Panel value="activity">
-          <Paper withBorder p="xl">
-            <Timeline bulletSize={28} lineWidth={2}>
-              {query.data.audit.map((event) => (
-                <Timeline.Item
-                  key={event.id}
-                  bullet={<IconClock size={14} />}
-                  title={event.action.replace(/([a-z])([A-Z])/g, '$1 $2')}
-                >
-                  <Text c="dimmed" size="sm">
-                    {event.actorEmail}
-                  </Text>
-                  <Text size="xs" mt={4}>
-                    {formatDateTime(event.occurredAt)}
-                  </Text>
-                </Timeline.Item>
-              ))}
-            </Timeline>
-          </Paper>
-        </Tabs.Panel>
-      </Tabs>
-      <NoteModal
-        applicationId={id}
-        opened={noteOpened}
-        onClose={noteModal.close}
-        onSaved={invalidate}
+              <Button
+                color="red"
+                variant="light"
+                leftSection={<IconUserOff size={16} />}
+                onClick={rejectModal.open}
+              >
+                Reject
+              </Button>
+            </>
+          )
+        }
       />
-      <InterviewModal
-        applicationId={id}
-        interviewKits={application.interviewKits}
-        opened={interviewOpened}
-        onClose={interviewModal.close}
-        onSaved={invalidate}
+      <PageTabs
+        items={[
+          { label: 'Overview', href: `/applications/${id}` },
+          {
+            label: 'Interviews',
+            href: `/applications/${id}/interviews`,
+            count: application.interviews.length,
+          },
+          { label: 'History', href: `/applications/${id}/history`, count: query.data.audit.length },
+        ]}
       />
+      {children}
       <RejectModal
         applicationId={id}
         stageId={application.stageId}
@@ -305,7 +168,198 @@ export function ApplicationDetailPage({ id }: { id: string }) {
         onClose={rejectModal.close}
         onSaved={invalidate}
       />
-    </div>
+    </>
+  );
+}
+
+export function ApplicationRecord({ id }: { id: string }) {
+  const user = useCurrentUser();
+  const query = useApplication(id);
+  const invalidate = useInvalidateApplication(id);
+  const [noteOpened, noteModal] = useDisclosure();
+  const canManage = canManageRole(user.role);
+
+  if (!query.data) return <LoadingBlock rows={3} />;
+  const application = query.data.application;
+
+  return (
+    <>
+      <Grid gutter="xl">
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <Paper withBorder radius="lg" p="lg" h="100%">
+            <Text fw={650} mb="md">
+              Applicant
+            </Text>
+            <Stack gap="sm">
+              <Pair label="Email" value={application.candidateEmail} />
+              <Pair label="Phone" value={application.candidatePhone ?? '—'} />
+              <Pair label="Location" value={application.candidateLocation ?? '—'} />
+              <Pair label="Source" value={application.source} />
+              <Pair label="Applied" value={formatDate(application.appliedAt)} />
+            </Stack>
+            {application.candidateTags.length > 0 && (
+              <Group gap={6} mt="md">
+                {application.candidateTags.map((tag) => (
+                  <Badge key={tag} variant="light" color="gray">
+                    {tag}
+                  </Badge>
+                ))}
+              </Group>
+            )}
+            <Button
+              component={Link}
+              href={`/candidates/${application.candidateId}`}
+              variant="light"
+              fullWidth
+              mt="lg"
+            >
+              Open resumes and full record
+            </Button>
+          </Paper>
+        </Grid.Col>
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <SectionCard
+            title="Review notes"
+            description="Job-related facts and decision context"
+            action={
+              canManage && (
+                <Button
+                  size="xs"
+                  variant="light"
+                  leftSection={<IconPlus size={14} />}
+                  onClick={noteModal.open}
+                >
+                  Add note
+                </Button>
+              )
+            }
+          >
+            <Stack gap={0}>
+              {application.notes.map((note) => (
+                <Box key={note.id} className="list-row">
+                  <Group justify="space-between" mb={5} wrap="nowrap">
+                    <Text size="sm" fw={650} truncate>
+                      {note.authorEmail}
+                    </Text>
+                    <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+                      {formatDateTime(note.createdAt)}
+                    </Text>
+                  </Group>
+                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                    {note.body}
+                  </Text>
+                </Box>
+              ))}
+              {application.notes.length === 0 && (
+                <Text p="xl" c="dimmed" size="sm">
+                  No review notes yet.
+                </Text>
+              )}
+            </Stack>
+          </SectionCard>
+        </Grid.Col>
+      </Grid>
+      <NoteModal
+        applicationId={id}
+        opened={noteOpened}
+        onClose={noteModal.close}
+        onSaved={invalidate}
+      />
+    </>
+  );
+}
+
+export function ApplicationInterviews({ id }: { id: string }) {
+  const user = useCurrentUser();
+  const query = useApplication(id);
+  const invalidate = useInvalidateApplication(id);
+  const [interviewOpened, interviewModal] = useDisclosure();
+  const canManage = canManageRole(user.role);
+
+  if (!query.data) return <LoadingBlock rows={3} />;
+  const application = query.data.application;
+
+  return (
+    <>
+      <Group justify="space-between" mb="lg" wrap="wrap" gap="sm">
+        <div style={{ flex: '1 1 260px' }}>
+          <Title order={3}>Interview plan</Title>
+          <Text c="dimmed" size="sm">
+            Scheduling, recordings, structured evaluations, and independent feedback
+          </Text>
+        </div>
+        {canManage && (
+          <Button leftSection={<IconPlus size={16} />} onClick={interviewModal.open}>
+            Schedule interview
+          </Button>
+        )}
+      </Group>
+      <Stack>
+        {application.interviews.map((interview) => (
+          <InterviewCard
+            key={interview.id}
+            interview={interview}
+            applicationId={id}
+            currentEmail={user.email}
+            canManage={canManage}
+            interviewKits={application.interviewKits}
+            onUpdated={invalidate}
+          />
+        ))}
+        {application.interviews.length === 0 && (
+          <EmptyState
+            icon={IconCalendarEvent}
+            title="No interviews scheduled"
+            description="Schedule the first interview to start collecting structured feedback."
+            actionLabel={canManage ? 'Schedule interview' : undefined}
+            onAction={interviewModal.open}
+          />
+        )}
+      </Stack>
+      <InterviewModal
+        applicationId={id}
+        interviewKits={application.interviewKits}
+        opened={interviewOpened}
+        onClose={interviewModal.close}
+        onSaved={invalidate}
+      />
+    </>
+  );
+}
+
+export function ApplicationHistory({ id }: { id: string }) {
+  const query = useApplication(id);
+  if (!query.data) return <LoadingBlock rows={3} />;
+
+  return (
+    <>
+      {query.data.audit.length === 0 ? (
+        <EmptyState
+          icon={IconClock}
+          title="No recorded history yet"
+          description="Stage changes, notes, and interview decisions appear here as they happen."
+        />
+      ) : (
+        <Paper withBorder radius="lg" p="xl">
+          <Timeline bulletSize={26} lineWidth={2}>
+            {query.data.audit.map((event) => (
+              <Timeline.Item
+                key={event.id}
+                bullet={<IconClock size={14} />}
+                title={event.action.replace(/([a-z])([A-Z])/g, '$1 $2')}
+              >
+                <Text c="dimmed" size="sm">
+                  {event.actorEmail}
+                </Text>
+                <Text size="xs" mt={4}>
+                  {formatDateTime(event.occurredAt)}
+                </Text>
+              </Timeline.Item>
+            ))}
+          </Timeline>
+        </Paper>
+      )}
+    </>
   );
 }
 
@@ -326,6 +380,7 @@ function InterviewCard({
 }) {
   const [scoreOpened, scoreModal] = useDisclosure();
   const [editOpened, editModal] = useDisclosure();
+  const [notesOpened, notesModal] = useDisclosure();
   const mine = interview.scorecards.find(
     (scorecard) => scorecard.interviewerEmail === currentEmail,
   );
@@ -337,14 +392,14 @@ function InterviewCard({
   });
   return (
     <Paper withBorder radius="lg" p="lg">
-      <Group justify="space-between" align="flex-start">
-        <Group align="flex-start">
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Group align="flex-start" wrap="nowrap" style={{ flex: '1 1 320px', minWidth: 0 }}>
           <ThemeIcon variant="light" color="violet" size={42}>
             <IconCalendarEvent size={20} />
           </ThemeIcon>
-          <div>
-            <Group gap="sm">
-              <Text fw={700}>{interview.title}</Text>
+          <div style={{ minWidth: 0 }}>
+            <Group gap="xs" wrap="wrap">
+              <Text fw={650}>{interview.title}</Text>
               <StatusBadge status={interview.status} />
               <Badge
                 size="xs"
@@ -357,7 +412,7 @@ function InterviewCard({
                       : 'gray'
                 }
               >
-                Calendar {interview.calendarStatus}
+                Calendar {humanize(interview.calendarStatus).toLowerCase()}
               </Badge>
             </Group>
             <Text size="sm" c="dimmed" mt={4}>
@@ -378,7 +433,7 @@ function InterviewCard({
             )}
           </div>
         </Group>
-        <Group>
+        <Group gap="sm">
           {isAssigned && !mine && interview.status !== 'Cancelled' && (
             <Button size="sm" onClick={scoreModal.open}>
               Submit scorecard
@@ -413,7 +468,7 @@ function InterviewCard({
       {interview.criteria.length > 0 && (
         <Stack gap="xs" mt="lg">
           {interview.criteria.map((criterion) => (
-            <Paper key={criterion.id} bg="gray.0" p="sm">
+            <Paper key={criterion.id} p="sm" radius="sm" bg="var(--surface-sunken)">
               <Group justify="space-between">
                 <Text fw={650} size="sm">
                   {criterion.name}
@@ -432,6 +487,45 @@ function InterviewCard({
           ))}
         </Stack>
       )}
+      <Paper radius="md" p="md" mt="lg" bg="var(--surface-sunken)">
+        <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+          <Group gap="sm" align="flex-start" wrap="nowrap">
+            <ThemeIcon variant="light" color="indigo" size={32}>
+              <IconNotes size={16} />
+            </ThemeIcon>
+            <div>
+              <Text fw={650} size="sm">
+                Meeting notes
+              </Text>
+              <Text size="xs" c="dimmed">
+                AI-generated notes and interview transcripts live here.
+              </Text>
+            </div>
+          </Group>
+          {(isAssigned || canManage) && (
+            <Button size="xs" variant="light" onClick={notesModal.open}>
+              {interview.meetingNotes ? 'Edit notes' : 'Add notes'}
+            </Button>
+          )}
+        </Group>
+        {interview.meetingNotes ? (
+          <>
+            <Text size="xs" c="dimmed" mt="md">
+              {interview.meetingNotesSource ?? 'Meeting assistant'}
+              {interview.meetingNotesUpdatedAt
+                ? ` · Updated ${formatDateTime(interview.meetingNotesUpdatedAt)}`
+                : ''}
+            </Text>
+            <Text size="sm" mt="xs" style={{ whiteSpace: 'pre-wrap' }}>
+              {interview.meetingNotes}
+            </Text>
+          </>
+        ) : (
+          <Text size="sm" c="dimmed" mt="md">
+            No meeting notes yet. Paste notes now, or let a meeting assistant add them later.
+          </Text>
+        )}
+      </Paper>
       <InterviewRecorder
         interview={interview}
         canRecord={isAssigned || canManage}
@@ -446,9 +540,11 @@ function InterviewCard({
       {interview.scorecards.length > 0 && (
         <Stack mt="lg">
           {interview.scorecards.map((scorecard) => (
-            <Paper key={scorecard.id} withBorder p="md">
-              <Group justify="space-between">
-                <Text fw={650}>{scorecard.interviewerEmail}</Text>
+            <Paper key={scorecard.id} withBorder radius="md" p="md">
+              <Group justify="space-between" wrap="wrap" gap="sm">
+                <Text fw={650} size="sm">
+                  {scorecard.interviewerEmail}
+                </Text>
                 <Group>
                   <Rating value={scorecard.rating} readOnly size="xs" />
                   <Badge>{scorecard.recommendation}</Badge>
@@ -497,7 +593,76 @@ function InterviewCard({
         onClose={editModal.close}
         onSaved={onUpdated}
       />
+      <MeetingNotesModal
+        interview={interview}
+        opened={notesOpened}
+        onClose={notesModal.close}
+        onSaved={onUpdated}
+      />
     </Paper>
+  );
+}
+
+function MeetingNotesModal({
+  interview,
+  opened,
+  onClose,
+  onSaved,
+}: ModalProps & { interview: Interview }) {
+  const [notes, setNotes] = useState(interview.meetingNotes ?? '');
+  const [source, setSource] = useState(interview.meetingNotesSource ?? '');
+  useEffect(() => {
+    if (!opened) return;
+    setNotes(interview.meetingNotes ?? '');
+    setSource(interview.meetingNotesSource ?? '');
+  }, [interview.meetingNotes, interview.meetingNotesSource, opened]);
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.put(`/api/interviews/${interview.id}/meeting-notes`, {
+        notes,
+        source: source.trim() || null,
+      }),
+    onSuccess: () => {
+      onSaved();
+      onClose();
+      notifications.show({ color: 'teal', message: 'Meeting notes saved' });
+    },
+    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+  });
+  return (
+    <Modal opened={opened} onClose={onClose} title="Meeting notes" size="xl">
+      <Stack>
+        <TextInput
+          label="Generated by"
+          description="For example: Fireflies, Fathom, Otter, or manual import"
+          value={source}
+          maxLength={120}
+          onChange={(event) => setSource(event.currentTarget.value)}
+        />
+        <Textarea
+          label="Notes"
+          description="Paste the meeting assistant's notes or transcript here."
+          autosize
+          minRows={14}
+          maxRows={24}
+          maxLength={100_000}
+          value={notes}
+          onChange={(event) => setNotes(event.currentTarget.value)}
+        />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!notes.trim()}
+            loading={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            Save notes
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }
 
@@ -564,8 +729,8 @@ function InterviewRecorder({
     }
   };
   return (
-    <Paper withBorder p="md" mt="lg">
-      <Group justify="space-between">
+    <Paper radius="md" p="md" mt="md" bg="var(--surface-sunken)">
+      <Group justify="space-between" wrap="wrap" gap="sm">
         <div>
           <Text fw={650} size="sm">
             Interview recording
@@ -603,7 +768,7 @@ function InterviewRecorder({
         />
       )}
       {interview.recordings.map((item) => (
-        <Group key={item.id} justify="space-between" align="flex-end" mt="md">
+        <Group key={item.id} justify="space-between" align="flex-end" mt="md" wrap="wrap" gap="sm">
           <video
             controls
             preload="metadata"
@@ -683,12 +848,7 @@ function ScorecardModal({
       [id]: { rating: current[id]?.rating ?? 0, evidence: current[id]?.evidence ?? '', ...next },
     }));
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Structured evaluation</Title>}
-      size="lg"
-    >
+    <Modal opened={opened} onClose={onClose} title="Structured evaluation" size="lg">
       <Stack>
         <Alert>
           Your independent scorecard is locked after submission. Other feedback stays hidden until
@@ -833,7 +993,7 @@ function InterviewModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={<Title order={3}>{interview ? 'Edit interview' : 'Schedule interview'}</Title>}
+      title={interview ? 'Edit interview' : 'Schedule interview'}
     >
       <Stack>
         <Select

@@ -223,6 +223,9 @@ export interface ApplicationDetailResponse {
       calendarStatus: string;
       calendarProvider?: string;
       status: string;
+      meetingNotes?: string;
+      meetingNotesSource?: string;
+      meetingNotesUpdatedAt?: string;
       submittedScorecards: number;
       scorecardsVisible: boolean;
       scorecards: Array<{

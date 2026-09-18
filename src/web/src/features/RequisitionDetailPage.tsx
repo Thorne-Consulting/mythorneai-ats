@@ -6,14 +6,15 @@ import {
   Avatar,
   Badge,
   Box,
-  Breadcrumbs,
   Button,
   Divider,
+  Grid,
   Group,
   Menu,
   Modal,
   NumberInput,
   Paper,
+  Rating,
   Select,
   SimpleGrid,
   Stack,
@@ -27,8 +28,8 @@ import {
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
-  IconArrowLeft,
-  IconBriefcase2,
+  IconCalendarEvent,
+  IconClipboardList,
   IconDots,
   IconMapPin,
   IconPlus,
@@ -36,44 +37,141 @@ import {
   IconUser,
 } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '../api';
 import {
+  DetailHeader,
+  EmptyState,
   formatDate,
   formatDateTime,
   initials,
   LoadingBlock,
+  PageTabs,
+  SectionCard,
   StatusBadge,
 } from '../components/Common';
 import type { BoardData, RequisitionDetail } from '../types';
+
+type BoardApplication = BoardData['stages'][number]['applications'][number];
 import { useCurrentUser } from '../auth';
 
-export function RequisitionDetailPage({ id }: { id: string }) {
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const user = useCurrentUser();
-  const [kitOpened, kitModal] = useDisclosure();
-  const details = useQuery({
+function useRequisition(id: string) {
+  return useQuery({
     queryKey: ['requisition', id],
     queryFn: () => api.get<RequisitionDetail>(`/api/requisitions/${id}`),
   });
-  const board = useQuery({
+}
+
+function useBoard(id: string) {
+  return useQuery({
     queryKey: ['board', id],
     queryFn: () => api.get<BoardData>(`/api/requisitions/${id}/board`),
   });
-  const canManage =
+}
+
+function useCanManage(requisition?: RequisitionDetail) {
+  const user = useCurrentUser();
+  return (
     ['Admin', 'Recruiter'].includes(user.role) ||
-    (user.role === 'HiringManager' && details.data?.ownerEmail === user.email);
+    (user.role === 'HiringManager' && requisition?.ownerEmail === user.email)
+  );
+}
+
+/** Job header, key facts, and section links shared by every job route. */
+export function RequisitionShell({ id, children }: { id: string; children: React.ReactNode }) {
+  const queryClient = useQueryClient();
+  const details = useRequisition(id);
+  const board = useBoard(id);
+  const canManage = useCanManage(details.data);
   const statusMutation = useMutation({
     mutationFn: (status: string) =>
       api.patch<void>(`/api/requisitions/${id}/status`, { status, reason: null }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-      notifications.show({ color: 'teal', message: 'Hiring session status updated' });
+      notifications.show({ color: 'teal', message: 'Job status updated' });
     },
   });
+
+  if (!details.data) return <LoadingBlock rows={5} />;
+  const requisition = details.data;
+  const totalActive =
+    board.data?.stages.reduce((sum, stage) => sum + stage.applications.length, 0) ?? 0;
+
+  return (
+    <>
+      <DetailHeader
+        backHref="/requisitions"
+        backLabel="Jobs"
+        current={requisition.code}
+        title={requisition.title}
+        badges={<StatusBadge status={requisition.status} />}
+        subtitle={`${requisition.code} · ${requisition.department}`}
+        actions={
+          canManage && (
+            <Select
+              aria-label="Job status"
+              value={requisition.status}
+              onChange={(value) => value && statusMutation.mutate(value)}
+              data={['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
+              w={160}
+              allowDeselect={false}
+            />
+          )
+        }
+      />
+
+      <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" mb="xl">
+        <InfoCard
+          icon={IconMapPin}
+          label="Location"
+          value={requisition.location}
+          hint={requisition.workMode}
+        />
+        <InfoCard
+          icon={IconTargetArrow}
+          label="Openings"
+          value={`${requisition.openings} ${requisition.openings === 1 ? 'seat' : 'seats'}`}
+          hint={requisition.employmentType}
+        />
+        <InfoCard
+          icon={IconUser}
+          label="Hiring manager"
+          value={requisition.ownerEmail.split('@')[0]}
+          hint={requisition.ownerEmail}
+        />
+        <InfoCard
+          icon={IconCalendarEvent}
+          label="Target start"
+          value={formatDate(requisition.targetStartDate)}
+          hint={requisition.targetStartDate ? 'Planned start date' : 'Not set'}
+        />
+      </SimpleGrid>
+
+      <PageTabs
+        items={[
+          { label: 'Pipeline', href: `/requisitions/${id}`, count: totalActive },
+          {
+            label: 'Interview kits',
+            href: `/requisitions/${id}/kits`,
+            count: requisition.interviewKits.length,
+          },
+          { label: 'Details', href: `/requisitions/${id}/details` },
+        ]}
+      />
+      {children}
+    </>
+  );
+}
+
+export function RequisitionPipeline({ id }: { id: string }) {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+  const details = useRequisition(id);
+  const board = useBoard(id);
+  const canManage = useCanManage(details.data);
+  const [dragging, setDragging] = useState<{ id: string; from: string } | null>(null);
+  const [dropStage, setDropStage] = useState<string | null>(null);
   const moveMutation = useMutation({
     mutationFn: ({ applicationId, stageId }: { applicationId: string; stageId: string }) =>
       api.patch<void>(`/api/applications/${applicationId}/stage`, {
@@ -81,166 +179,94 @@ export function RequisitionDetailPage({ id }: { id: string }) {
         status: 'Active',
         dispositionReason: null,
       }),
-    onSuccess: () => {
+    // Move the card in the cache first so a drag lands instantly, and put it
+    // back if the request fails.
+    onMutate: async ({ applicationId, stageId }) => {
+      await queryClient.cancelQueries({ queryKey: ['board', id] });
+      const previous = queryClient.getQueryData<BoardData>(['board', id]);
+      queryClient.setQueryData<BoardData>(['board', id], (current) => {
+        if (!current) return current;
+        let moved: BoardApplication | undefined;
+        const emptied = current.stages.map((stage) => ({
+          ...stage,
+          applications: stage.applications.filter((application) => {
+            if (application.id !== applicationId) return true;
+            moved = application;
+            return false;
+          }),
+        }));
+        if (!moved) return current;
+        return {
+          ...current,
+          stages: emptied.map((stage) =>
+            stage.id === stageId
+              ? { ...stage, applications: [moved as BoardApplication, ...stage.applications] }
+              : stage,
+          ),
+        };
+      });
+      return { previous };
+    },
+    onError: (error: Error, _variables, context) => {
+      if (context?.previous) queryClient.setQueryData(['board', id], context.previous);
+      notifications.show({ color: 'red', message: error.message });
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['board', id] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['applicants'] });
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
 
-  if (!details.data || !board.data) return <LoadingBlock />;
-  const requisition = details.data;
+  const moveTo = (stageId: string) => {
+    const active = dragging;
+    setDragging(null);
+    setDropStage(null);
+    if (!active || active.from === stageId) return;
+    moveMutation.mutate({ applicationId: active.id, stageId });
+  };
+
+  if (!board.data) return <LoadingBlock rows={3} />;
+  const totalActive = board.data.stages.reduce((sum, s) => sum + s.applications.length, 0);
 
   return (
-    <div>
-      <Breadcrumbs mb="md" separator="/">
-        <Link href="/requisitions" className="quiet-link">
-          Hiring sessions
-        </Link>
-        <Text size="sm" c="dimmed">
-          {requisition.code}
-        </Text>
-      </Breadcrumbs>
-      <Group justify="space-between" align="flex-start" mb="xl">
-        <Group align="flex-start">
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            mt={4}
-            onClick={() => router.push('/requisitions')}
-          >
-            <IconArrowLeft size={20} />
-          </ActionIcon>
-          <div>
-            <Group gap="sm">
-              <Title order={1} fz={{ base: 26, sm: 32 }}>
-                {requisition.title}
-              </Title>
-              <StatusBadge status={requisition.status} />
-            </Group>
-            <Text c="dimmed" mt={5}>
-              {requisition.code} · {requisition.department}
-            </Text>
-          </div>
-        </Group>
-        {canManage && (
-          <Select
-            value={requisition.status}
-            onChange={(value) => value && statusMutation.mutate(value)}
-            data={['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
-            w={150}
-            allowDeselect={false}
-          />
-        )}
-      </Group>
-
-      <SimpleGrid cols={{ base: 1, lg: 4 }} mb="xl">
-        <InfoCard
-          icon={IconMapPin}
-          label="Location"
-          value={`${requisition.location} · ${requisition.workMode}`}
-        />
-        <InfoCard
-          icon={IconTargetArrow}
-          label="Openings"
-          value={`${requisition.openings} ${requisition.employmentType.toLowerCase()}`}
-        />
-        <InfoCard icon={IconUser} label="Hiring manager" value={requisition.ownerEmail} />
-        <InfoCard
-          icon={IconBriefcase2}
-          label="Target start"
-          value={formatDate(requisition.targetStartDate)}
-        />
-      </SimpleGrid>
-
-      <Paper withBorder radius="lg" mb="xl">
-        <Group justify="space-between" p="lg">
-          <div>
-            <Text fw={700}>Interview kits</Text>
-            <Text c="dimmed" size="sm">
-              Shared instructions and scoring criteria for this role.
-            </Text>
-          </div>
-          {canManage && (
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconPlus size={14} />}
-              onClick={kitModal.open}
-            >
-              Add kit
-            </Button>
-          )}
-        </Group>
-        <Divider />
-        {requisition.interviewKits.length === 0 ? (
-          <Text p="lg" c="dimmed" size="sm">
-            No structured interview kits yet.
+    <>
+      <Group justify="space-between" align="flex-end" mb="md" wrap="wrap" gap="sm">
+        <div>
+          <Title order={3}>Hiring pipeline</Title>
+          <Text c="dimmed" size="sm">
+            {totalActive} active across {board.data.stages.length} stages.{' '}
+            {canManage && 'Drag a card to another stage, or use the menu on the card.'}
           </Text>
-        ) : (
-          <SimpleGrid cols={{ base: 1, md: 2 }} p="lg">
-            {requisition.interviewKits.map((kit) => (
-              <Paper key={kit.id} withBorder radius="md" p="md">
-                <Group justify="space-between">
-                  <Text fw={650}>{kit.name}</Text>
-                  <Badge variant="light" color="gray">
-                    {kit.durationMinutes} min
-                  </Badge>
-                </Group>
-                {kit.instructions && (
-                  <Text size="sm" c="dimmed" mt="xs">
-                    {kit.instructions}
-                  </Text>
-                )}
-                <Stack gap={4} mt="md">
-                  {kit.criteria.map((criterion) => (
-                    <Paper key={criterion.id} bg="gray.0" p="sm" radius="sm">
-                      <Group justify="space-between">
-                        <Text size="sm" fw={650}>
-                          {criterion.name}
-                        </Text>
-                        <Badge size="xs" variant="light">
-                          Weight {criterion.weight}
-                        </Badge>
-                      </Group>
-                      <Text size="sm" mt={3}>
-                        {criterion.question}
-                      </Text>
-                      {criterion.description && (
-                        <Text size="xs" c="dimmed">
-                          {criterion.description}
-                        </Text>
-                      )}
-                    </Paper>
-                  ))}
-                </Stack>
-              </Paper>
-            ))}
-          </SimpleGrid>
-        )}
-      </Paper>
-
-      <Paper withBorder radius="lg" mb="xl">
-        <Group justify="space-between" p="lg">
-          <div>
-            <Text fw={700}>Hiring pipeline</Text>
-            <Text c="dimmed" size="sm">
-              Review and move applicants through the hiring process.
-            </Text>
-          </div>
-          <Badge variant="light" color="indigo" tt="none">
-            {board.data.stages.reduce((sum, stage) => sum + stage.applications.length, 0)} active
-          </Badge>
-        </Group>
-        <Divider />
+        </div>
+      </Group>
+      <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
         <Box className="pipeline-scroll">
           <div className="pipeline-grid">
             {board.data.stages.map((stage) => (
-              <section key={stage.id} className="pipeline-column">
-                <Group justify="space-between" mb="sm">
-                  <Group gap="xs">
+              <section
+                key={stage.id}
+                className="pipeline-column"
+                data-drop-target={dropStage === stage.id || undefined}
+                onDragOver={(event) => {
+                  if (!dragging || dragging.from === stage.id) return;
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = 'move';
+                  setDropStage(stage.id);
+                }}
+                onDragLeave={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                  setDropStage((current) => (current === stage.id ? null : current));
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  moveTo(stage.id);
+                }}
+              >
+                <Group justify="space-between" mb="md" className="pipeline-column-header">
+                  <Group gap="xs" wrap="nowrap">
                     <Box className="stage-dot" bg={`${stage.color}.5`} />
-                    <Text fw={700} size="sm">
+                    <Text fw={650} size="sm" truncate>
                       {stage.name}
                     </Text>
                   </Group>
@@ -255,15 +281,28 @@ export function RequisitionDetailPage({ id }: { id: string }) {
                       withBorder
                       radius="md"
                       p="md"
-                      className="candidate-card"
+                      bg="var(--mantine-color-body)"
+                      className="hover-card candidate-card"
+                      draggable={canManage}
+                      data-draggable={canManage || undefined}
+                      data-dragging={dragging?.id === application.id || undefined}
+                      onDragStart={(event) => {
+                        event.dataTransfer.setData('text/plain', application.id);
+                        event.dataTransfer.effectAllowed = 'move';
+                        setDragging({ id: application.id, from: stage.id });
+                      }}
+                      onDragEnd={() => {
+                        setDragging(null);
+                        setDropStage(null);
+                      }}
                     >
                       <Group justify="space-between" align="flex-start" wrap="nowrap">
                         <UnstyledButton
                           style={{ flex: 1, minWidth: 0 }}
                           onClick={() => router.push(`/applications/${application.id}`)}
                         >
-                          <Group wrap="nowrap" align="flex-start">
-                            <Avatar size={34} color={stage.color} variant="light">
+                          <Group wrap="nowrap" align="flex-start" gap="sm">
+                            <Avatar size={36} color={stage.color} variant="light">
                               {initials(application.candidateName)}
                             </Avatar>
                             <div style={{ minWidth: 0 }}>
@@ -271,15 +310,20 @@ export function RequisitionDetailPage({ id }: { id: string }) {
                                 {application.candidateName}
                               </Text>
                               <Text size="xs" c="dimmed" truncate>
-                                {application.currentTitle ?? application.location ?? 'Candidate'}
+                                {application.currentTitle ?? 'Candidate'}
                               </Text>
                             </div>
                           </Group>
                         </UnstyledButton>
                         {canManage && (
-                          <Menu position="bottom-end">
+                          <Menu position="bottom-end" withArrow>
                             <Menu.Target>
-                              <ActionIcon variant="subtle" color="gray" size="sm">
+                              <ActionIcon
+                                variant="subtle"
+                                color="gray"
+                                size="sm"
+                                aria-label={`Move ${application.candidateName}`}
+                              >
                                 <IconDots size={16} />
                               </ActionIcon>
                             </Menu.Target>
@@ -304,18 +348,39 @@ export function RequisitionDetailPage({ id }: { id: string }) {
                           </Menu>
                         )}
                       </Group>
-                      <Group justify="space-between" mt="md">
-                        <Text size="xs" c="dimmed">
-                          {application.source}
+                      {application.location && (
+                        <Group gap={5} mt="sm" wrap="nowrap">
+                          <IconMapPin size={13} color="var(--mantine-color-dimmed)" />
+                          <Text size="xs" c="dimmed" truncate>
+                            {application.location}
+                          </Text>
+                        </Group>
+                      )}
+                      {application.rating ? (
+                        <Group gap={6} mt={6} wrap="nowrap">
+                          <Rating value={application.rating} readOnly size="xs" />
+                          <Text size="xs" c="dimmed">
+                            {application.rating.toFixed(1)}
+                          </Text>
+                        </Group>
+                      ) : (
+                        <Text size="xs" c="dimmed" mt={6}>
+                          Not rated yet
                         </Text>
-                        <Text size="xs" c="dimmed">
+                      )}
+                      <Divider my="sm" />
+                      <Group justify="space-between" gap="xs" wrap="nowrap">
+                        <Badge size="xs" variant="default">
+                          {application.source}
+                        </Badge>
+                        <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
                           {formatDateTime(application.lastActivityAt)}
                         </Text>
                       </Group>
                     </Paper>
                   ))}
                   {stage.applications.length === 0 && (
-                    <Paper withBorder radius="md" p="md" className="empty-stage">
+                    <Paper withBorder radius="md" p="lg" className="empty-stage">
                       <Text size="xs" c="dimmed" ta="center">
                         No candidates
                       </Text>
@@ -327,17 +392,143 @@ export function RequisitionDetailPage({ id }: { id: string }) {
           </div>
         </Box>
       </Paper>
+    </>
+  );
+}
 
-      <Paper withBorder radius="lg" p="xl">
-        <Text fw={700} mb="sm">
-          Role summary
-        </Text>
-        <Text c={requisition.description ? undefined : 'dimmed'} style={{ whiteSpace: 'pre-wrap' }}>
-          {requisition.description || 'No role summary has been added.'}
-        </Text>
-      </Paper>
+export function RequisitionKits({ id }: { id: string }) {
+  const [kitOpened, kitModal] = useDisclosure();
+  const details = useRequisition(id);
+  const canManage = useCanManage(details.data);
+
+  if (!details.data) return <LoadingBlock rows={3} />;
+  const requisition = details.data;
+
+  return (
+    <>
+      <Group justify="space-between" align="flex-end" mb="md" wrap="wrap" gap="sm">
+        <div style={{ flex: '1 1 280px' }}>
+          <Title order={3}>Interview kits</Title>
+          <Text c="dimmed" size="sm">
+            Shared instructions and scoring criteria every interviewer works from.
+          </Text>
+        </div>
+        {canManage && (
+          <Button leftSection={<IconPlus size={16} />} onClick={kitModal.open}>
+            Add kit
+          </Button>
+        )}
+      </Group>
+      {requisition.interviewKits.length === 0 ? (
+        <EmptyState
+          icon={IconClipboardList}
+          title="No interview kits yet"
+          description="Kits keep every interviewer on the same questions and the same scoring scale, which makes candidates comparable."
+          actionLabel={canManage ? 'Add the first kit' : undefined}
+          onAction={kitModal.open}
+        />
+      ) : (
+        <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
+          {requisition.interviewKits.map((kit) => (
+            <Paper key={kit.id} withBorder radius="lg" p="lg">
+              <Group justify="space-between" wrap="nowrap" mb={kit.instructions ? 'xs' : 'md'}>
+                <Text fw={650}>{kit.name}</Text>
+                <Badge variant="light" color="gray">
+                  {kit.durationMinutes} min
+                </Badge>
+              </Group>
+              {kit.instructions && (
+                <Text size="sm" c="dimmed" mb="md">
+                  {kit.instructions}
+                </Text>
+              )}
+              <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.6} mb="xs">
+                {kit.criteria.length} scored{' '}
+                {kit.criteria.length === 1 ? 'competency' : 'competencies'}
+              </Text>
+              <Stack gap="sm">
+                {kit.criteria.map((criterion) => (
+                  <Paper key={criterion.id} p="md" radius="md" bg="var(--surface-sunken)">
+                    <Group justify="space-between" wrap="nowrap" mb={4}>
+                      <Text size="sm" fw={650}>
+                        {criterion.name}
+                      </Text>
+                      <Badge size="xs" variant="light">
+                        Weight {criterion.weight}
+                      </Badge>
+                    </Group>
+                    <Text size="sm">{criterion.question}</Text>
+                    {criterion.description && (
+                      <Text size="xs" c="dimmed" mt={6}>
+                        Good looks like: {criterion.description}
+                      </Text>
+                    )}
+                  </Paper>
+                ))}
+              </Stack>
+            </Paper>
+          ))}
+        </SimpleGrid>
+      )}
       <InterviewKitModal requisitionId={id} opened={kitOpened} onClose={kitModal.close} />
-    </div>
+    </>
+  );
+}
+
+export function RequisitionDetails({ id }: { id: string }) {
+  const details = useRequisition(id);
+  if (!details.data) return <LoadingBlock rows={3} />;
+  const requisition = details.data;
+
+  return (
+    <Grid gutter="xl">
+      <Grid.Col span={{ base: 12, lg: 7 }}>
+        <SectionCard title="Role summary" padded>
+          <Text
+            c={requisition.description ? undefined : 'dimmed'}
+            style={{ whiteSpace: 'pre-wrap', maxWidth: '68ch' }}
+          >
+            {requisition.description || 'No role summary has been added.'}
+          </Text>
+        </SectionCard>
+      </Grid.Col>
+      <Grid.Col span={{ base: 12, lg: 5 }}>
+        <Stack gap="xl">
+          <SectionCard title="Job details" padded>
+            <Stack gap="sm">
+              <Field label="Job code" value={requisition.code} />
+              <Field label="Team" value={requisition.department} />
+              <Field label="Location" value={requisition.location} />
+              <Field label="Work mode" value={requisition.workMode} />
+              <Field label="Employment type" value={requisition.employmentType} />
+              <Field label="Openings" value={String(requisition.openings)} />
+              <Field label="Target start" value={formatDate(requisition.targetStartDate)} />
+            </Stack>
+          </SectionCard>
+          <SectionCard title="People and dates" padded>
+            <Stack gap="sm">
+              <Field label="Hiring manager" value={requisition.ownerEmail} />
+              <Field label="Recruiter" value={requisition.recruiterEmail} />
+              <Field label="Created" value={formatDate(requisition.createdAt)} />
+              <Field label="Last updated" value={formatDateTime(requisition.updatedAt)} />
+            </Stack>
+          </SectionCard>
+          <SectionCard
+            title="Pipeline stages"
+            description={`${requisition.stages.length} stages in order`}
+            padded
+          >
+            <Group gap="xs">
+              {requisition.stages.map((stage, index) => (
+                <Badge key={stage.id} variant="light" color={stage.color} leftSection={index + 1}>
+                  {stage.name}
+                </Badge>
+              ))}
+            </Group>
+          </SectionCard>
+        </Stack>
+      </Grid.Col>
+    </Grid>
   );
 }
 
@@ -386,13 +577,7 @@ function InterviewKitModal({
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Add interview kit</Title>}
-      size="lg"
-      centered
-    >
+    <Modal opened={opened} onClose={onClose} title="Add interview kit" size="lg" centered>
       <Stack>
         <TextInput
           label="Interview name"
@@ -442,26 +627,46 @@ function InfoCard({
   icon: Icon,
   label,
   value,
+  hint,
 }: {
-  icon: typeof IconBriefcase2;
+  icon: typeof IconMapPin;
   label: string;
   value: string;
+  hint?: string;
 }) {
   return (
     <Paper withBorder radius="lg" p="lg">
-      <Group wrap="nowrap">
-        <ThemeIcon variant="light" color="indigo" size={38}>
-          <Icon size={19} />
+      <Group wrap="nowrap" align="flex-start">
+        <ThemeIcon variant="light" color="indigo" size={38} radius="md">
+          <Icon size={19} stroke={1.7} />
         </ThemeIcon>
         <div style={{ minWidth: 0 }}>
-          <Text size="xs" c="dimmed" fw={650}>
+          <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.5}>
             {label}
           </Text>
-          <Text size="sm" fw={650} truncate>
+          <Text size="sm" fw={650} truncate mt={3} tt="capitalize">
             {value}
           </Text>
+          {hint && (
+            <Text size="xs" c="dimmed" truncate>
+              {hint}
+            </Text>
+          )}
         </div>
       </Group>
     </Paper>
+  );
+}
+
+function Field({ label, value }: { label: string; value: string }) {
+  return (
+    <Group justify="space-between" wrap="nowrap" gap="lg" align="flex-start">
+      <Text size="sm" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+        {label}
+      </Text>
+      <Text size="sm" fw={600} ta="right" style={{ minWidth: 0, wordBreak: 'break-word' }}>
+        {value}
+      </Text>
+    </Group>
   );
 }

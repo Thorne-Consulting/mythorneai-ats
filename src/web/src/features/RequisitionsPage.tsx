@@ -16,7 +16,6 @@ import {
   Text,
   TextInput,
   Textarea,
-  Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
@@ -30,6 +29,7 @@ import {
   formatDate,
   LoadingBlock,
   PageHeader,
+  rowLinkProps,
   StatusBadge,
 } from '../components/Common';
 import type { RequisitionSummary } from '../types';
@@ -65,54 +65,63 @@ export function RequisitionsPage() {
   });
 
   return (
-    <div>
+    <>
       <PageHeader
-        title="Hiring sessions"
-        description="Team, required headcount, owners, and the full applicant pipeline."
+        title="Jobs"
+        description="Open roles, who owns them, and how full each pipeline is."
         actions={
           canCreate && (
             <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
-              New hiring session
+              New job
             </Button>
           )
         }
       />
-      <Group mb="lg" align="flex-end">
-        <TextInput
-          value={search}
-          onChange={(event) => setSearch(event.currentTarget.value)}
-          placeholder="Search role, code, or team"
-          leftSection={<IconSearch size={16} />}
-          w={{ base: '100%', sm: 340 }}
-        />
-        <Select
-          value={status}
-          onChange={setStatus}
-          clearable
-          placeholder="All statuses"
-          data={['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
-          w={{ base: '100%', sm: 180 }}
-        />
-      </Group>
+      <Paper withBorder radius="lg" p="sm" mb="lg">
+        <Group gap="sm" wrap="wrap">
+          <TextInput
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            placeholder="Search role, code, or team"
+            aria-label="Search jobs"
+            leftSection={<IconSearch size={16} />}
+            style={{ flex: '1 1 260px' }}
+          />
+          <Select
+            value={status}
+            onChange={setStatus}
+            clearable
+            placeholder="All statuses"
+            aria-label="Filter by status"
+            data={['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
+            style={{ flex: '0 1 180px' }}
+          />
+          {query.data && (
+            <Text size="sm" c="dimmed" ml="auto" pr="xs">
+              {query.data.length} {query.data.length === 1 ? 'job' : 'jobs'}
+            </Text>
+          )}
+        </Group>
+      </Paper>
 
       {!query.data ? (
         <LoadingBlock />
       ) : query.data.length === 0 ? (
         <EmptyState
           icon={IconBriefcase2}
-          title="No hiring sessions found"
+          title="No jobs found"
           description={
             search || status
               ? 'Try a different filter.'
-              : 'Create the first hiring session to start reviewing applicants.'
+              : 'Create the first job to start reviewing applicants.'
           }
-          actionLabel={canCreate && !search && !status ? 'Create hiring session' : undefined}
+          actionLabel={canCreate && !search && !status ? 'Create job' : undefined}
           onAction={modal.open}
         />
       ) : (
-        <Paper withBorder radius="lg" className="table-shell">
+        <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
           <Table.ScrollContainer minWidth={920}>
-            <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
+            <Table>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Role</Table.Th>
@@ -121,15 +130,16 @@ export function RequisitionsPage() {
                   <Table.Th>Pipeline</Table.Th>
                   <Table.Th>Owner</Table.Th>
                   <Table.Th>Target start</Table.Th>
-                  <Table.Th />
+                  <Table.Th w={48} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {query.data.map((item) => (
                   <Table.Tr
                     key={item.id}
-                    className="clickable-row"
-                    onClick={() => router.push(`/requisitions/${item.id}`)}
+                    {...rowLinkProps(`Open ${item.title}`, () =>
+                      router.push(`/requisitions/${item.id}`),
+                    )}
                   >
                     <Table.Td>
                       <Text fw={650} size="sm">
@@ -149,12 +159,14 @@ export function RequisitionsPage() {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge variant="light" color="indigo" tt="none">
+                      <Badge variant="light" color={item.activeApplications ? 'indigo' : 'gray'}>
                         {item.activeApplications} active
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{item.ownerEmail.split('@')[0]}</Text>
+                      <Text size="sm" truncate maw={180}>
+                        {item.ownerEmail}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{formatDate(item.targetStartDate)}</Text>
@@ -172,7 +184,7 @@ export function RequisitionsPage() {
         </Paper>
       )}
       <CreateRequisitionModal opened={opened} onClose={modal.close} />
-    </div>
+    </>
   );
 }
 
@@ -210,31 +222,25 @@ function CreateRequisitionModal({ opened, onClose }: { opened: boolean; onClose:
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-      notifications.show({ color: 'teal', message: 'Hiring session created' });
+      notifications.show({ color: 'teal', message: 'Job created' });
       form.reset();
       onClose();
     },
     onError: (error: Error) =>
       notifications.show({
         color: 'red',
-        title: 'Could not create hiring session',
+        title: 'Could not create job',
         message: error.message,
       }),
   });
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>New hiring session</Title>}
-      size="lg"
-      centered
-    >
+    <Modal opened={opened} onClose={onClose} title="New job" size="lg" centered>
       <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
         <Stack>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <TextInput
-              label="Session code"
+              label="Job code"
               placeholder="ENG-105"
               required
               {...form.getInputProps('code')}

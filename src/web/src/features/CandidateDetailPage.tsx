@@ -5,20 +5,17 @@ import {
   Anchor,
   Avatar,
   Badge,
-  Box,
-  Breadcrumbs,
   Button,
-  Divider,
   FileButton,
+  Grid,
   Group,
   Modal,
   Paper,
   Select,
-  SimpleGrid,
   Stack,
   Text,
   ThemeIcon,
-  Title,
+  UnstyledButton,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
@@ -40,7 +37,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '../auth';
 import { api } from '../api';
-import { formatDate, initials, LoadingBlock, StatusBadge } from '../components/Common';
+import {
+  DetailHeader,
+  formatDate,
+  initials,
+  LoadingBlock,
+  SectionCard,
+  StatusBadge,
+} from '../components/Common';
 import type { CandidateDetail, RequisitionSummary } from '../types';
 
 export function CandidateDetailPage({ id }: { id: string }) {
@@ -63,214 +67,208 @@ export function CandidateDetailPage({ id }: { id: string }) {
     },
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
-  if (!query.data) return <LoadingBlock />;
+  if (!query.data) return <LoadingBlock rows={5} />;
   const candidate = query.data;
 
   return (
-    <div>
-      <Breadcrumbs mb="lg" separator="/">
-        <Link href="/candidates" className="quiet-link">
-          Candidates
-        </Link>
-        <Text size="sm" c="dimmed">
-          {candidate.firstName} {candidate.lastName}
-        </Text>
-      </Breadcrumbs>
-      <Group justify="space-between" align="flex-start" mb="xl">
-        <Group align="flex-start" wrap="nowrap">
-          <Avatar size={64} radius="xl" color="teal" variant="light">
+    <>
+      <DetailHeader
+        backHref="/candidates"
+        backLabel="Candidates"
+        current={`${candidate.firstName} ${candidate.lastName}`}
+        avatar={
+          <Avatar size={60} radius="xl" color="teal" variant="light">
             {initials(`${candidate.firstName} ${candidate.lastName}`)}
           </Avatar>
-          <div>
-            <Group gap="sm">
-              <Title order={1} fz={{ base: 27, sm: 34 }}>
-                {candidate.firstName} {candidate.lastName}
-              </Title>
-              {candidate.doNotContact && (
-                <Badge color="red" variant="light">
-                  Do not contact
-                </Badge>
-              )}
-            </Group>
-            <Text c="dimmed" mt={4}>
-              {candidate.currentTitle ?? 'Candidate'}
-            </Text>
+        }
+        title={`${candidate.firstName} ${candidate.lastName}`}
+        badges={
+          candidate.doNotContact && (
+            <Badge color="red" variant="light">
+              Do not contact
+            </Badge>
+          )
+        }
+        subtitle={candidate.currentTitle ?? 'Candidate'}
+        meta={
+          candidate.tags.length > 0 && (
             <Group gap={6} mt="sm">
               {candidate.tags.map((tag) => (
-                <Badge key={tag} variant="light" color="gray" tt="none">
+                <Badge key={tag} variant="light" color="gray">
                   {tag}
                 </Badge>
               ))}
             </Group>
-          </div>
-        </Group>
-        {canApply && (
-          <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
-            Add to hiring session
-          </Button>
-        )}
-      </Group>
+          )
+        }
+        actions={
+          canApply && (
+            <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
+              Add to a job
+            </Button>
+          )
+        }
+      />
 
-      <SimpleGrid cols={{ base: 1, md: 3 }} spacing="xl">
-        <Stack>
-          <Paper withBorder radius="lg" p="lg">
-            <Text fw={700} mb="md">
-              Contact
-            </Text>
-            <Stack gap="md">
-              <Contact icon={IconMail}>
-                <Anchor href={`mailto:${candidate.email}`} size="sm">
-                  {candidate.email}
-                </Anchor>
-              </Contact>
-              <Contact icon={IconPhone}>
-                <Text size="sm">{candidate.phone ?? 'Not provided'}</Text>
-              </Contact>
-              <Contact icon={IconMapPin}>
-                <Text size="sm">{candidate.location ?? 'Not provided'}</Text>
-              </Contact>
-              {candidate.linkedInUrl && (
-                <Contact icon={IconExternalLink}>
-                  <Anchor href={candidate.linkedInUrl} target="_blank" size="sm">
-                    LinkedIn profile
+      <Grid gutter="xl">
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <Stack gap="lg">
+            <Paper withBorder radius="lg" p="lg">
+              <Text fw={700} mb="md">
+                Contact
+              </Text>
+              <Stack gap="md">
+                <Contact icon={IconMail}>
+                  <Anchor href={`mailto:${candidate.email}`} size="sm">
+                    {candidate.email}
                   </Anchor>
                 </Contact>
-              )}
-            </Stack>
-          </Paper>
-          <Paper withBorder radius="lg" p="lg">
-            <Group justify="space-between" mb="md">
-              <Text fw={700}>Documents</Text>
-              {canUpload && (
-                <FileButton
-                  onChange={(file) => file && upload.mutate(file)}
-                  accept=".pdf,.doc,.docx"
-                >
-                  {(props) => (
-                    <Button
-                      {...props}
-                      size="xs"
-                      variant="light"
-                      leftSection={<IconUpload size={14} />}
-                      loading={upload.isPending}
-                    >
-                      Upload
-                    </Button>
-                  )}
-                </FileButton>
-              )}
-            </Group>
-            <Stack gap="sm">
-              {candidate.attachments.map((attachment) => (
-                <Group key={attachment.id} justify="space-between" wrap="nowrap">
-                  <Group gap="sm" wrap="nowrap">
-                    <ThemeIcon color="gray" variant="light">
-                      <IconFileText size={16} />
-                    </ThemeIcon>
-                    <div style={{ minWidth: 0 }}>
-                      <Text size="sm" fw={600} truncate>
-                        {attachment.originalFileName}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        {Math.ceil(attachment.length / 1024)} KB ·{' '}
-                        {attachment.scanStatus === 'ValidationOnly'
-                          ? 'Type checked'
-                          : attachment.scanStatus}
-                      </Text>
-                    </div>
-                  </Group>
-                  <Group gap={2} wrap="nowrap">
-                    {attachment.contentType === 'application/pdf' && (
+                <Contact icon={IconPhone}>
+                  <Text size="sm">{candidate.phone ?? 'Not provided'}</Text>
+                </Contact>
+                <Contact icon={IconMapPin}>
+                  <Text size="sm">{candidate.location ?? 'Not provided'}</Text>
+                </Contact>
+                {candidate.linkedInUrl && (
+                  <Contact icon={IconExternalLink}>
+                    <Anchor href={candidate.linkedInUrl} target="_blank" size="sm">
+                      LinkedIn profile
+                    </Anchor>
+                  </Contact>
+                )}
+              </Stack>
+            </Paper>
+            <Paper withBorder radius="lg" p="lg">
+              <Group justify="space-between" mb="md">
+                <Text fw={700}>Documents</Text>
+                {canUpload && (
+                  <FileButton
+                    onChange={(file) => file && upload.mutate(file)}
+                    accept=".pdf,.doc,.docx"
+                  >
+                    {(props) => (
                       <Button
-                        variant="subtle"
-                        color="gray"
-                        size="compact-sm"
-                        aria-label="Preview document"
-                        onClick={() =>
-                          setPreview({ id: attachment.id, name: attachment.originalFileName })
-                        }
+                        {...props}
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconUpload size={14} />}
+                        loading={upload.isPending}
                       >
-                        <IconEye size={16} />
+                        Upload
                       </Button>
                     )}
-                    <ActionDownload id={attachment.id} />
+                  </FileButton>
+                )}
+              </Group>
+              <Stack gap="sm">
+                {candidate.attachments.map((attachment) => (
+                  <Group key={attachment.id} justify="space-between" wrap="nowrap">
+                    <Group gap="sm" wrap="nowrap">
+                      <ThemeIcon color="gray" variant="light">
+                        <IconFileText size={16} />
+                      </ThemeIcon>
+                      <div style={{ minWidth: 0 }}>
+                        <Text size="sm" fw={600} truncate>
+                          {attachment.originalFileName}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {Math.ceil(attachment.length / 1024)} KB ·{' '}
+                          {attachment.scanStatus === 'ValidationOnly'
+                            ? 'Type checked'
+                            : attachment.scanStatus}
+                        </Text>
+                      </div>
+                    </Group>
+                    <Group gap={2} wrap="nowrap">
+                      {attachment.contentType === 'application/pdf' && (
+                        <Button
+                          variant="subtle"
+                          color="gray"
+                          size="compact-sm"
+                          aria-label="Preview document"
+                          onClick={() =>
+                            setPreview({ id: attachment.id, name: attachment.originalFileName })
+                          }
+                        >
+                          <IconEye size={16} />
+                        </Button>
+                      )}
+                      <ActionDownload id={attachment.id} />
+                    </Group>
                   </Group>
-                </Group>
-              ))}
-              {candidate.attachments.length === 0 && (
-                <Text size="sm" c="dimmed">
-                  No resumes or documents.
-                </Text>
-              )}
-            </Stack>
-          </Paper>
-          <Paper withBorder radius="lg" p="lg">
-            <Text fw={700} mb="sm">
-              Profile
-            </Text>
-            <Stack gap="sm">
-              <Pair label="Source" value={candidate.source} />
-              <Pair label="Added" value={formatDate(candidate.createdAt)} />
-              <Pair label="Last updated" value={formatDate(candidate.updatedAt)} />
-            </Stack>
-          </Paper>
-        </Stack>
+                ))}
+                {candidate.attachments.length === 0 && (
+                  <Text size="sm" c="dimmed">
+                    No resumes or documents.
+                  </Text>
+                )}
+              </Stack>
+            </Paper>
+            <Paper withBorder radius="lg" p="lg">
+              <Text fw={700} mb="sm">
+                Profile
+              </Text>
+              <Stack gap="sm">
+                <Pair label="Source" value={candidate.source} />
+                <Pair label="Added" value={formatDate(candidate.createdAt)} />
+                <Pair label="Last updated" value={formatDate(candidate.updatedAt)} />
+              </Stack>
+            </Paper>
+          </Stack>
+        </Grid.Col>
 
-        <Box style={{ gridColumn: 'span 2' }}>
-          <Paper withBorder radius="lg">
-            <Group justify="space-between" p="lg">
-              <div>
-                <Text fw={700}>Applications</Text>
-                <Text size="sm" c="dimmed">
-                  Every role considered for this person
-                </Text>
-              </div>
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <SectionCard
+            title="Applications"
+            description="Every role considered for this person"
+            action={
               <Badge variant="light" color="indigo" circle>
                 {candidate.applications.length}
               </Badge>
-            </Group>
-            <Divider />
+            }
+          >
             <Stack gap={0}>
               {candidate.applications.map((application) => (
-                <Box
+                <UnstyledButton
                   key={application.id}
                   className="list-row"
+                  data-interactive
                   onClick={() => router.push(`/applications/${application.id}`)}
                 >
-                  <Group justify="space-between" wrap="nowrap">
-                    <Group wrap="nowrap">
+                  <Group justify="space-between" wrap="nowrap" gap="sm">
+                    <Group wrap="nowrap" style={{ minWidth: 0 }}>
                       <ThemeIcon color="indigo" variant="light">
                         <IconBriefcase2 size={17} />
                       </ThemeIcon>
-                      <div>
-                        <Text size="sm" fw={650}>
+                      <div style={{ minWidth: 0 }}>
+                        <Text size="sm" fw={650} truncate>
                           {application.requisitionTitle}
                         </Text>
-                        <Text size="xs" c="dimmed">
+                        <Text size="xs" c="dimmed" truncate>
                           {application.requisitionCode} · Applied{' '}
                           {formatDate(application.appliedAt)}
                         </Text>
                       </div>
                     </Group>
-                    <Group wrap="nowrap">
-                      <Badge variant="light" color="gray" tt="none">
+                    <Group wrap="nowrap" gap="xs">
+                      <Badge variant="light" color="gray" visibleFrom="sm">
                         {application.stage}
                       </Badge>
                       <StatusBadge status={application.status} />
                       <IconArrowRight size={16} color="var(--mantine-color-gray-5)" />
                     </Group>
                   </Group>
-                </Box>
+                </UnstyledButton>
               ))}
               {candidate.applications.length === 0 && (
-                <Text c="dimmed" p="xl">
+                <Text c="dimmed" p="xl" size="sm">
                   No applications yet.
                 </Text>
               )}
             </Stack>
-          </Paper>
-        </Box>
-      </SimpleGrid>
+          </SectionCard>
+        </Grid.Col>
+      </Grid>
       <ApplyModal candidateId={candidate.id} opened={opened} onClose={modal.close} />
       <Modal
         opened={preview !== null}
@@ -287,7 +285,7 @@ export function CandidateDetailPage({ id }: { id: string }) {
           />
         )}
       </Modal>
-    </div>
+    </>
   );
 }
 
@@ -320,16 +318,11 @@ function ApplyModal({
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Add to hiring session</Title>}
-      centered
-    >
+    <Modal opened={opened} onClose={onClose} title="Add to a job" centered>
       <Stack>
         <Select
           searchable
-          label="Open hiring session"
+          label="Open job"
           placeholder="Choose a role"
           value={requisitionId}
           onChange={setRequisitionId}

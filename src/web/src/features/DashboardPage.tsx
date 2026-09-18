@@ -4,8 +4,9 @@ import {
   Avatar,
   Badge,
   Box,
+  Card,
+  Grid,
   Group,
-  Paper,
   SimpleGrid,
   Stack,
   Text,
@@ -17,9 +18,22 @@ import { IconArrowRight, IconBriefcase2, IconCalendarEvent, IconUsers } from '@t
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '../api';
-import { formatDateTime, initials, LoadingBlock, PageHeader } from '../components/Common';
+import {
+  formatDateTime,
+  initials,
+  LoadingBlock,
+  PageHeader,
+  SectionCard,
+} from '../components/Common';
 import type { DashboardData } from '../types';
 import { useCurrentUser } from '../auth';
+
+function greeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
 
 export function DashboardPage() {
   const user = useCurrentUser();
@@ -29,170 +43,183 @@ export function DashboardPage() {
     queryFn: () => api.get<DashboardData>('/api/dashboard'),
   });
   const firstName = user.displayName.split(' ')[0];
+  const header = (
+    <PageHeader
+      title={`${greeting()}, ${firstName}`}
+      description="Here is what needs attention across hiring."
+    />
+  );
 
   if (!query.data)
     return (
       <>
-        <PageHeader
-          title={`Good morning, ${firstName}`}
-          description="Here is what needs attention across hiring."
-        />
-        <LoadingBlock />
+        {header}
+        <Grid gutter="md">
+          {[0, 1, 2].map((index) => (
+            <Grid.Col key={index} span={{ base: 12, sm: 4 }}>
+              <LoadingBlock rows={1} />
+            </Grid.Col>
+          ))}
+        </Grid>
       </>
     );
+
   const data = query.data;
   const metrics = [
     {
-      label: 'Open hiring sessions',
+      label: 'Open jobs',
       value: data.openRequisitions,
       icon: IconBriefcase2,
       color: 'indigo',
-      to: '/requisitions' as const,
+      to: '/requisitions',
     },
     {
       label: 'Active applicants',
       value: data.activeCandidates,
       icon: IconUsers,
       color: 'teal',
-      to: '/applicants' as const,
+      to: '/applicants',
     },
     {
       label: 'Interviews this week',
       value: data.interviewsThisWeek,
       icon: IconCalendarEvent,
       color: 'violet',
-      to: '/requisitions' as const,
+      to: '/requisitions',
     },
   ];
 
   return (
-    <Box maw={1440} mx="auto">
-      <PageHeader
-        title={`Good morning, ${firstName}`}
-        description="Here is what needs attention across hiring."
-      />
+    <>
+      {header}
 
-      <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md" mb="xl">
+      <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="xl">
         {metrics.map((metric) => (
-          <Paper
+          <Card
             key={metric.label}
-            withBorder
-            radius="lg"
-            p="lg"
-            className="metric-card"
+            component="button"
+            type="button"
+            ta="left"
+            h="100%"
+            p={{ base: 'md', sm: 'lg' }}
+            className="hover-card"
+            style={{ cursor: 'pointer' }}
             onClick={() => router.push(metric.to)}
           >
-            <Group justify="space-between" align="flex-start">
-              <div>
-                <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.7}>
+            <Group justify="space-between" align="flex-start" wrap="nowrap" h="100%">
+              <Box
+                style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}
+              >
+                {/* label grows so the values stay on one baseline when labels wrap */}
+                <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.6} style={{ flex: 1 }}>
                   {metric.label}
                 </Text>
-                <Title order={2} mt={8}>
+                <Title order={2} fz={{ base: 28, sm: 32 }} mt={6} className="tnum" lh={1.1}>
                   {metric.value}
                 </Title>
-              </div>
+              </Box>
               <ThemeIcon variant="light" color={metric.color} radius="md" size={40}>
                 <metric.icon size={20} stroke={1.8} />
               </ThemeIcon>
             </Group>
-          </Paper>
+          </Card>
         ))}
       </SimpleGrid>
 
-      <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="xl">
-        <Paper withBorder radius="lg" className="panel" style={{ gridColumn: 'span 2' }}>
-          <Group justify="space-between" p="lg" className="panel-header">
-            <div>
-              <Text fw={700}>Recently active</Text>
-              <Text size="sm" c="dimmed">
-                Candidates with recent movement
-              </Text>
-            </div>
-          </Group>
-          <Stack gap={0}>
-            {data.recentApplications.map((item) => (
-              <UnstyledButton
-                key={item.id}
-                className="list-row"
-                onClick={() => router.push(`/applications/${item.id}`)}
-              >
-                <Group wrap="nowrap">
-                  <Avatar radius="xl" color="indigo" variant="light">
-                    {initials(item.candidateName)}
-                  </Avatar>
-                  <Box style={{ flex: 1, minWidth: 0 }}>
-                    <Group gap="xs">
-                      <Text fw={650} size="sm">
-                        {item.candidateName}
+      <Grid gutter={{ base: 'md', lg: 'xl' }} align="stretch">
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <SectionCard title="Recently active" description="Candidates with recent movement">
+            <Stack gap={0}>
+              {data.recentApplications.map((item) => (
+                <UnstyledButton
+                  key={item.id}
+                  className="list-row"
+                  data-interactive
+                  onClick={() => router.push(`/applications/${item.id}`)}
+                >
+                  <Group wrap="nowrap">
+                    <Avatar radius="xl" color="indigo" variant="light">
+                      {initials(item.candidateName)}
+                    </Avatar>
+                    <Box style={{ flex: 1, minWidth: 0 }}>
+                      <Group gap="xs" wrap="nowrap">
+                        <Text fw={650} size="sm" truncate>
+                          {item.candidateName}
+                        </Text>
+                        <Badge size="xs" variant="light" color="gray">
+                          {item.stage}
+                        </Badge>
+                      </Group>
+                      <Text size="xs" c="dimmed" truncate>
+                        {item.candidateTitle ?? 'Candidate'} · {item.requisitionTitle}
                       </Text>
-                      <Badge size="xs" variant="light" color="gray" tt="none">
-                        {item.stage}
-                      </Badge>
-                    </Group>
-                    <Text size="xs" c="dimmed" truncate>
-                      {item.candidateTitle ?? 'Candidate'} · {item.requisitionTitle}
+                    </Box>
+                    <Text
+                      size="xs"
+                      c="dimmed"
+                      className="tnum"
+                      visibleFrom="sm"
+                      style={{ whiteSpace: 'nowrap' }}
+                    >
+                      {formatDateTime(item.lastActivityAt)}
                     </Text>
-                  </Box>
-                  <Text size="xs" c="dimmed" visibleFrom="sm">
-                    {formatDateTime(item.lastActivityAt)}
-                  </Text>
-                  <IconArrowRight size={16} color="var(--mantine-color-gray-5)" />
-                </Group>
-              </UnstyledButton>
-            ))}
-            {data.recentApplications.length === 0 && (
-              <Text c="dimmed" p="xl">
-                No active applications yet.
-              </Text>
-            )}
-          </Stack>
-        </Paper>
+                    <IconArrowRight size={16} color="var(--mantine-color-gray-5)" />
+                  </Group>
+                </UnstyledButton>
+              ))}
+              {data.recentApplications.length === 0 && (
+                <Text c="dimmed" p="xl" size="sm">
+                  No active applications yet.
+                </Text>
+              )}
+            </Stack>
+          </SectionCard>
+        </Grid.Col>
 
-        <Paper withBorder radius="lg" className="panel">
-          <Box p="lg" className="panel-header">
-            <Text fw={700}>Upcoming interviews</Text>
-            <Text size="sm" c="dimmed">
-              Next seven days
-            </Text>
-          </Box>
-          <Stack gap={0}>
-            {data.upcomingInterviews.map((interview) => (
-              <UnstyledButton
-                key={interview.id}
-                className="interview-row"
-                onClick={() => router.push(`/applications/${interview.applicationId}`)}
-              >
-                <Group align="flex-start" wrap="nowrap">
-                  <Box className="date-chip">
-                    <Text size="xs" tt="uppercase">
-                      {new Date(interview.startsAt).toLocaleDateString(undefined, {
-                        month: 'short',
-                      })}
-                    </Text>
-                    <Text fw={800}>{new Date(interview.startsAt).getDate()}</Text>
-                  </Box>
-                  <div>
-                    <Text fw={650} size="sm">
-                      {interview.candidateName}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {interview.title}
-                    </Text>
-                    <Text size="xs" c="indigo" mt={3}>
-                      {formatDateTime(interview.startsAt)}
-                    </Text>
-                  </div>
-                </Group>
-              </UnstyledButton>
-            ))}
-            {data.upcomingInterviews.length === 0 && (
-              <Text c="dimmed" p="xl" size="sm">
-                No interviews scheduled.
-              </Text>
-            )}
-          </Stack>
-        </Paper>
-      </SimpleGrid>
-    </Box>
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <SectionCard title="Upcoming interviews" description="Next seven days">
+            <Stack gap={0}>
+              {data.upcomingInterviews.map((interview) => (
+                <UnstyledButton
+                  key={interview.id}
+                  className="list-row"
+                  data-interactive
+                  onClick={() => router.push(`/applications/${interview.applicationId}`)}
+                >
+                  <Group align="flex-start" wrap="nowrap">
+                    <Box className="date-chip">
+                      <Text size="xs" tt="uppercase">
+                        {new Date(interview.startsAt).toLocaleDateString(undefined, {
+                          month: 'short',
+                        })}
+                      </Text>
+                      <Text fw={750} className="tnum" lh={1.15}>
+                        {new Date(interview.startsAt).getDate()}
+                      </Text>
+                    </Box>
+                    <Box style={{ minWidth: 0 }}>
+                      <Text fw={650} size="sm" truncate>
+                        {interview.candidateName}
+                      </Text>
+                      <Text size="xs" c="dimmed" truncate>
+                        {interview.title}
+                      </Text>
+                      <Text size="xs" c="indigo" mt={3}>
+                        {formatDateTime(interview.startsAt)}
+                      </Text>
+                    </Box>
+                  </Group>
+                </UnstyledButton>
+              ))}
+              {data.upcomingInterviews.length === 0 && (
+                <Text c="dimmed" p="xl" size="sm">
+                  No interviews scheduled.
+                </Text>
+              )}
+            </Stack>
+          </SectionCard>
+        </Grid.Col>
+      </Grid>
+    </>
   );
 }

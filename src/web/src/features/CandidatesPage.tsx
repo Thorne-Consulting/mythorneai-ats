@@ -15,7 +15,6 @@ import {
   TagsInput,
   Text,
   TextInput,
-  Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
@@ -25,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '../auth';
 import { api } from '../api';
-import { EmptyState, initials, LoadingBlock, PageHeader } from '../components/Common';
+import { EmptyState, initials, LoadingBlock, PageHeader, rowLinkProps } from '../components/Common';
 import type { CandidateSummary } from '../types';
 
 interface CandidateForm {
@@ -53,10 +52,10 @@ export function CandidatesPage() {
   });
 
   return (
-    <div>
+    <>
       <PageHeader
         title="Candidates"
-        description="One person record, with every job consideration kept in context."
+        description="One record per person, with every job they have been considered for."
         actions={
           canCreate && (
             <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
@@ -65,14 +64,23 @@ export function CandidatesPage() {
           )
         }
       />
-      <TextInput
-        value={search}
-        onChange={(event) => setSearch(event.currentTarget.value)}
-        placeholder="Search name, email or title"
-        leftSection={<IconSearch size={16} />}
-        w={{ base: '100%', sm: 360 }}
-        mb="lg"
-      />
+      <Paper withBorder radius="lg" p="sm" mb="lg">
+        <Group gap="sm" wrap="wrap">
+          <TextInput
+            value={search}
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            placeholder="Search name, email or title"
+            aria-label="Search candidates"
+            leftSection={<IconSearch size={16} />}
+            style={{ flex: '1 1 260px' }}
+          />
+          {query.data && (
+            <Text size="sm" c="dimmed" ml="auto" pr="xs">
+              {query.data.length} {query.data.length === 1 ? 'person' : 'people'}
+            </Text>
+          )}
+        </Group>
+      </Paper>
       {!query.data ? (
         <LoadingBlock />
       ) : query.data.length === 0 ? (
@@ -88,9 +96,9 @@ export function CandidatesPage() {
           onAction={modal.open}
         />
       ) : (
-        <Paper withBorder radius="lg" className="table-shell">
+        <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
           <Table.ScrollContainer minWidth={840}>
-            <Table verticalSpacing="md" horizontalSpacing="lg" highlightOnHover>
+            <Table>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Candidate</Table.Th>
@@ -98,15 +106,16 @@ export function CandidatesPage() {
                   <Table.Th>Source</Table.Th>
                   <Table.Th>Tags</Table.Th>
                   <Table.Th>Applications</Table.Th>
-                  <Table.Th />
+                  <Table.Th w={48} />
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {query.data.map((candidate) => (
                   <Table.Tr
                     key={candidate.id}
-                    className="clickable-row"
-                    onClick={() => router.push(`/candidates/${candidate.id}`)}
+                    {...rowLinkProps(`Open ${candidate.name}`, () =>
+                      router.push(`/candidates/${candidate.id}`),
+                    )}
                   >
                     <Table.Td>
                       <Group wrap="nowrap">
@@ -146,7 +155,10 @@ export function CandidatesPage() {
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Badge variant="light" color="indigo" tt="none">
+                      <Badge
+                        variant="light"
+                        color={candidate.activeApplications ? 'indigo' : 'gray'}
+                      >
                         {candidate.activeApplications} active
                       </Badge>
                     </Table.Td>
@@ -163,7 +175,7 @@ export function CandidatesPage() {
         </Paper>
       )}
       <CreateCandidateModal opened={opened} onClose={modal.close} />
-    </div>
+    </>
   );
 }
 
@@ -205,13 +217,7 @@ function CreateCandidateModal({ opened, onClose }: { opened: boolean; onClose: (
   });
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={<Title order={3}>Add candidate</Title>}
-      size="lg"
-      centered
-    >
+    <Modal opened={opened} onClose={onClose} title="Add candidate" size="lg" centered>
       <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
         <Stack>
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
