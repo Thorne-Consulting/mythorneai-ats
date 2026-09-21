@@ -4,17 +4,15 @@ import {
   Avatar,
   Badge,
   Box,
-  Card,
   Grid,
   Group,
   SimpleGrid,
   Stack,
   Text,
-  ThemeIcon,
-  Title,
   UnstyledButton,
 } from '@mantine/core';
-import { IconArrowRight, IconBriefcase2, IconCalendarEvent, IconUsers } from '@tabler/icons-react';
+import { BarChart, DonutChart } from '@mantine/charts';
+import { IconArrowRight } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
@@ -32,6 +30,25 @@ function greeting() {
   return 'Good evening';
 }
 
+const STAGE_COLOR: Record<string, string> = {
+  New: 'gray.5',
+  Review: 'indigo.5',
+  Interview: 'teal.5',
+  'Offer handoff': 'violet.5',
+  Hired: 'green.5',
+  Rejected: 'red.4',
+};
+
+function stageColor(stage: string) {
+  return STAGE_COLOR[stage] ?? 'gray.5';
+}
+
+function stageBadgeColor(stage: string): string {
+  const c = STAGE_COLOR[stage];
+  if (!c) return 'gray';
+  return c.split('.')[0];
+}
+
 export function DashboardPage({ initialData }: { initialData: DashboardData }) {
   const user = useCurrentUser();
   const router = useRouter();
@@ -41,21 +58,15 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
     initialData,
   });
   const firstName = user.displayName.split(' ')[0];
-  const header = (
-    <PageHeader
-      title={`${greeting()}, ${firstName}`}
-      description="Here is what needs attention across hiring."
-    />
-  );
 
   if (!query.data)
     return (
       <>
-        {header}
+        <PageHeader title={`${greeting()}, ${firstName}`} description="Your hiring pipeline at a glance" />
         <Grid gutter="md">
-          {[0, 1, 2].map((index) => (
-            <Grid.Col key={index} span={{ base: 12, sm: 4 }}>
-              <LoadingBlock rows={1} />
+          {[0, 1, 2].map((i) => (
+            <Grid.Col key={i} span={{ base: 12, sm: 4 }}>
+              <LoadingBlock rows={2} />
             </Grid.Col>
           ))}
         </Grid>
@@ -63,66 +74,111 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
     );
 
   const data = query.data;
-  const metrics = [
-    {
-      label: 'Open jobs',
-      value: data.openRequisitions,
-      icon: IconBriefcase2,
-      color: 'indigo',
-      to: '/requisitions',
-    },
-    {
-      label: 'Active applicants',
-      value: data.activeCandidates,
-      icon: IconUsers,
-      color: 'teal',
-      to: '/applicants',
-    },
-    {
-      label: 'Interviews this week',
-      value: data.interviewsThisWeek,
-      icon: IconCalendarEvent,
-      color: 'violet',
-      to: '/requisitions',
-    },
+
+  const stageCounts = data.recentApplications.reduce<Record<string, number>>((acc, item) => {
+    acc[item.stage] = (acc[item.stage] || 0) + 1;
+    return acc;
+  }, {});
+  const donutData = Object.entries(stageCounts).map(([name, value]) => ({
+    name,
+    value,
+    color: stageColor(name),
+  }));
+
+  const today = new Date();
+  const scheduleData = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    return {
+      day: d.toLocaleDateString(undefined, { weekday: 'short' }),
+      Interviews: data.upcomingInterviews.filter(
+        (iv) => new Date(iv.startsAt).toDateString() === d.toDateString(),
+      ).length,
+    };
+  });
+
+  const stats = [
+    { value: data.openRequisitions, label: 'Open jobs', color: 'indigo', to: '/requisitions' },
+    { value: data.activeCandidates, label: 'Active applicants', color: 'teal', to: '/applicants' },
+    { value: data.interviewsThisWeek, label: 'Interviews this week', color: 'violet', to: '/interviews' },
   ];
 
   return (
     <>
-      {header}
+      <PageHeader title={`${greeting()}, ${firstName}`} description="Your hiring pipeline at a glance" />
 
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="xl">
-        {metrics.map((metric) => (
-          <Card
-            key={metric.label}
-            component="button"
-            type="button"
-            ta="left"
-            h="100%"
-            p={{ base: 'md', sm: 'lg' }}
+        {stats.map((stat) => (
+          <UnstyledButton
+            key={stat.label}
             className="hover-card"
-            style={{ cursor: 'pointer' }}
-            onClick={() => router.push(metric.to)}
+            onClick={() => router.push(stat.to)}
+            style={{
+              padding: 'var(--mantine-spacing-lg)',
+              borderRadius: 'var(--mantine-radius-lg)',
+              background: `var(--mantine-color-${stat.color}-light)`,
+            }}
           >
-            <Group justify="space-between" align="flex-start" wrap="nowrap" h="100%">
-              <Box
-                style={{ display: 'flex', flexDirection: 'column', height: '100%', minWidth: 0 }}
-              >
-                {/* label grows so the values stay on one baseline when labels wrap */}
-                <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.6} style={{ flex: 1 }}>
-                  {metric.label}
-                </Text>
-                <Title order={2} fz={{ base: 28, sm: 32 }} mt={6} className="tnum" lh={1.1}>
-                  {metric.value}
-                </Title>
-              </Box>
-              <ThemeIcon variant="light" color={metric.color} radius="md" size={40}>
-                <metric.icon size={20} stroke={1.8} />
-              </ThemeIcon>
-            </Group>
-          </Card>
+            <Text size="sm" fw={500} c={`${stat.color}.7`}>
+              {stat.label}
+            </Text>
+            <Text fz={36} fw={700} lh={1.1} mt={6} className="tnum" c={`${stat.color}.7`}>
+              {stat.value}
+            </Text>
+          </UnstyledButton>
         ))}
       </SimpleGrid>
+
+      <Grid gutter={{ base: 'md', lg: 'xl' }} mb="xl">
+        <Grid.Col span={{ base: 12, md: 7 }}>
+          <SectionCard title="Pipeline" description="Candidates by stage">
+            {donutData.length > 0 ? (
+              <Stack align="center" gap="md" py="md">
+                <DonutChart
+                  data={donutData}
+                  size={200}
+                  thickness={32}
+                  withTooltip
+                  tooltipDataSource="segment"
+                  chartLabel={`${data.recentApplications.length}`}
+                  h={200}
+                  styles={{ label: { fontSize: 28, fontWeight: 700 } }}
+                />
+                <Group justify="center" gap="sm">
+                  {donutData.map((d, i) => (
+                    <Text key={d.name} size="md" c={d.color}>
+                      {i > 0 && <Text span c="dimmed" size="sm" mx={2}>·</Text>}
+                      <Text span fw={600} className="tnum">{d.value}</Text>{' '}
+                      {d.name.toLowerCase()}
+                    </Text>
+                  ))}
+                </Group>
+              </Stack>
+            ) : (
+              <Text c="dimmed" size="sm" p="xl">
+                No pipeline data yet.
+              </Text>
+            )}
+          </SectionCard>
+        </Grid.Col>
+
+        <Grid.Col span={{ base: 12, md: 5 }}>
+          <SectionCard title="Interview schedule" description="Next 7 days">
+            <BarChart
+              h={220}
+              data={scheduleData}
+              dataKey="day"
+              series={[{ name: 'Interviews', color: 'indigo.6' }]}
+              tickLine="none"
+              gridAxis="none"
+              withLegend={false}
+              withYAxis={false}
+              barProps={{ radius: [4, 4, 0, 0] }}
+              xAxisProps={{ fontSize: 14 }}
+            />
+          </SectionCard>
+        </Grid.Col>
+      </Grid>
 
       <Grid gutter={{ base: 'md', lg: 'xl' }} align="stretch">
         <Grid.Col span={{ base: 12, lg: 8 }}>
@@ -144,7 +200,7 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
                         <Text fw={650} size="sm" truncate>
                           {item.candidateName}
                         </Text>
-                        <Badge size="xs" variant="light" color="gray">
+                        <Badge size="xs" variant="light" color={stageBadgeColor(item.stage)}>
                           {item.stage}
                         </Badge>
                       </Group>
@@ -186,7 +242,7 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
                 >
                   <Group align="flex-start" wrap="nowrap">
                     <Box className="date-chip">
-                      <Text size="xs" tt="uppercase">
+                      <Text size="xs">
                         {new Date(interview.startsAt).toLocaleDateString(undefined, {
                           month: 'short',
                         })}

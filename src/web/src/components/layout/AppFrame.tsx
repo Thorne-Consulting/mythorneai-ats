@@ -18,12 +18,13 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconAddressBook,
   IconBriefcase2,
+  IconCalendarEvent,
   IconChevronDown,
   IconClipboardList,
   IconLayoutDashboard,
   IconLogout,
   IconSettings,
-  IconUsers,
+  IconUserSearch,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -36,7 +37,9 @@ const navigation = [
   { label: 'Overview', to: '/', icon: IconLayoutDashboard },
   { label: 'Jobs', to: '/requisitions', icon: IconBriefcase2 },
   { label: 'Applications', to: '/applicants', icon: IconClipboardList },
+  { label: 'Interviews', to: '/interviews', icon: IconCalendarEvent },
   { label: 'Candidates', to: '/candidates', icon: IconAddressBook },
+  { label: 'Talent search', to: '/talent', icon: IconUserSearch },
 ] as const;
 
 import { GlobalSearch } from './GlobalSearch';
@@ -131,9 +134,6 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
 
       <AppShell.Navbar p="sm" className="app-navbar">
         <AppShell.Section grow component={ScrollArea} type="scroll">
-          <Text size="xs" c="dimmed" fw={700} tt="uppercase" lts={1} px="sm" pt="xs" pb={6}>
-            Workspace
-          </Text>
           {navigation.map((item) => (
             <NavLink
               key={item.to}
@@ -152,9 +152,6 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
           {canAdmin && (
             <>
               <Divider my="md" />
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase" lts={1} px="sm" pb={6}>
-                System
-              </Text>
               <NavLink
                 component={Link}
                 href="/admin"
@@ -166,15 +163,6 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               />
             </>
           )}
-        </AppShell.Section>
-        <AppShell.Section>
-          <Divider mb="sm" />
-          <Group gap={6} px="sm" pb="xs" wrap="nowrap">
-            <IconUsers size={14} color="var(--mantine-color-dimmed)" />
-            <Text size="xs" c="dimmed">
-              Internal use only
-            </Text>
-          </Group>
         </AppShell.Section>
       </AppShell.Navbar>
 

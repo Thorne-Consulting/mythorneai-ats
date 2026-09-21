@@ -122,7 +122,6 @@ export function ApplicantsPage({
     <>
       <PageHeader
         title="Applications"
-        description="Every application across every job, in one list."
       />
       <Paper withBorder radius="lg" p="md" mb="lg">
         <Stack gap="sm">

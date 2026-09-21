@@ -19,5 +19,9 @@
     <PackageReference Include="Microsoft.Graph" />
     <PackageReference Include="Google.Apis.Auth" />
     <PackageReference Include="Google.Apis.Calendar.v3" />
+    <PackageReference Include="FieldCure.DocumentParsers" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Data/Seed/Resumes/*" />
   </ItemGroup>
 </Project>

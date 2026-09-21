@@ -29,3 +29,6 @@ TestResults/
 coverage/
 playwright-report/
 test-results/
+src/web/tsconfig.tsbuildinfo
+
+tmp/*

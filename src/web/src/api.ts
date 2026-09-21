@@ -38,9 +38,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const message =
       typeof details === 'object' && details && 'message' in details
         ? String((details as { message: unknown }).message)
-        : response.status === 401
-          ? 'Please sign in.'
-          : 'The request could not be completed.';
+        : typeof details === 'object' && details && 'errors' in details
+          ? String(
+              Object.values((details as { errors: Record<string, string[]> }).errors)[0]?.[0] ??
+                'Check the highlighted fields and try again.',
+            )
+          : response.status === 401
+            ? 'Please sign in.'
+            : 'The request could not be completed.';
     throw new ApiError(message, response.status, details);
   }
   if (response.status === 204) return undefined as T;
@@ -68,6 +73,7 @@ export const api = {
     body.append('file', file);
     return request<T>(path, { method: 'POST', body });
   },
+  form: <T>(path: string, body: FormData) => request<T>(path, { method: 'POST', body }),
   put: <T>(path: string, body: unknown) =>
     request<T>(path, { method: 'PUT', body: JSON.stringify(body) }),
   patch: <T>(path: string, body: unknown) =>

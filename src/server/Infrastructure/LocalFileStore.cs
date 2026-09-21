@@ -28,13 +28,25 @@ public sealed class LocalFileStore
         CancellationToken cancellationToken
     )
     {
-        if (file.Length is <= 0 or > 10 * 1024 * 1024)
+        await using var input = file.OpenReadStream();
+        return await SaveValidatedAsync(input, file.FileName, file.Length, cancellationToken);
+    }
+
+    public async Task<(string StoredName, string ContentType)> SaveValidatedAsync(
+        Stream input,
+        string fileName,
+        long length,
+        CancellationToken cancellationToken
+    )
+    {
+        if (length is <= 0 or > 10 * 1024 * 1024)
             throw new InvalidDataException("Files must be between 1 byte and 10 MB.");
-        var extension = Path.GetExtension(file.FileName);
+        if (!input.CanSeek)
+            throw new InvalidDataException("The file stream must support seeking.");
+        var extension = Path.GetExtension(fileName);
         if (!AllowedExtensions.Contains(extension))
             throw new InvalidDataException("Only PDF, DOC, and DOCX files are accepted.");
 
-        await using var input = file.OpenReadStream();
         if (!await HasExpectedSignatureAsync(input, extension, cancellationToken))
             throw new InvalidDataException("The file content does not match its extension.");
         input.Position = 0;

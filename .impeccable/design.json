@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-18T00:00:00.000Z",
+  "title": "Design System: Internal ATS",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Signal Indigo",
+        "canonical": "#4c6ef5",
+        "tonalRamp": [
+          "#364fc7",
+          "#3b5bdb",
+          "#4263eb",
+          "#4c6ef5",
+          "#5c7cfa",
+          "#748ffc",
+          "#91a7ff",
+          "#edf2ff"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#212529",
+          "#343a40",
+          "#495057",
+          "#868e96",
+          "#adb5bd",
+          "#ced4da",
+          "#f8f9fa"
+        ]
+      },
+      "ink-quiet": {
+        "role": "neutral",
+        "displayName": "Quiet Ink",
+        "canonical": "#868e96",
+        "tonalRamp": ["#212529", "#343a40", "#495057", "#868e96", "#adb5bd", "#ced4da", "#dee2e6", "#f1f3f5"]
+      },
+      "rule": { "role": "neutral", "displayName": "Rule", "canonical": "#ced4da" },
+      "surface": { "role": "neutral", "displayName": "Surface", "canonical": "#ffffff" },
+      "surface-sunken": { "role": "neutral", "displayName": "Sunken", "canonical": "#f8f9fa" },
+      "signal-positive": { "role": "tertiary", "displayName": "Positive", "canonical": "#12b886" },
+      "signal-negative": { "role": "tertiary", "displayName": "Negative", "canonical": "#fa5252" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Page title. Exactly one per page." },
+      "title": { "displayName": "Title", "purpose": "Section headings inside a page." },
+      "body": { "displayName": "Body", "purpose": "Default reading size, 14px." },
+      "secondary": { "displayName": "Secondary", "purpose": "Supporting lines, controls, buttons." },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Table headers and eyebrow captions. Fails contrast at Quiet Ink; see the Legibility Floor Rule."
+      }
+    },
+    "shadows": [
+      {
+        "name": "lift",
+        "value": "var(--mantine-shadow-md)",
+        "purpose": "Hover only, paired with translateY(-2px) over 150ms. Never at rest."
+      },
+      {
+        "name": "float",
+        "value": "var(--mantine-shadow-lg)",
+        "purpose": "Elements genuinely above the page: search panel, menus, modals."
+      }
+    ],
+    "motion": [
+      { "name": "state", "value": "150ms ease", "purpose": "Hover lift, border and shadow transitions." },
+      { "name": "drag-dim", "value": "opacity 0.4", "purpose": "Applied to the source card while dragging." }
+    ],
+    "breakpoints": [
+      { "name": "xs", "value": "36em" },
+      { "name": "sm", "value": "48em" },
+      { "name": "md", "value": "62em" },
+      { "name": "lg", "value": "75em" },
+      { "name": "content-max", "value": "1440px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single most likely next action in a region. One per region.",
+      "html": "<button class=\"ds-btn-primary\">Schedule interview</button>",
+      "css": ".ds-btn-primary { background: #4c6ef5; color: #fff; font: 600 0.8125rem/1.5 Inter, ui-sans-serif, system-ui, sans-serif; height: 36px; padding: 0 18px; border: none; border-radius: 8px; cursor: pointer; transition: background 150ms ease; } .ds-btn-primary:hover { background: #4263eb; } .ds-btn-primary:focus-visible { outline: 2px solid #4c6ef5; outline-offset: 2px; }"
+    },
+    {
+      "name": "Default Button",
+      "kind": "button",
+      "refersTo": "button-default",
+      "description": "Every action that is not the primary one. Bordered, never a second colour.",
+      "html": "<button class=\"ds-btn-default\">Cancel</button>",
+      "css": ".ds-btn-default { background: #fff; color: #000; font: 600 0.8125rem/1.5 Inter, ui-sans-serif, system-ui, sans-serif; height: 36px; padding: 0 18px; border: 1px solid #ced4da; border-radius: 8px; cursor: pointer; transition: background 150ms ease; } .ds-btn-default:hover { background: #f8f9fa; } .ds-btn-default:focus-visible { outline: 2px solid #4c6ef5; outline-offset: 2px; }"
+    },
+    {
+      "name": "Status Badge",
+      "kind": "chip",
+      "refersTo": "badge-status",
+      "description": "Status carries colour because the status is the data. Always contains a word.",
+      "html": "<span class=\"ds-badge ds-badge-open\">Open</span> <span class=\"ds-badge ds-badge-stage\">Review</span>",
+      "css": ".ds-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 999px; font: 600 0.6875rem/1 Inter, ui-sans-serif, system-ui, sans-serif; } .ds-badge-open { background: #12b8861a; color: #0ca678; } .ds-badge-stage { background: transparent; color: #495057; border: 1px solid #ced4da; }"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Page-level container: header strip, hairline divider, body. Flat at rest.",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel-head\"><div><h3 class=\"ds-panel-title\">Review notes</h3><p class=\"ds-panel-sub\">Job-related facts and decision context</p></div></header><div class=\"ds-panel-body\">Strong product instincts and clear examples of cross-functional delivery.</div></section>",
+      "css": ".ds-panel { background: #fff; border: 1px solid #ced4da; border-radius: 16px; overflow: hidden; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-panel-head { padding: 20px; border-bottom: 1px solid #ced4da; } .ds-panel-title { margin: 0; font-size: 1.0625rem; font-weight: 600; line-height: 1.3; color: #000; } .ds-panel-sub { margin: 2px 0 0; font-size: 0.8125rem; color: #868e96; } .ds-panel-body { padding: 20px; font-size: 0.875rem; line-height: 1.55; color: #000; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Real label above the field. Placeholders are examples, never labels.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Search</span><input class=\"ds-input\" placeholder=\"Name, email, title, or tag\" /></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: 4px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; } .ds-field-label { font-size: 0.8125rem; font-weight: 500; color: #000; } .ds-input { height: 36px; padding: 0 12px; border: 1px solid #ced4da; border-radius: 8px; background: #fff; color: #000; font: 400 0.8125rem/1.5 Inter, ui-sans-serif, system-ui, sans-serif; } .ds-input::placeholder { color: #868e96; } .ds-input:focus-visible { outline: 2px solid #4c6ef5; outline-offset: 1px; border-color: #4c6ef5; }"
+    },
+    {
+      "name": "Pipeline Card",
+      "kind": "custom",
+      "refersTo": "card",
+      "description": "Signature component. One candidate in one stage; draggable, with an equivalent menu action.",
+      "html": "<article class=\"ds-pipe-card\"><div class=\"ds-pipe-top\"><span class=\"ds-pipe-avatar\">JL</span><div><div class=\"ds-pipe-name\">Jordan Lee</div><div class=\"ds-pipe-role\">Product engineer</div></div></div><div class=\"ds-pipe-meta\">Chicago, IL</div><div class=\"ds-pipe-foot\"><span class=\"ds-pipe-source\">Referral</span><time class=\"ds-pipe-time\">Sep 17, 2:25 PM</time></div></article>",
+      "css": ".ds-pipe-card { background: #fff; border: 1px solid #ced4da; border-radius: 8px; padding: 16px; font-family: Inter, ui-sans-serif, system-ui, sans-serif; cursor: grab; user-select: none; transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease; } .ds-pipe-card:hover { transform: translateY(-2px); border-color: #4c6ef5; box-shadow: 0 1px 3px #0000000d, 0 20px 25px -5px #0000000d; } .ds-pipe-card:active { cursor: grabbing; } .ds-pipe-top { display: flex; gap: 12px; align-items: flex-start; } .ds-pipe-avatar { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 999px; background: #4c6ef51a; color: #4c6ef5; font-size: 0.75rem; font-weight: 600; } .ds-pipe-name { font-size: 0.875rem; font-weight: 650; color: #000; } .ds-pipe-role { font-size: 0.6875rem; color: #868e96; } .ds-pipe-meta { margin-top: 12px; font-size: 0.6875rem; color: #868e96; } .ds-pipe-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #ced4da; } .ds-pipe-source { font-size: 0.6875rem; font-weight: 600; color: #495057; border: 1px solid #ced4da; border-radius: 999px; padding: 2px 8px; } .ds-pipe-time { font-size: 0.6875rem; color: #868e96; font-variant-numeric: tabular-nums; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Nothing Extra",
+    "overview": "This is a tool for people deciding about other people's careers. Every pixel that is not carrying information is competing with a judgement someone is trying to make carefully. So the system subtracts: no illustrations, no gradients, no hero imagery, no ornament, no second accent colour looking for a job. What remains is text, rule lines, whitespace, and one blue.\n\nMinimalism here is a discipline, not a look. The test for any element is whether removing it loses information or an affordance. If neither is lost, it goes. This is why surfaces are flat, why borders are one hairline, why the palette is a single accent over neutral grey, and why status colour appears only where colour is the data.\n\nThe one thing minimalism is never allowed to take is access. Stripped interfaces usually fail the same way — labels become placeholders, buttons become bare icons, secondary text fades until it cannot be read, focus rings get removed because they spoil a clean edge. Every one of those removes an affordance while claiming to remove ornament. In this system that trade is forbidden. The interface may be quiet, but it is never unusable.",
+    "keyCharacteristics": [
+      "One accent (indigo #4c6ef5) over a neutral grey scale; nothing else is decorative colour.",
+      "Flat by default: hairline borders, no resting shadows.",
+      "Dense but not cramped — 14px body, generous row padding, real whitespace between regions.",
+      "Tabular numerals everywhere numbers line up.",
+      "Every interactive element is reachable and operable by keyboard, with a visible focus ring.",
+      "No marketing surface exists; the only unauthenticated screen is sign-in."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "Indigo appears on no more than ~10% of any screen. If two things on a page are both indigo, one of them is wrong. Secondary actions are default grey, not a second colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The Legibility Floor Rule",
+        "body": "No text may sit below 4.5:1 against its background, and no text below 13px may be used for anything a person must actually read. Quiet Ink currently violates this at label size; where minimalism and this rule conflict, this rule wins.",
+        "section": "colors"
+      },
+      {
+        "name": "The Colour Is Data Rule",
+        "body": "If colour is carrying meaning, it must not be the only thing carrying it. Every stage dot has a name beside it; every status badge has a word in it.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Title Rule",
+        "body": "Exactly one Display per page, and it names the thing you are looking at. Everything else steps down to Title or lower.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Any column of numbers, dates, counts or ratings uses font-variant-numeric: tabular-nums so figures align on the decimal.",
+        "section": "typography"
+      },
+      {
+        "name": "The 1440 Rule",
+        "body": "Content stops at 1440px. A hiring table stretched across a 34-inch monitor is unreadable, and whitespace at the edges costs nothing.",
+        "section": "layout"
+      },
+      {
+        "name": "The Tables Don't Reflow Rule",
+        "body": "A dense table scrolls sideways on small screens. It does not become a stack of cards — the column relationships are the information.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat-At-Rest Rule",
+        "body": "If an element is not being hovered, dragged, or floated above the page, it has no shadow. A border is the answer to 'how do I separate this'.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Three Radii Rule",
+        "body": "4, 8, 16. If a new surface needs a fourth radius, it is probably the wrong size for its role.",
+        "section": "shapes"
+      },
+      {
+        "name": "The Two Paths Rule",
+        "body": "Any action offered by direct manipulation must also exist as a menu item or button. Drag is an accelerant, never the only route.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do subtract first. Before adding a panel, badge or icon, check whether removing something achieves the same clarity.",
+      "Do use the Default (bordered grey) button for anything that is not the single primary action in its region.",
+      "Do give every icon-only control an aria-label that names its object, not its icon.",
+      "Do label form fields with real labels; placeholders disappear the moment someone types.",
+      "Do keep numbers tabular in any column where they stack.",
+      "Do separate with a 1px Rule hairline. It is the house answer to 'these are different things'.",
+      "Do state empty states in words, with the next action when one exists."
+    ],
+    "donts": [
+      "Don't introduce a second accent colour. Status and stage hues are data and are not available for decoration.",
+      "Don't add a resting shadow. If something needs to look separate, it needs a border.",
+      "Don't use Quiet Ink (#868e96) for anything a person must read at 11–13px. It fails contrast; the Legibility Floor Rule outranks the palette.",
+      "Don't remove a focus ring to tidy an edge.",
+      "Don't reflow a data table into cards on mobile.",
+      "Don't replace a text label with an icon to save space.",
+      "Don't add illustration, gradient, hero imagery, or an empty-state mascot.",
+      "Don't colour a pipeline stage badge from the status vocabulary. Stages are not statuses."
+    ]
+  }
+}

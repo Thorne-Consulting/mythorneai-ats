@@ -17,7 +17,7 @@ export function StatCard({
 }) {
   return (
     <Paper withBorder radius="lg" p="md">
-      <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.5}>
+      <Text size="xs" c="dimmed" fw={500}>
         {label}
       </Text>
       {value !== undefined ? (
@@ -86,7 +86,7 @@ export function EmptyState({
 }: {
   icon: Icon;
   title: string;
-  description: string;
+  description?: string;
   actionLabel?: string;
   onAction?: () => void;
 }) {
@@ -95,9 +95,11 @@ export function EmptyState({
       <Stack align="center" gap="sm" ta="center">
         <IconComponent size={34} color="var(--mantine-color-gray-5)" stroke={1.5} />
         <Text fw={650}>{title}</Text>
-        <Text size="sm" c="dimmed" maw={420}>
-          {description}
-        </Text>
+        {description && (
+          <Text size="sm" c="dimmed" maw={420}>
+            {description}
+          </Text>
+        )}
         {actionLabel && (
           <Button mt="sm" variant="light" onClick={onAction}>
             {actionLabel}

@@ -32,7 +32,6 @@ export function AdminShell({ children }: { children: ReactNode }) {
     <>
       <PageHeader
         title="Administration"
-        description="Access control and immutable system activity."
       />
       <PageTabs
         items={[

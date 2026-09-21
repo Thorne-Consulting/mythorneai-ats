@@ -40,6 +40,7 @@ builder.Services.AddDbContext<AtsDbContext>(options =>
 builder.Services.AddAtsAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<AntiforgeryEndpointFilter>();
 builder.Services.AddSingleton<LocalFileStore>();
+builder.Services.AddSingleton<ResumeParser>();
 builder.Services.AddWorkplaceIntegrations(builder.Configuration);
 builder.Services.AddHealthChecks();
 
@@ -93,8 +94,10 @@ api.MapAtsEndpoints();
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
+    var files = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
+    var parser = scope.ServiceProvider.GetRequiredService<ResumeParser>();
     await db.Database.MigrateAsync();
-    await SeedData.InitializeAsync(db, app.Environment, app.Configuration);
+    await SeedData.InitializeAsync(db, app.Environment, app.Configuration, files, parser);
 }
 
 await app.RunAsync();

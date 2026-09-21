@@ -12,6 +12,15 @@ public sealed class Candidate
     public string? LinkedInUrl { get; set; }
     public required string Source { get; set; }
     public string[] Tags { get; set; } = [];
+    public string? ResumeText { get; set; }
+    public string? ResumeSummary { get; set; }
+    public string[] ResumeSkills { get; set; } = [];
+    public string[] ResumeJobTitles { get; set; } = [];
+    public string[] ResumeEducation { get; set; } = [];
+    public string[] ResumeCertifications { get; set; } = [];
+    public string[] ResumeLanguages { get; set; } = [];
+    public decimal? ResumeYearsExperience { get; set; }
+    public DateTimeOffset? ResumeParsedAt { get; set; }
     public bool DoNotContact { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

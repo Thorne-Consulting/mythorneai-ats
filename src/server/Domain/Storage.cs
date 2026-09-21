@@ -11,5 +11,8 @@ public sealed class Attachment
     public long Length { get; set; }
     public required string UploadedBy { get; set; }
     public string ScanStatus { get; set; } = "Pending";
+    public string ParseStatus { get; set; } = "NotParsed";
+    public string? ParseError { get; set; }
+    public DateTimeOffset? ParsedAt { get; set; }
     public DateTimeOffset UploadedAt { get; set; } = DateTimeOffset.UtcNow;
 }

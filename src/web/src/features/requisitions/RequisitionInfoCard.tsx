@@ -19,7 +19,7 @@ export function RequisitionInfoCard({
           <IconComponent size={19} stroke={1.7} />
         </ThemeIcon>
         <div style={{ minWidth: 0 }}>
-          <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.5}>
+          <Text size="xs" c="dimmed" fw={500}>
             {label}
           </Text>
           <Text size="sm" fw={650} truncate mt={3} tt="capitalize">

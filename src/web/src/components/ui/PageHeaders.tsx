@@ -6,22 +6,15 @@ import Link from 'next/link';
 export function PageHeader({
   title,
   description,
-  eyebrow,
   actions,
 }: {
   title: string;
   description?: string;
-  eyebrow?: string;
   actions?: ReactNode;
 }) {
   return (
     <Group justify="space-between" align="flex-end" wrap="wrap" gap="md" mb="xl">
       <Box style={{ flex: '1 1 320px' }}>
-        {eyebrow && (
-          <Text size="xs" fw={700} c="indigo" tt="uppercase" lts={1.1} mb={4}>
-            {eyebrow}
-          </Text>
-        )}
         <Title order={1}>{title}</Title>
         {description && (
           <Text c="dimmed" mt={6} maw={680}>

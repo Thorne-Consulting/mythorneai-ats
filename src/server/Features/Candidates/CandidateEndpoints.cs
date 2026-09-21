@@ -103,6 +103,14 @@ public static partial class AtsEndpoints
                         x.DoNotContact,
                         x.CreatedAt,
                         x.UpdatedAt,
+                        x.ResumeSummary,
+                        x.ResumeSkills,
+                        x.ResumeJobTitles,
+                        x.ResumeEducation,
+                        x.ResumeCertifications,
+                        x.ResumeLanguages,
+                        x.ResumeYearsExperience,
+                        x.ResumeParsedAt,
                         Applications = x
                             .Applications.Where(a => allowedApplicationIds.Contains(a.Id))
                             .OrderByDescending(a => a.LastActivityAt)
@@ -126,6 +134,9 @@ public static partial class AtsEndpoints
                                 a.ContentType,
                                 a.Length,
                                 a.ScanStatus,
+                                a.ParseStatus,
+                                a.ParseError,
+                                a.ParsedAt,
                                 a.UploadedAt,
                             }),
                     })
@@ -263,10 +274,12 @@ public static partial class AtsEndpoints
                     ClaimsPrincipal principal,
                     AtsDbContext db,
                     LocalFileStore files,
+                    ResumeParser parser,
                     CancellationToken ct
                 ) =>
                 {
-                    if (!await db.Candidates.AnyAsync(x => x.Id == id, ct))
+                    var candidate = await db.Candidates.SingleOrDefaultAsync(x => x.Id == id, ct);
+                    if (candidate is null)
                         return Results.NotFound();
                     try
                     {
@@ -281,6 +294,19 @@ public static partial class AtsEndpoints
                             UploadedBy = principal.Email(),
                             ScanStatus = "ValidationOnly",
                         };
+                        try
+                        {
+                            await using var stream = files.OpenRead(stored.StoredName);
+                            var parsed = await parser.ParseAsync(stream, attachment.OriginalFileName, ct);
+                            ResumeProfileMapper.Apply(candidate, parsed);
+                            attachment.ParseStatus = "Parsed";
+                            attachment.ParsedAt = DateTimeOffset.UtcNow;
+                        }
+                        catch (Exception exception) when (exception is not OperationCanceledException)
+                        {
+                            attachment.ParseStatus = "Failed";
+                            attachment.ParseError = exception.Message;
+                        }
                         db.Attachments.Add(attachment);
                         Audit.Add(
                             db,

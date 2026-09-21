@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ats-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "src/web", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

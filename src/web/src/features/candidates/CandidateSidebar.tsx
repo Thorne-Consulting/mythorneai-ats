@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   Anchor,
+  Badge,
   Button,
   FileButton,
   Group,
@@ -21,6 +22,7 @@ import {
   IconMail,
   IconMapPin,
   IconPhone,
+  IconRefresh,
   IconUpload,
   type Icon,
 } from '@tabler/icons-react';
@@ -45,6 +47,17 @@ export function CandidateSidebar({
       notifications.show({ color: 'teal', message: 'Document uploaded' });
     },
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+  });
+  const parseResume = useMutation({
+    mutationFn: (attachmentId: string) =>
+      api.post(`/api/candidates/${candidate.id}/attachments/${attachmentId}/parse`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
+      queryClient.invalidateQueries({ queryKey: ['talent-search'] });
+      notifications.show({ color: 'teal', message: 'Resume profile updated' });
+    },
+    onError: (error: Error) =>
+      notifications.show({ color: 'red', title: 'Could not parse resume', message: error.message }),
   });
 
   return (
@@ -107,13 +120,30 @@ export function CandidateSidebar({
                     </Text>
                     <Text size="xs" c="dimmed">
                       {Math.ceil(attachment.length / 1024)} KB ·{' '}
-                      {attachment.scanStatus === 'ValidationOnly'
-                        ? 'Type checked'
-                        : attachment.scanStatus}
+                      {attachment.parseStatus === 'Parsed'
+                        ? 'Resume parsed'
+                        : attachment.parseStatus === 'Failed'
+                          ? 'Not parsed'
+                          : attachment.scanStatus === 'ValidationOnly'
+                            ? 'Type checked'
+                            : attachment.scanStatus}
                     </Text>
                   </div>
                 </Group>
                 <Group gap={2} wrap="nowrap">
+                  {canUpload && attachment.parseStatus !== 'Parsed' && (
+                    <Button
+                      variant="subtle"
+                      color="gray"
+                      size="compact-sm"
+                      aria-label={`Parse ${attachment.originalFileName}`}
+                      loading={parseResume.isPending && parseResume.variables === attachment.id}
+                      leftSection={<IconRefresh size={15} />}
+                      onClick={() => parseResume.mutate(attachment.id)}
+                    >
+                      Parse
+                    </Button>
+                  )}
                   {attachment.contentType === 'application/pdf' && (
                     <Button
                       variant="subtle"
@@ -138,6 +168,61 @@ export function CandidateSidebar({
             )}
           </Stack>
         </Paper>
+        {candidate.resumeParsedAt && (
+          <Paper withBorder radius="lg" p="lg">
+            <Group justify="space-between" mb="md">
+              <Text fw={700}>Resume profile</Text>
+              <Badge variant="light" color="teal">
+                Parsed
+              </Badge>
+            </Group>
+            <Stack gap="md">
+              {candidate.resumeSummary && (
+                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                  {candidate.resumeSummary}
+                </Text>
+              )}
+              {candidate.resumeYearsExperience !== undefined && (
+                <Pair
+                  label="Estimated experience"
+                  value={`${candidate.resumeYearsExperience} years`}
+                />
+              )}
+              {candidate.resumeSkills.length > 0 && (
+                <div>
+                  <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={7}>
+                    Skills
+                  </Text>
+                  <Group gap={5}>
+                    {candidate.resumeSkills.slice(0, 12).map((skill) => (
+                      <Badge key={skill} size="xs" variant="light" color="gray">
+                        {skill}
+                      </Badge>
+                    ))}
+                  </Group>
+                </div>
+              )}
+              {candidate.resumeEducation.length > 0 && (
+                <div>
+                  <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={5}>
+                    Education
+                  </Text>
+                  <Stack gap={4}>
+                    {candidate.resumeEducation.map((item) => (
+                      <Text key={item} size="sm">
+                        {item}
+                      </Text>
+                    ))}
+                  </Stack>
+                </div>
+              )}
+              <Text size="xs" c="dimmed">
+                Parsed {formatDate(candidate.resumeParsedAt)} · Review the source document before
+                making a decision.
+              </Text>
+            </Stack>
+          </Paper>
+        )}
         <Paper withBorder radius="lg" p="lg">
           <Text fw={700} mb="sm">
             Profile

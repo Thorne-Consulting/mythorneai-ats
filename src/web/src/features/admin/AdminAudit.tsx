@@ -40,7 +40,6 @@ export function AdminAudit() {
         <EmptyState
           icon={IconShieldCheck}
           title="Nothing recorded yet"
-          description="Stage moves, hiring decisions, and access changes are written here as they happen."
         />
       ) : (
         <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>

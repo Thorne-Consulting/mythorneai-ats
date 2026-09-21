@@ -146,7 +146,7 @@ export function InterviewCard({
       </Group>
       {interview.interviewKitInstructions && (
         <Paper radius="md" p="md" mt="lg" bg="var(--surface-sunken)">
-          <Text size="xs" fw={650} tt="uppercase" lts={0.5} c="dimmed" mb={4}>
+          <Text size="xs" fw={500} c="dimmed" mb={4}>
             Interviewer instructions
           </Text>
           <Text size="sm">{interview.interviewKitInstructions}</Text>
@@ -160,7 +160,7 @@ export function InterviewCard({
                 <Text fw={650} size="sm">
                   {criterion.name}
                 </Text>
-                <Badge variant="light">Weight {criterion.weight}</Badge>
+                <Text size="xs" c="dimmed">weight {criterion.weight}</Text>
               </Group>
               <Text size="sm" mt={4}>
                 {criterion.question}

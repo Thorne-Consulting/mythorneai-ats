@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Badge,
   Button,
   Checkbox,
   Group,
@@ -173,7 +172,7 @@ export function ScorecardModal({
           <Paper key={criterion.id} withBorder p="md">
             <Group justify="space-between">
               <Text fw={650}>{criterion.name}</Text>
-              <Badge variant="default">Weight {criterion.weight}</Badge>
+              <Text size="xs" c="dimmed">weight {criterion.weight}</Text>
             </Group>
             <Text size="sm" mt="xs">
               {criterion.question}

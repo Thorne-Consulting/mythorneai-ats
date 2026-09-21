@@ -10,6 +10,7 @@
     "format:check": "prettier --check ."
   },
   "dependencies": {
+    "@mantine/charts": "8.3.18",
     "@mantine/core": "^8.3.2",
     "@mantine/form": "^8.3.2",
     "@mantine/hooks": "^8.3.2",
@@ -18,7 +19,8 @@
     "@tanstack/react-query": "^5.87.4",
     "next": "^16.0.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "recharts": "3.10.1"
   },
   "devDependencies": {
     "@types/node": "^24.3.1",

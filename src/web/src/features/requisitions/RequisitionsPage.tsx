@@ -47,7 +47,6 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
     <>
       <PageHeader
         title="Jobs"
-        description="Open roles, who owns them, and how full each pipeline is."
         actions={
           canCreate && (
             <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>

@@ -66,6 +66,11 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.HasIndex(x => new { x.LastName, x.FirstName });
             entity.Property(x => x.Email).HasMaxLength(320);
             entity.Property(x => x.Tags).HasColumnType("text[]");
+            entity.Property(x => x.ResumeSkills).HasColumnType("text[]");
+            entity.Property(x => x.ResumeJobTitles).HasColumnType("text[]");
+            entity.Property(x => x.ResumeEducation).HasColumnType("text[]");
+            entity.Property(x => x.ResumeCertifications).HasColumnType("text[]");
+            entity.Property(x => x.ResumeLanguages).HasColumnType("text[]");
         });
 
         modelBuilder.Entity<Application>(entity =>
@@ -147,6 +152,9 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Operation).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
         });
+        modelBuilder.Entity<Attachment>(entity =>
+            entity.Property(x => x.ParseStatus).HasDefaultValue("NotParsed")
+        );
         modelBuilder.Entity<AuditEvent>(entity =>
             entity.HasIndex(x => new
             {

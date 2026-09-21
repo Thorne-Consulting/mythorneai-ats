@@ -43,7 +43,6 @@ export function CandidatesPage({ initialData }: { initialData: CandidateSummary[
     <>
       <PageHeader
         title="Candidates"
-        description="One record per person, with every job they have been considered for."
         actions={
           canCreate && (
             <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>

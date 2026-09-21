@@ -70,7 +70,7 @@ export function RequisitionKits({ id }: { id: string }) {
                   {kit.instructions}
                 </Text>
               )}
-              <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.6} mb="xs">
+              <Text size="xs" c="dimmed" fw={500} mb="xs">
                 {kit.criteria.length} scored{' '}
                 {kit.criteria.length === 1 ? 'competency' : 'competencies'}
               </Text>
@@ -81,9 +81,7 @@ export function RequisitionKits({ id }: { id: string }) {
                       <Text size="sm" fw={650}>
                         {criterion.name}
                       </Text>
-                      <Badge size="xs" variant="light">
-                        Weight {criterion.weight}
-                      </Badge>
+                      <Text size="xs" c="dimmed">weight {criterion.weight}</Text>
                     </Group>
                     <Text size="sm">{criterion.question}</Text>
                     {criterion.description && (

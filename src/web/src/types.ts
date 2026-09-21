@@ -110,6 +110,14 @@ export interface CandidateDetail {
   doNotContact: boolean;
   createdAt: string;
   updatedAt: string;
+  resumeSummary?: string;
+  resumeSkills: string[];
+  resumeJobTitles: string[];
+  resumeEducation: string[];
+  resumeCertifications: string[];
+  resumeLanguages: string[];
+  resumeYearsExperience?: number;
+  resumeParsedAt?: string;
   applications: Array<{
     id: string;
     requisitionId: string;
@@ -126,8 +134,52 @@ export interface CandidateDetail {
     contentType: string;
     length: number;
     scanStatus: string;
+    parseStatus: string;
+    parseError?: string;
+    parsedAt?: string;
     uploadedAt: string;
   }>;
+}
+
+export interface ResumeParsePreview {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone?: string;
+  location?: string;
+  currentTitle?: string;
+  linkedInUrl?: string;
+  summary: string;
+  skills: string[];
+  jobTitles: string[];
+  education: string[];
+  certifications: string[];
+  languages: string[];
+  yearsExperience?: number;
+  confidence: number;
+  warnings: string[];
+}
+
+export interface TalentSearchPage {
+  items: Array<{
+    candidateId: string;
+    name: string;
+    email: string;
+    location?: string;
+    currentTitle?: string;
+    source: string;
+    skills: string[];
+    experienceYears?: number | null;
+    hasParsedResume: boolean;
+    doNotContact: boolean;
+    updatedAt: string;
+    activeApplications: number;
+    matchScore?: number;
+    matchedTerms: string[];
+  }>;
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface BoardData {

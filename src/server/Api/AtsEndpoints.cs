@@ -11,6 +11,7 @@ public static partial class AtsEndpoints
         MapInterviews(api);
         MapAdministration(api);
         MapSearch(api);
+        MapResumes(api);
         return api;
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Domain;
+using MyThorneAI.Ats.Api.Infrastructure;
 
 namespace MyThorneAI.Ats.Api.Data;
 
@@ -9,13 +10,14 @@ public static partial class SeedData
         AtsDbContext db,
         IHostEnvironment environment,
         IConfiguration configuration,
+        LocalFileStore files,
+        ResumeParser parser,
         CancellationToken cancellationToken = default
     )
     {
-        if (await db.Users.AnyAsync(cancellationToken))
-            return;
+        var hasUsers = await db.Users.AnyAsync(cancellationToken);
 
-        if (!environment.IsDevelopment())
+        if (!hasUsers && !environment.IsDevelopment())
         {
             var email = configuration["Bootstrap:AdminEmail"]?.Trim().ToLowerInvariant();
             if (string.IsNullOrWhiteSpace(email))
@@ -36,17 +38,26 @@ public static partial class SeedData
             return;
         }
 
-        var now = DateTimeOffset.UtcNow;
-        var users = CreateDevelopmentUsers();
-        var jobs = CreateDevelopmentJobs(now);
-        var candidates = CreateDevelopmentCandidates(now);
-        var applications = CreateDevelopmentApplications(now, candidates, jobs);
+        if (!environment.IsDevelopment())
+            return;
 
-        db.Users.AddRange(users);
-        db.Requisitions.Add(jobs.ContractWriter);
-        db.Applications.AddRange(applications.Items);
-        AddDevelopmentAuditEvents(db, now, jobs, applications);
-        await db.SaveChangesAsync(cancellationToken);
+        if (!hasUsers)
+        {
+            var now = DateTimeOffset.UtcNow;
+            var users = CreateDevelopmentUsers();
+            var jobs = CreateDevelopmentJobs(now);
+            var candidates = CreateDevelopmentCandidates(now);
+            var applications = CreateDevelopmentApplications(now, candidates, jobs);
+
+            db.Users.AddRange(users);
+            db.Requisitions.Add(jobs.ContractWriter);
+            db.Applications.AddRange(applications.Items);
+            AddDevelopmentAuditEvents(db, now, jobs, applications);
+            await db.SaveChangesAsync(cancellationToken);
+            db.ChangeTracker.Clear();
+        }
+
+        await EnsureDevelopmentResumesAsync(db, files, parser, cancellationToken);
     }
 
     public static List<PipelineStage> CreateDefaultStages(Guid requisitionId) =>

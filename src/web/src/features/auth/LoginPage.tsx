@@ -70,7 +70,7 @@ export function LoginPage({ unavailable = false }: { unavailable?: boolean }) {
             </Center>
           ) : users.data ? (
             <Stack gap="xs">
-              <Text size="xs" c="dimmed" fw={650} tt="uppercase" lts={0.8} mb={2}>
+              <Text size="xs" c="dimmed" fw={500} mb={2}>
                 Development sign-in
               </Text>
               {users.data.map((user) => (
