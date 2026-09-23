@@ -6,6 +6,7 @@ using MyThorneAI.Ats.Api.Contracts;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
 using MyThorneAI.Ats.Api.Infrastructure;
+using NpgsqlTypes;
 
 namespace MyThorneAI.Ats.Api.Api;
 
@@ -314,45 +315,75 @@ public static partial class AtsEndpoints
                         );
                     }
                 }
-                foreach (var term in SearchTerms(q))
+                var qTerms = SearchTerms(q);
+                NpgsqlTsQuery? textQuery = null;
+                if (qTerms.Length > 0)
                 {
-                    var pattern = $"%{term}%";
-                    candidates = candidates.Where(candidate =>
-                        EF.Functions.ILike(candidate.FirstName, pattern)
-                        || EF.Functions.ILike(candidate.LastName, pattern)
-                        || EF.Functions.ILike(candidate.Email, pattern)
-                        || (candidate.CurrentTitle != null && EF.Functions.ILike(candidate.CurrentTitle, pattern))
-                        || (candidate.Location != null && EF.Functions.ILike(candidate.Location, pattern))
-                        || (candidate.ResumeText != null && EF.Functions.ILike(candidate.ResumeText, pattern))
-                        || candidate.Tags.Any(value => EF.Functions.ILike(value, pattern))
-                        || candidate.ResumeSkills.Any(value => EF.Functions.ILike(value, pattern))
-                    );
+                    textQuery = EF.Functions.PlainToTsQuery("simple", string.Join(' ', qTerms));
+                    foreach (var term in qTerms)
+                    {
+                        var pattern = $"%{term}%";
+                        candidates = candidates.Where(candidate =>
+                            (candidate.ResumeText != null
+                                && EF.Functions.ToTsVector("simple", candidate.ResumeText)
+                                    .Matches(textQuery))
+                            || EF.Functions.ILike(candidate.FirstName, pattern)
+                            || EF.Functions.ILike(candidate.LastName, pattern)
+                            || EF.Functions.ILike(candidate.Email, pattern)
+                            || (candidate.CurrentTitle != null
+                                && EF.Functions.ILike(candidate.CurrentTitle, pattern))
+                            || (candidate.Location != null
+                                && EF.Functions.ILike(candidate.Location, pattern))
+                            || candidate.Tags.Any(value => EF.Functions.ILike(value, pattern))
+                            || candidate.ResumeSkills.Any(value => EF.Functions.ILike(value, pattern))
+                        );
+                    }
                 }
 
-                var pool = await candidates
-                    .OrderByDescending(candidate => candidate.UpdatedAt)
+                var total = await candidates.CountAsync(ct);
+                var scoredCandidates = candidates.Select(candidate => new
+                {
+                    Candidate = candidate,
+                    Rank = textQuery == null || candidate.ResumeText == null
+                        ? 0f
+                        : EF.Functions.ToTsVector("simple", candidate.ResumeText).Rank(textQuery),
+                });
+                var orderedCandidates = sort switch
+                {
+                    "recent" => scoredCandidates.OrderByDescending(value => value.Candidate.UpdatedAt),
+                    "name" => scoredCandidates.OrderBy(value => value.Candidate.LastName)
+                        .ThenBy(value => value.Candidate.FirstName),
+                    "experience" => scoredCandidates.OrderByDescending(
+                        value => value.Candidate.ResumeYearsExperience ?? 0
+                    ),
+                    _ when textQuery is not null => scoredCandidates.OrderByDescending(value => value.Rank)
+                        .ThenByDescending(value => value.Candidate.UpdatedAt),
+                    _ => scoredCandidates.OrderByDescending(value => value.Candidate.UpdatedAt),
+                };
+                var pool = await orderedCandidates
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
                     .Select(candidate => new
                     {
-                        candidate.Id,
-                        Name = candidate.FirstName + " " + candidate.LastName,
-                        candidate.Email,
-                        candidate.Location,
-                        candidate.CurrentTitle,
-                        candidate.Source,
-                        candidate.Tags,
-                        candidate.ResumeSkills,
-                        candidate.ResumeJobTitles,
-                        candidate.ResumeYearsExperience,
-                        candidate.ResumeParsedAt,
-                        candidate.DoNotContact,
-                        candidate.UpdatedAt,
-                        ActiveApplications = candidate.Applications.Count(application =>
+                        candidate.Candidate.Id,
+                        Name = candidate.Candidate.FirstName + " " + candidate.Candidate.LastName,
+                        candidate.Candidate.Email,
+                        candidate.Candidate.Location,
+                        candidate.Candidate.CurrentTitle,
+                        candidate.Candidate.Source,
+                        candidate.Candidate.Tags,
+                        candidate.Candidate.ResumeSkills,
+                        candidate.Candidate.ResumeJobTitles,
+                        candidate.Candidate.ResumeYearsExperience,
+                        candidate.Candidate.ResumeParsedAt,
+                        candidate.Candidate.DoNotContact,
+                        candidate.Candidate.UpdatedAt,
+                        ActiveApplications = candidate.Candidate.Applications.Count(application =>
                             application.Status == ApplicationStatus.Active
                         ),
                     })
                     .ToListAsync(ct);
 
-                var qTerms = SearchTerms(q);
                 var matches = pool
                     .Select(candidate =>
                     {
@@ -397,16 +428,7 @@ public static partial class AtsEndpoints
                         };
                     })
                     .ToList();
-                var ordered = sort switch
-                {
-                    "recent" => matches.OrderByDescending(candidate => candidate.UpdatedAt),
-                    "name" => matches.OrderBy(candidate => candidate.Name),
-                    "experience" => matches.OrderByDescending(candidate => candidate.ExperienceYears ?? 0),
-                    _ => matches.OrderByDescending(candidate => candidate.MatchScore ?? 0)
-                        .ThenByDescending(candidate => candidate.UpdatedAt),
-                };
-                var total = matches.Count;
-                var items = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToArray();
+                var items = matches.ToArray();
                 return Results.Ok(new { Items = items, Total = total, Page = page, PageSize = pageSize });
             }
         );
