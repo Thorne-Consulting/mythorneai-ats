@@ -37,3 +37,18 @@ public sealed class AuditEvent
     public string? Details { get; set; }
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public sealed class EmailOutboxItem
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string Recipient { get; set; }
+    public required string Subject { get; set; }
+    public required string Body { get; set; }
+    public EmailOutboxStatus Status { get; set; } = EmailOutboxStatus.Pending;
+    public int Attempts { get; set; }
+    public DateTimeOffset NextAttemptAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? LockedUntil { get; set; }
+    public string? LastError { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
+}

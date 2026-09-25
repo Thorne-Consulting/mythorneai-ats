@@ -92,7 +92,7 @@ public static partial class AtsEndpoints
                             }
                         );
                     var application = await db
-                        .Applications.Include(x => x.Requisition)
+                        .Applications.Include(x => x.Requisition).Include(x => x.Candidate)
                         .SingleOrDefaultAsync(x => x.Id == id, ct);
                     if (
                         application?.Requisition is null
@@ -145,6 +145,22 @@ public static partial class AtsEndpoints
                             }
                         );
                     application.LastActivityAt = DateTimeOffset.UtcNow;
+                    if (request.Status == InterviewStatus.Scheduled)
+                    {
+                        QueueEmail(
+                            db,
+                            application.Candidate!.Email,
+                            $"Interview scheduled for {application.Requisition.Title}",
+                            $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}."
+                        );
+                        foreach (var interviewer in interview.InterviewerEmails)
+                            QueueEmail(
+                                db,
+                                interviewer,
+                                $"Interview assignment: {interview.Title}",
+                                $"You are assigned to interview a candidate for {application.Requisition.Title} at {interview.StartsAt:u}."
+                            );
+                    }
                     Audit.Add(
                         db,
                         principal,

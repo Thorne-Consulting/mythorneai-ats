@@ -459,7 +459,7 @@ public static partial class AtsEndpoints
                 ) =>
                 {
                     var application = await db
-                        .Applications.Include(x => x.Requisition)
+                        .Applications.Include(x => x.Requisition).Include(x => x.Candidate)
                         .SingleOrDefaultAsync(x => x.Id == id, ct);
                     if (
                         application?.Requisition is null
@@ -499,6 +499,12 @@ public static partial class AtsEndpoints
                             : request.Status;
                     application.DispositionReason = Clean(request.DispositionReason);
                     application.LastActivityAt = DateTimeOffset.UtcNow;
+                    QueueEmail(
+                        db,
+                        application.Candidate!.Email,
+                        $"Update on your {application.Requisition.Title} application",
+                        $"Your application for {application.Requisition.Title} moved to: {stage.Name}."
+                    );
                     Audit.Add(
                         db,
                         principal,

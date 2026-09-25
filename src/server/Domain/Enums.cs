@@ -58,3 +58,11 @@ public enum IntegrationOutboxStatus
     Succeeded,
     Failed,
 }
+
+public enum EmailOutboxStatus
+{
+    Pending,
+    Processing,
+    Succeeded,
+    Failed,
+}

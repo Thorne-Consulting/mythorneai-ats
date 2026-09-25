@@ -215,6 +215,12 @@ public static class PublicEndpoints
             interview.CalendarStatus = integration.IsEnabled ? "Queued" : "NotConfigured";
             interview.CalendarProvider = integration.IsEnabled ? integration.ProviderName : null;
             interview.Application!.LastActivityAt = DateTimeOffset.UtcNow;
+            QueueEmail(
+                db,
+                interview.Application.Candidate!.Email,
+                $"Interview booked for {interview.Application.Requisition!.Title}",
+                $"Your interview, {interview.Title}, is booked for {interview.StartsAt:u}."
+            );
             if (integration.IsEnabled) db.IntegrationOutbox.Add(new IntegrationOutboxItem
             {
                 Operation = IntegrationOperation.CreateCalendarEvent, EntityId = interview.Id,
@@ -225,6 +231,8 @@ public static class PublicEndpoints
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    private static void QueueEmail(AtsDbContext db, string recipient, string subject, string body) =>
+        db.EmailOutbox.Add(new EmailOutboxItem { Recipient = recipient, Subject = subject, Body = body });
     private static bool LooksLikeEmail(string value) => !string.IsNullOrWhiteSpace(value) && value.Contains('@') && value.Length <= 320;
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

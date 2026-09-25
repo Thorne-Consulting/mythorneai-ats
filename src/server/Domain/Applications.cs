@@ -45,6 +45,7 @@ public sealed class Application
     public int? Rating { get; set; }
     public DateTimeOffset AppliedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastActivityAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? LastReminderAt { get; set; }
     public string? VerificationCodeHash { get; set; }
     public DateTimeOffset? VerificationExpiresAt { get; set; }
     public DateTimeOffset? VerifiedAt { get; set; }

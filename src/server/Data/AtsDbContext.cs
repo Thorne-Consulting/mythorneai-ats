@@ -24,6 +24,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<ResumeParseJob> ResumeParseJobs => Set<ResumeParseJob>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<EmailOutboxItem> EmailOutbox => Set<EmailOutboxItem>();
     public DbSet<CandidatePortalSession> CandidatePortalSessions => Set<CandidatePortalSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -196,5 +197,12 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
                 x.OccurredAt,
             })
         );
+        modelBuilder.Entity<EmailOutboxItem>(entity =>
+        {
+            entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.Recipient).HasMaxLength(320);
+            entity.Property(x => x.Subject).HasMaxLength(300);
+        });
     }
 }

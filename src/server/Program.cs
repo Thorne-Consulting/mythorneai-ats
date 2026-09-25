@@ -43,6 +43,7 @@ builder.Services.AddSingleton<LocalFileStore>();
 builder.Services.AddSingleton<LocalResumeOcr>();
 builder.Services.AddSingleton<ResumeParser>();
 builder.Services.AddHostedService<ResumeParseWorker>();
+builder.Services.AddHostedService<EmailOutboxWorker>();
 builder.Services.AddWorkplaceIntegrations(builder.Configuration);
 builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
     client.BaseAddress = new Uri("https://api.resend.com/"));
