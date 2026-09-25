@@ -13,6 +13,8 @@ public sealed class Requisition
     public required string OwnerEmail { get; set; }
     public required string RecruiterEmail { get; set; }
     public string Description { get; set; } = "";
+    public Guid? PostingTemplateId { get; set; }
+    public int? PostingTemplateVersion { get; set; }
     public RequisitionStatus Status { get; set; } = RequisitionStatus.Draft;
     public DateOnly? TargetStartDate { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
@@ -20,6 +22,21 @@ public sealed class Requisition
     public List<PipelineStage> Stages { get; set; } = [];
     public List<InterviewKit> InterviewKits { get; set; } = [];
     public List<Application> Applications { get; set; } = [];
+}
+
+public sealed class PostingTemplate
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string Name { get; set; }
+    public required string HeaderMarkdown { get; set; }
+    public required string DescriptionMarkdown { get; set; }
+    public string BenefitsMarkdown { get; set; } = "";
+    public string ApplicationQuestionsMarkdown { get; set; } = "";
+    public string InterviewStagesMarkdown { get; set; } = "";
+    public int Version { get; set; } = 1;
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class PipelineStage

@@ -14,6 +14,7 @@ import {
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 
 interface RequisitionForm {
@@ -28,6 +29,7 @@ interface RequisitionForm {
   recruiterEmail: string;
   description: string;
   targetStartDate: string;
+  postingTemplateId: string | null;
 }
 
 export function CreateRequisitionModal({
@@ -51,6 +53,7 @@ export function CreateRequisitionModal({
       recruiterEmail: '',
       description: '',
       targetStartDate: '',
+      postingTemplateId: null,
     },
     validate: {
       code: (value) => (value.trim() ? null : 'Required'),
@@ -61,6 +64,10 @@ export function CreateRequisitionModal({
       ownerEmail: (value) => (value.includes('@') ? null : 'Enter an email'),
       recruiterEmail: (value) => (value.includes('@') ? null : 'Enter an email'),
     },
+  });
+  const templates = useQuery({
+    queryKey: ['posting-templates'],
+    queryFn: () => api.get<Array<{ id: string; name: string; version: number }>>('/api/posting-templates'),
   });
   const mutation = useMutation({
     mutationFn: (values: RequisitionForm) =>
@@ -138,6 +145,16 @@ export function CreateRequisitionModal({
               {...form.getInputProps('ownerEmail')}
             />
             <TextInput label="Recruiter email" required {...form.getInputProps('recruiterEmail')} />
+            <Select
+              label="Company posting template"
+              placeholder="Start from a template"
+              clearable
+              data={(templates.data ?? []).map((template) => ({
+                value: template.id,
+                label: `${template.name} · v${template.version}`,
+              }))}
+              {...form.getInputProps('postingTemplateId')}
+            />
           </SimpleGrid>
           <Textarea
             label="Role summary"

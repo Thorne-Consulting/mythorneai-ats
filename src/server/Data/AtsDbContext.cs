@@ -8,6 +8,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Requisition> Requisitions => Set<Requisition>();
+    public DbSet<PostingTemplate> PostingTemplates => Set<PostingTemplate>();
     public DbSet<PipelineStage> PipelineStages => Set<PipelineStage>();
     public DbSet<Candidate> Candidates => Set<Candidate>();
     public DbSet<Application> Applications => Set<Application>();
@@ -62,6 +63,12 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
                 .WithOne(x => x.Requisition)
                 .HasForeignKey(x => x.RequisitionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PostingTemplate>(entity =>
+        {
+            entity.HasIndex(x => new { x.Name, x.Version }).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(160);
         });
 
         modelBuilder.Entity<CandidatePortalSession>(entity =>

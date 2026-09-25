@@ -13,7 +13,8 @@ public sealed record CreateRequisitionRequest(
     string OwnerEmail,
     string RecruiterEmail,
     string Description,
-    DateOnly? TargetStartDate
+    DateOnly? TargetStartDate,
+    Guid? PostingTemplateId = null
 );
 
 public sealed record UpdateRequisitionRequest(
@@ -30,6 +31,15 @@ public sealed record UpdateRequisitionRequest(
 );
 
 public sealed record ChangeRequisitionStatusRequest(RequisitionStatus Status, string? Reason);
+
+public sealed record CreatePostingTemplateRequest(
+    string Name,
+    string HeaderMarkdown,
+    string DescriptionMarkdown,
+    string BenefitsMarkdown,
+    string ApplicationQuestionsMarkdown,
+    string InterviewStagesMarkdown
+);
 
 public sealed record CreateInterviewKitRequest(
     string Name,
