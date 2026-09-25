@@ -231,6 +231,9 @@ public static partial class AtsEndpoints
             {
                 var queryValues = request.Query;
                 var q = queryValues["q"].ToString().Trim();
+                var requisitionId = Guid.TryParse(queryValues["requisitionId"], out var parsedRequisitionId)
+                    ? parsedRequisitionId
+                    : (Guid?)null;
                 var requestedSkills = queryValues["skills"].ToString()
                     .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                     .Select(value => value.ToLowerInvariant())
@@ -259,6 +262,16 @@ public static partial class AtsEndpoints
                     ? Math.Clamp(pageSizeValue, 10, 100)
                     : 25;
                 var sort = queryValues["sort"].ToString();
+                var jobTerms = Array.Empty<string>();
+                if (requisitionId is not null)
+                {
+                    var requisition = await db.Requisitions.AsNoTracking()
+                        .SingleOrDefaultAsync(x => x.Id == requisitionId, ct);
+                    if (requisition is null)
+                        return Results.NotFound();
+                    jobTerms = SearchTerms($"{requisition.Title} {requisition.Description}")
+                        .Take(10).ToArray();
+                }
 
                 var allowedCandidateIds = ScopeApplications(
                         db.Applications.AsNoTracking(),
@@ -369,6 +382,7 @@ public static partial class AtsEndpoints
                         candidate.Candidate.Tags,
                         candidate.Candidate.ResumeSkills,
                         candidate.Candidate.ResumeJobTitles,
+                        candidate.Candidate.ResumeText,
                         candidate.Candidate.ResumeYearsExperience,
                         candidate.Candidate.ResumeParsedAt,
                         candidate.Candidate.DoNotContact,
@@ -391,11 +405,22 @@ public static partial class AtsEndpoints
                             .Where(skill => skills.Contains(skill, StringComparer.OrdinalIgnoreCase))
                             .ToArray();
                         var textMatches = qTerms;
-                        int? score = null;
-                        if (qTerms.Length > 0 || requestedSkills.Length > 0 || title.Length > 0)
+                        var candidateText = string.Join(' ', new[]
                         {
-                            var possible = Math.Max(qTerms.Length + requestedSkills.Length + (title.Length > 0 ? 1 : 0), 1);
-                            var earned = textMatches.Length + skillMatches.Length;
+                            candidate.Name, candidate.CurrentTitle, candidate.ResumeText,
+                            string.Join(' ', candidate.ResumeSkills), string.Join(' ', candidate.ResumeJobTitles),
+                        });
+                        var matchedJobTerms = jobTerms
+                            .Where(term => candidateText.Contains(term, StringComparison.OrdinalIgnoreCase))
+                            .ToArray();
+                        var missingJobTerms = jobTerms
+                            .Except(matchedJobTerms, StringComparer.OrdinalIgnoreCase)
+                            .ToArray();
+                        int? score = null;
+                        if (qTerms.Length > 0 || requestedSkills.Length > 0 || title.Length > 0 || jobTerms.Length > 0)
+                        {
+                            var possible = Math.Max(qTerms.Length + requestedSkills.Length + jobTerms.Length + (title.Length > 0 ? 1 : 0), 1);
+                            var earned = textMatches.Length + skillMatches.Length + matchedJobTerms.Length;
                             if (title.Length > 0 && (
                                 candidate.CurrentTitle?.Contains(title, StringComparison.OrdinalIgnoreCase) == true
                                 || candidate.ResumeJobTitles.Any(value => value.Contains(title, StringComparison.OrdinalIgnoreCase))))
@@ -419,11 +444,14 @@ public static partial class AtsEndpoints
                             candidate.UpdatedAt,
                             candidate.ActiveApplications,
                             MatchScore = score,
-                            MatchedTerms = textMatches.Concat(skillMatches).Distinct().Take(8).ToArray(),
+                            MatchedTerms = textMatches.Concat(skillMatches).Concat(matchedJobTerms).Distinct().Take(12).ToArray(),
+                            MissingTerms = missingJobTerms.Take(8).ToArray(),
                         };
                     })
                     .ToList();
-                var items = matches.ToArray();
+                var items = requisitionId is not null
+                    ? matches.OrderByDescending(x => x.MatchScore ?? 0).ToArray()
+                    : matches.ToArray();
                 return Results.Ok(new { Items = items, Total = total, Page = page, PageSize = pageSize });
             }
         );
