@@ -14,6 +14,19 @@ public sealed class IntegrationOutboxItem
     public DateTimeOffset? CompletedAt { get; set; }
 }
 
+public sealed class ResumeParseJob
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid AttachmentId { get; set; }
+    public string Status { get; set; } = "Pending";
+    public int Attempts { get; set; }
+    public DateTimeOffset NextAttemptAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? LockedUntil { get; set; }
+    public string? LastError { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? CompletedAt { get; set; }
+}
+
 public sealed class AuditEvent
 {
     public long Id { get; set; }

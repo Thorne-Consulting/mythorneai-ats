@@ -6,7 +6,6 @@ using MyThorneAI.Ats.Api.Contracts;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
 using MyThorneAI.Ats.Api.Infrastructure;
-using NpgsqlTypes;
 
 namespace MyThorneAI.Ats.Api.Api;
 
@@ -198,34 +197,30 @@ public static partial class AtsEndpoints
                     );
                     if (candidate is null || attachment is null)
                         return Results.NotFound();
-                    try
+                    var job = await db.ResumeParseJobs.SingleOrDefaultAsync(
+                        value => value.AttachmentId == attachmentId,
+                        ct
+                    );
+                    if (job is null)
                     {
-                        await using var stream = files.OpenRead(attachment.StoredFileName);
-                        var parsed = await parser.ParseAsync(stream, attachment.OriginalFileName, ct);
-                        ResumeProfileMapper.Apply(candidate, parsed);
-                        attachment.ParseStatus = "Parsed";
-                        attachment.ParseError = null;
-                        attachment.ParsedAt = DateTimeOffset.UtcNow;
-                        Audit.Add(
-                            db,
-                            principal,
-                            "Candidate",
-                            candidateId,
-                            "ResumeParsed",
-                            new { attachment.Id, parsed.Confidence }
-                        );
-                        await db.SaveChangesAsync(ct);
-                        return Results.Ok(ToResumePreview(parsed));
+                        job = new ResumeParseJob { AttachmentId = attachmentId };
+                        db.ResumeParseJobs.Add(job);
                     }
-                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    else
                     {
-                        attachment.ParseStatus = "Failed";
-                        attachment.ParseError = exception.Message;
-                        await db.SaveChangesAsync(ct);
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]> { ["file"] = [exception.Message] }
-                        );
+                        job.Status = "Pending";
+                        job.Attempts = 0;
+                        job.NextAttemptAt = DateTimeOffset.UtcNow;
+                        job.LockedUntil = null;
+                        job.LastError = null;
+                        job.CompletedAt = null;
                     }
+                    attachment.ParseStatus = "Pending";
+                    attachment.ParseError = null;
+                    attachment.ParsedAt = null;
+                    Audit.Add(db, principal, "Candidate", candidateId, "ResumeParseQueued", new { attachment.Id });
+                    await db.SaveChangesAsync(ct);
+                    return Results.Accepted($"/api/attachments/{attachment.Id}", new { attachment.Id });
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageCandidates);
@@ -316,17 +311,16 @@ public static partial class AtsEndpoints
                     }
                 }
                 var qTerms = SearchTerms(q);
-                NpgsqlTsQuery? textQuery = null;
+                var textQuery = string.Join(' ', qTerms);
                 if (qTerms.Length > 0)
                 {
-                    textQuery = EF.Functions.PlainToTsQuery("simple", string.Join(' ', qTerms));
                     foreach (var term in qTerms)
                     {
                         var pattern = $"%{term}%";
                         candidates = candidates.Where(candidate =>
                             (candidate.ResumeText != null
                                 && EF.Functions.ToTsVector("simple", candidate.ResumeText)
-                                    .Matches(textQuery))
+                                    .Matches(EF.Functions.PlainToTsQuery("simple", textQuery)))
                             || EF.Functions.ILike(candidate.FirstName, pattern)
                             || EF.Functions.ILike(candidate.LastName, pattern)
                             || EF.Functions.ILike(candidate.Email, pattern)
@@ -344,9 +338,10 @@ public static partial class AtsEndpoints
                 var scoredCandidates = candidates.Select(candidate => new
                 {
                     Candidate = candidate,
-                    Rank = textQuery == null || candidate.ResumeText == null
+                    Rank = qTerms.Length == 0 || candidate.ResumeText == null
                         ? 0f
-                        : EF.Functions.ToTsVector("simple", candidate.ResumeText).Rank(textQuery),
+                        : EF.Functions.ToTsVector("simple", candidate.ResumeText)
+                            .Rank(EF.Functions.PlainToTsQuery("simple", textQuery)),
                 });
                 var orderedCandidates = sort switch
                 {
@@ -356,7 +351,7 @@ public static partial class AtsEndpoints
                     "experience" => scoredCandidates.OrderByDescending(
                         value => value.Candidate.ResumeYearsExperience ?? 0
                     ),
-                    _ when textQuery is not null => scoredCandidates.OrderByDescending(value => value.Rank)
+                    _ when qTerms.Length > 0 => scoredCandidates.OrderByDescending(value => value.Rank)
                         .ThenByDescending(value => value.Candidate.UpdatedAt),
                     _ => scoredCandidates.OrderByDescending(value => value.Candidate.UpdatedAt),
                 };

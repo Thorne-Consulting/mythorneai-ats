@@ -27,6 +27,12 @@ export function CandidateDetailPage({
     queryKey: ['candidate', id],
     queryFn: () => api.get<CandidateDetail>(`/api/candidates/${id}`),
     initialData,
+    refetchInterval: (result) =>
+      result.state.data?.attachments.some(
+        (attachment) => attachment.parseStatus === 'Pending' || attachment.parseStatus === 'Processing',
+      )
+        ? 2_000
+        : false,
   });
   const canApply = ['Admin', 'Recruiter', 'HiringManager'].includes(user.role);
   const canUpload = ['Admin', 'Recruiter'].includes(user.role);

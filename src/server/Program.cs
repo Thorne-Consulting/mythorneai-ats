@@ -40,7 +40,9 @@ builder.Services.AddDbContext<AtsDbContext>(options =>
 builder.Services.AddAtsAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddScoped<AntiforgeryEndpointFilter>();
 builder.Services.AddSingleton<LocalFileStore>();
+builder.Services.AddSingleton<LocalResumeOcr>();
 builder.Services.AddSingleton<ResumeParser>();
+builder.Services.AddHostedService<ResumeParseWorker>();
 builder.Services.AddWorkplaceIntegrations(builder.Configuration);
 builder.Services.AddHealthChecks();
 

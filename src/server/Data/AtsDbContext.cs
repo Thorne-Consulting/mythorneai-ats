@@ -19,6 +19,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
         Set<ScorecardCriterionRating>();
     public DbSet<InterviewRecording> InterviewRecordings => Set<InterviewRecording>();
     public DbSet<IntegrationOutboxItem> IntegrationOutbox => Set<IntegrationOutboxItem>();
+    public DbSet<ResumeParseJob> ResumeParseJobs => Set<ResumeParseJob>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
@@ -151,6 +152,12 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.HasIndex(x => new { x.Operation, x.EntityId }).IsUnique();
             entity.Property(x => x.Operation).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+        });
+        modelBuilder.Entity<ResumeParseJob>(entity =>
+        {
+            entity.HasIndex(x => x.AttachmentId).IsUnique();
+            entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
+            entity.Property(x => x.Status).HasMaxLength(32);
         });
         modelBuilder.Entity<Attachment>(entity =>
             entity.Property(x => x.ParseStatus).HasDefaultValue("NotParsed")

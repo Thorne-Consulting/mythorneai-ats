@@ -6,7 +6,7 @@ using MyThorneAI.Ats.Api.Contracts;
 
 namespace MyThorneAI.Ats.Api.Infrastructure;
 
-public sealed partial class ResumeParser
+public sealed partial class ResumeParser(LocalResumeOcr ocr)
 {
     private const int MaxFileBytes = 10 * 1024 * 1024;
     private const int MaxExtractedCharacters = 250_000;
@@ -54,9 +54,16 @@ public sealed partial class ResumeParser
         using var content = new MemoryStream();
         await stream.CopyToAsync(content, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
-        var text = documentParser.ExtractText(content.ToArray());
+        var bytes = content.ToArray();
+        var text = documentParser.ExtractText(bytes);
 
         text = NormalizeDocumentText(text);
+        if (text.Length < 40 && extension == ".pdf")
+        {
+            var ocrPdf = await ocr.ProcessAsync(bytes, cancellationToken);
+            if (ocrPdf is not null)
+                text = NormalizeDocumentText(documentParser.ExtractText(ocrPdf));
+        }
         if (text.Length < 40)
             throw new InvalidDataException(
                 "No readable text was found. If this is a scanned PDF, run OCR and try again."

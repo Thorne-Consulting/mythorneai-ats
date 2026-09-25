@@ -9,7 +9,7 @@ RUN dotnet publish src/server/MyThorneAI.Ats.Api.csproj --no-restore --configura
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 USER root
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends libgssapi-krb5-2 \
+    && apt-get install --yes --no-install-recommends libgssapi-krb5-2 ocrmypdf \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir --parents /app/data-protection-keys \
     && mkdir --parents /app/uploads \

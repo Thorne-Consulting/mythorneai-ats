@@ -226,3 +226,20 @@ select {
     padding: var(--mantine-spacing-sm);
   }
 }
+@media (min-width: 80em) {
+  .interviews-workspace {
+    height: calc(100dvh - 156px);
+    min-height: 520px;
+  }
+
+  .interviews-calendar-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .interviews-calendar-grid {
+    flex: 1;
+    min-height: 0;
+  }
+}

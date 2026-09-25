@@ -14,6 +14,58 @@ public static partial class AtsEndpoints
 {
     private static void MapInterviews(RouteGroupBuilder api)
     {
+        api.MapGet(
+                "/interviews",
+                async (
+                    DateTimeOffset from,
+                    DateTimeOffset to,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    if (to <= from)
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["range"] = ["The end of the calendar range must follow its start."],
+                            }
+                        );
+
+                    var applicationIds = ScopeApplications(db.Applications.AsNoTracking(), principal)
+                        .Select(x => x.Id);
+                    var email = principal.Email();
+                    var interviews = await db
+                        .Interviews.AsNoTracking()
+                        .Where(x =>
+                            applicationIds.Contains(x.ApplicationId)
+                            && (principal.IsHiringStaff()
+                                || principal.IsInRole(nameof(UserRole.HiringManager))
+                                || x.InterviewerEmails.Contains(email))
+                            && x.StartsAt >= from
+                            && x.StartsAt < to
+                            && x.Status == InterviewStatus.Scheduled
+                        )
+                        .OrderBy(x => x.StartsAt)
+                        .Select(x => new
+                        {
+                            x.Id,
+                            x.ApplicationId,
+                            x.Title,
+                            x.StartsAt,
+                            x.EndsAt,
+                            CandidateName = x.Application!.Candidate!.FirstName
+                                + " "
+                                + x.Application.Candidate.LastName,
+                            RequisitionTitle = x.Application.Requisition!.Title,
+                            x.InterviewerEmails,
+                        })
+                        .ToListAsync(ct);
+                    return Results.Ok(interviews);
+                }
+            )
+            .RequireAuthorization();
+
         api.MapPost(
                 "/applications/{id:guid}/interviews",
                 async (

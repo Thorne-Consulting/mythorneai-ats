@@ -61,7 +61,7 @@ public static partial class SeedData
                 var parsed = await parser.ParseAsync(resource, seed.FileName, cancellationToken);
                 var parsedAt = DateTimeOffset.UtcNow;
                 ResumeProfileMapper.Apply(candidate, parsed, parsedAt);
-                candidate.Attachments.Add(
+                db.Attachments.Add(
                     new Attachment
                     {
                         CandidateId = candidate.Id,

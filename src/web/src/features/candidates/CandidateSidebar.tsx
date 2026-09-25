@@ -20,16 +20,20 @@ import {
   IconEye,
   IconFileText,
   IconMail,
+  IconPencil,
   IconMapPin,
   IconPhone,
   IconRefresh,
   IconUpload,
   type Icon,
 } from '@tabler/icons-react';
+import { useDisclosure } from '@mantine/hooks';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { formatDate } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
+import { PotentialDuplicates } from './PotentialDuplicates';
+import { ResumeProfileReviewModal } from './ResumeProfileReviewModal';
 
 export function CandidateSidebar({
   candidate,
@@ -39,12 +43,13 @@ export function CandidateSidebar({
   canUpload: boolean;
 }) {
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null);
+  const [reviewOpened, reviewModal] = useDisclosure(false);
   const queryClient = useQueryClient();
   const upload = useMutation({
     mutationFn: (file: File) => api.upload(`/api/candidates/${candidate.id}/attachments`, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
-      notifications.show({ color: 'teal', message: 'Document uploaded' });
+      notifications.show({ color: 'teal', message: 'Document uploaded and queued for parsing' });
     },
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
@@ -54,7 +59,7 @@ export function CandidateSidebar({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
       queryClient.invalidateQueries({ queryKey: ['talent-search'] });
-      notifications.show({ color: 'teal', message: 'Resume profile updated' });
+      notifications.show({ color: 'teal', message: 'Resume parsing queued' });
     },
     onError: (error: Error) =>
       notifications.show({ color: 'red', title: 'Could not parse resume', message: error.message }),
@@ -122,6 +127,8 @@ export function CandidateSidebar({
                       {Math.ceil(attachment.length / 1024)} KB ·{' '}
                       {attachment.parseStatus === 'Parsed'
                         ? 'Resume parsed'
+                        : attachment.parseStatus === 'Pending' || attachment.parseStatus === 'Processing'
+                          ? 'Queued for parsing'
                         : attachment.parseStatus === 'Failed'
                           ? 'Not parsed'
                           : attachment.scanStatus === 'ValidationOnly'
@@ -131,7 +138,7 @@ export function CandidateSidebar({
                   </div>
                 </Group>
                 <Group gap={2} wrap="nowrap">
-                  {canUpload && attachment.parseStatus !== 'Parsed' && (
+                  {canUpload && attachment.parseStatus === 'Failed' && (
                     <Button
                       variant="subtle"
                       color="gray"
@@ -141,7 +148,7 @@ export function CandidateSidebar({
                       leftSection={<IconRefresh size={15} />}
                       onClick={() => parseResume.mutate(attachment.id)}
                     >
-                      Parse
+                      Retry
                     </Button>
                   )}
                   {attachment.contentType === 'application/pdf' && (
@@ -172,9 +179,21 @@ export function CandidateSidebar({
           <Paper withBorder radius="lg" p="lg">
             <Group justify="space-between" mb="md">
               <Text fw={700}>Resume profile</Text>
-              <Badge variant="light" color="teal">
-                Parsed
-              </Badge>
+              <Group gap="xs">
+                <Badge variant="light" color="teal">
+                  Parsed
+                </Badge>
+                {canUpload && (
+                  <Button
+                    size="compact-sm"
+                    variant="subtle"
+                    leftSection={<IconPencil size={14} />}
+                    onClick={reviewModal.open}
+                  >
+                    Review
+                  </Button>
+                )}
+              </Group>
             </Group>
             <Stack gap="md">
               {candidate.resumeSummary && (
@@ -223,6 +242,7 @@ export function CandidateSidebar({
             </Stack>
           </Paper>
         )}
+        {canUpload && <PotentialDuplicates candidateId={candidate.id} />}
         <Paper withBorder radius="lg" p="lg">
           <Text fw={700} mb="sm">
             Profile
@@ -234,6 +254,11 @@ export function CandidateSidebar({
           </Stack>
         </Paper>
       </Stack>
+      <ResumeProfileReviewModal
+        candidate={candidate}
+        opened={reviewOpened}
+        onClose={reviewModal.close}
+      />
       <Modal
         opened={preview !== null}
         onClose={() => setPreview(null)}

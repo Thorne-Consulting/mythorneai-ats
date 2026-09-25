@@ -20,6 +20,8 @@ import {
   IconBriefcase2,
   IconCalendarEvent,
   IconChevronDown,
+  IconLayoutSidebarLeftCollapse,
+  IconLayoutSidebarLeftExpand,
   IconClipboardList,
   IconLayoutDashboard,
   IconLogout,
@@ -49,6 +51,7 @@ const NAVBAR_WIDTH = 256;
 
 export function AppFrame({ children }: { children: React.ReactNode }) {
   const [opened, { toggle, close }] = useDisclosure();
+  const [desktopOpened, { toggle: toggleDesktop }] = useDisclosure(true);
   const user = useCurrentUser();
   const queryClient = useQueryClient();
   const pathname = usePathname() ?? '/';
@@ -64,13 +67,35 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   return (
     <AppShell
       header={{ height: HEADER_HEIGHT }}
-      navbar={{ width: NAVBAR_WIDTH, breakpoint: 'md', collapsed: { mobile: !opened } }}
+      navbar={{
+        width: NAVBAR_WIDTH,
+        breakpoint: 'md',
+        collapsed: { mobile: !opened, desktop: !desktopOpened },
+      }}
       padding={{ base: 'md', sm: 'lg', lg: 'xl' }}
     >
       <AppShell.Header className="app-header" withBorder>
         <Group h="100%" px={{ base: 'sm', md: 'md' }} gap="md" wrap="nowrap">
-          <Group gap="sm" wrap="nowrap" w={{ md: NAVBAR_WIDTH - 16 }} style={{ flexShrink: 0 }}>
+          <Group
+            gap="sm"
+            wrap="nowrap"
+            w={{ md: desktopOpened ? NAVBAR_WIDTH - 16 : 'auto' }}
+            style={{ flexShrink: 0 }}
+          >
             <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" />
+            <UnstyledButton
+              visibleFrom="md"
+              onClick={toggleDesktop}
+              aria-label={desktopOpened ? 'Collapse sidebar' : 'Expand sidebar'}
+              p={6}
+              style={{ borderRadius: 'var(--mantine-radius-md)' }}
+            >
+              {desktopOpened ? (
+                <IconLayoutSidebarLeftCollapse size={18} />
+              ) : (
+                <IconLayoutSidebarLeftExpand size={18} />
+              )}
+            </UnstyledButton>
             <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
               <Group gap="sm" wrap="nowrap">
                 <ThemeIcon

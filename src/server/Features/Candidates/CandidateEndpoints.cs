@@ -266,6 +266,88 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.ManageCandidates);
 
+        api.MapPut(
+                "/candidates/{id:guid}/resume-profile",
+                async (
+                    Guid id,
+                    UpdateResumeProfileRequest request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    var candidate = await db.Candidates.SingleOrDefaultAsync(x => x.Id == id, ct);
+                    if (candidate is null)
+                        return Results.NotFound();
+                    if (request.YearsExperience is < 0 or > 60)
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["yearsExperience"] = ["Experience must be between 0 and 60 years."],
+                            }
+                        );
+
+                    candidate.ResumeSummary = Clean(request.Summary);
+                    candidate.CurrentTitle = Clean(request.CurrentTitle);
+                    candidate.ResumeSkills = NormalizeSkills(request.Skills);
+                    candidate.ResumeJobTitles = NormalizeTerms(request.JobTitles, 20);
+                    candidate.ResumeEducation = NormalizeTerms(request.Education, 20);
+                    candidate.ResumeCertifications = NormalizeTerms(request.Certifications, 20);
+                    candidate.ResumeLanguages = NormalizeTerms(request.Languages, 20);
+                    candidate.ResumeYearsExperience = request.YearsExperience;
+                    candidate.UpdatedAt = DateTimeOffset.UtcNow;
+                    Audit.Add(db, principal, "Candidate", id, "ResumeProfileReviewed");
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageCandidates);
+
+        api.MapGet(
+                "/candidates/{id:guid}/duplicates",
+                async (Guid id, AtsDbContext db, CancellationToken ct) =>
+                {
+                    var candidate = await db.Candidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
+                    if (candidate is null)
+                        return Results.NotFound();
+
+                    var email = candidate.Email.Trim().ToLowerInvariant();
+                    var phone = NormalizePhone(candidate.Phone);
+                    var linkedIn = NormalizeLink(candidate.LinkedInUrl);
+                    var firstName = candidate.FirstName.Trim().ToLowerInvariant();
+                    var lastName = candidate.LastName.Trim().ToLowerInvariant();
+                    var possible = await db.Candidates.AsNoTracking()
+                        .Where(x => x.Id != id && (
+                            x.Email == email
+                            || (phone != null && x.Phone == candidate.Phone)
+                            || (linkedIn != null && x.LinkedInUrl == candidate.LinkedInUrl)
+                            || (x.FirstName.ToLower() == firstName && x.LastName.ToLower() == lastName)
+                        ))
+                        .Select(x => new { x.Id, x.FirstName, x.LastName, x.Email, x.Phone, x.LinkedInUrl, x.CurrentTitle })
+                        .Take(25)
+                        .ToListAsync(ct);
+
+                    var matches = possible.Select(x => new
+                    {
+                        x.Id,
+                        Name = x.FirstName + " " + x.LastName,
+                        x.Email,
+                        x.CurrentTitle,
+                        Reasons = new[]
+                        {
+                            x.Email.Trim().Equals(email, StringComparison.OrdinalIgnoreCase) ? "Same email" : null,
+                            phone != null && NormalizePhone(x.Phone) == phone ? "Same phone" : null,
+                            linkedIn != null && NormalizeLink(x.LinkedInUrl) == linkedIn ? "Same LinkedIn URL" : null,
+                            x.FirstName.Trim().Equals(candidate.FirstName.Trim(), StringComparison.OrdinalIgnoreCase)
+                                && x.LastName.Trim().Equals(candidate.LastName.Trim(), StringComparison.OrdinalIgnoreCase)
+                                    ? "Same name" : null,
+                        }.Where(reason => reason is not null).ToArray(),
+                    }).Where(x => x.Reasons.Length > 0);
+                    return Results.Ok(matches);
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageCandidates);
+
         api.MapPost(
                 "/candidates/{id:guid}/attachments",
                 async (
@@ -274,7 +356,6 @@ public static partial class AtsEndpoints
                     ClaimsPrincipal principal,
                     AtsDbContext db,
                     LocalFileStore files,
-                    ResumeParser parser,
                     CancellationToken ct
                 ) =>
                 {
@@ -293,21 +374,10 @@ public static partial class AtsEndpoints
                             Length = file.Length,
                             UploadedBy = principal.Email(),
                             ScanStatus = "ValidationOnly",
+                            ParseStatus = "Pending",
                         };
-                        try
-                        {
-                            await using var stream = files.OpenRead(stored.StoredName);
-                            var parsed = await parser.ParseAsync(stream, attachment.OriginalFileName, ct);
-                            ResumeProfileMapper.Apply(candidate, parsed);
-                            attachment.ParseStatus = "Parsed";
-                            attachment.ParsedAt = DateTimeOffset.UtcNow;
-                        }
-                        catch (Exception exception) when (exception is not OperationCanceledException)
-                        {
-                            attachment.ParseStatus = "Failed";
-                            attachment.ParseError = exception.Message;
-                        }
                         db.Attachments.Add(attachment);
+                        db.ResumeParseJobs.Add(new ResumeParseJob { AttachmentId = attachment.Id });
                         Audit.Add(
                             db,
                             principal,
@@ -374,4 +444,28 @@ public static partial class AtsEndpoints
             }
         );
     }
+
+    private static string[] NormalizeTerms(string[]? values, int max) => values?
+        .Select(value => value.Trim())
+        .Where(value => value.Length > 0)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Take(max)
+        .ToArray() ?? [];
+
+    private static string[] NormalizeSkills(string[]? values) => values?
+        .Select(value => value.Trim().ToLowerInvariant())
+        .Where(value => value.Length > 0)
+        .Distinct()
+        .Take(40)
+        .ToArray() ?? [];
+
+    private static string? NormalizePhone(string? value)
+    {
+        var digits = new string((value ?? string.Empty).Where(char.IsDigit).ToArray());
+        return digits.Length >= 7 ? digits : null;
+    }
+
+    private static string? NormalizeLink(string? value) => string.IsNullOrWhiteSpace(value)
+        ? null
+        : value.Trim().TrimEnd('/').ToLowerInvariant();
 }
