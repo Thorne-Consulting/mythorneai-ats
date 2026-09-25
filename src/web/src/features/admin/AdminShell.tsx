@@ -37,6 +37,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
         items={[
           { label: 'Users and roles', href: '/admin', count: users.data?.length },
           { label: 'Microsoft and Google', href: '/admin/integrations' },
+          { label: 'Posting templates', href: '/admin/templates' },
           { label: 'Audit log', href: '/admin/audit' },
         ]}
       />
