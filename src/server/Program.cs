@@ -44,6 +44,8 @@ builder.Services.AddSingleton<LocalResumeOcr>();
 builder.Services.AddSingleton<ResumeParser>();
 builder.Services.AddHostedService<ResumeParseWorker>();
 builder.Services.AddWorkplaceIntegrations(builder.Configuration);
+builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
+    client.BaseAddress = new Uri("https://api.resend.com/"));
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
@@ -78,6 +80,7 @@ if (app.Environment.IsDevelopment())
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapAtsAuth(app.Configuration, app.Environment);
+app.MapPublicEndpoints();
 app.MapGet(
         "/api/auth/csrf",
         (HttpContext context, IAntiforgery antiforgery) =>

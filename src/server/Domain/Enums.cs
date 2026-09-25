@@ -20,6 +20,7 @@ public enum RequisitionStatus
 
 public enum ApplicationStatus
 {
+    PendingVerification,
     Active,
     Rejected,
     Withdrawn,

@@ -22,6 +22,8 @@ public sealed class Candidate
     public decimal? ResumeYearsExperience { get; set; }
     public DateTimeOffset? ResumeParsedAt { get; set; }
     public bool DoNotContact { get; set; }
+    public string? PortalCodeHash { get; set; }
+    public DateTimeOffset? PortalCodeExpiresAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<Application> Applications { get; set; } = [];
@@ -43,8 +45,21 @@ public sealed class Application
     public int? Rating { get; set; }
     public DateTimeOffset AppliedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastActivityAt { get; set; } = DateTimeOffset.UtcNow;
+    public string? VerificationCodeHash { get; set; }
+    public DateTimeOffset? VerificationExpiresAt { get; set; }
+    public DateTimeOffset? VerifiedAt { get; set; }
     public List<ApplicationNote> Notes { get; set; } = [];
     public List<Interview> Interviews { get; set; } = [];
+}
+
+public sealed class CandidatePortalSession
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid CandidateId { get; set; }
+    public Candidate? Candidate { get; set; }
+    public required string TokenHash { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public sealed class ApplicationNote

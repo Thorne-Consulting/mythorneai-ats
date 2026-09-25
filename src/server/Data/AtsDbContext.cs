@@ -23,6 +23,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<ResumeParseJob> ResumeParseJobs => Set<ResumeParseJob>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<CandidatePortalSession> CandidatePortalSessions => Set<CandidatePortalSession>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,6 +64,14 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<CandidatePortalSession>(entity =>
+        {
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.CandidateId, x.ExpiresAt });
+            entity.Property(x => x.TokenHash).HasMaxLength(128);
+            entity.HasOne(x => x.Candidate).WithMany().HasForeignKey(x => x.CandidateId).OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<PipelineStage>(entity =>
         {
             entity.HasIndex(x => new { x.RequisitionId, x.SortOrder }).IsUnique();
@@ -93,6 +102,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             });
             entity.HasIndex(x => new { x.CandidateId, x.RequisitionId });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.HasIndex(x => new { x.Status, x.VerificationExpiresAt });
             entity
                 .HasOne(x => x.PipelineStage)
                 .WithMany(x => x.Applications)
