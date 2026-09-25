@@ -1,0 +1,43 @@
+'use client';
+
+import { Button, Container, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+
+type Job = { title: string; department: string; location: string; description: string };
+
+export default function PublicJobPage() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const [job, setJob] = useState<Job | null>(null);
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', location: '', linkedInUrl: '' });
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState('');
+
+  useEffect(() => { fetch(`/public/jobs/${id}`).then(async (r) => r.ok && setJob(await r.json())); }, [id]);
+  const update = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
+    setForm((current) => ({ ...current, [key]: event.target.value }));
+  async function apply(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch(`/public/jobs/${id}/applications`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+    setSent(response.ok);
+    setMessage(response.ok ? 'Check your email for a confirmation code.' : 'Please check your details and try again.');
+  }
+  async function verify(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch('/public/applications/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: form.email, code }) });
+    if (!response.ok) { setMessage('That code is invalid or expired.'); return; }
+    const result = await response.json();
+    sessionStorage.setItem('candidate-session', result.token);
+    router.push('/candidate-portal');
+  }
+  if (!job) return <Container py="xl"><Text>Job not found.</Text></Container>;
+  return <Container size="sm" py="xl"><Stack gap="xl">
+    <div><Title order={1}>{job.title}</Title><Text c="dimmed">{job.department} · {job.location}</Text></div>
+    <Paper withBorder p="lg"><Text style={{ whiteSpace: 'pre-wrap' }}>{job.description}</Text></Paper>
+    {!sent ? <form onSubmit={apply}><Stack><Title order={2}>Apply</Title>
+      {(['firstName', 'lastName', 'email', 'phone', 'location', 'linkedInUrl'] as const).map((key) => <TextInput key={key} label={key === 'linkedInUrl' ? 'LinkedIn URL' : key.replace(/([A-Z])/g, ' $1')} required={['firstName', 'lastName', 'email'].includes(key)} value={form[key]} onChange={update(key)} />)}
+      <Button type="submit">Continue</Button></Stack></form> : <form onSubmit={verify}><Stack><Title order={2}>Confirm your email</Title><Text>{message}</Text><TextInput label="Confirmation code" value={code} onChange={(event) => setCode(event.target.value)} required /><Button type="submit">Confirm application</Button></Stack></form>}
+  </Stack></Container>;
+}

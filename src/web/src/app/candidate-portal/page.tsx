@@ -1,0 +1,34 @@
+'use client';
+
+import { Button, Container, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
+import { useEffect, useState } from 'react';
+
+type Portal = { candidate: { firstName: string; lastName: string }; applications: Array<{ jobTitle: string; stage: string; status: string; appliedAt: string; interviews: Array<{ title: string; startsAt: string; meetingLink?: string }> }> };
+
+export default function CandidatePortalPage() {
+  const [portal, setPortal] = useState<Portal | null>(null);
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState('');
+  async function load() {
+    const token = sessionStorage.getItem('candidate-session');
+    if (!token) return;
+    const response = await fetch('/public/portal', { headers: { 'X-Candidate-Session': token } });
+    if (response.ok) setPortal(await response.json());
+  }
+  useEffect(() => { load(); }, []);
+  async function requestCode(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch('/public/portal/access-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    setSent(response.ok); setMessage('If that email is on file, a code is on its way.');
+  }
+  async function verify(event: React.FormEvent) {
+    event.preventDefault();
+    const response = await fetch('/public/portal/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, code }) });
+    if (!response.ok) { setMessage('That code is invalid or expired.'); return; }
+    sessionStorage.setItem('candidate-session', (await response.json()).token); load();
+  }
+  if (!portal) return <Container size="sm" py="xl"><Stack><Title order={1}>Candidate portal</Title><Text>{message}</Text>{!sent ? <form onSubmit={requestCode}><Stack><TextInput label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /><Button type="submit">Email me a sign-in code</Button></Stack></form> : <form onSubmit={verify}><Stack><TextInput label="Sign-in code" value={code} onChange={(event) => setCode(event.target.value)} required /><Button type="submit">Open portal</Button></Stack></form>}</Stack></Container>;
+  return <Container size="sm" py="xl"><Stack><Title order={1}>Hi, {portal.candidate.firstName}</Title>{portal.applications.map((application) => <Paper key={application.jobTitle + application.appliedAt} withBorder p="lg"><Stack gap="xs"><Title order={3}>{application.jobTitle}</Title><Text>{application.stage} · {application.status}</Text>{application.interviews.map((interview) => <Text key={interview.startsAt}>{interview.title}: {new Date(interview.startsAt).toLocaleString()} {interview.meetingLink && <a href={interview.meetingLink}>Join meeting</a>}</Text>)}</Stack></Paper>)}</Stack></Container>;
+}

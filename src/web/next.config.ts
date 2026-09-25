@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },
+      { source: '/public/:path*', destination: `${apiOrigin}/public/:path*` },
       { source: '/auth/:path*', destination: `${apiOrigin}/auth/:path*` },
       { source: '/signin-oidc', destination: `${apiOrigin}/signin-oidc` },
       { source: '/signout-callback-oidc', destination: `${apiOrigin}/signout-callback-oidc` },
