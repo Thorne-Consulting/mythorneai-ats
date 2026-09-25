@@ -5,6 +5,7 @@ using MyThorneAI.Ats.Api.Contracts;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
 using MyThorneAI.Ats.Api.Infrastructure;
+using MyThorneAI.Ats.Api.Integrations;
 
 namespace MyThorneAI.Ats.Api.Api;
 
@@ -183,9 +184,43 @@ public static class PublicEndpoints
                 .Select(x => new { x.Id, x.RequisitionId, JobTitle = x.Requisition!.Title,
                     Stage = x.PipelineStage!.Name, Status = x.Status.ToString(), x.AppliedAt,
                     x.LastActivityAt, Interviews = x.Interviews.Where(i => i.Status == InterviewStatus.Scheduled)
-                        .Select(i => new { i.Title, i.StartsAt, i.EndsAt, i.TimeZone, i.MeetingLink }) })
+                        .Select(i => new { i.Id, i.Title, i.StartsAt, i.EndsAt, i.TimeZone, i.MeetingLink }),
+                    ProposedInterviews = x.Interviews.Where(i => i.Status == InterviewStatus.Proposed)
+                        .Select(i => new { i.Id, i.Title, i.StartsAt, i.EndsAt, i.TimeZone }) })
                 .ToListAsync(ct);
             return Results.Ok(new { candidate = new { session.Candidate.FirstName, session.Candidate.LastName }, applications });
+        });
+
+        api.MapPost("/applications/{applicationId:guid}/interviews/{interviewId:guid}/book", async (
+            Guid applicationId,
+            Guid interviewId,
+            HttpRequest http,
+            AtsDbContext db,
+            IWorkplaceIntegration integration,
+            CancellationToken ct) =>
+        {
+            var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(token)) return Results.Unauthorized();
+            var candidateId = await db.CandidatePortalSessions
+                .Where(x => x.TokenHash == Hash(token) && x.ExpiresAt > DateTimeOffset.UtcNow)
+                .Select(x => (Guid?)x.CandidateId).SingleOrDefaultAsync(ct);
+            if (candidateId is null) return Results.Unauthorized();
+            var interview = await db.Interviews.Include(x => x.Application)
+                .SingleOrDefaultAsync(x => x.Id == interviewId && x.ApplicationId == applicationId
+                    && x.Application!.CandidateId == candidateId && x.Status == InterviewStatus.Proposed, ct);
+            if (interview is null) return Results.NotFound();
+            var otherSlots = await db.Interviews.Where(x => x.ApplicationId == applicationId && x.Status == InterviewStatus.Proposed && x.Id != interviewId).ToListAsync(ct);
+            foreach (var slot in otherSlots) slot.Status = InterviewStatus.Cancelled;
+            interview.Status = InterviewStatus.Scheduled;
+            interview.CalendarStatus = integration.IsEnabled ? "Queued" : "NotConfigured";
+            interview.CalendarProvider = integration.IsEnabled ? integration.ProviderName : null;
+            interview.Application!.LastActivityAt = DateTimeOffset.UtcNow;
+            if (integration.IsEnabled) db.IntegrationOutbox.Add(new IntegrationOutboxItem
+            {
+                Operation = IntegrationOperation.CreateCalendarEvent, EntityId = interview.Id,
+            });
+            await db.SaveChangesAsync(ct);
+            return Results.Ok(new { interview.Id });
         });
     }
 

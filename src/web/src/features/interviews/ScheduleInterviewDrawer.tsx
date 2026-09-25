@@ -23,6 +23,7 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
   const [startsAt, setStartsAt] = useState<string | null>(null);
   const [endsAt, setEndsAt] = useState<string | null>(null);
   const [interviewers, setInterviewers] = useState('');
+  const [status, setStatus] = useState('Scheduled');
 
   useEffect(() => {
     if (!opened) return;
@@ -59,7 +60,7 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
           .map((email) => email.trim())
           .filter(Boolean),
         meetingLink: null,
-        status: 'Scheduled',
+        status,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['interview-calendar'] });
@@ -125,6 +126,12 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
           value={title}
           onChange={(event) => setTitle(event.currentTarget.value)}
         />
+        <Select
+          label="Candidate booking"
+          value={status}
+          onChange={(value) => value && setStatus(value)}
+          data={[{ value: 'Scheduled', label: 'Schedule now' }, { value: 'Proposed', label: 'Offer this time to candidate' }]}
+        />
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <DateTimePicker
             label="Starts"
@@ -150,7 +157,7 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
             disabled={!applicationId || !title || !startsAt || !endsAt || !interviewers}
             onClick={() => mutation.mutate()}
           >
-            Schedule and sync
+            {status === 'Proposed' ? 'Offer time' : 'Schedule and sync'}
           </Button>
         </Group>
       </Stack>

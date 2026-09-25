@@ -127,6 +127,7 @@ public static partial class AtsEndpoints
                         EndsAt = request.EndsAt,
                         TimeZone = request.TimeZone.Trim(),
                         MeetingLink = Clean(request.MeetingLink),
+                        Status = request.Status,
                         InterviewerEmails = request
                             .InterviewerEmails.Select(x => x.Trim().ToLowerInvariant())
                             .Distinct()
@@ -135,7 +136,7 @@ public static partial class AtsEndpoints
                         CalendarProvider = integration.IsEnabled ? integration.ProviderName : null,
                     };
                     db.Interviews.Add(interview);
-                    if (integration.IsEnabled)
+                    if (integration.IsEnabled && request.Status == InterviewStatus.Scheduled)
                         db.IntegrationOutbox.Add(
                             new IntegrationOutboxItem
                             {

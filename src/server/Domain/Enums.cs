@@ -29,6 +29,7 @@ public enum ApplicationStatus
 
 public enum InterviewStatus
 {
+    Proposed,
     Scheduled,
     Completed,
     Cancelled,

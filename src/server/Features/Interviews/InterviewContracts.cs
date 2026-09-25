@@ -9,7 +9,8 @@ public sealed record ScheduleInterviewRequest(
     DateTimeOffset EndsAt,
     string TimeZone,
     string? MeetingLink,
-    string[] InterviewerEmails
+    string[] InterviewerEmails,
+    InterviewStatus Status = InterviewStatus.Scheduled
 );
 
 public sealed record UpdateInterviewRequest(
