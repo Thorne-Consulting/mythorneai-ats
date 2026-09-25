@@ -1,152 +1,262 @@
-# ATS product flow
+# Hiring product specification
 
-This document records the agreed product direction. It is a living scope
-document; implementation details may change as the product is built.
+This document describes the hiring experience we are building. It is written
+around user outcomes and product behavior rather than implementation details.
 
-## Decisions
+## Product promise
 
-- WorkOS AuthKit is the default authentication system for internal employees.
-- Google and Microsoft social login are enabled by organization policy.
-- The first successful employee login creates the organization and owner.
-- The owner configures company name, allowed email domains, and login policy.
-- Enterprise SSO connections are deferred until they are needed.
-- Candidates live in the ATS database, not WorkOS.
-- One candidate can have multiple applications.
-- Candidate access is passwordless, using one-time email codes and database-backed sessions.
-- Each interviewer connects their own Google or Microsoft calendar.
-- Google Calendar and Microsoft Graph are integrated behind one application-owned interface.
-- Resend sends transactional email.
-- OpenAI is the initial model provider behind the AI SDK.
-- Turnstile and Nylas are not required initially.
-- A public API-key management portal is deferred.
+The ATS should make hiring organized, personal, and easy to follow. A recruiter
+should always know what needs attention. A candidate should always know what
+happens next. An interviewer should receive the right information at the right
+time without chasing anyone.
 
-## Employee authentication and organization setup
+## Organization setup
 
-1. The first employee signs in with an allowed Google or Microsoft account.
-2. The application creates the organization, owner membership, and local ATS user.
-3. The owner configures company name, allowed domains, enabled providers,
-   timezone, reminder defaults, and interview defaults.
-4. Admins invite later employees and assign ATS roles.
-5. WorkOS verifies identity; the ATS database remains the source of truth for
-   ATS roles, permissions, and organization data.
+The first employee who signs in becomes the owner of the company workspace.
+The owner names the company and decides:
 
-Initial roles are owner/admin, recruiter, hiring manager, and interviewer.
+- whether employees may sign in with Google, Microsoft, or both;
+- which company email domains are allowed; and
+- which people may join and what each person may do.
 
-## Jobs and public applications
+The owner and administrators can invite recruiters, hiring managers, and
+interviewers. Each person sees only the work their role allows.
 
-Recruiters create detailed jobs with a rich description, requirements,
-application questions, hiring team, interview rounds, and message templates.
-Jobs have public listing and detail pages plus public JSON/OpenAPI endpoints.
+## Job creation
 
-Candidates complete the application form, upload a resume, and submit. The
-application remains `PendingVerification` until the candidate confirms a
-one-time email code. Only then does it become an active application and appear
-in the recruiting workflow.
+A recruiter can create a complete job posting in one place, including:
 
-Candidates do not need a WorkOS account, password, or Google/Microsoft login.
+- title, department, location, employment type, and compensation;
+- responsibilities and qualifications;
+- preferred experience and skills;
+- application questions;
+- hiring team;
+- interview stages; and
+- candidate-facing instructions.
+
+### Job description editor
+
+The job description editor provides familiar writing components such as
+headings, paragraphs, emphasis, links, bullet lists, numbered lists, quotes,
+and tables where useful.
+
+Every supported component must have a clean Markdown representation. The job
+description should remain portable, readable, and reusable outside the ATS.
+The editor must not require proprietary formatting or create content that only
+works inside one screen.
+
+### Company posting templates
+
+The company can create reusable job-posting templates. A template may provide:
+
+- company name and introduction;
+- logo and brand presentation;
+- standard company header;
+- standard sections and section order;
+- recurring benefits and working principles;
+- default application questions; and
+- default interview stages.
+
+When a recruiter starts a job, they can select a template and begin with a
+complete, company-ready posting. The recruiter can edit the posting without
+changing the original template. A job keeps the version of the template it
+started from so published postings do not unexpectedly change later.
+
+## Public job and application experience
+
+Candidates can browse public jobs and read the full posting before applying.
+The application should be quick and welcoming. It supports personal details,
+resume upload, application questions, and optional additional information.
+
+After the candidate finishes the form, they confirm ownership of their email
+with a one-time code. The application becomes active only after confirmation.
+The candidate then receives a confirmation and a link to follow progress.
+
+Candidates do not need a password, employee account, or company login.
 
 ## Candidate portal
 
-The candidate portal uses a short-lived email code to create a secure,
-database-backed session cookie. It shows the candidate's applications, status,
-interview rounds, booking links, scheduled interviews, and candidate-visible
-messages.
+A candidate can use their verified email to see every application associated
+with them. The portal shows:
 
-Candidate profiles and applications are stored locally so one verified email
-can access multiple applications.
+- application status;
+- what stage is next;
+- interview details;
+- booking links;
+- scheduled times;
+- messages and instructions; and
+- requests that need a response.
 
-## Candidate processing and recruiter tools
+The candidate should never have to guess whether an application was received or
+what is expected next.
 
-- PDF resume upload, extraction, OCR fallback, retries, and review.
-- Duplicate candidate detection.
-- Full-text search and recruiter filters.
-- Tags, internal notes, application timeline, and communication history.
-- Natural-language candidate search and ranking with explanations.
-- Bulk selection, assignment, status changes, rejection, and batch actions.
+## Candidate review and search
 
-AI converts recruiter requests into validated structured filters. Database
-search remains the source of truth; AI does not directly change hiring data.
+Recruiters can search and filter candidates by skills, experience, location,
+status, tags, job, and other useful attributes. They can review resumes, edit
+extracted information, add private notes, and see the complete application
+history.
 
-## Interview workflow
+### Job-specific matching and ranking
 
-Jobs define ordered interview rounds. Each round can specify its type,
-duration, interviewers, panel requirements, booking window, candidate
-instructions, email templates, and reminder timing.
+When a recruiter searches for candidates for a particular job, the job's
+requirements are always part of the search and ranking decision. The system
+considers:
 
-1. A recruiter advances a candidate and assigns the next round's interviewer(s).
-2. The system checks that each interviewer has a connected calendar.
-3. Interviewers receive assignment emails and portal links.
-4. The candidate receives a round-specific booking email.
-5. The system computes available slots from all required interviewers,
-   working hours, timezone, duration, holds, and existing events.
-6. The candidate selects a slot.
-7. The system rechecks availability, creates the calendar event, and creates a
-   Google Meet or Microsoft Teams link when supported.
-8. Candidate, interviewer, and recruiter receive confirmations.
-9. Completion and scorecards advance the candidate to the next round.
+- required qualifications;
+- preferred qualifications;
+- relevant experience;
+- skills and evidence in the resume;
+- application answers;
+- location and work preferences where relevant; and
+- any recruiter-selected filters.
 
-The flow supports panels, skipped rounds, rescheduling, cancellation, and
-rejection after any round.
+The result should be a ranked shortlist for that job, not a generic list of
+people who happen to share a keyword. Each ranking should explain why a
+candidate appears and identify missing or uncertain qualifications. Recruiters
+remain responsible for deciding who advances.
 
-## Calendar integration
+Recruiters can also ask questions in plain language, such as “show me senior
+backend candidates for this role who have worked on payment systems.” The
+system turns the request into understandable search criteria and lets the
+recruiter review the result.
 
-The application owns a provider-neutral calendar interface with Google and
-Microsoft implementations. It covers connection, token refresh, calendar
-listing, free/busy lookup, availability, event creation, updates,
-cancellation, and change notifications.
+## Application workflow
 
-Provider webhooks reconcile externally changed events. Background jobs renew
-Google and Microsoft subscriptions, process webhook events idempotently, and
-notify the affected people when a scheduled interview changes.
+Recruiters can move an application through clear stages such as:
 
-## Email and reminders
+1. New
+2. Reviewing
+3. Recruiter screen
+4. Interviewing
+5. Decision
+6. Offer
+7. Hired
+8. Rejected
+9. Withdrawn
 
-Resend's official .NET SDK is used behind one application email service.
-Templates support variables, round-specific wording, recruiter notes, and
-candidate instructions.
+Every important change appears in the application's history. Private recruiter
+notes are separate from messages the candidate can see.
 
-Messages include verification, application receipt, status updates, interviewer
-assignment, calendar connection, booking, confirmations, reminders,
-rescheduling, cancellation, scorecard reminders, next-round invitations,
-rejection, and offer messages.
+Recruiters can reject one or many candidates using editable message templates.
+They can still personalize a message before sending it.
 
-An application timeline records sent messages and important state changes.
-Reminder jobs handle stale verification, unbooked interviews, incomplete
-scorecards, and other configurable delays.
+## Interview rounds
 
-## Abuse controls
+Each job can have several ordered interview rounds. A round defines its name,
+purpose, length, interviewers, panel requirements, candidate instructions, and
+the message used to invite the candidate.
 
-Turnstile is intentionally deferred. Initial protection is email verification,
-rate limits, verification cooldowns, duplicate detection, IP/email/job velocity
-checks, upload validation, file limits, optional honeypot fields, and
-quarantine/review for suspicious submissions.
+Examples include:
 
-## AI
+- recruiter conversation;
+- technical interview;
+- portfolio review;
+- hiring manager conversation; and
+- final panel.
 
-The AI SDK provides a provider-neutral interface with OpenAI as the initial
-provider. Initial uses are resume extraction, job/resume matching,
-natural-language recruiter search, candidate ranking, message drafting, and
-interview-note summaries.
+Different jobs may use different rounds. A candidate can be advanced, held,
+rejected, or moved back after any round.
 
-## Delivery order
+## Interview assignment and booking
 
-1. Finish organization setup, WorkOS authentication, invitations, and roles.
-2. Finish job authoring, publishing, public APIs, applications, verification,
-   and the candidate portal.
-3. Finish resume processing, recruiter search, notes, timeline, and AI search.
-4. Add configurable interview rounds, assignment, scorecards, and templates.
-5. Complete Google and Microsoft calendar adapters, availability, events, and
-   webhooks.
-6. Add candidate booking, reminders, rescheduling, cancellation, and full
-   communication automation.
-7. Run end-to-end tests for authentication, applications, calendar changes,
-   email delivery, reminders, and webhook idempotency.
+The recruiter assigns the candidate to the interviewer or panel first. The
+interviewer receives an assignment message with the candidate, job, round
+details, and instructions.
 
-## Deferred items
+The candidate then receives a round-specific message asking them to book the
+interview. The booking page shows only times when all required interviewers are
+available.
 
-- WorkOS enterprise SSO connections such as Okta or customer-specific Entra SSO.
-- Nylas calendar aggregation.
-- Turnstile.
-- Candidate identities in WorkOS.
+When the candidate chooses a time:
+
+1. the time is held while the booking is confirmed;
+2. the interview is placed on the interviewers' calendars;
+3. the candidate receives the meeting details;
+4. interviewers and recruiters receive confirmation; and
+5. the candidate's application moves to the booked stage.
+
+Candidates can reschedule or cancel according to the job's settings. Calendar
+changes made outside the ATS are reflected in the application and communicated
+to the people affected.
+
+## Communication and reminders
+
+Every stage has clear, configurable communication. Messages may include:
+
+- application confirmation;
+- verification request;
+- status updates;
+- interviewer assignment;
+- booking request;
+- booking confirmation;
+- interview reminders;
+- rescheduling or cancellation;
+- scorecard reminders;
+- next-round invitation;
+- rejection; and
+- offer communication.
+
+The company can decide how many days may pass before a reminder is sent. The
+system can remind candidates to book, remind interviewers to complete feedback,
+and alert recruiters when a process has gone stale.
+
+Messages are tailored by job and interview round. The application timeline
+shows what was sent, when it was sent, and what happened afterward.
+
+## Calendar connections
+
+Each interviewer connects their own Google or Microsoft calendar. The product
+uses those calendars to find real availability, prevent double booking, create
+meeting invitations, and notice changes.
+
+The recruiter should not need to manage calendar details manually for every
+interview.
+
+## Candidate protection and abuse controls
+
+The initial candidate experience does not use a visible CAPTCHA. Email
+verification, submission limits, duplicate detection, upload restrictions, and
+review of suspicious activity provide the first layer of protection.
+
+The application should remain easy for genuine candidates while making large
+volumes of fake submissions difficult.
+
+## AI assistance
+
+AI helps recruiters work faster without making hiring decisions on its own. It
+can help with:
+
+- resume organization;
+- matching candidates to a specific job;
+- explaining ranking results;
+- natural-language search;
+- drafting recruiter messages; and
+- summarizing interview notes.
+
+Recruiters can review and adjust AI-assisted results before any hiring action
+is taken.
+
+## Success criteria
+
+The product is working well when:
+
+- a company can set up its workspace without engineering help;
+- a recruiter can publish a polished job quickly using a company template;
+- job descriptions remain portable as Markdown;
+- candidates can apply and check their status without creating a password;
+- recruiters can find the best candidates for one specific job;
+- interviewers can connect their calendars and receive clear assignments;
+- candidates can book interviews without back-and-forth email;
+- every stage sends the right communication;
+- stale work is surfaced automatically; and
+- the entire history of an application is easy to understand.
+
+## Deferred product decisions
+
+- Enterprise SSO connections such as Okta or customer-specific Entra setups.
+- Calendar aggregation through Nylas.
+- Visible CAPTCHA or Turnstile.
+- Candidate identities in the employee identity system.
 - Customer-facing API-key management.
-- Dedicated search/vector infrastructure before measured need.
+- Dedicated search infrastructure before the current search experience proves insufficient.
