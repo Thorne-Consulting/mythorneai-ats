@@ -6,6 +6,7 @@ namespace MyThorneAI.Ats.Api.Data;
 public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> Users => Set<AppUser>();
+    public DbSet<Organization> Organizations => Set<Organization>();
     public DbSet<Requisition> Requisitions => Set<Requisition>();
     public DbSet<PipelineStage> PipelineStages => Set<PipelineStage>();
     public DbSet<Candidate> Candidates => Set<Candidate>();
@@ -33,6 +34,14 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Email).HasMaxLength(320);
             entity.Property(x => x.DisplayName).HasMaxLength(200);
             entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(32);
+        });
+
+        modelBuilder.Entity<Organization>(entity =>
+        {
+            entity.HasIndex(x => x.OwnerEmail).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.OwnerEmail).HasMaxLength(320);
+            entity.Property(x => x.TimeZone).HasMaxLength(80);
         });
 
         modelBuilder.Entity<Requisition>(entity =>

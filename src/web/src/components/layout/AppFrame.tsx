@@ -34,6 +34,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentUser } from '@/auth';
 import { api, resetCsrfToken } from '@/api';
 import { humanize, initials } from '@/lib/format';
+import { OrganizationSetupModal } from '@/features/admin/OrganizationSetupModal';
 
 const navigation = [
   { label: 'Overview', to: '/', icon: IconLayoutDashboard },
@@ -65,7 +66,8 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AppShell
+    <>
+      <AppShell
       header={{ height: HEADER_HEIGHT }}
       navbar={{
         width: NAVBAR_WIDTH,
@@ -107,7 +109,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                   <IconBriefcase2 size={18} />
                 </ThemeIcon>
                 <Text fw={700} visibleFrom="sm" style={{ whiteSpace: 'nowrap' }}>
-                  Internal{' '}
+                  {user.organizationName ?? 'Internal'}{' '}
                   <Text span c="dimmed" fw={500}>
                     ATS
                   </Text>
@@ -194,6 +196,10 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
       <AppShell.Main className="app-main">
         <div className="page-container">{children}</div>
       </AppShell.Main>
-    </AppShell>
+      </AppShell>
+      <OrganizationSetupModal
+        opened={user.isOrganizationOwner && !user.organizationSetupCompleted}
+      />
+    </>
   );
 }

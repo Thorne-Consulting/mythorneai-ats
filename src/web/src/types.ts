@@ -6,6 +6,9 @@ export interface User {
   displayName: string;
   role: Role;
   department?: string;
+  organizationName?: string;
+  organizationSetupCompleted: boolean;
+  isOrganizationOwner: boolean;
 }
 
 export interface DashboardData {

@@ -19,22 +19,6 @@ public static partial class SeedData
 
         if (!hasUsers && !environment.IsDevelopment())
         {
-            var email = configuration["Bootstrap:AdminEmail"]?.Trim().ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(email))
-                throw new InvalidOperationException(
-                    "Bootstrap:AdminEmail is required for the first production startup."
-                );
-
-            db.Users.Add(
-                new AppUser
-                {
-                    Email = email,
-                    DisplayName =
-                        configuration["Bootstrap:AdminName"]?.Trim() ?? "ATS administrator",
-                    Role = UserRole.Admin,
-                }
-            );
-            await db.SaveChangesAsync(cancellationToken);
             return;
         }
 
@@ -50,6 +34,12 @@ public static partial class SeedData
             var applications = CreateDevelopmentApplications(now, candidates, jobs);
 
             db.Users.AddRange(users);
+            db.Organizations.Add(new Organization
+            {
+                Name = "Thorne Consulting",
+                OwnerEmail = "admin@example.test",
+                SetupCompleted = true,
+            });
             db.Requisitions.Add(jobs.ContractWriter);
             db.Applications.AddRange(applications.Items);
             AddDevelopmentAuditEvents(db, now, jobs, applications);

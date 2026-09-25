@@ -9,3 +9,5 @@ public sealed record UpsertUserRequest(
     string? Department,
     bool IsActive
 );
+
+public sealed record UpdateOrganizationRequest(string Name, string? TimeZone);

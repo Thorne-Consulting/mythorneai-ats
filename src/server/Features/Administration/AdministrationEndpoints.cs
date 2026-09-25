@@ -15,6 +15,58 @@ public static partial class AtsEndpoints
     private static void MapAdministration(RouteGroupBuilder api)
     {
         api.MapGet(
+                "/organization",
+                async (AtsDbContext db, CancellationToken ct) =>
+                {
+                    var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(ct);
+                    return organization is null
+                        ? Results.NotFound()
+                        : Results.Ok(new
+                        {
+                            organization.Id,
+                            organization.Name,
+                            organization.OwnerEmail,
+                            organization.TimeZone,
+                            organization.SetupCompleted,
+                        });
+                }
+            )
+            .RequireAuthorization(AtsPolicies.Read);
+
+        api.MapPut(
+                "/organization",
+                async (
+                    UpdateOrganizationRequest request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    var organization = await db.Organizations.SingleOrDefaultAsync(ct);
+                    if (organization is null)
+                        return Results.NotFound();
+                    if (!principal.IsInRole(nameof(UserRole.Admin))
+                        && !string.Equals(organization.OwnerEmail, principal.Email(), StringComparison.OrdinalIgnoreCase))
+                        return Results.Forbid();
+                    if (string.IsNullOrWhiteSpace(request.Name))
+                        return Results.ValidationProblem(new Dictionary<string, string[]>
+                        {
+                            ["name"] = ["Organization name is required."],
+                        });
+                    organization.Name = request.Name.Trim();
+                    organization.TimeZone = string.IsNullOrWhiteSpace(request.TimeZone)
+                        ? organization.TimeZone
+                        : request.TimeZone.Trim();
+                    organization.SetupCompleted = true;
+                    organization.UpdatedAt = DateTimeOffset.UtcNow;
+                    Audit.Add(db, principal, "Organization", organization.Id, "Updated", new { organization.Name });
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                }
+            )
+            .RequireAuthorization(AtsPolicies.Admin);
+
+        api.MapGet(
                 "/admin/integrations",
                 async (IWorkplaceIntegration integration, AtsDbContext db, CancellationToken ct) =>
                     Results.Ok(

@@ -71,6 +71,7 @@ public static partial class AuthExtensions
                     var user = await db
                         .Users.AsNoTracking()
                         .SingleOrDefaultAsync(x => x.Email == email, cancellationToken);
+                    var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
                     return user is null
                         ? Results.Unauthorized()
                         : Results.Ok(
@@ -81,6 +82,9 @@ public static partial class AuthExtensions
                                 user.DisplayName,
                                 Role = user.Role.ToString(),
                                 user.Department,
+                                OrganizationName = organization?.Name,
+                                OrganizationSetupCompleted = organization?.SetupCompleted ?? false,
+                                IsOrganizationOwner = organization?.OwnerEmail == user.Email,
                             }
                         );
                 }

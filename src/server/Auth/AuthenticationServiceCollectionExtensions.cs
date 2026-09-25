@@ -141,14 +141,48 @@ public static partial class AuthExtensions
             return;
         }
 
+        var normalizedEmail = email.Trim().ToLowerInvariant();
+        var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var allowedDomains = configuration["Auth:AllowedEmailDomains"]?
+            .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x.TrimStart('@').ToLowerInvariant())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+        if (allowedDomains.Count > 0
+            && !allowedDomains.Contains(normalizedEmail.Split('@').Last()))
+        {
+            context.Fail("This account is outside the configured company email domains.");
+            return;
+        }
+
         var db = context.HttpContext.RequestServices.GetRequiredService<AtsDbContext>();
         var user = await db.Users.SingleOrDefaultAsync(x =>
-            x.Email == email.ToLower() && x.IsActive
+            x.Email == normalizedEmail && x.IsActive
         );
         if (user is null)
         {
-            context.Fail("This account has not been granted ATS access.");
-            return;
+            if (await db.Users.AnyAsync(x => x.IsActive))
+            {
+                context.Fail("This account has not been invited to the ATS.");
+                return;
+            }
+
+            var displayName = context.Principal?.FindFirstValue(ClaimTypes.Name)
+                ?? context.Principal?.FindFirstValue("name")
+                ?? normalizedEmail.Split('@')[0];
+            user = new AppUser
+            {
+                Email = normalizedEmail,
+                DisplayName = displayName.Trim(),
+                Role = UserRole.Admin,
+            };
+            db.Users.Add(user);
+            db.Organizations.Add(new Organization
+            {
+                Name = "Your organization",
+                OwnerEmail = normalizedEmail,
+                SetupCompleted = false,
+            });
+            await db.SaveChangesAsync();
         }
 
         context.Principal = CreatePrincipal(user, "oidc");
