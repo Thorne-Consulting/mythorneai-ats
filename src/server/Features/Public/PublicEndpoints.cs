@@ -95,6 +95,78 @@ public static class PublicEndpoints
             return Results.Accepted(value: new { message = "Check your email for a confirmation code." });
         });
 
+        api.MapPost("/jobs/{id:guid}/applications/resume", async (
+            Guid id,
+            HttpRequest request,
+            AtsDbContext db,
+            LocalFileStore files,
+            IEmailSender email,
+            CancellationToken ct) =>
+        {
+            var form = await request.ReadFormAsync(ct);
+            var firstName = form["firstName"].ToString().Trim();
+            var lastName = form["lastName"].ToString().Trim();
+            var emailAddress = form["email"].ToString().Trim().ToLowerInvariant();
+            var file = form.Files.GetFile("resume");
+            if (firstName.Length == 0 || lastName.Length == 0 || !LooksLikeEmail(emailAddress) || file is null)
+                return Results.ValidationProblem(new Dictionary<string, string[]> {
+                    ["application"] = ["First name, last name, email, and a resume are required."]
+                });
+            var job = await db.Requisitions.Include(x => x.Stages)
+                .SingleOrDefaultAsync(x => x.Id == id && x.Status == RequisitionStatus.Open, ct);
+            if (job is null) return Results.NotFound();
+            var candidate = await db.Candidates.SingleOrDefaultAsync(x => x.Email == emailAddress, ct);
+            if (candidate is not null && await db.Applications.AnyAsync(
+                x => x.CandidateId == candidate.Id && x.RequisitionId == id
+                    && x.Status != ApplicationStatus.PendingVerification, ct))
+                return Results.Accepted(value: new { message = "Check your email for a confirmation code." });
+            var isNewCandidate = candidate is null;
+            candidate ??= new Candidate
+            {
+                FirstName = firstName, LastName = lastName, Email = emailAddress,
+                Source = "Career site", Phone = Clean(form["phone"]), Location = Clean(form["location"]),
+                LinkedInUrl = Clean(form["linkedInUrl"]),
+            };
+            candidate.FirstName = firstName; candidate.LastName = lastName;
+            candidate.UpdatedAt = DateTimeOffset.UtcNow;
+            if (isNewCandidate) db.Candidates.Add(candidate);
+            var application = await db.Applications.SingleOrDefaultAsync(x =>
+                x.CandidateId == candidate.Id && x.RequisitionId == id
+                && x.Status == ApplicationStatus.PendingVerification, ct);
+            if (application is null)
+            {
+                application = new Application
+                {
+                    Candidate = candidate, RequisitionId = id,
+                    PipelineStageId = job.Stages.OrderBy(x => x.SortOrder).First().Id,
+                    Source = "Career site", Status = ApplicationStatus.PendingVerification,
+                };
+                db.Applications.Add(application);
+            }
+            (string StoredName, string ContentType) stored;
+            try { stored = await files.SaveValidatedAsync(file, ct); }
+            catch (InvalidDataException exception)
+            {
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["resume"] = [exception.Message] });
+            }
+            db.Attachments.Add(new Attachment
+            {
+                Candidate = candidate, OriginalFileName = Path.GetFileName(file.FileName),
+                StoredFileName = stored.StoredName, ContentType = stored.ContentType, Length = file.Length,
+                UploadedBy = $"candidate:{emailAddress}", ScanStatus = "ValidationOnly", ParseStatus = "Pending",
+            });
+            db.ResumeParseJobs.Add(new ResumeParseJob { AttachmentId = db.Attachments.Local.Last().Id });
+            var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+            application.VerificationCodeHash = Hash(code);
+            application.VerificationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15);
+            application.LastActivityAt = DateTimeOffset.UtcNow;
+            try { await db.SaveChangesAsync(ct); }
+            catch { files.Delete(stored.StoredName); throw; }
+            await email.SendAsync(emailAddress, $"Confirm your application for {job.Title}",
+                $"Your confirmation code is {code}. It expires in 15 minutes.", ct);
+            return Results.Accepted(value: new { message = "Check your email for a confirmation code." });
+        });
+
         api.MapPost("/applications/verify", async (
             VerifyApplicationRequest request,
             AtsDbContext db,
