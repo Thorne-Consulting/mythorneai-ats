@@ -45,7 +45,9 @@ public sealed record CreateInterviewKitRequest(
     string Name,
     string Instructions,
     int DurationMinutes,
-    InterviewCriterionRequest[]? Criteria
+    InterviewCriterionRequest[]? Criteria,
+    string? CandidateMessage = null,
+    string? InterviewerMessage = null
 );
 
 public sealed record InterviewCriterionRequest(

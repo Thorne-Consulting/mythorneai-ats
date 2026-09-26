@@ -33,6 +33,8 @@ public sealed class InterviewKit
     public Requisition? Requisition { get; set; }
     public required string Name { get; set; }
     public string Instructions { get; set; } = "";
+    public string CandidateMessage { get; set; } = "Please choose an interview time from the available options.";
+    public string InterviewerMessage { get; set; } = "You are assigned to this interview. Please complete your scorecard afterward.";
     public int DurationMinutes { get; set; } = 60;
     public int SortOrder { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

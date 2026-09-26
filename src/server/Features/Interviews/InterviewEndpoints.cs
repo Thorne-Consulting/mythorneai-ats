@@ -117,6 +117,12 @@ public static partial class AtsEndpoints
                                 ],
                             }
                         );
+                    var interviewKit = request.InterviewKitId is null
+                        ? null
+                        : await db.InterviewKits.AsNoTracking().SingleAsync(
+                            x => x.Id == request.InterviewKitId,
+                            ct
+                        );
 
                     var personalConnection = await db.CalendarConnections.AnyAsync(
                         x => request.InterviewerEmails.Contains(x.UserEmail),
@@ -153,13 +159,17 @@ public static partial class AtsEndpoints
                             }
                         );
                     application.LastActivityAt = DateTimeOffset.UtcNow;
-                    if (request.Status == InterviewStatus.Scheduled)
+                    if (request.Status is InterviewStatus.Scheduled or InterviewStatus.Proposed)
                     {
                         QueueEmail(
                             db,
                             application.Candidate!.Email,
-                            $"Interview scheduled for {application.Requisition.Title}",
-                            $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}.",
+                            request.Status == InterviewStatus.Proposed
+                                ? $"Book your {interview.Title} interview"
+                                : $"Interview scheduled for {application.Requisition.Title}",
+                            request.Status == InterviewStatus.Proposed
+                                ? interviewKit?.CandidateMessage ?? "Please choose an interview time from the available options."
+                                : $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}.",
                             application.Id
                         );
                         foreach (var interviewer in interview.InterviewerEmails)
@@ -167,7 +177,9 @@ public static partial class AtsEndpoints
                                 db,
                                 interviewer,
                                 $"Interview assignment: {interview.Title}",
-                                $"You are assigned to interview a candidate for {application.Requisition.Title} at {interview.StartsAt:u}."
+                                interviewKit?.InterviewerMessage
+                                    ?? $"You are assigned to interview a candidate for {application.Requisition.Title} at {interview.StartsAt:u}.",
+                                application.Id
                             );
                     }
                     Audit.Add(

@@ -115,6 +115,8 @@ public static partial class AtsEndpoints
                                 k.Id,
                                 k.Name,
                                 k.Instructions,
+                                k.CandidateMessage,
+                                k.InterviewerMessage,
                                 k.DurationMinutes,
                                 k.SortOrder,
                                 Criteria = k
@@ -181,6 +183,12 @@ public static partial class AtsEndpoints
                         RequisitionId = id,
                         Name = request.Name.Trim(),
                         Instructions = request.Instructions?.Trim() ?? "",
+                        CandidateMessage = request.CandidateMessage?.Trim() is { Length: > 0 } candidateMessage
+                            ? candidateMessage
+                            : "Please choose an interview time from the available options.",
+                        InterviewerMessage = request.InterviewerMessage?.Trim() is { Length: > 0 } interviewerMessage
+                            ? interviewerMessage
+                            : "You are assigned to this interview. Please complete your scorecard afterward.",
                         DurationMinutes = request.DurationMinutes,
                         SortOrder = requisition.InterviewKits.Count,
                     };

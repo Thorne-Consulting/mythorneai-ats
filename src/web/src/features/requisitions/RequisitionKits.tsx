@@ -116,6 +116,12 @@ function InterviewKitModal({
   const [name, setName] = useState('');
   const [duration, setDuration] = useState<number | string>(60);
   const [instructions, setInstructions] = useState('');
+  const [candidateMessage, setCandidateMessage] = useState(
+    'Please choose an interview time from the available options.',
+  );
+  const [interviewerMessage, setInterviewerMessage] = useState(
+    'You are assigned to this interview. Please complete your scorecard afterward.',
+  );
   const [criteriaText, setCriteriaText] = useState(
     'Role expertise | Tell me about the most relevant work you have done for this role. | Gives specific examples and explains personal contribution. | 3\nProblem solving | Walk me through a difficult problem and the tradeoffs you made. | Frames the problem, considers alternatives, and measures the result. | 3\nCollaboration | Describe a disagreement with a teammate and how you handled it. | Listens, communicates directly, and reaches a constructive outcome. | 2',
   );
@@ -137,6 +143,8 @@ function InterviewKitModal({
         name,
         durationMinutes: Number(duration),
         instructions,
+        candidateMessage,
+        interviewerMessage,
         criteria,
       }),
     onSuccess: () => {
@@ -169,6 +177,20 @@ function InterviewKitModal({
           minRows={3}
           value={instructions}
           onChange={(event) => setInstructions(event.currentTarget.value)}
+        />
+        <Textarea
+          label="Candidate booking message"
+          description="Sent when this round is offered for candidate booking."
+          minRows={2}
+          value={candidateMessage}
+          onChange={(event) => setCandidateMessage(event.currentTarget.value)}
+        />
+        <Textarea
+          label="Interviewer assignment message"
+          description="Sent when an interviewer is assigned to this round."
+          minRows={2}
+          value={interviewerMessage}
+          onChange={(event) => setInterviewerMessage(event.currentTarget.value)}
         />
         <Textarea
           label="Scorecard criteria"
