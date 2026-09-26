@@ -76,15 +76,22 @@ public static partial class SeedData
             new()
             {
                 RequisitionId = requisitionId,
-                Name = "Offer handoff",
+                Name = "Booked",
                 SortOrder = 3,
+                Color = "indigo",
+            },
+            new()
+            {
+                RequisitionId = requisitionId,
+                Name = "Offer handoff",
+                SortOrder = 4,
                 Color = "orange",
             },
             new()
             {
                 RequisitionId = requisitionId,
                 Name = "Hired",
-                SortOrder = 4,
+                SortOrder = 5,
                 Color = "green",
                 IsTerminal = true,
             },
