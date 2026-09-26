@@ -17,7 +17,7 @@ import {
 import { DatePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
 import { IconCalendarPlus, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
@@ -87,6 +87,7 @@ function eventHeight(interview: CalendarInterview) {
 export function InterviewsPage() {
   const router = useRouter();
   const user = useCurrentUser();
+  const queryClient = useQueryClient();
   const canSchedule = ['Admin', 'Recruiter', 'HiringManager'].includes(user.role);
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [scheduleAt, setScheduleAt] = useState<Date>(() => new Date());
@@ -98,6 +99,10 @@ export function InterviewsPage() {
       api.get<{ connected: boolean; provider?: string; accountEmail?: string }>(
         '/api/calendar/connection',
       ),
+  });
+  const disconnectCalendar = useMutation({
+    mutationFn: () => api.delete('/api/calendar/connection'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar-connection'] }),
   });
   const weekStart = useMemo(() => startOfWeek(selectedDate), [selectedDate]);
   const weekEnd = useMemo(() => addDays(weekStart, 7), [weekStart]);
@@ -150,6 +155,16 @@ export function InterviewsPage() {
             >
               {calendarConnection.data?.connected ? 'Reconnect calendar' : 'Connect calendar'}
             </Button>
+            {calendarConnection.data?.connected && (
+              <Button
+                variant="subtle"
+                color="red"
+                loading={disconnectCalendar.isPending}
+                onClick={() => disconnectCalendar.mutate()}
+              >
+                Disconnect
+              </Button>
+            )}
             {canSchedule && (
               <Button leftSection={<IconCalendarPlus size={16} />} onClick={() => openSchedule()}>
                 Schedule interview
