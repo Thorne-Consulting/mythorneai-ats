@@ -10,6 +10,33 @@ should always know what needs attention. A candidate should always know what
 happens next. An interviewer should receive the right information at the right
 time without chasing anyone.
 
+## End-to-end product flow
+
+The product follows one continuous path from workspace setup to a completed
+hiring decision:
+
+1. The first employee signs in and becomes the workspace owner.
+2. The owner sets the company identity, allowed work email domains, and sign-in
+   options, then invites the hiring team.
+3. A recruiter creates a job from a company template, completes the posting,
+   and publishes it.
+4. A candidate reads the posting, submits an application, and verifies their
+   email before the application enters the active pipeline.
+5. The recruiter reviews the application, resume, answers, notes, and job-fit
+   explanation, then moves the candidate to the next stage or sends a clear
+   update.
+6. For an interview stage, the recruiter assigns the interviewer or panel
+   before asking the candidate to book.
+7. The candidate chooses an available time, receives the meeting details, and
+   gets reminders until the interview is complete.
+8. Interviewers submit private scorecards. The recruiter reviews the feedback,
+   decides the next step, and advances, holds, rejects, or hires the candidate.
+9. The application closes with a clear outcome while its history remains easy
+   to understand.
+
+At every step, the next action is visible to the person who owns it. No stage
+should depend on someone guessing what to do next or searching old email.
+
 ## Organization setup
 
 The first employee who signs in becomes the owner of the company workspace.
@@ -21,6 +48,11 @@ The owner names the company and decides:
 
 The owner and administrators can invite recruiters, hiring managers, and
 interviewers. Each person sees only the work their role allows.
+
+The candidate is not an employee in the workspace. Candidate access is limited
+to their own verified applications, requests, interview details, and messages.
+Internal notes, ranking explanations, scorecards, and hiring decisions remain
+private to the hiring team.
 
 ## Job creation
 
@@ -141,6 +173,10 @@ notes are separate from messages the candidate can see.
 Recruiters can reject one or many candidates using editable message templates.
 They can still personalize a message before sending it.
 
+An application history records stage changes, assignments, interview activity,
+messages, notes, and decisions in time order. A recruiter can understand what
+happened without reconstructing the process from separate tools.
+
 ## Interview rounds
 
 Each job can have several ordered interview rounds. A round defines its name,
@@ -157,6 +193,11 @@ Examples include:
 
 Different jobs may use different rounds. A candidate can be advanced, held,
 rejected, or moved back after any round.
+
+After an interview, each assigned interviewer receives a focused scorecard for
+the round. A scorecard supports a rating, evidence, strengths, concerns, and a
+recommendation. Submitted feedback is private to the hiring team and is not
+shown to the candidate.
 
 ## Interview assignment and booking
 
@@ -213,6 +254,11 @@ meeting invitations, and notice changes.
 The recruiter should not need to manage calendar details manually for every
 interview.
 
+An interviewer can connect one Google or Microsoft calendar from their own
+account and can replace or disconnect it later. A missing or expired connection
+is shown as an action for that interviewer rather than silently producing bad
+availability.
+
 ## Candidate protection and abuse controls
 
 The initial candidate experience does not use a visible CAPTCHA. Email
@@ -236,6 +282,45 @@ can help with:
 
 Recruiters can review and adjust AI-assisted results before any hiring action
 is taken.
+
+AI output is always presented as a draft, explanation, or summary. It must not
+change a candidate's stage, send a message, or make a hiring decision without a
+recruiter choosing that action.
+
+## Configuration and ownership
+
+The owner can configure the parts of the experience that vary by company:
+
+- allowed sign-in providers and company email domains;
+- team roles and invitations;
+- job-posting templates and company presentation;
+- application questions and interview rounds;
+- candidate-facing messages and reminder timing; and
+- interview booking and cancellation rules.
+
+Jobs and applications keep the choices that were active when they were
+created. Updating a template or message later should not rewrite an already
+published job or change a candidate's history unexpectedly.
+
+## Clear-state rules
+
+The product uses plain, consistent language for the important states:
+
+- **Draft:** being prepared and not visible to candidates.
+- **Open:** accepting applications.
+- **New:** received and waiting for review.
+- **In review:** being evaluated by the hiring team.
+- **Interviewing:** at least one interview round is in progress.
+- **Booked:** an interview time is confirmed.
+- **Decision:** feedback is being reviewed or a decision is pending.
+- **Offer:** an offer is being prepared or discussed.
+- **Hired:** the candidate was selected.
+- **Rejected:** the process ended without selection.
+- **Withdrawn:** the candidate ended their application.
+
+Every visible state has a next action, an owner, and an appropriate candidate
+message. When no action has happened for the configured number of days, the
+responsible person receives a reminder and the recruiter sees the stale item.
 
 ## Success criteria
 
