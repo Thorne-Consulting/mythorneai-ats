@@ -26,6 +26,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<EmailOutboxItem> EmailOutbox => Set<EmailOutboxItem>();
     public DbSet<CandidatePortalSession> CandidatePortalSessions => Set<CandidatePortalSession>();
+    public DbSet<CalendarConnection> CalendarConnections => Set<CalendarConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -79,6 +80,16 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.HasIndex(x => new { x.CandidateId, x.ExpiresAt });
             entity.Property(x => x.TokenHash).HasMaxLength(128);
             entity.HasOne(x => x.Candidate).WithMany().HasForeignKey(x => x.CandidateId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CalendarConnection>(entity =>
+        {
+            entity.HasIndex(x => x.UserEmail).IsUnique();
+            entity.Property(x => x.UserEmail).HasMaxLength(320);
+            entity.Property(x => x.Provider).HasMaxLength(32);
+            entity.Property(x => x.ProviderAccountEmail).HasMaxLength(320);
+            entity.Property(x => x.AccessToken).HasMaxLength(4096);
+            entity.Property(x => x.RefreshToken).HasMaxLength(4096);
         });
 
         modelBuilder.Entity<PipelineStage>(entity =>

@@ -84,6 +84,7 @@ if (app.Environment.IsDevelopment())
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapAtsAuth(app.Configuration, app.Environment);
 app.MapPublicEndpoints();
+app.MapCalendarConnections();
 app.MapGet(
         "/api/auth/csrf",
         (HttpContext context, IAntiforgery antiforgery) =>

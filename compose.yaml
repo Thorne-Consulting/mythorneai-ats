@@ -17,6 +17,12 @@ services:
       Integrations__Microsoft365__ClientSecret: ${MICROSOFT365_CLIENT_SECRET:-}
       Integrations__Microsoft365__SenderUserId: ${MICROSOFT365_SENDER_USER_ID:-}
       Integrations__Microsoft365__CreateOnlineMeetings: ${MICROSOFT365_CREATE_ONLINE_MEETINGS:-true}
+      Integrations__CalendarOAuth__GoogleClientId: ${CALENDAR_OAUTH_GOOGLE_CLIENT_ID:-}
+      Integrations__CalendarOAuth__GoogleClientSecret: ${CALENDAR_OAUTH_GOOGLE_CLIENT_SECRET:-}
+      Integrations__CalendarOAuth__MicrosoftClientId: ${CALENDAR_OAUTH_MICROSOFT_CLIENT_ID:-}
+      Integrations__CalendarOAuth__MicrosoftClientSecret: ${CALENDAR_OAUTH_MICROSOFT_CLIENT_SECRET:-}
+      Integrations__CalendarOAuth__MicrosoftTenantId: ${CALENDAR_OAUTH_MICROSOFT_TENANT_ID:-common}
+      Integrations__CalendarOAuth__RedirectUri: ${CALENDAR_OAUTH_REDIRECT_URI:-}
       Integrations__GoogleWorkspace__ImpersonatedUser: ${GOOGLE_WORKSPACE_IMPERSONATED_USER:-}
       Integrations__GoogleWorkspace__CalendarId: ${GOOGLE_WORKSPACE_CALENDAR_ID:-primary}
       Integrations__GoogleWorkspace__ServiceAccountJsonPath: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH:-}

@@ -8,6 +8,7 @@ import {
   Group,
   Paper,
   SimpleGrid,
+  Select,
   Stack,
   Text,
   ThemeIcon,
@@ -90,6 +91,14 @@ export function InterviewsPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [scheduleAt, setScheduleAt] = useState<Date>(() => new Date());
   const [opened, drawer] = useDisclosure();
+  const [calendarProvider, setCalendarProvider] = useState<string | null>('Google');
+  const calendarConnection = useQuery({
+    queryKey: ['calendar-connection'],
+    queryFn: () =>
+      api.get<{ connected: boolean; provider?: string; accountEmail?: string }>(
+        '/api/calendar/connection',
+      ),
+  });
   const weekStart = useMemo(() => startOfWeek(selectedDate), [selectedDate]);
   const weekEnd = useMemo(() => addDays(weekStart, 7), [weekStart]);
   const weekDays = useMemo(
@@ -121,11 +130,32 @@ export function InterviewsPage() {
       <PageHeader
         title="Interviews"
         actions={
-          canSchedule ? (
-            <Button leftSection={<IconCalendarPlus size={16} />} onClick={() => openSchedule()}>
-              Schedule interview
+          <Group>
+            <Select
+              aria-label="Calendar provider"
+              value={calendarProvider}
+              onChange={setCalendarProvider}
+              data={['Google', 'Microsoft']}
+              w={130}
+            />
+            <Button
+              variant={calendarConnection.data?.connected ? 'light' : 'default'}
+              disabled={!calendarProvider}
+              onClick={async () => {
+                const result = await api.get<{ authorizationUrl: string }>(
+                  `/api/calendar/connect/${calendarProvider}`,
+                );
+                window.location.assign(result.authorizationUrl);
+              }}
+            >
+              {calendarConnection.data?.connected ? 'Reconnect calendar' : 'Connect calendar'}
             </Button>
-          ) : undefined
+            {canSchedule && (
+              <Button leftSection={<IconCalendarPlus size={16} />} onClick={() => openSchedule()}>
+                Schedule interview
+              </Button>
+            )}
+          </Group>
         }
       />
       <SimpleGrid cols={{ base: 1, xl: 5 }} spacing="lg" className="interviews-workspace">

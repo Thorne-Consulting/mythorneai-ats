@@ -6,6 +6,7 @@ public sealed class IntegrationOptions
     public string Provider { get; set; } = "None";
     public Microsoft365Options Microsoft365 { get; set; } = new();
     public GoogleWorkspaceOptions GoogleWorkspace { get; set; } = new();
+    public CalendarOAuthOptions CalendarOAuth { get; set; } = new();
 
     public string NormalizedProvider =>
         (Provider ?? "").Trim().ToLowerInvariant() switch
@@ -90,4 +91,14 @@ public sealed class GoogleWorkspaceOptions
     public string ServiceAccountJsonPath { get; set; } = "";
     public string ServiceAccountJsonBase64 { get; set; } = "";
     public bool CreateOnlineMeetings { get; set; } = true;
+}
+
+public sealed class CalendarOAuthOptions
+{
+    public string GoogleClientId { get; set; } = "";
+    public string GoogleClientSecret { get; set; } = "";
+    public string MicrosoftClientId { get; set; } = "";
+    public string MicrosoftClientSecret { get; set; } = "";
+    public string MicrosoftTenantId { get; set; } = "common";
+    public string RedirectUri { get; set; } = "";
 }

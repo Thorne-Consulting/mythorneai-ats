@@ -25,3 +25,17 @@ public sealed class Organization
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public sealed class CalendarConnection
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string UserEmail { get; set; }
+    public required string Provider { get; set; }
+    public string? ProviderAccountEmail { get; set; }
+    public required string AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
+    public DateTimeOffset? AccessTokenExpiresAt { get; set; }
+    public string CalendarId { get; set; } = "primary";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
