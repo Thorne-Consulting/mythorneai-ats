@@ -12,7 +12,7 @@ type Portal = {
     status: string;
     appliedAt: string;
     interviews: Array<{ id: string; title: string; startsAt: string; meetingLink?: string }>;
-    proposedInterviews: Array<{ id: string; title: string; startsAt: string }>;
+    proposedInterviews: Array<{ id: string; title: string; startsAt: string; endsAt: string }>;
   }>;
 };
 
@@ -22,6 +22,9 @@ export default function CandidatePortalPage() {
   const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
   const [message, setMessage] = useState('');
+  const [availability, setAvailability] = useState<
+    Record<string, { startsAt: string; endsAt: string }[]>
+  >({});
   async function load() {
     const token = sessionStorage.getItem('candidate-session');
     if (!token) return;
@@ -55,12 +58,33 @@ export default function CandidatePortalPage() {
     sessionStorage.setItem('candidate-session', (await response.json()).token);
     load();
   }
-  async function book(applicationId: string, interviewId: string) {
+  async function loadAvailability(applicationId: string, interviewId: string) {
+    const response = await fetch(
+      `/public/applications/${applicationId}/interviews/${interviewId}/availability`,
+      { headers: { 'X-Candidate-Session': sessionStorage.getItem('candidate-session') ?? '' } },
+    );
+    if (!response.ok) {
+      setMessage('We could not load current availability.');
+      return;
+    }
+    const result = await response.json();
+    setAvailability((current) => ({ ...current, [interviewId]: result.slots ?? [] }));
+  }
+  async function book(
+    applicationId: string,
+    interviewId: string,
+    startsAt?: string,
+    endsAt?: string,
+  ) {
     const response = await fetch(
       `/public/applications/${applicationId}/interviews/${interviewId}/book`,
       {
         method: 'POST',
-        headers: { 'X-Candidate-Session': sessionStorage.getItem('candidate-session') ?? '' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Candidate-Session': sessionStorage.getItem('candidate-session') ?? '',
+        },
+        body: JSON.stringify({ startsAt, endsAt }),
       },
     );
     if (response.ok) load();
@@ -113,13 +137,37 @@ export default function CandidatePortalPage() {
                 {application.stage} · {application.status}
               </Text>
               {application.proposedInterviews.map((interview) => (
-                <Button
-                  key={interview.id}
-                  variant="light"
-                  onClick={() => book(application.id, interview.id)}
-                >
-                  Book {interview.title} · {new Date(interview.startsAt).toLocaleString()}
-                </Button>
+                <Stack key={interview.id} gap="xs">
+                  <Button
+                    variant="light"
+                    onClick={() =>
+                      book(application.id, interview.id, interview.startsAt, interview.endsAt)
+                    }
+                  >
+                    Book {interview.title} · {new Date(interview.startsAt).toLocaleString()}
+                  </Button>
+                  <Button
+                    variant="subtle"
+                    size="compact-sm"
+                    onClick={() => loadAvailability(application.id, interview.id)}
+                  >
+                    Find another time
+                  </Button>
+                  {(availability[interview.id] ?? []).map((slot) => (
+                    <Button
+                      key={slot.startsAt}
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() => book(application.id, interview.id, slot.startsAt, slot.endsAt)}
+                    >
+                      {new Date(slot.startsAt).toLocaleString()} –{' '}
+                      {new Date(slot.endsAt).toLocaleTimeString([], {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </Button>
+                  ))}
+                </Stack>
               ))}
               {application.interviews.map((interview) => (
                 <Text key={interview.id}>

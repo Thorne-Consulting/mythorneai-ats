@@ -24,6 +24,8 @@ public sealed record UpdateInterviewRequest(
     InterviewStatus Status
 );
 
+public sealed record BookInterviewRequest(DateTimeOffset? StartsAt, DateTimeOffset? EndsAt);
+
 public sealed record UpdateMeetingNotesRequest(string Notes, string? Source);
 
 public sealed record SubmitScorecardRequest(
