@@ -47,6 +47,35 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
     enabled: Boolean(applicationId),
   });
   const selectedApplication = application.data?.application;
+  const interviewerEmails = interviewers
+    .split(',')
+    .map((email) => email.trim())
+    .filter(Boolean);
+  const availability = useQuery({
+    queryKey: ['interview-availability', interviewerEmails, startsAt, endsAt],
+    queryFn: async () => {
+      const start = new Date(startsAt!);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+      const durationMinutes = Math.max(
+        15,
+        Math.round((new Date(endsAt!).getTime() - new Date(startsAt!).getTime()) / 60_000),
+      );
+      const params = new URLSearchParams({
+        interviewerEmails: interviewerEmails.join(','),
+        from: start.toISOString(),
+        to: end.toISOString(),
+        durationMinutes: String(durationMinutes),
+        slotIntervalMinutes: '30',
+      });
+      return api.get<{
+        slots: Array<{ startsAt: string; endsAt: string }>;
+        missingConnections: string[];
+      }>(`/api/calendar/availability?${params}`);
+    },
+    enabled: interviewerEmails.length > 0 && Boolean(startsAt && endsAt),
+  });
   const mutation = useMutation({
     mutationFn: () =>
       api.post(`/api/applications/${applicationId}/interviews`, {
@@ -150,6 +179,28 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
           placeholder="interviewer@example.com"
           value={interviewers}
           onChange={(event) => setInterviewers(event.currentTarget.value)}
+        />
+        {availability.data?.missingConnections.length ? (
+          <Text size="sm" c="orange">
+            These interviewers need to connect a calendar before shared availability can be shown:{' '}
+            {availability.data.missingConnections.join(', ')}
+          </Text>
+        ) : null}
+        <Select
+          label="Shared availability"
+          placeholder={availability.isFetching ? 'Checking calendars…' : 'Choose a common time'}
+          disabled={availability.isFetching || !availability.data?.slots.length}
+          data={(availability.data?.slots ?? []).map((slot) => ({
+            value: slot.startsAt,
+            label: `${new Date(slot.startsAt).toLocaleString()} – ${new Date(slot.endsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
+          }))}
+          onChange={(value) => {
+            const slot = availability.data?.slots.find((item) => item.startsAt === value);
+            if (!slot) return;
+            setStartsAt(localDateTime(new Date(slot.startsAt)));
+            setEndsAt(localDateTime(new Date(slot.endsAt)));
+          }}
+          nothingFoundMessage="No shared calendar times found"
         />
         <Group justify="flex-end" mt="sm">
           <Button variant="default" onClick={onClose}>

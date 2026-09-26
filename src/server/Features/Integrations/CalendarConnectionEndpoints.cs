@@ -67,6 +67,33 @@ public static class CalendarConnectionEndpoints
             var connection = await db.CalendarConnections.AsNoTracking().SingleOrDefaultAsync(x => x.UserEmail == principal.Email(), ct);
             return connection is null ? Results.Ok(new { connected = false }) : Results.Ok(new { connected = true, provider = connection.Provider, accountEmail = connection.ProviderAccountEmail, expiresAt = connection.AccessTokenExpiresAt });
         });
+        api.MapGet("/availability", async (
+            string interviewerEmails,
+            DateTimeOffset from,
+            DateTimeOffset to,
+            int durationMinutes,
+            int slotIntervalMinutes,
+            IUserCalendarService calendars,
+            CancellationToken ct) =>
+        {
+            var emails = interviewerEmails
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            if (emails.Length == 0 || to <= from || to - from > TimeSpan.FromDays(14))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["range"] = ["Provide interviewers and a range of one to fourteen days."] });
+            if (durationMinutes is < 15 or > 480 || slotIntervalMinutes is < 5 or > 480)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["durationMinutes"] = ["Duration and slot interval must be between 5 and 480 minutes."] });
+
+            var availability = await calendars.FindCommonAvailabilityAsync(
+                emails,
+                from,
+                to,
+                TimeSpan.FromMinutes(durationMinutes),
+                TimeSpan.FromMinutes(slotIntervalMinutes),
+                ct);
+            return Results.Ok(availability);
+        });
         api.MapDelete("/connection", async (ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
         {
             var connection = await db.CalendarConnections.SingleOrDefaultAsync(x => x.UserEmail == principal.Email(), ct);

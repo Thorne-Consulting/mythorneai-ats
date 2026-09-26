@@ -13,6 +13,7 @@ public static class IntegrationServiceCollectionExtensions
             configuration.GetSection(IntegrationOptions.SectionName)
         );
         services.AddSingleton<CalendarOAuthService>();
+        services.AddScoped<IUserCalendarService, UserCalendarService>();
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<IntegrationOptions>>().Value;

@@ -51,6 +51,7 @@ public sealed class IntegrationOutboxWorker(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
+        var userCalendars = scope.ServiceProvider.GetRequiredService<IUserCalendarService>();
         var now = DateTimeOffset.UtcNow;
         var itemId = await db
             .IntegrationOutbox.AsNoTracking()
@@ -94,10 +95,10 @@ public sealed class IntegrationOutboxWorker(
             switch (item.Operation)
             {
                 case IntegrationOperation.CreateCalendarEvent:
-                    await DeliverCalendarEventAsync(db, item, cancellationToken);
+                    await DeliverCalendarEventAsync(db, item, userCalendars, cancellationToken);
                     break;
                 case IntegrationOperation.CancelCalendarEvent:
-                    await CancelCalendarEventAsync(db, item, cancellationToken);
+                    await CancelCalendarEventAsync(db, item, userCalendars, cancellationToken);
                     break;
                 default:
                     throw new InvalidOperationException(
@@ -140,6 +141,7 @@ public sealed class IntegrationOutboxWorker(
     private async Task DeliverCalendarEventAsync(
         AtsDbContext db,
         IntegrationOutboxItem item,
+        IUserCalendarService userCalendars,
         CancellationToken cancellationToken
     )
     {
@@ -156,22 +158,30 @@ public sealed class IntegrationOutboxWorker(
             .InterviewerEmails.Append(candidate.Email)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        var result = await integration.CreateCalendarEventAsync(
-            new OutboundCalendarEvent(
-                interview.Id,
-                interview.ExternalEventId,
-                interview.Title,
-                $"Candidate: {candidate.FirstName} {candidate.LastName}\nRole: {requisition.Code} · {requisition.Title}\nApplication: {application.Id}",
-                interview.StartsAt,
-                interview.EndsAt,
-                interview.TimeZone,
-                interview.MeetingLink,
-                attendees
-            ),
+        var calendarEvent = new OutboundCalendarEvent(
+            interview.Id,
+            interview.ExternalEventId,
+            interview.Title,
+            $"Candidate: {candidate.FirstName} {candidate.LastName}\nRole: {requisition.Code} · {requisition.Title}\nApplication: {application.Id}",
+            interview.StartsAt,
+            interview.EndsAt,
+            interview.TimeZone,
+            interview.MeetingLink,
+            attendees
+        );
+        var hasPersonalConnection = await db.CalendarConnections.AnyAsync(
+            x => interview.InterviewerEmails.Contains(x.UserEmail),
             cancellationToken
         );
+        var result = hasPersonalConnection
+            ? await userCalendars.CreateEventAsync(
+                calendarEvent,
+                interview.InterviewerEmails,
+                cancellationToken
+            )
+            : await integration.CreateCalendarEventAsync(calendarEvent, cancellationToken);
         interview.CalendarStatus = "Created";
-        interview.CalendarProvider = integration.ProviderName;
+        interview.CalendarProvider = hasPersonalConnection ? "Personal" : integration.ProviderName;
         interview.ExternalEventId = result.ExternalId;
         interview.CalendarError = null;
         interview.MeetingLink = result.MeetingLink ?? interview.MeetingLink;
@@ -181,6 +191,7 @@ public sealed class IntegrationOutboxWorker(
     private async Task CancelCalendarEventAsync(
         AtsDbContext db,
         IntegrationOutboxItem item,
+        IUserCalendarService userCalendars,
         CancellationToken cancellationToken
     )
     {
@@ -189,10 +200,22 @@ public sealed class IntegrationOutboxWorker(
             cancellationToken
         );
         if (!string.IsNullOrWhiteSpace(interview.ExternalEventId))
-            await integration.CancelCalendarEventAsync(
-                interview.ExternalEventId,
-                cancellationToken
-            );
+        {
+            var personalEmail = interview.CalendarProvider == "Personal"
+                ? interview.InterviewerEmails.FirstOrDefault()
+                : null;
+            if (personalEmail is not null)
+                await userCalendars.CancelEventAsync(
+                    interview.ExternalEventId,
+                    personalEmail,
+                    cancellationToken
+                );
+            else
+                await integration.CancelCalendarEventAsync(
+                    interview.ExternalEventId,
+                    cancellationToken
+                );
+        }
         interview.CalendarStatus = "Cancelled";
         interview.CalendarError = null;
         AddAudit(db, "Application", interview.ApplicationId, "CalendarEventCancelled");
