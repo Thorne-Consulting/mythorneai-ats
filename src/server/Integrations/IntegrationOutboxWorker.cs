@@ -11,6 +11,7 @@ public sealed class IntegrationOutboxWorker(
 ) : BackgroundService
 {
     private const int MaximumAttempts = 5;
+    private DateTimeOffset lastExternalSync = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -24,7 +25,14 @@ public sealed class IntegrationOutboxWorker(
             {
                 var processed = await TryProcessOneAsync(stoppingToken);
                 if (!processed)
+                {
+                    if (DateTimeOffset.UtcNow - lastExternalSync > TimeSpan.FromMinutes(5))
+                    {
+                        await SyncExternalEventsAsync(stoppingToken);
+                        lastExternalSync = DateTimeOffset.UtcNow;
+                    }
                     await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -130,6 +138,91 @@ public sealed class IntegrationOutboxWorker(
 
         await db.SaveChangesAsync(cancellationToken);
         return true;
+    }
+
+    private async Task SyncExternalEventsAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
+        var calendars = scope.ServiceProvider.GetRequiredService<IUserCalendarService>();
+        var interviews = await db.Interviews
+            .Include(x => x.Application)
+                .ThenInclude(x => x!.Candidate)
+            .Where(x =>
+                x.Status == InterviewStatus.Scheduled
+                && x.CalendarProvider == "Personal"
+                && x.ExternalEventId != null
+            )
+            .Take(100)
+            .ToListAsync(cancellationToken);
+        foreach (var interview in interviews)
+        {
+            var organizer = interview.InterviewerEmails.FirstOrDefault();
+            if (organizer is null)
+                continue;
+            var external = await calendars.GetEventAsync(
+                interview.ExternalEventId!,
+                organizer,
+                cancellationToken
+            );
+            if (external is null || external.Cancelled)
+            {
+                if (interview.CalendarStatus == "ExternalCancelled")
+                    continue;
+                interview.CalendarStatus = "ExternalCancelled";
+                QueueExternalChangeEmail(
+                    db,
+                    interview,
+                    "Your interview was cancelled on the connected calendar. The hiring team will contact you about next steps."
+                );
+                continue;
+            }
+            if (external.StartsAt is null || external.EndsAt is null)
+                continue;
+            if (external.StartsAt != interview.StartsAt || external.EndsAt != interview.EndsAt)
+            {
+                interview.StartsAt = external.StartsAt.Value;
+                interview.EndsAt = external.EndsAt.Value;
+                interview.CalendarStatus = "ExternalUpdated";
+                QueueExternalChangeEmail(
+                    db,
+                    interview,
+                    $"Your interview time changed to {interview.StartsAt:u} on the connected calendar."
+                );
+            }
+            if (!string.IsNullOrWhiteSpace(external.MeetingLink))
+                interview.MeetingLink = external.MeetingLink;
+        }
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    private static void QueueExternalChangeEmail(
+        AtsDbContext db,
+        Interview interview,
+        string body
+    )
+    {
+        if (interview.Application?.Candidate is null)
+            return;
+        db.EmailOutbox.Add(
+            new EmailOutboxItem
+            {
+                ApplicationId = interview.ApplicationId,
+                Recipient = interview.Application.Candidate.Email,
+                Subject = $"Calendar update: {interview.Title}",
+                Body = body,
+            }
+        );
+        foreach (var interviewer in interview.InterviewerEmails)
+            db.EmailOutbox.Add(
+                new EmailOutboxItem
+                {
+                    ApplicationId = interview.ApplicationId,
+                    Recipient = interviewer,
+                    Subject = $"Calendar update: {interview.Title}",
+                    Body = body,
+                }
+            );
     }
 
     private async Task DeliverCalendarEventAsync(

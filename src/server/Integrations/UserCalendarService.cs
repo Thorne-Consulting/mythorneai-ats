@@ -18,6 +18,13 @@ public sealed record CalendarAvailability(
     IReadOnlyList<string> MissingConnections
 );
 
+public sealed record ExternalCalendarEvent(
+    DateTimeOffset? StartsAt,
+    DateTimeOffset? EndsAt,
+    string? MeetingLink,
+    bool Cancelled
+);
+
 public interface IUserCalendarService
 {
     Task<CalendarAvailability> FindCommonAvailabilityAsync(
@@ -38,6 +45,12 @@ public interface IUserCalendarService
     );
 
     Task CancelEventAsync(
+        string externalEventId,
+        string interviewerEmail,
+        CancellationToken cancellationToken
+    );
+
+    Task<ExternalCalendarEvent?> GetEventAsync(
         string externalEventId,
         string interviewerEmail,
         CancellationToken cancellationToken
@@ -173,6 +186,57 @@ public sealed class UserCalendarService(
             response.EnsureSuccessStatusCode();
     }
 
+    public async Task<ExternalCalendarEvent?> GetEventAsync(
+        string externalEventId,
+        string interviewerEmail,
+        CancellationToken cancellationToken
+    )
+    {
+        var connection = await db.CalendarConnections.SingleOrDefaultAsync(
+            x => x.UserEmail == interviewerEmail,
+            cancellationToken
+        );
+        if (connection is null)
+            return null;
+        var accessToken = await GetAccessTokenAsync(connection, cancellationToken);
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            connection.Provider.Equals("Google", StringComparison.OrdinalIgnoreCase)
+                ? $"https://www.googleapis.com/calendar/v3/calendars/primary/events/{Uri.EscapeDataString(externalEventId)}"
+                : $"https://graph.microsoft.com/v1.0/me/events/{Uri.EscapeDataString(externalEventId)}"
+        );
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await clients.CreateClient().SendAsync(request, cancellationToken);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        using var json = await JsonDocument.ParseAsync(
+            await response.Content.ReadAsStreamAsync(cancellationToken),
+            cancellationToken: cancellationToken
+        );
+        var root = json.RootElement;
+        if (connection.Provider.Equals("Google", StringComparison.OrdinalIgnoreCase))
+        {
+            var cancelled = root.TryGetProperty("status", out var status)
+                && status.GetString() == "cancelled";
+            return new(
+                ReadDate(root, "start", "dateTime"),
+                ReadDate(root, "end", "dateTime"),
+                root.TryGetProperty("hangoutLink", out var hangout) ? hangout.GetString() : null,
+                cancelled
+            );
+        }
+        return new(
+            ReadDate(root, "start", "dateTime"),
+            ReadDate(root, "end", "dateTime"),
+            root.TryGetProperty("onlineMeeting", out var meeting)
+                && meeting.TryGetProperty("joinUrl", out var joinUrl)
+                ? joinUrl.GetString()
+                : null,
+            root.TryGetProperty("isCancelled", out var cancelledValue) && cancelledValue.GetBoolean()
+        );
+    }
+
     private async Task<Dictionary<string, CalendarConnection>> LoadConnectionsAsync(
         IReadOnlyCollection<string> emails,
         CancellationToken cancellationToken
@@ -279,6 +343,13 @@ public sealed class UserCalendarService(
             schedule.GetProperty("scheduleItems").EnumerateArray().Select(item =>
                 new BusyWindow(item.GetProperty("start").GetProperty("dateTime").GetDateTimeOffset(), item.GetProperty("end").GetProperty("dateTime").GetDateTimeOffset())
             )).ToArray();
+
+    private static DateTimeOffset? ReadDate(JsonElement root, string parent, string property) =>
+        root.TryGetProperty(parent, out var value)
+        && value.TryGetProperty(property, out var date)
+        && DateTimeOffset.TryParse(date.GetString(), out var parsed)
+            ? parsed
+            : null;
 
     private static object GoogleEvent(OutboundCalendarEvent calendarEvent) => new
     {
