@@ -33,9 +33,10 @@ import {
   IconFileImport,
   IconFileSearch,
   IconSearch,
+  IconSparkles,
   IconX,
 } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
@@ -78,6 +79,7 @@ export function TalentSearchPage({ initialData }: { initialData: TalentSearchRes
   const [savedSearches, setSavedSearches] = useState<Record<string, string>>({});
   const [selectedSavedSearch, setSelectedSavedSearch] = useState<string | null>(null);
   const [saveName, setSaveName] = useState('');
+  const [aiQuery, setAiQuery] = useState('');
   const canImport = ['Admin', 'Recruiter'].includes(user.role);
   const activeAdvanced = [
     skills.length > 0,
@@ -133,6 +135,27 @@ export function TalentSearchPage({ initialData }: { initialData: TalentSearchRes
     queryKey: ['talent-search', params.toString()],
     queryFn: () => api.get<TalentSearchResponse>(`/api/talent/search?${params}`),
     initialData: pristine ? initialData : undefined,
+  });
+  const aiSearch = useMutation({
+    mutationFn: () =>
+      api.post<{
+        q?: string;
+        skills: string[];
+        skillMode: 'any' | 'all';
+        title?: string;
+        location?: string;
+        minYears?: number;
+      }>('/api/ai/search-filters', { query: aiQuery }),
+    onSuccess: (filters) => {
+      setSearch(filters.q ?? '');
+      setSkills(filters.skills ?? []);
+      setSkillMode(filters.skillMode ?? 'any');
+      setTitle(filters.title ?? '');
+      setLocation(filters.location ?? '');
+      setMinYears(filters.minYears ?? '');
+      setPage(1);
+      advanced.open();
+    },
   });
 
   useEffect(() => {
@@ -306,6 +329,23 @@ export function TalentSearchPage({ initialData }: { initialData: TalentSearchRes
                 </Stack>
               </Popover.Dropdown>
             </Popover>
+          </Group>
+          <Group align="flex-end" wrap="wrap">
+            <TextInput
+              label="Describe the candidate you need"
+              placeholder="Senior backend engineer with payments experience"
+              value={aiQuery}
+              onChange={(event) => setAiQuery(event.currentTarget.value)}
+              style={{ flex: '1 1 360px' }}
+            />
+            <Button
+              leftSection={<IconSparkles size={16} />}
+              loading={aiSearch.isPending}
+              disabled={!aiQuery.trim()}
+              onClick={() => aiSearch.mutate()}
+            >
+              Apply AI filters
+            </Button>
           </Group>
           <Collapse in={advancedOpened}>
             <Stack gap="sm" pt="xs">

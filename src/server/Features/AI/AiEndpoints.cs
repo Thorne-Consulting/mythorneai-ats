@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Auth;
 using MyThorneAI.Ats.Api.Contracts;
@@ -39,9 +40,70 @@ public static class AiEndpoints
                 return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }).RequireAuthorization(AtsPolicies.ManageHiring);
+
+        api.MapPost("/ai/search-filters", async (
+            NaturalLanguageSearchRequest request,
+            ClaimsPrincipal principal,
+            AtsDbContext db,
+            IAiAssistant assistant,
+            CancellationToken ct) =>
+        {
+            if (string.IsNullOrWhiteSpace(request.Query))
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["query"] = ["A search request is required."] });
+            var jobContext = "";
+            if (request.RequisitionId is not null)
+            {
+                var requisition = await db.Requisitions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.RequisitionId, ct);
+                if (requisition is null || !CanManage(requisition, principal))
+                    return Results.NotFound();
+                jobContext = $"Job title: {requisition.Title}\nJob requirements: {requisition.Description}";
+            }
+            try
+            {
+                var result = await assistant.CompleteAsync(
+                    "Turn the recruiter request into JSON only. Use exactly these keys: q, skills, skillMode, title, location, minYears. skills is an array of short strings, skillMode is any or all, minYears is a number or null. Do not rank candidates or make hiring decisions.",
+                    $"{jobContext}\nRecruiter request: {request.Query}",
+                    ct);
+                using var json = JsonDocument.Parse(result);
+                return Results.Ok(new
+                {
+                    q = StringValue(json.RootElement, "q"),
+                    skills = ArrayValue(json.RootElement, "skills"),
+                    skillMode = StringValue(json.RootElement, "skillMode") is "all" ? "all" : "any",
+                    title = StringValue(json.RootElement, "title"),
+                    location = StringValue(json.RootElement, "location"),
+                    minYears = NumberValue(json.RootElement, "minYears"),
+                });
+            }
+            catch (JsonException)
+            {
+                return Results.Problem("The search assistant returned an invalid filter set.", statusCode: StatusCodes.Status502BadGateway);
+            }
+            catch (InvalidOperationException exception) when (exception.Message.Contains("not configured"))
+            {
+                return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        }).RequireAuthorization(AtsPolicies.ManageCandidates);
     }
 
     private static bool CanManage(Domain.Requisition requisition, ClaimsPrincipal principal) =>
         principal.IsHiringStaff() || (principal.IsInRole(nameof(Domain.UserRole.HiringManager))
             && (requisition.OwnerEmail == principal.Email() || requisition.RecruiterEmail == principal.Email()));
+
+    private static string? StringValue(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()?.Trim()
+            : null;
+
+    private static string[] ArrayValue(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString()!.Trim())
+                .Where(item => item.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray()
+            : [];
+
+    private static decimal? NumberValue(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
+            && value.TryGetDecimal(out var number) ? Math.Clamp(number, 0, 50) : null;
 }
