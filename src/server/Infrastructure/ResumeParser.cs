@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using FieldCure.DocumentParsers;
 using MyThorneAI.Ats.Api.Contracts;
 
@@ -56,6 +58,8 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
         cancellationToken.ThrowIfCancellationRequested();
         var bytes = content.ToArray();
         var text = documentParser.ExtractText(bytes);
+        if (string.IsNullOrWhiteSpace(text) && extension == ".docx")
+            text = ExtractDocxText(bytes);
 
         text = NormalizeDocumentText(text);
         if (text.Length < 40 && extension == ".pdf")
@@ -239,6 +243,20 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
             builder.AppendLine(line);
         }
         return builder.ToString().Trim();
+    }
+
+    private static string ExtractDocxText(byte[] bytes)
+    {
+        using var archive = new ZipArchive(new MemoryStream(bytes), ZipArchiveMode.Read);
+        var document = archive.GetEntry("word/document.xml");
+        if (document is null)
+            return string.Empty;
+        using var stream = document.Open();
+        var xml = XDocument.Load(stream);
+        return string.Join(
+            "\n",
+            xml.Descendants().Where(node => node.Name.LocalName == "t").Select(node => node.Value)
+        );
     }
 
     [GeneratedRegex(@"[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}", RegexOptions.IgnoreCase)]
