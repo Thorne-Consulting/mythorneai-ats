@@ -503,7 +503,9 @@ public static partial class AtsEndpoints
                         db,
                         application.Candidate!.Email,
                         $"Update on your {application.Requisition.Title} application",
-                        $"Your application for {application.Requisition.Title} moved to: {stage.Name}."
+                        request.Message?.Trim() is { Length: > 0 } message
+                            ? message
+                            : $"Your application for {application.Requisition.Title} moved to: {stage.Name}."
                     );
                     Audit.Add(
                         db,

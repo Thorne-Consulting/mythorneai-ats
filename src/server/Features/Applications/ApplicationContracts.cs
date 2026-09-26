@@ -7,7 +7,8 @@ public sealed record CreateApplicationRequest(Guid CandidateId, Guid Requisition
 public sealed record MoveApplicationRequest(
     Guid StageId,
     ApplicationStatus Status,
-    string? DispositionReason
+    string? DispositionReason,
+    string? Message = null
 );
 
 public sealed record BulkMoveApplicationsRequest(
