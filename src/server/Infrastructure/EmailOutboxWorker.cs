@@ -74,6 +74,7 @@ public sealed class EmailOutboxWorker(
         {
             db.EmailOutbox.Add(new EmailOutboxItem
             {
+                ApplicationId = application.Id,
                 Recipient = application.Candidate!.Email,
                 Subject = $"Update on your {application.Requisition!.Title} application",
                 Body = $"Your application is still being reviewed. We will share the next update when there is progress.\n\nApplication: {application.Requisition.Title}",

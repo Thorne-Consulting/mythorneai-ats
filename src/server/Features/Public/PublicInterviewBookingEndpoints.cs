@@ -152,14 +152,16 @@ public static partial class PublicEndpoints
                     db,
                     interview.Application.Candidate!.Email,
                     $"Interview booked for {interview.Application.Requisition!.Title}",
-                    $"Your interview, {interview.Title}, is booked for {interview.StartsAt:u}."
+                    $"Your interview, {interview.Title}, is booked for {interview.StartsAt:u}.",
+                    interview.Application.Id
                 );
                 foreach (var interviewer in interview.InterviewerEmails)
                     QueueEmail(
                         db,
                         interviewer,
                         $"Interview booked: {interview.Title}",
-                        $"The candidate booked {interview.StartsAt:u} for {interview.Application.Requisition.Title}."
+                        $"The candidate booked {interview.StartsAt:u} for {interview.Application.Requisition.Title}.",
+                        interview.Application.Id
                     );
                 if (integration.IsEnabled)
                     db.IntegrationOutbox.Add(

@@ -19,7 +19,8 @@ public static class AiEndpoints
             CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.Purpose))
-                return Results.ValidationProblem(new Dictionary<string, string[]> {
+                return Results.ValidationProblem(new Dictionary<string, string[]>
+                {
                     ["purpose"] = ["A message purpose is required."]
                 });
             var application = await db.Applications.Include(x => x.Candidate).Include(x => x.Requisition)

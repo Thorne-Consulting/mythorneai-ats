@@ -151,7 +151,8 @@ public static partial class AtsEndpoints
                             db,
                             application.Candidate!.Email,
                             $"Interview scheduled for {application.Requisition.Title}",
-                            $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}."
+                            $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}.",
+                            application.Id
                         );
                         foreach (var interviewer in interview.InterviewerEmails)
                             QueueEmail(

@@ -18,12 +18,27 @@ public static partial class PublicEndpoints
             var applications = await db.Applications.AsNoTracking()
                 .Where(x => x.CandidateId == session.CandidateId && x.Status != ApplicationStatus.PendingVerification)
                 .OrderByDescending(x => x.LastActivityAt)
-                .Select(x => new { x.Id, x.RequisitionId, JobTitle = x.Requisition!.Title, Stage = x.PipelineStage!.Name,
-                    Status = x.Status.ToString(), x.AppliedAt, x.LastActivityAt,
+                .Select(x => new
+                {
+                    x.Id,
+                    x.RequisitionId,
+                    JobTitle = x.Requisition!.Title,
+                    Stage = x.PipelineStage!.Name,
+                    Status = x.Status.ToString(),
+                    x.AppliedAt,
+                    x.LastActivityAt,
                     Interviews = x.Interviews.Where(i => i.Status == InterviewStatus.Scheduled)
                         .Select(i => new { i.Id, i.Title, i.StartsAt, i.EndsAt, i.TimeZone, i.MeetingLink }),
                     ProposedInterviews = x.Interviews.Where(i => i.Status == InterviewStatus.Proposed)
-                        .Select(i => new { i.Id, i.Title, i.StartsAt, i.EndsAt, i.TimeZone }) })
+                        .Select(i => new { i.Id, i.Title, i.StartsAt, i.EndsAt, i.TimeZone }),
+                    Messages = db.EmailOutbox.Where(message =>
+                            message.ApplicationId == x.Id
+                            && message.Recipient == session.Candidate.Email
+                            && message.Status == EmailOutboxStatus.Succeeded)
+                        .OrderByDescending(message => message.CreatedAt)
+                        .Take(25)
+                        .Select(message => new { message.Subject, message.Body, message.CreatedAt })
+                })
                 .ToListAsync(ct);
             return Results.Ok(new { candidate = new { session.Candidate.FirstName, session.Candidate.LastName }, applications });
         });

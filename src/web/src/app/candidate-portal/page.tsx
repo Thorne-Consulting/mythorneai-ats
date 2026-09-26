@@ -13,6 +13,7 @@ type Portal = {
     appliedAt: string;
     interviews: Array<{ id: string; title: string; startsAt: string; meetingLink?: string }>;
     proposedInterviews: Array<{ id: string; title: string; startsAt: string; endsAt: string }>;
+    messages: Array<{ subject: string; body: string; createdAt: string }>;
   }>;
 };
 
@@ -175,6 +176,22 @@ export default function CandidatePortalPage() {
                   {interview.meetingLink && <a href={interview.meetingLink}>Join meeting</a>}
                 </Text>
               ))}
+              {application.messages.length > 0 && (
+                <Stack gap="xs" mt="sm">
+                  <Text fw={600}>Messages</Text>
+                  {application.messages.map((item) => (
+                    <Paper key={`${item.createdAt}-${item.subject}`} withBorder p="sm">
+                      <Text fw={500}>{item.subject}</Text>
+                      <Text size="xs" c="dimmed">
+                        {new Date(item.createdAt).toLocaleString()}
+                      </Text>
+                      <Text size="sm" mt="xs" style={{ whiteSpace: 'pre-wrap' }}>
+                        {item.body}
+                      </Text>
+                    </Paper>
+                  ))}
+                </Stack>
+              )}
             </Stack>
           </Paper>
         ))}

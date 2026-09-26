@@ -505,7 +505,8 @@ public static partial class AtsEndpoints
                         $"Update on your {application.Requisition.Title} application",
                         request.Message?.Trim() is { Length: > 0 } message
                             ? message
-                            : $"Your application for {application.Requisition.Title} moved to: {stage.Name}."
+                            : $"Your application for {application.Requisition.Title} moved to: {stage.Name}.",
+                        application.Id
                     );
                     Audit.Add(
                         db,

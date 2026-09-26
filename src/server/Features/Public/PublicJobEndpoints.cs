@@ -15,8 +15,20 @@ public static partial class PublicEndpoints
         {
             var job = await db.Requisitions.AsNoTracking()
                 .Where(x => x.Id == id && x.Status == RequisitionStatus.Open)
-                .Select(x => new { x.Id, x.Code, x.Title, x.Department, x.Location, x.EmploymentType,
-                    x.WorkMode, x.Openings, x.Description, x.ApplicationQuestionsMarkdown, x.TargetStartDate })
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Code,
+                    x.Title,
+                    x.Department,
+                    x.Location,
+                    x.EmploymentType,
+                    x.WorkMode,
+                    x.Openings,
+                    x.Description,
+                    x.ApplicationQuestionsMarkdown,
+                    x.TargetStartDate
+                })
                 .SingleOrDefaultAsync(ct);
             return job is null ? Results.NotFound() : Results.Ok(job);
         });

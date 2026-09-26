@@ -251,7 +251,8 @@ public static partial class AtsEndpoints
                     var template = request.PostingTemplateId is null ? null : await db.PostingTemplates
                         .AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PostingTemplateId && x.IsActive, ct);
                     if (request.PostingTemplateId is not null && template is null)
-                        return Results.ValidationProblem(new Dictionary<string, string[]> {
+                        return Results.ValidationProblem(new Dictionary<string, string[]>
+                        {
                             ["postingTemplateId"] = ["Posting template not found."]
                         });
                     var description = string.Join("\n\n", new[]

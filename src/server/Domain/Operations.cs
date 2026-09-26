@@ -41,6 +41,7 @@ public sealed class AuditEvent
 public sealed class EmailOutboxItem
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid? ApplicationId { get; set; }
     public required string Recipient { get; set; }
     public required string Subject { get; set; }
     public required string Body { get; set; }

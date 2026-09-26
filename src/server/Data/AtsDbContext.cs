@@ -211,6 +211,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
         );
         modelBuilder.Entity<EmailOutboxItem>(entity =>
         {
+            entity.HasIndex(x => new { x.ApplicationId, x.CreatedAt });
             entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             entity.Property(x => x.Recipient).HasMaxLength(320);
