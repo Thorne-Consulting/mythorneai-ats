@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
 
@@ -9,7 +10,7 @@ public static partial class PublicEndpoints
 {
     public static void MapPublicEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var api = endpoints.MapGroup("/public");
+        var api = endpoints.MapGroup("/public").RequireRateLimiting("public-candidate");
         MapPublicJobs(api);
         MapPublicCandidateAccess(api);
         MapPublicPortal(api);

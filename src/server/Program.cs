@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
+using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Api;
 using MyThorneAI.Ats.Api.Auth;
@@ -50,6 +51,20 @@ builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
 builder.Services.AddHttpClient<IAiAssistant, OpenAiAssistant>(client =>
     client.BaseAddress = new Uri("https://api.openai.com/v1/"));
 builder.Services.AddHealthChecks();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("public-candidate", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 60,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }
+        ));
+});
 
 var app = builder.Build();
 
@@ -73,6 +88,7 @@ app.Use(
 );
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseAntiforgery();
 
 if (app.Environment.IsDevelopment())
