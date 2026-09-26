@@ -39,7 +39,7 @@ public static partial class PublicEndpoints
                             x.Id == interviewId
                             && x.ApplicationId == applicationId
                             && x.Application!.CandidateId == candidateId
-                            && x.Status == InterviewStatus.Proposed,
+                            && (x.Status == InterviewStatus.Proposed || x.Status == InterviewStatus.Scheduled),
                         ct
                     );
                 if (interview is null)
@@ -51,7 +51,9 @@ public static partial class PublicEndpoints
                     from.AddDays(14),
                     interview.EndsAt - interview.StartsAt,
                     TimeSpan.FromMinutes(30),
-                    ct
+                    ct,
+                    interview.Status == InterviewStatus.Scheduled ? interview.StartsAt : null,
+                    interview.Status == InterviewStatus.Scheduled ? interview.EndsAt : null
                 );
                 return Results.Ok(availability);
             }
@@ -251,6 +253,94 @@ public static partial class PublicEndpoints
                     );
                 await db.SaveChangesAsync(ct);
                 return Results.Ok(new { interview.Id });
+            }
+        );
+
+        api.MapPost(
+            "/applications/{applicationId:guid}/interviews/{interviewId:guid}/reschedule",
+            async (
+                Guid applicationId,
+                Guid interviewId,
+                BookInterviewRequest request,
+                HttpRequest http,
+                AtsDbContext db,
+                IUserCalendarService userCalendars,
+                CancellationToken ct
+            ) =>
+            {
+                var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(token))
+                    return Results.Unauthorized();
+                var candidateId = await db
+                    .CandidatePortalSessions.Where(x =>
+                        x.TokenHash == Hash(token) && x.ExpiresAt > DateTimeOffset.UtcNow
+                    )
+                    .Select(x => (Guid?)x.CandidateId)
+                    .SingleOrDefaultAsync(ct);
+                if (candidateId is null)
+                    return Results.Unauthorized();
+                if (request.StartsAt is null || request.EndsAt is null || request.EndsAt <= request.StartsAt)
+                    return Results.ValidationProblem(new Dictionary<string, string[]> { ["time"] = ["A valid start and end time are required."] });
+                var interview = await db
+                    .Interviews.Include(x => x.Application)
+                        .ThenInclude(x => x!.Candidate)
+                    .Include(x => x.Application)
+                        .ThenInclude(x => x!.Requisition)
+                    .SingleOrDefaultAsync(
+                        x =>
+                            x.Id == interviewId
+                            && x.ApplicationId == applicationId
+                            && x.Application!.CandidateId == candidateId
+                            && x.Status == InterviewStatus.Scheduled,
+                        ct
+                    );
+                if (interview is null)
+                    return Results.NotFound();
+                var availability = await userCalendars.FindCommonAvailabilityAsync(
+                    interview.InterviewerEmails,
+                    request.StartsAt.Value,
+                    request.EndsAt.Value,
+                    request.EndsAt.Value - request.StartsAt.Value,
+                    TimeSpan.FromMinutes(1),
+                    ct,
+                    interview.StartsAt,
+                    interview.EndsAt
+                );
+                if (
+                    availability.MissingConnections.Count == 0
+                    && !availability.Slots.Any(slot =>
+                        slot.StartsAt == request.StartsAt && slot.EndsAt == request.EndsAt
+                    )
+                )
+                    return Results.Conflict(new { message = "That time is no longer available." });
+                interview.StartsAt = request.StartsAt.Value;
+                interview.EndsAt = request.EndsAt.Value;
+                interview.CalendarStatus = "Queued";
+                interview.Application!.LastActivityAt = DateTimeOffset.UtcNow;
+                QueueEmail(
+                    db,
+                    interview.Application.Candidate!.Email,
+                    $"Interview rescheduled: {interview.Title}",
+                    $"Your interview is now scheduled for {interview.StartsAt:u}.",
+                    interview.Application.Id
+                );
+                foreach (var interviewer in interview.InterviewerEmails)
+                    QueueEmail(
+                        db,
+                        interviewer,
+                        $"Interview rescheduled: {interview.Title}",
+                        $"The interview is now scheduled for {interview.StartsAt:u}.",
+                        interview.Application.Id
+                    );
+                db.IntegrationOutbox.Add(
+                    new IntegrationOutboxItem
+                    {
+                        Operation = IntegrationOperation.CreateCalendarEvent,
+                        EntityId = interview.Id,
+                    }
+                );
+                await db.SaveChangesAsync(ct);
+                return Results.NoContent();
             }
         );
     }

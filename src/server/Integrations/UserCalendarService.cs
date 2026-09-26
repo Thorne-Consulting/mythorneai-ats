@@ -26,7 +26,9 @@ public interface IUserCalendarService
         DateTimeOffset to,
         TimeSpan duration,
         TimeSpan slotInterval,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        DateTimeOffset? ignoreStartsAt = null,
+        DateTimeOffset? ignoreEndsAt = null
     );
 
     Task<CalendarDeliveryResult> CreateEventAsync(
@@ -61,7 +63,9 @@ public sealed class UserCalendarService(
         DateTimeOffset to,
         TimeSpan duration,
         TimeSpan slotInterval,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        DateTimeOffset? ignoreStartsAt = null,
+        DateTimeOffset? ignoreEndsAt = null
     )
     {
         if (interviewerEmails.Count == 0 || to <= from || duration <= TimeSpan.Zero)
@@ -79,10 +83,12 @@ public sealed class UserCalendarService(
         foreach (var email in interviewerEmails)
         {
             var connection = connections[email];
-            busy.AddRange(
-                await ReadBusyWindowsAsync(connection, from, to, cancellationToken)
-            );
+            busy.AddRange(await ReadBusyWindowsAsync(connection, from, to, cancellationToken));
         }
+        if (ignoreStartsAt is not null && ignoreEndsAt is not null)
+            busy.RemoveAll(window =>
+                window.StartsAt == ignoreStartsAt && window.EndsAt == ignoreEndsAt
+            );
 
         var slots = new List<CalendarSlot>();
         for (var start = from; start.Add(duration) <= to; start = start.Add(slotInterval))

@@ -103,6 +103,26 @@ export default function CandidatePortalPage() {
     if (response.ok) load();
     else setMessage('That interview could not be cancelled.');
   }
+  async function reschedule(
+    applicationId: string,
+    interviewId: string,
+    startsAt: string,
+    endsAt: string,
+  ) {
+    const response = await fetch(
+      `/public/applications/${applicationId}/interviews/${interviewId}/reschedule`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Candidate-Session': sessionStorage.getItem('candidate-session') ?? '',
+        },
+        body: JSON.stringify({ startsAt, endsAt }),
+      },
+    );
+    if (response.ok) load();
+    else setMessage('That time is no longer available.');
+  }
   if (!portal)
     return (
       <Container size="sm" py="xl">
@@ -196,6 +216,29 @@ export default function CandidatePortalPage() {
                   >
                     Cancel interview
                   </Button>
+                  <Button
+                    variant="subtle"
+                    size="compact-sm"
+                    onClick={() => loadAvailability(application.id, interview.id)}
+                  >
+                    Change time
+                  </Button>
+                  {(availability[interview.id] ?? []).map((slot) => (
+                    <Button
+                      key={slot.startsAt}
+                      variant="default"
+                      size="compact-sm"
+                      onClick={() =>
+                        reschedule(application.id, interview.id, slot.startsAt, slot.endsAt)
+                      }
+                    >
+                      {new Date(slot.startsAt).toLocaleString()} –{' '}
+                      {new Date(slot.endsAt).toLocaleTimeString([], {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                      })}
+                    </Button>
+                  ))}
                 </Stack>
               ))}
               {application.messages.length > 0 && (
