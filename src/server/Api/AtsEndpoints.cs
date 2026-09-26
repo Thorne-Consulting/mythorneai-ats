@@ -12,6 +12,7 @@ public static partial class AtsEndpoints
         MapAdministration(api);
         MapSearch(api);
         MapResumes(api);
+        AiEndpoints.MapAiEndpoints(api);
         return api;
     }
 }

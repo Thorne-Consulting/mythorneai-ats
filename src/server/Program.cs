@@ -47,6 +47,8 @@ builder.Services.AddHostedService<EmailOutboxWorker>();
 builder.Services.AddWorkplaceIntegrations(builder.Configuration);
 builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
     client.BaseAddress = new Uri("https://api.resend.com/"));
+builder.Services.AddHttpClient<IAiAssistant, OpenAiAssistant>(client =>
+    client.BaseAddress = new Uri("https://api.openai.com/v1/"));
 builder.Services.AddHealthChecks();
 
 var app = builder.Build();
