@@ -21,6 +21,7 @@ public sealed class Interview
     public string? MeetingNotes { get; set; }
     public string? MeetingNotesSource { get; set; }
     public DateTimeOffset? MeetingNotesUpdatedAt { get; set; }
+    public DateTimeOffset? LastScorecardReminderAt { get; set; }
     public List<Scorecard> Scorecards { get; set; } = [];
     public List<InterviewRecording> Recordings { get; set; } = [];
 }

@@ -18,6 +18,7 @@ public sealed class EmailOutboxWorker(
             {
                 while (await ProcessOneAsync(stoppingToken)) { }
                 await SendStaleRemindersAsync(stoppingToken);
+                await SendScorecardRemindersAsync(stoppingToken);
                 await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
@@ -87,5 +88,48 @@ public sealed class EmailOutboxWorker(
             application.LastReminderAt = DateTimeOffset.UtcNow;
         }
         if (applications.Count > 0) await db.SaveChangesAsync(ct);
+    }
+
+    private async Task SendScorecardRemindersAsync(CancellationToken ct)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
+        var reminderDays = Math.Clamp(
+            await db.Organizations.Select(x => (int?)x.StaleReminderDays).SingleOrDefaultAsync(ct) ?? 3,
+            1,
+            30
+        );
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-reminderDays);
+        var interviews = await db.Interviews
+            .Include(x => x.Application)
+                .ThenInclude(x => x!.Requisition)
+            .Include(x => x.Scorecards)
+            .Where(x =>
+                x.Status == InterviewStatus.Scheduled
+                && x.EndsAt < DateTimeOffset.UtcNow
+                && (x.LastScorecardReminderAt == null || x.LastScorecardReminderAt < cutoff)
+            )
+            .Take(100)
+            .ToListAsync(ct);
+        foreach (var interview in interviews)
+        {
+            var missing = interview.InterviewerEmails
+                .Where(email => !interview.Scorecards.Any(scorecard =>
+                    scorecard.InterviewerEmail.Equals(email, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+            if (missing.Length == 0 || interview.Application is null || interview.Application.Requisition is null)
+                continue;
+            foreach (var interviewer in missing)
+                db.EmailOutbox.Add(new EmailOutboxItem
+                {
+                    ApplicationId = interview.ApplicationId,
+                    Recipient = interviewer,
+                    Subject = $"Scorecard reminder: {interview.Title}",
+                    Body = $"Please complete your scorecard for the {interview.Application.Requisition.Title} interview.",
+                });
+            interview.LastScorecardReminderAt = DateTimeOffset.UtcNow;
+        }
+        if (interviews.Count > 0)
+            await db.SaveChangesAsync(ct);
     }
 }
