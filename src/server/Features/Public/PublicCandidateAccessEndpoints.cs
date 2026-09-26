@@ -16,10 +16,16 @@ public static partial class PublicEndpoints
             var application = await db.Applications.Include(x => x.Candidate)
                 .Where(x => x.Candidate!.Email == request.Email.Trim().ToLowerInvariant() && x.Status == ApplicationStatus.PendingVerification)
                 .OrderByDescending(x => x.AppliedAt).FirstOrDefaultAsync(ct);
-            if (application is null || !ValidCode(application.VerificationCodeHash, application.VerificationExpiresAt, request.Code))
+            if (application is null || application.VerificationAttempts >= 5)
                 return Results.BadRequest(new { message = "The code is invalid or expired." });
+            application.VerificationAttempts++;
+            if (!ValidCode(application.VerificationCodeHash, application.VerificationExpiresAt, request.Code))
+            {
+                await db.SaveChangesAsync(ct);
+                return Results.BadRequest(new { message = "The code is invalid or expired." });
+            }
             application.Status = ApplicationStatus.Active; application.VerifiedAt = DateTimeOffset.UtcNow;
-            application.VerificationCodeHash = null; application.VerificationExpiresAt = null;
+            application.VerificationCodeHash = null; application.VerificationExpiresAt = null; application.VerificationAttempts = 0;
             var token = await CreateSessionAsync(db, application.CandidateId, ct);
             return Results.Ok(new { token, applicationId = application.Id });
         });
@@ -31,7 +37,7 @@ public static partial class PublicEndpoints
             if (candidate is not null)
             {
                 var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-                candidate.PortalCodeHash = Hash(code); candidate.PortalCodeExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15);
+                candidate.PortalCodeHash = Hash(code); candidate.PortalCodeExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); candidate.PortalCodeAttempts = 0;
                 await db.SaveChangesAsync(ct);
                 await email.SendAsync(emailAddress, "Your candidate portal sign-in code", $"Your sign-in code is {code}. It expires in 15 minutes.", ct);
             }
@@ -41,9 +47,16 @@ public static partial class PublicEndpoints
         api.MapPost("/portal/verify", async (VerifyApplicationRequest request, AtsDbContext db, CancellationToken ct) =>
         {
             var candidate = await db.Candidates.SingleOrDefaultAsync(x => x.Email == request.Email.Trim().ToLowerInvariant(), ct);
-            if (candidate is null || !ValidCode(candidate.PortalCodeHash, candidate.PortalCodeExpiresAt, request.Code))
+            if (candidate is null || candidate.PortalCodeAttempts >= 5)
                 return Results.BadRequest(new { message = "The code is invalid or expired." });
+            candidate.PortalCodeAttempts++;
+            if (!ValidCode(candidate.PortalCodeHash, candidate.PortalCodeExpiresAt, request.Code))
+            {
+                await db.SaveChangesAsync(ct);
+                return Results.BadRequest(new { message = "The code is invalid or expired." });
+            }
             candidate.PortalCodeHash = null; candidate.PortalCodeExpiresAt = null;
+            candidate.PortalCodeAttempts = 0;
             var token = await CreateSessionAsync(db, candidate.Id, ct);
             return Results.Ok(new { token });
         });

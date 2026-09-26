@@ -106,7 +106,7 @@ public static partial class PublicEndpoints
     private static async Task<IResult> SaveVerificationAsync(Application application, string emailAddress, string jobTitle, AtsDbContext db, CancellationToken ct)
     {
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
-        application.VerificationCodeHash = Hash(code); application.VerificationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); application.LastActivityAt = DateTimeOffset.UtcNow;
+        application.VerificationCodeHash = Hash(code); application.VerificationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); application.VerificationAttempts = 0; application.LastActivityAt = DateTimeOffset.UtcNow;
         QueueEmail(
             db,
             emailAddress,
