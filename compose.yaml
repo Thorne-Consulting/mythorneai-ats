@@ -9,6 +9,7 @@ services:
       Auth__Authority: ${AUTH_AUTHORITY:-}
       Auth__ClientId: ${AUTH_CLIENT_ID:-}
       Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
+      Auth__AllowedEmailDomains: ${AUTH_ALLOWED_EMAIL_DOMAINS:-}
       Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
       Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-ATS administrator}
       Integrations__Provider: ${INTEGRATIONS_PROVIDER:-None}
@@ -28,6 +29,10 @@ services:
       Integrations__GoogleWorkspace__ServiceAccountJsonPath: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH:-}
       Integrations__GoogleWorkspace__ServiceAccountJsonBase64: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_BASE64:-}
       Integrations__GoogleWorkspace__CreateOnlineMeetings: ${GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS:-true}
+      Resend__ApiKey: ${RESEND_API_KEY:-}
+      Resend__From: ${RESEND_FROM:-}
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
       DataProtection__KeyPath: /app/data-protection-keys
       FileStorage__RootPath: /app/uploads
     expose:
