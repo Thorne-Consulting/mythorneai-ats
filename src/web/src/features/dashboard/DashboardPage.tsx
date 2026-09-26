@@ -62,7 +62,10 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
   if (!query.data)
     return (
       <>
-        <PageHeader title={`${greeting()}, ${firstName}`} description="Your hiring pipeline at a glance" />
+        <PageHeader
+          title={`${greeting()}, ${firstName}`}
+          description="Your hiring pipeline at a glance"
+        />
         <Grid gutter="md">
           {[0, 1, 2].map((i) => (
             <Grid.Col key={i} span={{ base: 12, sm: 4 }}>
@@ -100,12 +103,20 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
   const stats = [
     { value: data.openRequisitions, label: 'Open jobs', color: 'indigo', to: '/requisitions' },
     { value: data.activeCandidates, label: 'Active applicants', color: 'teal', to: '/applicants' },
-    { value: data.interviewsThisWeek, label: 'Interviews this week', color: 'violet', to: '/interviews' },
+    {
+      value: data.interviewsThisWeek,
+      label: 'Interviews this week',
+      color: 'violet',
+      to: '/interviews',
+    },
   ];
 
   return (
     <>
-      <PageHeader title={`${greeting()}, ${firstName}`} description="Your hiring pipeline at a glance" />
+      <PageHeader
+        title={`${greeting()}, ${firstName}`}
+        description="Your hiring pipeline at a glance"
+      />
 
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="xl">
         {stats.map((stat) => (
@@ -147,8 +158,14 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
                 <Group justify="center" gap="sm">
                   {donutData.map((d, i) => (
                     <Text key={d.name} size="md" c={d.color}>
-                      {i > 0 && <Text span c="dimmed" size="sm" mx={2}>·</Text>}
-                      <Text span fw={600} className="tnum">{d.value}</Text>{' '}
+                      {i > 0 && (
+                        <Text span c="dimmed" size="sm" mx={2}>
+                          ·
+                        </Text>
+                      )}
+                      <Text span fw={600} className="tnum">
+                        {d.value}
+                      </Text>{' '}
                       {d.name.toLowerCase()}
                     </Text>
                   ))}

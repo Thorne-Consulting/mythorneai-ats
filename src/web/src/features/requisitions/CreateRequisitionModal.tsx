@@ -67,7 +67,8 @@ export function CreateRequisitionModal({
   });
   const templates = useQuery({
     queryKey: ['posting-templates'],
-    queryFn: () => api.get<Array<{ id: string; name: string; version: number }>>('/api/posting-templates'),
+    queryFn: () =>
+      api.get<Array<{ id: string; name: string; version: number }>>('/api/posting-templates'),
   });
   const mutation = useMutation({
     mutationFn: (values: RequisitionForm) =>

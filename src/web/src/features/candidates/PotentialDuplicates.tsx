@@ -27,7 +27,8 @@ export function PotentialDuplicates({ candidateId }: { candidateId: string }) {
         <Text fw={700}>Possible duplicates</Text>
       </Group>
       <Text size="sm" c="dimmed" mb="md">
-        Review these records before creating another candidate. Records are never merged automatically.
+        Review these records before creating another candidate. Records are never merged
+        automatically.
       </Text>
       <Stack gap="sm">
         {duplicates.data.map((duplicate) => (

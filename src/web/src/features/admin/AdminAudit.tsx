@@ -37,10 +37,7 @@ export function AdminAudit() {
       {!audit.data ? (
         <LoadingBlock rows={5} />
       ) : events.length === 0 ? (
-        <EmptyState
-          icon={IconShieldCheck}
-          title="Nothing recorded yet"
-        />
+        <EmptyState icon={IconShieldCheck} title="Nothing recorded yet" />
       ) : (
         <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
           <Table.ScrollContainer minWidth={760}>

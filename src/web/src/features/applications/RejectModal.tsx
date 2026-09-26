@@ -16,9 +16,12 @@ export function RejectModal({
   const [reason, setReason] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const draftMutation = useMutation({
-    mutationFn: () => api.post<{ draft: string }>('/api/ai/draft-message', {
-      applicationId, purpose: 'rejection message', notes: reason ?? '',
-    }),
+    mutationFn: () =>
+      api.post<{ draft: string }>('/api/ai/draft-message', {
+        applicationId,
+        purpose: 'rejection message',
+        notes: reason ?? '',
+      }),
     onSuccess: (result) => setDraft(result.draft),
   });
   const mutation = useMutation({
@@ -55,10 +58,22 @@ export function RejectModal({
         <Alert color="orange">
           Use job-related reasons only. This decision is recorded in the audit history.
         </Alert>
-        <Button variant="light" loading={draftMutation.isPending} disabled={!reason} onClick={() => draftMutation.mutate()}>
+        <Button
+          variant="light"
+          loading={draftMutation.isPending}
+          disabled={!reason}
+          onClick={() => draftMutation.mutate()}
+        >
           Draft candidate message with AI
         </Button>
-        {draft && <Textarea label="Review and edit before sending" minRows={6} value={draft} onChange={(event) => setDraft(event.currentTarget.value)} />}
+        {draft && (
+          <Textarea
+            label="Review and edit before sending"
+            minRows={6}
+            value={draft}
+            onChange={(event) => setDraft(event.currentTarget.value)}
+          />
+        )}
         <Group justify="flex-end">
           <Button variant="default" onClick={onClose}>
             Cancel

@@ -130,7 +130,10 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
           label="Candidate booking"
           value={status}
           onChange={(value) => value && setStatus(value)}
-          data={[{ value: 'Scheduled', label: 'Schedule now' }, { value: 'Proposed', label: 'Offer this time to candidate' }]}
+          data={[
+            { value: 'Scheduled', label: 'Schedule now' },
+            { value: 'Proposed', label: 'Offer this time to candidate' },
+          ]}
         />
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
           <DateTimePicker

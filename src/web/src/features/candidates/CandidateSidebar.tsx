@@ -127,13 +127,14 @@ export function CandidateSidebar({
                       {Math.ceil(attachment.length / 1024)} KB ·{' '}
                       {attachment.parseStatus === 'Parsed'
                         ? 'Resume parsed'
-                        : attachment.parseStatus === 'Pending' || attachment.parseStatus === 'Processing'
+                        : attachment.parseStatus === 'Pending' ||
+                            attachment.parseStatus === 'Processing'
                           ? 'Queued for parsing'
-                        : attachment.parseStatus === 'Failed'
-                          ? 'Not parsed'
-                          : attachment.scanStatus === 'ValidationOnly'
-                            ? 'Type checked'
-                            : attachment.scanStatus}
+                          : attachment.parseStatus === 'Failed'
+                            ? 'Not parsed'
+                            : attachment.scanStatus === 'ValidationOnly'
+                              ? 'Type checked'
+                              : attachment.scanStatus}
                     </Text>
                   </div>
                 </Group>

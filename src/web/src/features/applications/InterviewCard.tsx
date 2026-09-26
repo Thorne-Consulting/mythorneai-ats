@@ -160,7 +160,9 @@ export function InterviewCard({
                 <Text fw={650} size="sm">
                   {criterion.name}
                 </Text>
-                <Text size="xs" c="dimmed">weight {criterion.weight}</Text>
+                <Text size="xs" c="dimmed">
+                  weight {criterion.weight}
+                </Text>
               </Group>
               <Text size="sm" mt={4}>
                 {criterion.question}

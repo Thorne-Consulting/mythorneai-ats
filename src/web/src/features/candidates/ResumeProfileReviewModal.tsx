@@ -1,6 +1,16 @@
 'use client';
 
-import { Button, Group, Modal, NumberInput, Stack, TagsInput, Text, TextInput, Textarea } from '@mantine/core';
+import {
+  Button,
+  Group,
+  Modal,
+  NumberInput,
+  Stack,
+  TagsInput,
+  Text,
+  TextInput,
+  Textarea,
+} from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -55,7 +65,13 @@ export function ResumeProfileReviewModal({
             original document.
           </Text>
           <TextInput label="Current title" {...form.getInputProps('currentTitle')} />
-          <Textarea label="Summary" autosize minRows={4} maxRows={10} {...form.getInputProps('summary')} />
+          <Textarea
+            label="Summary"
+            autosize
+            minRows={4}
+            maxRows={10}
+            {...form.getInputProps('summary')}
+          />
           <Group grow align="flex-start">
             <TagsInput label="Skills" splitChars={[',']} {...form.getInputProps('skills')} />
             <NumberInput
@@ -66,9 +82,17 @@ export function ResumeProfileReviewModal({
               {...form.getInputProps('yearsExperience')}
             />
           </Group>
-          <TagsInput label="Current and past titles" splitChars={[',']} {...form.getInputProps('jobTitles')} />
+          <TagsInput
+            label="Current and past titles"
+            splitChars={[',']}
+            {...form.getInputProps('jobTitles')}
+          />
           <TagsInput label="Education" splitChars={[',']} {...form.getInputProps('education')} />
-          <TagsInput label="Certifications" splitChars={[',']} {...form.getInputProps('certifications')} />
+          <TagsInput
+            label="Certifications"
+            splitChars={[',']}
+            {...form.getInputProps('certifications')}
+          />
           <TagsInput label="Languages" splitChars={[',']} {...form.getInputProps('languages')} />
           <Group justify="flex-end" mt="sm">
             <Button variant="default" onClick={onClose} disabled={review.isPending}>

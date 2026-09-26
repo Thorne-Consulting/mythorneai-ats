@@ -81,7 +81,9 @@ export function RequisitionKits({ id }: { id: string }) {
                       <Text size="sm" fw={650}>
                         {criterion.name}
                       </Text>
-                      <Text size="xs" c="dimmed">weight {criterion.weight}</Text>
+                      <Text size="xs" c="dimmed">
+                        weight {criterion.weight}
+                      </Text>
                     </Group>
                     <Text size="sm">{criterion.question}</Text>
                     {criterion.description && (

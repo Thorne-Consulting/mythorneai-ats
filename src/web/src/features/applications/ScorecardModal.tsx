@@ -172,7 +172,9 @@ export function ScorecardModal({
           <Paper key={criterion.id} withBorder p="md">
             <Group justify="space-between">
               <Text fw={650}>{criterion.name}</Text>
-              <Text size="xs" c="dimmed">weight {criterion.weight}</Text>
+              <Text size="xs" c="dimmed">
+                weight {criterion.weight}
+              </Text>
             </Group>
             <Text size="sm" mt="xs">
               {criterion.question}

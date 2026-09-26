@@ -29,7 +29,8 @@ export function CandidateDetailPage({
     initialData,
     refetchInterval: (result) =>
       result.state.data?.attachments.some(
-        (attachment) => attachment.parseStatus === 'Pending' || attachment.parseStatus === 'Processing',
+        (attachment) =>
+          attachment.parseStatus === 'Pending' || attachment.parseStatus === 'Processing',
       )
         ? 2_000
         : false,

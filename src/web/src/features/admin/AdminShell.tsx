@@ -30,9 +30,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
   return (
     <>
-      <PageHeader
-        title="Administration"
-      />
+      <PageHeader title="Administration" />
       <PageTabs
         items={[
           { label: 'Users and roles', href: '/admin', count: users.data?.length },

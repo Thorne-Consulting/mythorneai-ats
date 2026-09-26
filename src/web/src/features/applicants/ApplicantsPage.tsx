@@ -120,9 +120,7 @@ export function ApplicantsPage({
     };
   return (
     <>
-      <PageHeader
-        title="Applications"
-      />
+      <PageHeader title="Applications" />
       <Paper withBorder radius="lg" p="md" mb="lg">
         <Stack gap="sm">
           <Group gap="sm" wrap="wrap" align="flex-end">
