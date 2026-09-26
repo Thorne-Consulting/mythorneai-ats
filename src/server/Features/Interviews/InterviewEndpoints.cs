@@ -118,6 +118,10 @@ public static partial class AtsEndpoints
                             }
                         );
 
+                    var personalConnection = await db.CalendarConnections.AnyAsync(
+                        x => request.InterviewerEmails.Contains(x.UserEmail),
+                        ct
+                    );
                     var interview = new Interview
                     {
                         ApplicationId = id,
@@ -132,11 +136,15 @@ public static partial class AtsEndpoints
                             .InterviewerEmails.Select(x => x.Trim().ToLowerInvariant())
                             .Distinct()
                             .ToArray(),
-                        CalendarStatus = integration.IsEnabled ? "Queued" : "NotConfigured",
-                        CalendarProvider = integration.IsEnabled ? integration.ProviderName : null,
+                        CalendarStatus = integration.IsEnabled || personalConnection
+                            ? "Queued"
+                            : "NotConfigured",
+                        CalendarProvider = integration.IsEnabled || personalConnection
+                            ? integration.ProviderName
+                            : null,
                     };
                     db.Interviews.Add(interview);
-                    if (integration.IsEnabled && request.Status == InterviewStatus.Scheduled)
+                    if ((integration.IsEnabled || personalConnection) && request.Status == InterviewStatus.Scheduled)
                         db.IntegrationOutbox.Add(
                             new IntegrationOutboxItem
                             {
@@ -250,8 +258,12 @@ public static partial class AtsEndpoints
                         .Distinct()
                         .ToArray();
                     interview.Status = request.Status;
+                    var personalConnection = await db.CalendarConnections.AnyAsync(
+                        x => request.InterviewerEmails.Contains(x.UserEmail),
+                        ct
+                    );
                     if (
-                        integration.IsEnabled
+                        (integration.IsEnabled || personalConnection)
                         && (
                             request.Status == InterviewStatus.Scheduled
                             || request.Status == InterviewStatus.Cancelled

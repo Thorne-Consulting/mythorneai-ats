@@ -91,6 +91,18 @@ export default function CandidatePortalPage() {
     if (response.ok) load();
     else setMessage('That time is no longer available.');
   }
+  async function cancel(applicationId: string, interviewId: string) {
+    if (!window.confirm('Cancel this interview?')) return;
+    const response = await fetch(
+      `/public/applications/${applicationId}/interviews/${interviewId}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'X-Candidate-Session': sessionStorage.getItem('candidate-session') ?? '' },
+      },
+    );
+    if (response.ok) load();
+    else setMessage('That interview could not be cancelled.');
+  }
   if (!portal)
     return (
       <Container size="sm" py="xl">
@@ -171,10 +183,20 @@ export default function CandidatePortalPage() {
                 </Stack>
               ))}
               {application.interviews.map((interview) => (
-                <Text key={interview.id}>
-                  {interview.title}: {new Date(interview.startsAt).toLocaleString()}{' '}
-                  {interview.meetingLink && <a href={interview.meetingLink}>Join meeting</a>}
-                </Text>
+                <Stack key={interview.id} gap="xs">
+                  <Text>
+                    {interview.title}: {new Date(interview.startsAt).toLocaleString()}{' '}
+                    {interview.meetingLink && <a href={interview.meetingLink}>Join meeting</a>}
+                  </Text>
+                  <Button
+                    variant="subtle"
+                    color="red"
+                    size="compact-sm"
+                    onClick={() => cancel(application.id, interview.id)}
+                  >
+                    Cancel interview
+                  </Button>
+                </Stack>
               ))}
               {application.messages.length > 0 && (
                 <Stack gap="xs" mt="sm">

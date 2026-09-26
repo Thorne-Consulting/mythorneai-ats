@@ -14,14 +14,8 @@ public sealed class IntegrationOutboxWorker(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!integration.IsEnabled)
-        {
-            logger.LogInformation("Workplace delivery is disabled; records remain internal only.");
-            return;
-        }
-
         logger.LogInformation(
-            "Workplace delivery worker started for {Provider}.",
+            "Calendar delivery worker started for global provider {Provider}; personal calendars are also supported.",
             integration.ProviderName
         );
         while (!stoppingToken.IsCancellationRequested)
@@ -179,7 +173,11 @@ public sealed class IntegrationOutboxWorker(
                 interview.InterviewerEmails,
                 cancellationToken
             )
-            : await integration.CreateCalendarEventAsync(calendarEvent, cancellationToken);
+            : integration.IsEnabled
+                ? await integration.CreateCalendarEventAsync(calendarEvent, cancellationToken)
+                : throw new InvalidOperationException(
+                    "No connected interviewer calendar or global calendar provider is configured."
+                );
         interview.CalendarStatus = "Created";
         interview.CalendarProvider = hasPersonalConnection ? "Personal" : integration.ProviderName;
         interview.ExternalEventId = result.ExternalId;
@@ -211,10 +209,11 @@ public sealed class IntegrationOutboxWorker(
                     cancellationToken
                 );
             else
-                await integration.CancelCalendarEventAsync(
-                    interview.ExternalEventId,
-                    cancellationToken
-                );
+            {
+                if (!integration.IsEnabled)
+                    throw new InvalidOperationException("No global calendar provider is configured.");
+                await integration.CancelCalendarEventAsync(interview.ExternalEventId, cancellationToken);
+            }
         }
         interview.CalendarStatus = "Cancelled";
         interview.CalendarError = null;
