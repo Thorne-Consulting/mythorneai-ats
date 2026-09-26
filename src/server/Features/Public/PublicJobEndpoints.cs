@@ -34,7 +34,7 @@ public static partial class PublicEndpoints
         });
 
         api.MapPost("/jobs/{id:guid}/applications", async (
-            Guid id, PublicApplyRequest request, AtsDbContext db, IEmailSender email, CancellationToken ct) =>
+            Guid id, PublicApplyRequest request, AtsDbContext db, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName) || !LooksLikeEmail(request.Email))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["application"] = ["First name, last name, and a valid email are required."] });
@@ -62,11 +62,11 @@ public static partial class PublicEndpoints
                 db.Applications.Add(application);
             }
             application.ApplicationAnswersMarkdown = Clean(request.AnswersMarkdown) ?? application.ApplicationAnswersMarkdown;
-            return await SaveVerificationAsync(application, emailAddress, job.Title, db, email, ct);
+            return await SaveVerificationAsync(application, emailAddress, job.Title, db, ct);
         });
 
         api.MapPost("/jobs/{id:guid}/applications/resume", async (
-            Guid id, HttpRequest request, AtsDbContext db, LocalFileStore files, IEmailSender email, CancellationToken ct) =>
+            Guid id, HttpRequest request, AtsDbContext db, LocalFileStore files, CancellationToken ct) =>
         {
             var form = await request.ReadFormAsync(ct);
             var firstName = form["firstName"].ToString().Trim(); var lastName = form["lastName"].ToString().Trim();
@@ -96,19 +96,25 @@ public static partial class PublicEndpoints
             db.Attachments.Add(attachment); db.ResumeParseJobs.Add(new ResumeParseJob { AttachmentId = attachment.Id });
             try
             {
-                var result = await SaveVerificationAsync(application, emailAddress, job.Title, db, email, ct);
+                var result = await SaveVerificationAsync(application, emailAddress, job.Title, db, ct);
                 return result;
             }
             catch { files.Delete(stored.StoredName); throw; }
         });
     }
 
-    private static async Task<IResult> SaveVerificationAsync(Application application, string emailAddress, string jobTitle, AtsDbContext db, IEmailSender email, CancellationToken ct)
+    private static async Task<IResult> SaveVerificationAsync(Application application, string emailAddress, string jobTitle, AtsDbContext db, CancellationToken ct)
     {
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         application.VerificationCodeHash = Hash(code); application.VerificationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); application.LastActivityAt = DateTimeOffset.UtcNow;
+        QueueEmail(
+            db,
+            emailAddress,
+            $"Confirm your application for {jobTitle}",
+            $"Your confirmation code is {code}. It expires in 15 minutes.",
+            application.Id
+        );
         await db.SaveChangesAsync(ct);
-        await email.SendAsync(emailAddress, $"Confirm your application for {jobTitle}", $"Your confirmation code is {code}. It expires in 15 minutes.", ct);
         return Results.Accepted(value: new { message = "Check your email for a confirmation code." });
     }
 }
