@@ -147,6 +147,10 @@ public static partial class AuthExtensions
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Select(x => x.TrimStart('@').ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+        var db = context.HttpContext.RequestServices.GetRequiredService<AtsDbContext>();
+        var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync();
+        if (organization?.SetupCompleted == true && organization.AllowedEmailDomains.Length > 0)
+            allowedDomains = organization.AllowedEmailDomains.ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (allowedDomains.Count > 0
             && !allowedDomains.Contains(normalizedEmail.Split('@').Last()))
         {
@@ -154,7 +158,6 @@ public static partial class AuthExtensions
             return;
         }
 
-        var db = context.HttpContext.RequestServices.GetRequiredService<AtsDbContext>();
         var user = await db.Users.SingleOrDefaultAsync(x =>
             x.Email == normalizedEmail && x.IsActive
         );

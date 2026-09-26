@@ -18,6 +18,9 @@ public sealed class Organization
     public required string Name { get; set; }
     public required string OwnerEmail { get; set; }
     public string TimeZone { get; set; } = "UTC";
+    public string[] AllowedEmailDomains { get; set; } = [];
+    public bool AllowGoogleLogin { get; set; } = true;
+    public bool AllowMicrosoftLogin { get; set; } = true;
     public bool SetupCompleted { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

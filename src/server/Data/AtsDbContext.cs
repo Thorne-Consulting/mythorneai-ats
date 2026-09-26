@@ -45,6 +45,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Name).HasMaxLength(200);
             entity.Property(x => x.OwnerEmail).HasMaxLength(320);
             entity.Property(x => x.TimeZone).HasMaxLength(80);
+            entity.Property(x => x.AllowedEmailDomains).HasColumnType("text[]");
         });
 
         modelBuilder.Entity<Requisition>(entity =>

@@ -10,4 +10,10 @@ public sealed record UpsertUserRequest(
     bool IsActive
 );
 
-public sealed record UpdateOrganizationRequest(string Name, string? TimeZone);
+public sealed record UpdateOrganizationRequest(
+    string Name,
+    string? TimeZone,
+    string[]? AllowedEmailDomains = null,
+    bool AllowGoogleLogin = true,
+    bool AllowMicrosoftLogin = true
+);

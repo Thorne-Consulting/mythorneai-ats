@@ -27,6 +27,9 @@ public static partial class AtsEndpoints
                             organization.Name,
                             organization.OwnerEmail,
                             organization.TimeZone,
+                            organization.AllowedEmailDomains,
+                            organization.AllowGoogleLogin,
+                            organization.AllowMicrosoftLogin,
                             organization.SetupCompleted,
                         });
                 }
@@ -57,6 +60,14 @@ public static partial class AtsEndpoints
                     organization.TimeZone = string.IsNullOrWhiteSpace(request.TimeZone)
                         ? organization.TimeZone
                         : request.TimeZone.Trim();
+                    organization.AllowedEmailDomains = (request.AllowedEmailDomains ?? [])
+                        .Select(x => x.Trim().TrimStart('@').ToLowerInvariant())
+                        .Where(x => x.Length > 0)
+                        .Distinct()
+                        .Take(20)
+                        .ToArray();
+                    organization.AllowGoogleLogin = request.AllowGoogleLogin;
+                    organization.AllowMicrosoftLogin = request.AllowMicrosoftLogin;
                     organization.SetupCompleted = true;
                     organization.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(db, principal, "Organization", organization.Id, "Updated", new { organization.Name });
