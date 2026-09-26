@@ -15,5 +15,6 @@ public sealed record UpdateOrganizationRequest(
     string? TimeZone,
     string[]? AllowedEmailDomains = null,
     bool AllowGoogleLogin = true,
-    bool AllowMicrosoftLogin = true
+    bool AllowMicrosoftLogin = true,
+    int StaleReminderDays = 3
 );

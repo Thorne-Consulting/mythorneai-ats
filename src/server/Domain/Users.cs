@@ -21,6 +21,7 @@ public sealed class Organization
     public string[] AllowedEmailDomains { get; set; } = [];
     public bool AllowGoogleLogin { get; set; } = true;
     public bool AllowMicrosoftLogin { get; set; } = true;
+    public int StaleReminderDays { get; set; } = 3;
     public bool SetupCompleted { get; set; }
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;

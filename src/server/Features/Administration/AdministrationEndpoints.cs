@@ -30,6 +30,7 @@ public static partial class AtsEndpoints
                             organization.AllowedEmailDomains,
                             organization.AllowGoogleLogin,
                             organization.AllowMicrosoftLogin,
+                            organization.StaleReminderDays,
                             organization.SetupCompleted,
                         });
                 }
@@ -68,6 +69,7 @@ public static partial class AtsEndpoints
                         .ToArray();
                     organization.AllowGoogleLogin = request.AllowGoogleLogin;
                     organization.AllowMicrosoftLogin = request.AllowMicrosoftLogin;
+                    organization.StaleReminderDays = Math.Clamp(request.StaleReminderDays, 1, 30);
                     organization.SetupCompleted = true;
                     organization.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(db, principal, "Organization", organization.Id, "Updated", new { organization.Name });

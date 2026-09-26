@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Checkbox, Modal, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Checkbox, Modal, NumberInput, Stack, Text, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
@@ -11,6 +11,7 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
   const [domains, setDomains] = useState('');
   const [allowGoogleLogin, setAllowGoogleLogin] = useState(true);
   const [allowMicrosoftLogin, setAllowMicrosoftLogin] = useState(true);
+  const [staleReminderDays, setStaleReminderDays] = useState<number | string>(3);
   const update = useMutation({
     mutationFn: () =>
       api.put('/api/organization', {
@@ -21,6 +22,7 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
           .filter(Boolean),
         allowGoogleLogin,
         allowMicrosoftLogin,
+        staleReminderDays: Number(staleReminderDays) || 3,
       }),
     onSuccess: () => window.location.reload(),
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
@@ -60,6 +62,15 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
           label="Allow Google sign-in"
           checked={allowGoogleLogin}
           onChange={(event) => setAllowGoogleLogin(event.currentTarget.checked)}
+        />
+        <NumberInput
+          label="Remind about stale applications after"
+          description="The recruiter and candidate receive a reminder after this many inactive days."
+          value={staleReminderDays}
+          min={1}
+          max={30}
+          suffix=" days"
+          onChange={setStaleReminderDays}
         />
         <Checkbox
           label="Allow Microsoft sign-in"

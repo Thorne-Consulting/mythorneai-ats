@@ -65,7 +65,12 @@ public sealed class EmailOutboxWorker(
     {
         await using var scope = scopeFactory.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
-        var cutoff = DateTimeOffset.UtcNow.AddDays(-3);
+        var reminderDays = Math.Clamp(
+            await db.Organizations.Select(x => (int?)x.StaleReminderDays).SingleOrDefaultAsync(ct) ?? 3,
+            1,
+            30
+        );
+        var cutoff = DateTimeOffset.UtcNow.AddDays(-reminderDays);
         var applications = await db.Applications.Include(x => x.Candidate).Include(x => x.Requisition)
             .Where(x => x.Status == ApplicationStatus.Active && x.LastActivityAt < cutoff
                 && (x.LastReminderAt == null || x.LastReminderAt < cutoff))
