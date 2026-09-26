@@ -16,7 +16,8 @@ import {
   Title,
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCalendarEvent, IconDots, IconNotes } from '@tabler/icons-react';
+import { IconCalendarEvent, IconDots, IconNotes, IconSparkles } from '@tabler/icons-react';
+import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
 import { RecommendationBadge, StatusBadge } from '@/components/ui/Badges';
@@ -59,6 +60,7 @@ export function InterviewCard({
   const [scoreOpened, scoreModal] = useDisclosure();
   const [editOpened, editModal] = useDisclosure();
   const [notesOpened, notesModal] = useDisclosure();
+  const [summary, setSummary] = useState<string | null>(null);
   const mine = interview.scorecards.find(
     (scorecard) => scorecard.interviewerEmail === currentEmail,
   );
@@ -67,6 +69,13 @@ export function InterviewCard({
     mutationFn: (status: string) =>
       api.patch(`/api/interviews/${interview.id}`, interviewPayload(interview, status)),
     onSuccess: onUpdated,
+  });
+  const summaryMutation = useMutation({
+    mutationFn: () =>
+      api.post<{ summary: string }>('/api/ai/summarize-interview', {
+        interviewId: interview.id,
+      }),
+    onSuccess: (result) => setSummary(result.summary),
   });
   return (
     <Paper withBorder radius="lg" p="lg">
@@ -191,11 +200,24 @@ export function InterviewCard({
               </Text>
             </div>
           </Group>
-          {(isAssigned || canManage) && (
-            <Button size="xs" variant="light" onClick={notesModal.open}>
-              {interview.meetingNotes ? 'Edit notes' : 'Add notes'}
-            </Button>
-          )}
+          <Group gap="xs">
+            {canManage && (
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconSparkles size={14} />}
+                loading={summaryMutation.isPending}
+                onClick={() => summaryMutation.mutate()}
+              >
+                Summarize
+              </Button>
+            )}
+            {(isAssigned || canManage) && (
+              <Button size="xs" variant="light" onClick={notesModal.open}>
+                {interview.meetingNotes ? 'Edit notes' : 'Add notes'}
+              </Button>
+            )}
+          </Group>
         </Group>
         {interview.meetingNotes ? (
           <>
@@ -213,6 +235,16 @@ export function InterviewCard({
           <Text size="sm" c="dimmed" mt="md">
             No meeting notes yet. Paste notes now, or let a meeting assistant add them later.
           </Text>
+        )}
+        {summary && (
+          <Paper withBorder p="sm" mt="md">
+            <Text size="xs" fw={600} c="dimmed">
+              AI summary
+            </Text>
+            <Text size="sm" mt="xs" style={{ whiteSpace: 'pre-wrap' }}>
+              {summary}
+            </Text>
+          </Paper>
         )}
       </Paper>
       <InterviewRecorder

@@ -84,6 +84,39 @@ public static class AiEndpoints
                 return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
         }).RequireAuthorization(AtsPolicies.ManageCandidates);
+
+        api.MapPost("/ai/summarize-interview", async (
+            SummarizeInterviewRequest request,
+            ClaimsPrincipal principal,
+            AtsDbContext db,
+            IAiAssistant assistant,
+            CancellationToken ct) =>
+        {
+            var interview = await db.Interviews
+                .Include(x => x.Application)
+                    .ThenInclude(x => x!.Requisition)
+                .Include(x => x.Scorecards)
+                .SingleOrDefaultAsync(x => x.Id == request.InterviewId, ct);
+            if (interview?.Application?.Requisition is null || !CanManage(interview.Application.Requisition, principal))
+                return Results.NotFound();
+            var notes = interview.MeetingNotes ?? "No meeting notes were provided.";
+            var scorecards = interview.Scorecards.Count == 0
+                ? "No scorecards were submitted."
+                : string.Join("\n", interview.Scorecards.Select(scorecard =>
+                    $"{scorecard.InterviewerEmail}: rating {scorecard.Rating}/5, recommendation {scorecard.Recommendation}. Evidence: {scorecard.Evidence}"));
+            try
+            {
+                var summary = await assistant.CompleteAsync(
+                    "Summarize interview evidence for a recruiter. Be factual, concise, and separate evidence from uncertainty. Do not make a hiring decision. Return plain text with headings: Summary, Evidence, Open questions.",
+                    $"Role: {interview.Application.Requisition.Title}\nMeeting notes:\n{notes}\nScorecards:\n{scorecards}",
+                    ct);
+                return Results.Ok(new { summary });
+            }
+            catch (InvalidOperationException exception) when (exception.Message.Contains("not configured"))
+            {
+                return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+        }).RequireAuthorization(AtsPolicies.ManageHiring);
     }
 
     private static bool CanManage(Domain.Requisition requisition, ClaimsPrincipal principal) =>
