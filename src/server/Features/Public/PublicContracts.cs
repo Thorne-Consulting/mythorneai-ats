@@ -6,7 +6,8 @@ public sealed record PublicApplyRequest(
     string Email,
     string? Phone,
     string? Location,
-    string? LinkedInUrl
+    string? LinkedInUrl,
+    string? AnswersMarkdown = null
 );
 
 public sealed record VerifyApplicationRequest(string Email, string Code);

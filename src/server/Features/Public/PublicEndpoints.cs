@@ -22,7 +22,7 @@ public static class PublicEndpoints
                 .Select(x => new
                 {
                     x.Id, x.Code, x.Title, x.Department, x.Location, x.EmploymentType,
-                    x.WorkMode, x.Openings, x.Description, x.TargetStartDate,
+                    x.WorkMode, x.Openings, x.Description, x.ApplicationQuestionsMarkdown, x.TargetStartDate,
                 })
                 .SingleOrDefaultAsync(ct);
             return job is null ? Results.NotFound() : Results.Ok(job);
@@ -81,9 +81,11 @@ public static class PublicEndpoints
                 {
                     Candidate = candidate, RequisitionId = id, PipelineStageId = firstStage.Id,
                     Source = "Career site", Status = ApplicationStatus.PendingVerification,
+                    ApplicationAnswersMarkdown = Clean(request.AnswersMarkdown) ?? "",
                 };
                 db.Applications.Add(application);
             }
+            application.ApplicationAnswersMarkdown = Clean(request.AnswersMarkdown) ?? application.ApplicationAnswersMarkdown;
 
             var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
             application.VerificationCodeHash = Hash(code);
@@ -140,9 +142,11 @@ public static class PublicEndpoints
                     Candidate = candidate, RequisitionId = id,
                     PipelineStageId = job.Stages.OrderBy(x => x.SortOrder).First().Id,
                     Source = "Career site", Status = ApplicationStatus.PendingVerification,
+                    ApplicationAnswersMarkdown = Clean(form["answersMarkdown"]) ?? "",
                 };
                 db.Applications.Add(application);
             }
+            application.ApplicationAnswersMarkdown = Clean(form["answersMarkdown"]) ?? application.ApplicationAnswersMarkdown;
             (string StoredName, string ContentType) stored;
             try { stored = await files.SaveValidatedAsync(file, ct); }
             catch (InvalidDataException exception)

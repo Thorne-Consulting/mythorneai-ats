@@ -302,6 +302,7 @@ public static partial class AtsEndpoints
                         OwnerEmail = request.OwnerEmail.Trim().ToLowerInvariant(),
                         RecruiterEmail = request.RecruiterEmail.Trim().ToLowerInvariant(),
                         Description = description,
+                        ApplicationQuestionsMarkdown = template?.ApplicationQuestionsMarkdown ?? "",
                         PostingTemplateId = template?.Id,
                         PostingTemplateVersion = template?.Version,
                         TargetStartDate = request.TargetStartDate,

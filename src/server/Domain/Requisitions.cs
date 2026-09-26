@@ -13,6 +13,7 @@ public sealed class Requisition
     public required string OwnerEmail { get; set; }
     public required string RecruiterEmail { get; set; }
     public string Description { get; set; } = "";
+    public string ApplicationQuestionsMarkdown { get; set; } = "";
     public Guid? PostingTemplateId { get; set; }
     public int? PostingTemplateVersion { get; set; }
     public RequisitionStatus Status { get; set; } = RequisitionStatus.Draft;

@@ -42,6 +42,7 @@ public sealed class Application
     public ApplicationStatus Status { get; set; } = ApplicationStatus.Active;
     public required string Source { get; set; }
     public string? DispositionReason { get; set; }
+    public string ApplicationAnswersMarkdown { get; set; } = "";
     public int? Rating { get; set; }
     public DateTimeOffset AppliedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastActivityAt { get; set; } = DateTimeOffset.UtcNow;
