@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Auth;
@@ -240,7 +241,6 @@ public static partial class AtsEndpoints
                 ) =>
                 {
                     var errors = ValidateRequisition(
-                        request.Code,
                         request.Title,
                         request.Department,
                         request.Location,
@@ -250,11 +250,7 @@ public static partial class AtsEndpoints
                     );
                     if (errors.Count > 0)
                         return Results.ValidationProblem(errors);
-                    var code = request.Code.Trim().ToUpperInvariant();
-                    if (await db.Requisitions.AnyAsync(x => x.Code == code, ct))
-                        return Results.Conflict(
-                            new { message = "A requisition with that code already exists." }
-                        );
+                    var code = await GenerateRequisitionCodeAsync(db, ct);
 
                     var template = request.PostingTemplateId is null ? null : await db.PostingTemplates
                         .AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PostingTemplateId && x.IsActive, ct);
@@ -265,20 +261,20 @@ public static partial class AtsEndpoints
                         });
                     var description = string.Join("\n\n", new[]
                     {
-                        template?.HeaderMarkdown, request.Description.Trim().Length > 0 ? request.Description.Trim() : template?.DescriptionMarkdown,
+                        template?.HeaderMarkdown, request.Description?.Trim() is { Length: > 0 } descriptionMarkdown ? descriptionMarkdown : template?.DescriptionMarkdown,
                         template?.BenefitsMarkdown,
                     }.Where(x => !string.IsNullOrWhiteSpace(x)));
                     var requisition = new Requisition
                     {
                         Code = code,
-                        Title = request.Title.Trim(),
-                        Department = request.Department.Trim(),
-                        Location = request.Location.Trim(),
-                        EmploymentType = request.EmploymentType.Trim(),
-                        WorkMode = request.WorkMode.Trim(),
+                        Title = request.Title!.Trim(),
+                        Department = request.Department!.Trim(),
+                        Location = request.Location!.Trim(),
+                        EmploymentType = request.EmploymentType?.Trim() ?? "",
+                        WorkMode = request.WorkMode?.Trim() ?? "",
                         Openings = request.Openings,
-                        OwnerEmail = request.OwnerEmail.Trim().ToLowerInvariant(),
-                        RecruiterEmail = request.RecruiterEmail.Trim().ToLowerInvariant(),
+                        OwnerEmail = request.OwnerEmail!.Trim().ToLowerInvariant(),
+                        RecruiterEmail = request.RecruiterEmail!.Trim().ToLowerInvariant(),
                         Description = description,
                         ApplicationQuestionsMarkdown = template?.ApplicationQuestionsMarkdown ?? "",
                         PostingTemplateId = template?.Id,
@@ -321,7 +317,6 @@ public static partial class AtsEndpoints
                     if (requisition is null || !CanManage(requisition, principal))
                         return Results.NotFound();
                     var errors = ValidateRequisition(
-                        requisition.Code,
                         request.Title,
                         request.Department,
                         request.Location,
@@ -332,15 +327,15 @@ public static partial class AtsEndpoints
                     if (errors.Count > 0)
                         return Results.ValidationProblem(errors);
 
-                    requisition.Title = request.Title.Trim();
-                    requisition.Department = request.Department.Trim();
-                    requisition.Location = request.Location.Trim();
-                    requisition.EmploymentType = request.EmploymentType.Trim();
-                    requisition.WorkMode = request.WorkMode.Trim();
+                    requisition.Title = request.Title!.Trim();
+                    requisition.Department = request.Department!.Trim();
+                    requisition.Location = request.Location!.Trim();
+                    requisition.EmploymentType = request.EmploymentType?.Trim() ?? "";
+                    requisition.WorkMode = request.WorkMode?.Trim() ?? "";
                     requisition.Openings = request.Openings;
-                    requisition.OwnerEmail = request.OwnerEmail.Trim().ToLowerInvariant();
-                    requisition.RecruiterEmail = request.RecruiterEmail.Trim().ToLowerInvariant();
-                    requisition.Description = request.Description.Trim();
+                    requisition.OwnerEmail = request.OwnerEmail!.Trim().ToLowerInvariant();
+                    requisition.RecruiterEmail = request.RecruiterEmail!.Trim().ToLowerInvariant();
+                    requisition.Description = request.Description?.Trim() ?? "";
                     requisition.TargetStartDate = request.TargetStartDate;
                     requisition.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(db, principal, "Requisition", id, "Updated");
@@ -437,5 +432,25 @@ public static partial class AtsEndpoints
                 return requisition is null ? Results.NotFound() : Results.Ok(requisition);
             }
         );
+    }
+
+    private static async Task<string> GenerateRequisitionCodeAsync(
+        AtsDbContext db,
+        CancellationToken ct
+    )
+    {
+        const string alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+        while (true)
+        {
+            var suffix = new string(
+                Enumerable
+                    .Range(0, 6)
+                    .Select(_ => alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)])
+                    .ToArray()
+            );
+            var code = $"REQ-{suffix}";
+            if (!await db.Requisitions.AnyAsync(x => x.Code == code, ct))
+                return code;
+        }
     }
 }

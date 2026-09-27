@@ -78,6 +78,45 @@ public sealed class AuthConfigurationTests
         exception.Message.ShouldContain("cannot be enabled");
     }
 
+    [Fact]
+    public void Production_requires_complete_workos_configuration()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Auth:Mode"] = "WorkOS" })
+            .Build();
+
+        var exception = Should.Throw<InvalidOperationException>(() =>
+            new ServiceCollection().AddAtsAuthentication(
+                configuration,
+                new TestEnvironment(Environments.Production)
+            )
+        );
+        exception.Message.ShouldContain("WorkOS configuration is incomplete");
+    }
+
+    [Fact]
+    public void Workos_configuration_accepts_a_valid_redirect_uri()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(
+                new Dictionary<string, string?>
+                {
+                    ["Auth:Mode"] = "WorkOS",
+                    ["Auth:WorkOS:ApiKey"] = "sk_test",
+                    ["Auth:WorkOS:ClientId"] = "client_test",
+                    ["Auth:WorkOS:RedirectUri"] = "https://ats.example.com/auth/callback",
+                }
+            )
+            .Build();
+
+        Should.NotThrow(() =>
+            new ServiceCollection().AddAtsAuthentication(
+                configuration,
+                new TestEnvironment(Environments.Production)
+            )
+        );
+    }
+
     private sealed class TestEnvironment(string environmentName) : IHostEnvironment
     {
         public string EnvironmentName { get; set; } = environmentName;

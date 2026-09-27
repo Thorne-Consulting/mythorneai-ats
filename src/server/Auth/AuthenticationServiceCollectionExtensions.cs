@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
+using WorkOS;
 
 namespace MyThorneAI.Ats.Api.Auth;
 
@@ -20,12 +21,13 @@ public static partial class AuthExtensions
     )
     {
         var mode =
-            configuration["Auth:Mode"] ?? (environment.IsDevelopment() ? "Development" : "Oidc");
+            configuration["Auth:Mode"] ?? (environment.IsDevelopment() ? "Development" : "WorkOS");
         if (
             !mode.Equals("Development", StringComparison.OrdinalIgnoreCase)
             && !mode.Equals("Oidc", StringComparison.OrdinalIgnoreCase)
+            && !mode.Equals("WorkOS", StringComparison.OrdinalIgnoreCase)
         )
-            throw new InvalidOperationException("Auth:Mode must be either Development or Oidc.");
+            throw new InvalidOperationException("Auth:Mode must be Development, Oidc, or WorkOS.");
         if (
             mode.Equals("Development", StringComparison.OrdinalIgnoreCase)
             && !environment.IsDevelopment()
@@ -35,6 +37,19 @@ public static partial class AuthExtensions
             );
         if (mode.Equals("Oidc", StringComparison.OrdinalIgnoreCase))
             ValidateOidcConfiguration(configuration);
+        if (mode.Equals("WorkOS", StringComparison.OrdinalIgnoreCase))
+        {
+            ValidateWorkOsConfiguration(configuration);
+            services.AddSingleton(
+                new WorkOSClient(
+                    new WorkOSOptions
+                    {
+                        ApiKey = configuration["Auth:WorkOS:ApiKey"]!.Trim(),
+                        ClientId = configuration["Auth:WorkOS:ClientId"]!.Trim(),
+                    }
+                )
+            );
+        }
 
         var authentication = services
             .AddAuthentication(options =>
@@ -141,54 +156,65 @@ public static partial class AuthExtensions
             return;
         }
 
-        var normalizedEmail = email.Trim().ToLowerInvariant();
         var configuration = context.HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+        var db = context.HttpContext.RequestServices.GetRequiredService<AtsDbContext>();
+        var (user, error) = await FindOrProvisionAtsUserAsync(
+            db,
+            configuration,
+            email,
+            context.Principal?.FindFirstValue(ClaimTypes.Name)
+                ?? context.Principal?.FindFirstValue("name")
+        );
+        if (user is null)
+        {
+            context.Fail(error ?? "This account cannot access the ATS.");
+            return;
+        }
+
+        context.Principal = CreatePrincipal(user, "oidc");
+    }
+
+    private static async Task<(AppUser? User, string? Error)> FindOrProvisionAtsUserAsync(
+        AtsDbContext db,
+        IConfiguration configuration,
+        string email,
+        string? displayName
+    )
+    {
+        var normalizedEmail = email.Trim().ToLowerInvariant();
         var allowedDomains = configuration["Auth:AllowedEmailDomains"]?
             .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
             .Select(x => x.TrimStart('@').ToLowerInvariant())
             .ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
-        var db = context.HttpContext.RequestServices.GetRequiredService<AtsDbContext>();
         var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync();
         if (organization?.SetupCompleted == true && organization.AllowedEmailDomains.Length > 0)
             allowedDomains = organization.AllowedEmailDomains.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (allowedDomains.Count > 0
-            && !allowedDomains.Contains(normalizedEmail.Split('@').Last()))
-        {
-            context.Fail("This account is outside the configured company email domains.");
-            return;
-        }
+        if (allowedDomains.Count > 0 && !allowedDomains.Contains(normalizedEmail.Split('@').Last()))
+            return (null, "This account is outside the configured company email domains.");
 
         var user = await db.Users.SingleOrDefaultAsync(x =>
             x.Email == normalizedEmail && x.IsActive
         );
-        if (user is null)
+        if (user is not null)
+            return (user, null);
+        if (await db.Users.AnyAsync(x => x.IsActive))
+            return (null, "This account has not been invited to the ATS.");
+
+        user = new AppUser
         {
-            if (await db.Users.AnyAsync(x => x.IsActive))
-            {
-                context.Fail("This account has not been invited to the ATS.");
-                return;
-            }
-
-            var displayName = context.Principal?.FindFirstValue(ClaimTypes.Name)
-                ?? context.Principal?.FindFirstValue("name")
-                ?? normalizedEmail.Split('@')[0];
-            user = new AppUser
-            {
-                Email = normalizedEmail,
-                DisplayName = displayName.Trim(),
-                Role = UserRole.Admin,
-            };
-            db.Users.Add(user);
-            db.Organizations.Add(new Organization
-            {
-                Name = "Your organization",
-                OwnerEmail = normalizedEmail,
-                SetupCompleted = false,
-            });
-            await db.SaveChangesAsync();
-        }
-
-        context.Principal = CreatePrincipal(user, "oidc");
+            Email = normalizedEmail,
+            DisplayName = (displayName ?? normalizedEmail.Split('@')[0]).Trim(),
+            Role = UserRole.Admin,
+        };
+        db.Users.Add(user);
+        db.Organizations.Add(new MyThorneAI.Ats.Api.Domain.Organization
+        {
+            Name = "Your organization",
+            OwnerEmail = normalizedEmail,
+            SetupCompleted = false,
+        });
+        await db.SaveChangesAsync();
+        return (user, null);
     }
 
     private static async Task ValidateSessionAsync(CookieValidatePrincipalContext context)
@@ -255,5 +281,23 @@ public static partial class AuthExtensions
             || authority.Scheme != Uri.UriSchemeHttps
         )
             throw new InvalidOperationException("Auth:Authority must be an absolute HTTPS URL.");
+    }
+
+    private static void ValidateWorkOsConfiguration(IConfiguration configuration)
+    {
+        var missing = new[] { "Auth:WorkOS:ApiKey", "Auth:WorkOS:ClientId", "Auth:WorkOS:RedirectUri" }
+            .Where(key => string.IsNullOrWhiteSpace(configuration[key]))
+            .ToArray();
+        if (missing.Length > 0)
+            throw new InvalidOperationException(
+                $"WorkOS configuration is incomplete. Missing: {string.Join(", ", missing)}."
+            );
+
+        if (
+            !Uri.TryCreate(configuration["Auth:WorkOS:RedirectUri"], UriKind.Absolute, out var redirectUri)
+            || redirectUri.Scheme != Uri.UriSchemeHttps
+                && !string.Equals(redirectUri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+        )
+            throw new InvalidOperationException("Auth:WorkOS:RedirectUri must be an absolute HTTPS URL (or localhost in development).");
     }
 }

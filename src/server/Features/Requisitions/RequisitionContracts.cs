@@ -3,7 +3,6 @@ using MyThorneAI.Ats.Api.Domain;
 namespace MyThorneAI.Ats.Api.Contracts;
 
 public sealed record CreateRequisitionRequest(
-    string Code,
     string Title,
     string Department,
     string Location,

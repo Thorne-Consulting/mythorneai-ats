@@ -8,3 +8,16 @@ use. It may not be sold, sublicensed, transferred, or redistributed. See the
 
 This is a single-company internal application. It is not a SaaS product and
 does not include a marketing or landing page.
+
+## Local development
+
+With the database already running on host port `55433`, copy `.env.example` to
+`.env`, fill the required values, then run the API directly:
+
+```sh
+dotnet run --project src/server/MyThorneAI.Ats.Api.csproj
+```
+
+The API reads local `.env` values in Development and listens on
+`http://localhost:5080`. The web app runs separately with `npm run dev` from
+`src/web`.

@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
 import { IconArrowRight, IconBriefcase2, IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -25,10 +24,8 @@ import { formatDate } from '@/lib/format';
 import { rowLinkProps } from '@/lib/row-link-props';
 import type { RequisitionSummary } from '@/types';
 import { useCurrentUser } from '@/auth';
-import { CreateRequisitionModal } from './CreateRequisitionModal';
 
 export function RequisitionsPage({ initialData }: { initialData: RequisitionSummary[] }) {
-  const [opened, modal] = useDisclosure();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string | null>(null);
   const router = useRouter();
@@ -49,7 +46,10 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
         title="Jobs"
         actions={
           canCreate && (
-            <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
+            <Button
+              leftSection={<IconPlus size={17} />}
+              onClick={() => router.push('/requisitions/new')}
+            >
               New job
             </Button>
           )
@@ -94,7 +94,7 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
               : 'Create the first job to start reviewing applicants.'
           }
           actionLabel={canCreate && !search && !status ? 'Create job' : undefined}
-          onAction={modal.open}
+          onAction={() => router.push('/requisitions/new')}
         />
       ) : (
         <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
@@ -161,7 +161,6 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
           </Table.ScrollContainer>
         </Paper>
       )}
-      <CreateRequisitionModal opened={opened} onClose={modal.close} />
     </>
   );
 }

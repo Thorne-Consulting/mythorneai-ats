@@ -12,6 +12,8 @@ using MyThorneAI.Ats.Api.Integrations;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+if (builder.Environment.IsDevelopment())
+    LocalDotEnvConfiguration.Add(builder.Configuration, builder.Environment.ContentRootPath);
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {

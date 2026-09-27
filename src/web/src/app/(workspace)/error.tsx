@@ -7,7 +7,7 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Could not load this page">
       <Stack align="flex-start" mt="sm">
-        The ATS could not reach its data service. Your changes were not lost.
+        Something went wrong while loading this screen. Your changes were not lost.
         <Button color="red" variant="light" onClick={reset}>
           Try again
         </Button>
