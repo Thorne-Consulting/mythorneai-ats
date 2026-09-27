@@ -25,6 +25,9 @@ public static partial class SeedData
         if (!environment.IsDevelopment())
             return;
 
+        if (!string.Equals(configuration["Auth:Mode"], "Development", StringComparison.OrdinalIgnoreCase))
+            return;
+
         if (!hasUsers)
         {
             var now = DateTimeOffset.UtcNow;

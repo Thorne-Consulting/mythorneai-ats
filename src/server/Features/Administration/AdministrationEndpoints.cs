@@ -179,6 +179,32 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.Admin);
 
+        api.MapGet(
+                "/directory/users",
+                async (AtsDbContext db, CancellationToken ct) =>
+                    Results.Ok(
+                        await db
+                            .Users.AsNoTracking()
+                            .Where(x =>
+                                x.IsActive
+                                && (
+                                    x.Role == UserRole.Admin
+                                    || x.Role == UserRole.Recruiter
+                                    || x.Role == UserRole.HiringManager
+                                )
+                            )
+                            .OrderBy(x => x.DisplayName)
+                            .Select(x => new
+                            {
+                                x.Email,
+                                x.DisplayName,
+                                Role = x.Role.ToString(),
+                            })
+                            .ToListAsync(ct)
+                    )
+            )
+            .RequireAuthorization(AtsPolicies.Read);
+
         api.MapPost(
                 "/admin/users",
                 async (

@@ -230,7 +230,7 @@ export function TalentSearchPage({ initialData }: { initialData: TalentSearchRes
     <>
       <PageHeader
         title="Talent search"
-        description="Search candidate profiles and parsed resumes. Results show evidence, not a hiring recommendation."
+        description="Search candidate profiles and parsed resumes."
         actions={
           canImport && (
             <Button leftSection={<IconFileImport size={17} />} onClick={importModal.open}>

@@ -1,31 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Badge,
-  Button,
-  Group,
-  Modal,
-  NumberInput,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Text,
-  Textarea,
-  TextInput,
-  Title,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
+import { Badge, Button, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { IconClipboardList, IconPlus } from '@tabler/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/api';
+import { useRouter } from 'next/navigation';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { useCanManage, useRequisition } from './requisition-data';
 
 export function RequisitionKits({ id }: { id: string }) {
-  const [kitOpened, kitModal] = useDisclosure();
+  const router = useRouter();
   const details = useRequisition(id);
   const canManage = useCanManage(details.data);
 
@@ -42,8 +25,11 @@ export function RequisitionKits({ id }: { id: string }) {
           </Text>
         </div>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={kitModal.open}>
-            Add kit
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => router.push(`/requisitions/${id}/kits/new`)}
+          >
+            New kit
           </Button>
         )}
       </Group>
@@ -53,7 +39,7 @@ export function RequisitionKits({ id }: { id: string }) {
           title="No interview kits yet"
           description="Kits keep every interviewer on the same questions and the same scoring scale, which makes candidates comparable."
           actionLabel={canManage ? 'Add the first kit' : undefined}
-          onAction={kitModal.open}
+          onAction={() => router.push(`/requisitions/${id}/kits/new`)}
         />
       ) : (
         <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
@@ -98,120 +84,6 @@ export function RequisitionKits({ id }: { id: string }) {
           ))}
         </SimpleGrid>
       )}
-      <InterviewKitModal requisitionId={id} opened={kitOpened} onClose={kitModal.close} />
     </>
-  );
-}
-
-function InterviewKitModal({
-  requisitionId,
-  opened,
-  onClose,
-}: {
-  requisitionId: string;
-  opened: boolean;
-  onClose: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [duration, setDuration] = useState<number | string>(60);
-  const [instructions, setInstructions] = useState('');
-  const [candidateMessage, setCandidateMessage] = useState(
-    'Please choose an interview time from the available options.',
-  );
-  const [interviewerMessage, setInterviewerMessage] = useState(
-    'You are assigned to this interview. Please complete your scorecard afterward.',
-  );
-  const [criteriaText, setCriteriaText] = useState(
-    'Role expertise | Tell me about the most relevant work you have done for this role. | Gives specific examples and explains personal contribution. | 3\nProblem solving | Walk me through a difficult problem and the tradeoffs you made. | Frames the problem, considers alternatives, and measures the result. | 3\nCollaboration | Describe a disagreement with a teammate and how you handled it. | Listens, communicates directly, and reaches a constructive outcome. | 2',
-  );
-  const criteria = criteriaText
-    .split('\n')
-    .map((line) => {
-      const [criterionName, question, description, weight] = line.split('|');
-      return {
-        name: criterionName.trim(),
-        question: question?.trim() ?? '',
-        description: description?.trim() ?? '',
-        weight: Math.min(5, Math.max(1, Number(weight?.trim()) || 1)),
-      };
-    })
-    .filter((criterion) => criterion.name);
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.post(`/api/requisitions/${requisitionId}/interview-kits`, {
-        name,
-        durationMinutes: Number(duration),
-        instructions,
-        candidateMessage,
-        interviewerMessage,
-        criteria,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requisition', requisitionId] });
-      notifications.show({ color: 'teal', message: 'Interview kit created' });
-      setName('');
-      onClose();
-    },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
-  });
-  return (
-    <Modal opened={opened} onClose={onClose} title="Add interview kit" size="lg" centered>
-      <Stack>
-        <TextInput
-          label="Interview name"
-          placeholder="Technical interview"
-          value={name}
-          onChange={(event) => setName(event.currentTarget.value)}
-        />
-        <NumberInput
-          label="Duration in minutes"
-          min={15}
-          max={480}
-          step={15}
-          value={duration}
-          onChange={setDuration}
-        />
-        <Textarea
-          label="Interviewer instructions"
-          minRows={3}
-          value={instructions}
-          onChange={(event) => setInstructions(event.currentTarget.value)}
-        />
-        <Textarea
-          label="Candidate booking message"
-          description="Sent when this round is offered for candidate booking."
-          minRows={2}
-          value={candidateMessage}
-          onChange={(event) => setCandidateMessage(event.currentTarget.value)}
-        />
-        <Textarea
-          label="Interviewer assignment message"
-          description="Sent when an interviewer is assigned to this round."
-          minRows={2}
-          value={interviewerMessage}
-          onChange={(event) => setInterviewerMessage(event.currentTarget.value)}
-        />
-        <Textarea
-          label="Scorecard criteria"
-          description="One per line: competency | exact question | scoring guidance | weight (1–5)."
-          minRows={6}
-          value={criteriaText}
-          onChange={(event) => setCriteriaText(event.currentTarget.value)}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!name.trim() || criteria.length === 0 || Number(duration) < 15}
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            Create kit
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
   );
 }

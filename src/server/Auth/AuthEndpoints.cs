@@ -1,13 +1,17 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
+using WorkOS;
 
 namespace MyThorneAI.Ats.Api.Auth;
 
@@ -20,7 +24,7 @@ public static partial class AuthExtensions
     )
     {
         var mode =
-            configuration["Auth:Mode"] ?? (environment.IsDevelopment() ? "Development" : "Oidc");
+            configuration["Auth:Mode"] ?? (environment.IsDevelopment() ? "Development" : "WorkOS");
 
         if (mode.Equals("Oidc", StringComparison.OrdinalIgnoreCase))
         {
@@ -32,6 +36,123 @@ public static partial class AuthExtensions
                             new AuthenticationProperties { RedirectUri = SafeReturnUrl(returnUrl) },
                             ["oidc"]
                         )
+                )
+                .ExcludeFromDescription();
+        }
+        else if (mode.Equals("WorkOS", StringComparison.OrdinalIgnoreCase))
+        {
+            endpoints
+                .MapGet(
+                    "/auth/login",
+                    (HttpContext context, string? returnUrl, WorkOSClient client, IDataProtectionProvider protection) =>
+                    {
+                        var nonce = RandomNumberGenerator.GetHexString(32);
+                        var state = protection
+                            .CreateProtector("Internal.Ats.WorkOS.LoginState")
+                            .Protect(JsonSerializer.Serialize(new WorkOSLoginState(SafeReturnUrl(returnUrl), nonce)));
+                        context.Response.Cookies.Append(
+                            "ats.workos.login-state",
+                            nonce,
+                            new CookieOptions
+                            {
+                                HttpOnly = true,
+                                SameSite = SameSiteMode.Lax,
+                                Secure = context.Request.IsHttps,
+                                MaxAge = TimeSpan.FromMinutes(10),
+                                IsEssential = true,
+                            }
+                        );
+                        var redirectUri = configuration["Auth:WorkOS:RedirectUri"]!;
+                        var url = client.UserManagement.GetAuthorizationUrl(
+                            new UserManagementGetAuthorizationUrlOptions
+                            {
+                                RedirectUri = redirectUri,
+                                Provider = UserManagementAuthenticationProvider.Authkit,
+                                State = state,
+                            }
+                        );
+                        return Results.Redirect(url);
+                    }
+                )
+                .ExcludeFromDescription();
+
+            endpoints
+                .MapGet(
+                    "/auth/callback",
+                    async (
+                        HttpContext context,
+                        string? code,
+                        string? state,
+                        WorkOSClient client,
+                        IDataProtectionProvider protection,
+                        AtsDbContext db,
+                        CancellationToken cancellationToken
+                    ) =>
+                    {
+                        if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
+                            return Results.BadRequest(new { message = "The WorkOS login response is incomplete." });
+
+                        WorkOSLoginState loginState;
+                        try
+                        {
+                            var json = protection
+                                .CreateProtector("Internal.Ats.WorkOS.LoginState")
+                                .Unprotect(state);
+                            loginState = JsonSerializer.Deserialize<WorkOSLoginState>(json)
+                                ?? throw new InvalidOperationException();
+                        }
+                        catch (CryptographicException)
+                        {
+                            return Results.BadRequest(new { message = "The WorkOS login state is invalid." });
+                        }
+                        catch (JsonException)
+                        {
+                            return Results.BadRequest(new { message = "The WorkOS login state is invalid." });
+                        }
+
+                        var expectedNonce = context.Request.Cookies["ats.workos.login-state"];
+                        context.Response.Cookies.Delete("ats.workos.login-state");
+                        if (
+                            string.IsNullOrWhiteSpace(expectedNonce)
+                            || string.IsNullOrWhiteSpace(loginState.Nonce)
+                            || !CryptographicOperations.FixedTimeEquals(
+                                System.Text.Encoding.UTF8.GetBytes(expectedNonce),
+                                System.Text.Encoding.UTF8.GetBytes(loginState.Nonce)
+                            )
+                        )
+                            return Results.BadRequest(new { message = "The WorkOS login state is invalid." });
+
+                        try
+                        {
+                            var authentication = await client.UserManagement.AuthenticateWithCodeAsync(
+                                new AuthenticateWithCodeOptions
+                                {
+                                    Code = code,
+                                    IpAddress = context.Connection.RemoteIpAddress?.ToString(),
+                                    UserAgent = context.Request.Headers.UserAgent.ToString(),
+                                },
+                                cancellationToken: cancellationToken
+                            );
+                            var (user, error) = await FindOrProvisionAtsUserAsync(
+                                db,
+                                context.RequestServices.GetRequiredService<IConfiguration>(),
+                                authentication.User.Email,
+                                authentication.User.Name
+                            );
+                            if (user is null)
+                                return Results.Redirect($"/login?error={Uri.EscapeDataString(error ?? "Access denied.")}");
+
+                            await context.SignInAsync(
+                                CookieAuthenticationDefaults.AuthenticationScheme,
+                                CreatePrincipal(user, "WorkOS")
+                            );
+                            return Results.Redirect(loginState.ReturnUrl);
+                        }
+                        catch (WorkOS.ApiException)
+                        {
+                            return Results.Redirect("/login?error=WorkOS%20authentication%20failed");
+                        }
+                    }
                 )
                 .ExcludeFromDescription();
         }
@@ -155,4 +276,6 @@ public static partial class AuthExtensions
             : "/";
 
     private sealed record DevLoginRequest(string Email);
+
+    private sealed record WorkOSLoginState(string ReturnUrl, string Nonce);
 }

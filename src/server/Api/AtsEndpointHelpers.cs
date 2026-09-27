@@ -53,18 +53,15 @@ public static partial class AtsEndpoints
         );
 
     private static Dictionary<string, string[]> ValidateRequisition(
-        string code,
-        string title,
-        string department,
-        string location,
-        string owner,
-        string recruiter,
+        string? title,
+        string? department,
+        string? location,
+        string? owner,
+        string? recruiter,
         int openings
     )
     {
         var errors = new Dictionary<string, string[]>();
-        if (string.IsNullOrWhiteSpace(code))
-            errors["code"] = ["Code is required."];
         if (string.IsNullOrWhiteSpace(title))
             errors["title"] = ["Title is required."];
         if (string.IsNullOrWhiteSpace(department))
@@ -99,7 +96,7 @@ public static partial class AtsEndpoints
         return errors;
     }
 
-    private static bool LooksLikeEmail(string value) =>
+    private static bool LooksLikeEmail(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.Contains('@') && value.Length <= 320;
 
     private static string? Clean(string? value) =>

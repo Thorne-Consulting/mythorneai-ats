@@ -9,6 +9,9 @@ services:
       Auth__Authority: ${AUTH_AUTHORITY:-}
       Auth__ClientId: ${AUTH_CLIENT_ID:-}
       Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
+      Auth__WorkOS__ApiKey: ${WORKOS_API_KEY:-}
+      Auth__WorkOS__ClientId: ${WORKOS_CLIENT_ID:-}
+      Auth__WorkOS__RedirectUri: ${WORKOS_REDIRECT_URI:-}
       Auth__AllowedEmailDomains: ${AUTH_ALLOWED_EMAIL_DOMAINS:-}
       Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
       Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-ATS administrator}
