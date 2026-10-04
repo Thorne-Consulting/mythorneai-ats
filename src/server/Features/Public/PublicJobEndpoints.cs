@@ -11,6 +11,59 @@ public static partial class PublicEndpoints
 {
     private static void MapPublicJobs(RouteGroupBuilder api)
     {
+        api.MapGet("/jobs", async (
+            AtsDbContext db,
+            string? query,
+            string? department,
+            string? location,
+            int? offset,
+            int? limit,
+            CancellationToken ct
+        ) =>
+        {
+            var jobs = db.Requisitions.AsNoTracking()
+                .Where(x => x.Status == RequisitionStatus.Open);
+
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                var term = query.Trim();
+                jobs = jobs.Where(x =>
+                    EF.Functions.ILike(x.Title, $"%{term}%")
+                    || EF.Functions.ILike(x.Department, $"%{term}%")
+                    || EF.Functions.ILike(x.Description, $"%{term}%"));
+            }
+
+            if (!string.IsNullOrWhiteSpace(department))
+                jobs = jobs.Where(x => EF.Functions.ILike(x.Department, $"%{department.Trim()}%"));
+            if (!string.IsNullOrWhiteSpace(location))
+                jobs = jobs.Where(x => EF.Functions.ILike(x.Location, $"%{location.Trim()}%"));
+
+            var total = await jobs.CountAsync(ct);
+            var pageOffset = Math.Max(0, offset ?? 0);
+            var pageSize = Math.Clamp(limit ?? 25, 1, 100);
+            var items = await jobs
+                .OrderByDescending(x => x.UpdatedAt)
+                .Skip(pageOffset)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.Id,
+                    x.Code,
+                    x.Title,
+                    x.Department,
+                    x.Location,
+                    x.EmploymentType,
+                    x.WorkMode,
+                    x.Openings,
+                    x.Description,
+                    x.ApplicationQuestionsMarkdown,
+                    x.TargetStartDate,
+                })
+                .ToListAsync(ct);
+
+            return Results.Ok(new { items, total, offset = pageOffset, limit = pageSize });
+        });
+
         api.MapGet("/jobs/{id:guid}", async (Guid id, AtsDbContext db, CancellationToken ct) =>
         {
             var job = await db.Requisitions.AsNoTracking()
@@ -100,7 +153,7 @@ public static partial class PublicEndpoints
                 return result;
             }
             catch { files.Delete(stored.StoredName); throw; }
-        });
+        }).Accepts<PublicResumeApplyRequest>("multipart/form-data");
     }
 
     private static async Task<IResult> SaveVerificationAsync(Application application, string emailAddress, string jobTitle, AtsDbContext db, CancellationToken ct)

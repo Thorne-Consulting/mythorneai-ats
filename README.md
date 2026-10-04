@@ -19,5 +19,8 @@ dotnet run --project src/server/MyThorneAI.Ats.Api.csproj
 ```
 
 The API reads local `.env` values in Development and listens on
-`http://localhost:5080`. The web app runs separately with `npm run dev` from
-`src/web`.
+`http://localhost:5080`. Its OpenAPI document is available at
+`/openapi/v1.json`; Scalar API docs are available at `/docs` in Development.
+Public career-site clients can list and read open jobs, apply, verify their
+email, and manage interview booking through the `/public` API. The web app runs
+separately with `npm run dev` from `src/web` for the internal hiring workspace.

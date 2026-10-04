@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using MyThorneAI.Ats.Api.Contracts;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
@@ -15,13 +16,12 @@ public static partial class PublicEndpoints
             async (
                 Guid applicationId,
                 Guid interviewId,
-                HttpRequest http,
+                [FromHeader(Name = "X-Candidate-Session")] string? token,
                 AtsDbContext db,
                 IUserCalendarService userCalendars,
                 CancellationToken ct
             ) =>
             {
-                var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(token))
                     return Results.Unauthorized();
                 var candidateId = await db
@@ -64,13 +64,12 @@ public static partial class PublicEndpoints
             async (
                 Guid applicationId,
                 Guid interviewId,
-                HttpRequest http,
+                [FromHeader(Name = "X-Candidate-Session")] string? token,
                 AtsDbContext db,
                 IWorkplaceIntegration integration,
                 CancellationToken ct
             ) =>
             {
-                var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(token))
                     return Results.Unauthorized();
                 var candidateId = await db
@@ -139,14 +138,13 @@ public static partial class PublicEndpoints
                 Guid applicationId,
                 Guid interviewId,
                 BookInterviewRequest? request,
-                HttpRequest http,
+                [FromHeader(Name = "X-Candidate-Session")] string? token,
                 AtsDbContext db,
                 IWorkplaceIntegration integration,
                 IUserCalendarService userCalendars,
                 CancellationToken ct
             ) =>
             {
-                var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(token))
                     return Results.Unauthorized();
                 var candidateId = await db
@@ -262,13 +260,12 @@ public static partial class PublicEndpoints
                 Guid applicationId,
                 Guid interviewId,
                 BookInterviewRequest request,
-                HttpRequest http,
+                [FromHeader(Name = "X-Candidate-Session")] string? token,
                 AtsDbContext db,
                 IUserCalendarService userCalendars,
                 CancellationToken ct
             ) =>
             {
-                var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(token))
                     return Results.Unauthorized();
                 var candidateId = await db

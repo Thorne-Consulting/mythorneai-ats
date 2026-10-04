@@ -96,8 +96,9 @@ started from so published postings do not unexpectedly change later.
 
 ## Public job and application experience
 
-Candidates can browse public jobs and read the full posting before applying.
-The application should be quick and welcoming. It supports personal details,
+External career sites can use the public OpenAPI endpoints to list open jobs,
+read a job posting, and submit applications. The ATS does not need to provide a
+separate public jobs website. The application API supports personal details,
 resume upload, application questions, and optional additional information.
 
 After the candidate finishes the form, they confirm ownership of their email
@@ -106,10 +107,11 @@ The candidate then receives a confirmation and a link to follow progress.
 
 Candidates do not need a password, employee account, or company login.
 
-## Candidate portal
+## Candidate status and interview management
 
-A candidate can use their verified email to see every application associated
-with them. The portal shows:
+An external candidate-facing app can use the public OpenAPI endpoints to let a
+candidate see every application associated with their verified email. The API
+supports:
 
 - application status;
 - what stage is next;

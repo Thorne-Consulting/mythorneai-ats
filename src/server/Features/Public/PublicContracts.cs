@@ -10,6 +10,17 @@ public sealed record PublicApplyRequest(
     string? AnswersMarkdown = null
 );
 
+public sealed record PublicResumeApplyRequest(
+    string FirstName,
+    string LastName,
+    string Email,
+    string? Phone,
+    string? Location,
+    string? LinkedInUrl,
+    string? AnswersMarkdown,
+    IFormFile Resume
+);
+
 public sealed record VerifyApplicationRequest(string Email, string Code);
 
 public sealed record RequestPortalCodeRequest(string Email);

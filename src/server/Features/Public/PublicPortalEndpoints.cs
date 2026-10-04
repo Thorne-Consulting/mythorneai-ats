@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
 
@@ -8,9 +9,8 @@ public static partial class PublicEndpoints
 {
     private static void MapPublicPortal(RouteGroupBuilder api)
     {
-        api.MapGet("/portal", async (HttpRequest http, AtsDbContext db, CancellationToken ct) =>
+        api.MapGet("/portal", async ([FromHeader(Name = "X-Candidate-Session")] string? token, AtsDbContext db, CancellationToken ct) =>
         {
-            var token = http.Headers["X-Candidate-Session"].FirstOrDefault();
             if (string.IsNullOrWhiteSpace(token)) return Results.Unauthorized();
             var session = await db.CandidatePortalSessions.Include(x => x.Candidate)
                 .SingleOrDefaultAsync(x => x.TokenHash == Hash(token) && x.ExpiresAt > DateTimeOffset.UtcNow, ct);

@@ -61,6 +61,8 @@ services:
 
   database:
     image: postgres:18-alpine
+    ports:
+      - "${POSTGRES_HOST_PORT:-55433}:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-internal_ats}
       POSTGRES_USER: ${POSTGRES_USER:-ats}

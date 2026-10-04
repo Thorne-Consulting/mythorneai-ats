@@ -93,9 +93,9 @@ app.UseAuthorization();
 app.UseRateLimiter();
 app.UseAntiforgery();
 
+app.MapOpenApi();
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
     app.MapScalarApiReference("/docs");
 }
 
