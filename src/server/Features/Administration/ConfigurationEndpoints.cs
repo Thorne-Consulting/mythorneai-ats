@@ -345,14 +345,14 @@ public static partial class AtsEndpoints
                     var emailReady = !string.IsNullOrWhiteSpace(configuration["Resend:ApiKey"]) && !string.IsNullOrWhiteSpace(configuration["Resend:From"]);
                     var items = new[]
                     {
-                        new { Key = "organization", Title = "Name your company", Detail = "Company name, time zone and who may sign in.", Done = organization?.SetupCompleted == true, Href = "/admin" },
-                        new { Key = "team", Title = "Invite your hiring team", Detail = "Add recruiters, hiring managers and interviewers.", Done = await db.Users.CountAsync(x => x.IsActive, ct) > 1, Href = "/admin" },
-                        new { Key = "approvers", Title = "Choose who approves acceptances", Detail = "Set default approvers so nobody is hired without a second pair of eyes.", Done = organization?.DefaultApproverEmails.Length > 0 || organization?.RequireOfferApproval == false, Href = "/admin/settings#approvals" },
-                        new { Key = "template", Title = "Create a job posting template", Detail = "Company intro and benefits, reused on every job.", Done = await db.PostingTemplates.AnyAsync(ct), Href = "/admin/templates" },
-                        new { Key = "job", Title = "Create your first job", Detail = "Start from a template and open it for applications.", Done = await db.Requisitions.AnyAsync(ct), Href = "/requisitions/new" },
-                        new { Key = "email", Title = "Turn on candidate email", Detail = emailReady ? "Email is configured." : "Add a Resend API key and sender to the server settings.", Done = emailReady, Href = "/admin/settings#email" },
-                        new { Key = "calendar", Title = "Connect a calendar", Detail = "Interviewers connect Google or Microsoft so booking sees real availability.", Done = integration.IsEnabled || await db.CalendarConnections.AnyAsync(ct), Href = "/admin/integrations" },
-                        new { Key = "ai", Title = "Turn on AI assistance", Detail = ai.IsConfigured ? "AI is configured." : "Add an OpenAI API key to the server settings.", Done = ai.IsConfigured && organization?.AiEnabled != false, Href = "/admin/settings#ai" },
+                        new { Key = "organization", Title = "Name your company", Detail = "Set the company name, time zone and who can sign in.", Done = organization?.SetupCompleted == true, Href = "/admin" },
+                        new { Key = "team", Title = "Invite your team", Detail = "Add the recruiters, hiring managers and interviewers.", Done = await db.Users.CountAsync(x => x.IsActive, ct) > 1, Href = "/admin" },
+                        new { Key = "approvers", Title = "Pick who signs off on hires", Detail = "Choose default approvers, so nobody is hired without a second person checking.", Done = organization?.DefaultApproverEmails.Length > 0 || organization?.RequireOfferApproval == false, Href = "/admin/approvals" },
+                        new { Key = "template", Title = "Write a job template", Detail = "Save the company intro and benefits once, and reuse them on every job.", Done = await db.PostingTemplates.AnyAsync(ct), Href = "/admin/templates" },
+                        new { Key = "job", Title = "Open your first job", Detail = "Start from a template and open it for applications.", Done = await db.Requisitions.AnyAsync(ct), Href = "/requisitions/new" },
+                        new { Key = "email", Title = "Turn on candidate emails", Detail = emailReady ? "Emails are on." : "Add the email sending key and sender address to the server.", Done = emailReady, Href = "/admin/email" },
+                        new { Key = "calendar", Title = "Connect a calendar", Detail = "Interviewers connect their Google or Microsoft calendar, so bookings check real availability.", Done = integration.IsEnabled || await db.CalendarConnections.AnyAsync(ct), Href = "/admin/integrations" },
+                        new { Key = "ai", Title = "Turn on AI help", Detail = ai.IsConfigured ? "AI help is on." : "Add the OpenAI key to the server.", Done = ai.IsConfigured && organization?.AiEnabled != false, Href = "/admin/ai-settings" },
                     };
                     return Results.Ok(items);
                 }
