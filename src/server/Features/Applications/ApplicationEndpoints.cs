@@ -270,15 +270,11 @@ public static partial class AtsEndpoints
                                 ["status"] = ["Use Active, Rejected or Withdrawn here. Hiring goes through an approved acceptance."],
                             }
                         );
-                    if (
-                        stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase)
-                        && applications.Any(x => x.Status != ApplicationStatus.Hired)
-                        && await RequiresApprovedAcceptanceAsync(db, ct)
-                    )
+                    if (IsHiredStage(stage) && applications.Any(x => x.Status != ApplicationStatus.Hired))
                         return Results.Conflict(
                             new
                             {
-                                message = "Hiring goes through an approved acceptance. Start one from each application.",
+                                message = "Hiring goes through an acceptance. Start one from each application.",
                             }
                         );
                     foreach (var application in applications)
@@ -286,12 +282,7 @@ public static partial class AtsEndpoints
                         var oldStageId = application.PipelineStageId;
                         var oldStatus = application.Status;
                         application.PipelineStageId = stage.Id;
-                        application.Status = stage.Name.Equals(
-                            "Hired",
-                            StringComparison.OrdinalIgnoreCase
-                        )
-                            ? ApplicationStatus.Hired
-                            : request.Status;
+                        application.Status = request.Status;
                         application.DispositionReason = Clean(request.DispositionReason);
                         application.LastActivityAt = DateTimeOffset.UtcNow;
                         await PipelineEvents.OnMovedAsync(
@@ -555,24 +546,18 @@ public static partial class AtsEndpoints
                                 ["status"] = ["Use Active, Rejected or Withdrawn here. Hiring goes through an approved acceptance."],
                             }
                         );
-                    var movesToHired =
-                        stage.IsTerminal
-                        && stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase);
-                    if (
-                        movesToHired
-                        && application.Status != ApplicationStatus.Hired
-                        && await RequiresApprovedAcceptanceAsync(db, ct)
-                    )
+                    // The Hired stage is reached only by sending an acceptance, whatever the approval setting.
+                    if (IsHiredStage(stage) && application.Status != ApplicationStatus.Hired)
                         return Results.Conflict(
                             new
                             {
-                                message = "Hiring goes through an approved acceptance. Start one from the application.",
+                                message = "Hiring goes through an acceptance. Start one from the application.",
                             }
                         );
                     var oldStage = application.PipelineStageId;
                     var oldStatus = application.Status;
                     application.PipelineStageId = stage.Id;
-                    application.Status = movesToHired ? ApplicationStatus.Hired : request.Status;
+                    application.Status = request.Status;
                     application.DispositionReason = Clean(request.DispositionReason);
                     application.LastActivityAt = DateTimeOffset.UtcNow;
                     var rejected = application.Status == ApplicationStatus.Rejected;

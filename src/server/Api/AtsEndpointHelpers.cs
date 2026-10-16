@@ -118,8 +118,8 @@ public static partial class AtsEndpoints
     private static bool LooksLikeEmail(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.Contains('@') && value.Length <= 320;
 
-    private static async Task<bool> RequiresApprovedAcceptanceAsync(AtsDbContext db, CancellationToken ct) =>
-        await db.Organizations.Select(x => (bool?)x.RequireOfferApproval).SingleOrDefaultAsync(ct) ?? true;
+    private static bool IsHiredStage(PipelineStage stage) =>
+        stage.IsTerminal && stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase);
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -401,5 +401,13 @@ public sealed partial class ApiFlowTests
         var stageId = detail.GetProperty("stageId").GetGuid();
         (await recruiter.PatchAsJsonAsync($"/api/applications/{applicationId}/stage", new { stageId, status = "Hired", dispositionReason = (string?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await recruiter.PatchAsJsonAsync("/api/applications/bulk-stage", new { applicationIds = new[] { applicationId }, stageId, status = "Hired", dispositionReason = (string?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        // Moving into the Hired stage is refused even with acceptance approval switched off.
+        using var admin = await LoginAsync("admin@example.test", ct);
+        var organization = await admin.GetFromJsonAsync<JsonElement>("/api/organization", ct);
+        (await admin.PutAsJsonAsync("/api/organization", new { name = organization.GetProperty("name").GetString(), timeZone = "UTC", allowedEmailDomains = Array.Empty<string>(), requireOfferApproval = false }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var hiredStage = detail.GetProperty("stages").EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Hired").GetProperty("id").GetGuid();
+        (await recruiter.PatchAsJsonAsync($"/api/applications/{applicationId}/stage", new { stageId = hiredStage, status = "Active", dispositionReason = (string?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await recruiter.PatchAsJsonAsync("/api/applications/bulk-stage", new { applicationIds = new[] { applicationId }, stageId = hiredStage, status = "Active", dispositionReason = (string?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 }
