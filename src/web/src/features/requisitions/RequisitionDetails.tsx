@@ -38,9 +38,6 @@ export function RequisitionDetails({ id }: { id: string }) {
 
       <aside className="record-rail" aria-label="Job details">
         <div className="panel">
-          <div className="panel-head">
-            <h2 className="panel-title">Job</h2>
-          </div>
           <dl className="facts">
             <Fact
               label="Openings"

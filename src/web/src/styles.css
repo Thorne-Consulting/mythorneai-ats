@@ -1188,6 +1188,11 @@ section[id],
   padding: 4px 24px 20px;
 }
 
+/* A facts list that opens its panel has no heading above it, so give it its own top space. */
+.panel > .facts:first-child {
+  padding-top: 16px;
+}
+
 .fact {
   padding: 8px 0;
   font-size: var(--mantine-font-size-md);
