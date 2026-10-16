@@ -50,10 +50,16 @@ export function RequisitionDetails({ id }: { id: string }) {
             <Fact label="Target start" value={formatDate(requisition.targetStartDate)} />
             <Fact label="Created" value={formatDate(requisition.createdAt)} />
             <Fact label="Last updated" value={formatRelative(requisition.updatedAt)} />
-            <Fact
-              label="Stages"
-              value={requisition.stages.map((stage) => stage.name).join(' → ')}
-            />
+            <div className="fact">
+              <dt>Stages</dt>
+              <dd>
+                <ol className="stage-timeline">
+                  {requisition.stages.map((stage) => (
+                    <li key={stage.id}>{stage.name}</li>
+                  ))}
+                </ol>
+              </dd>
+            </div>
           </dl>
         </div>
       </aside>

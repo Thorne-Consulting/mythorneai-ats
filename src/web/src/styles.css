@@ -1099,6 +1099,56 @@ section[id],
   font-weight: 500;
 }
 
+/* Pipeline stages as a vertical timeline: a dot per stage on one thin line. */
+.stage-timeline {
+  position: relative;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-timeline li {
+  position: relative;
+  padding: 0 0 12px 22px;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.stage-timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.stage-timeline li::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--mantine-color-gray-5);
+}
+
+.stage-timeline li::after {
+  content: '';
+  position: absolute;
+  top: 13px;
+  bottom: -4px;
+  left: 4px;
+  width: 1px;
+  background: var(--mantine-color-gray-4);
+}
+
+.stage-timeline li:last-child::after {
+  display: none;
+}
+
+.stage-timeline li:last-child::before {
+  background: var(--mantine-primary-color-filled);
+}
+
 .empty-row {
   display: flex;
   align-items: center;
