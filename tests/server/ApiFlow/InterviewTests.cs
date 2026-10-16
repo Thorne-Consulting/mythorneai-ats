@@ -309,4 +309,217 @@ public sealed partial class ApiFlowTests
         visibleScorecards.GetArrayLength().ShouldBe(2);
         visibleScorecards[0].GetProperty("criteria").GetArrayLength().ShouldBe(2);
     }
+
+    [Fact]
+    public async Task Interview_kits_can_be_edited_but_scored_competencies_stay()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
+        var allCandidates = await recruiter.GetFromJsonAsync<JsonElement>(
+            "/api/candidates",
+            cancellationToken
+        );
+        var jordanId = allCandidates
+            .EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == "Jordan Lee")
+            .GetProperty("id")
+            .GetGuid();
+        var jordan = await recruiter.GetFromJsonAsync<JsonElement>(
+            $"/api/candidates/{jordanId}",
+            cancellationToken
+        );
+        var applicationId = jordan.GetProperty("applications")[0].GetProperty("id").GetGuid();
+        var application = await recruiter.GetFromJsonAsync<JsonElement>(
+            $"/api/applications/{applicationId}",
+            cancellationToken
+        );
+        var requisitionId = application
+            .GetProperty("application")
+            .GetProperty("requisitionId")
+            .GetGuid();
+
+        var created = await recruiter.PostAsJsonAsync(
+            $"/api/requisitions/{requisitionId}/interview-kits",
+            new
+            {
+                name = "Editable kit",
+                instructions = "First draft.",
+                durationMinutes = 45,
+                criteria = new[]
+                {
+                    new
+                    {
+                        name = "Craft",
+                        question = "What are you proudest of?",
+                        description = "",
+                        weight = 3,
+                    },
+                    new
+                    {
+                        name = "Judgement",
+                        question = "What did you cut?",
+                        description = "",
+                        weight = 2,
+                    },
+                },
+            },
+            cancellationToken
+        );
+        created.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var kitId = (await created.Content.ReadFromJsonAsync<JsonElement>(cancellationToken))
+            .GetProperty("id")
+            .GetGuid();
+
+        async Task<JsonElement> LoadKitAsync()
+        {
+            var requisition = await recruiter.GetFromJsonAsync<JsonElement>(
+                $"/api/requisitions/{requisitionId}",
+                cancellationToken
+            );
+            return requisition
+                .GetProperty("interviewKits")
+                .EnumerateArray()
+                .Single(x => x.GetProperty("id").GetGuid() == kitId);
+        }
+
+        var before = await LoadKitAsync();
+        var criteria = before.GetProperty("criteria").EnumerateArray().ToArray();
+        var craftId = criteria.Single(x => x.GetProperty("name").GetString() == "Craft")
+            .GetProperty("id")
+            .GetGuid();
+        var judgementId = criteria
+            .Single(x => x.GetProperty("name").GetString() == "Judgement")
+            .GetProperty("id")
+            .GetGuid();
+
+        // Reorder, rename and add: existing competencies keep their ids.
+        var edited = await recruiter.PutAsJsonAsync(
+            $"/api/requisitions/{requisitionId}/interview-kits/{kitId}",
+            new
+            {
+                name = "Edited kit",
+                instructions = "Second draft.",
+                durationMinutes = 30,
+                criteria = new object[]
+                {
+                    new
+                    {
+                        id = (Guid?)judgementId,
+                        name = "Judgement calls",
+                        question = "What did you cut?",
+                        description = "Clear trade-offs.",
+                        weight = 4,
+                    },
+                    new
+                    {
+                        id = (Guid?)craftId,
+                        name = "Craft",
+                        question = "What are you proudest of?",
+                        description = "",
+                        weight = 3,
+                    },
+                    new
+                    {
+                        id = (Guid?)null,
+                        name = "Presenting",
+                        question = "Walk us through it.",
+                        description = "",
+                        weight = 2,
+                    },
+                },
+            },
+            cancellationToken
+        );
+        edited.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var after = await LoadKitAsync();
+        after.GetProperty("name").GetString().ShouldBe("Edited kit");
+        after.GetProperty("durationMinutes").GetInt32().ShouldBe(30);
+        var afterCriteria = after.GetProperty("criteria").EnumerateArray().ToArray();
+        afterCriteria
+            .Select(x => x.GetProperty("name").GetString())
+            .ShouldBe(["Judgement calls", "Craft", "Presenting"]);
+        afterCriteria[0].GetProperty("id").GetGuid().ShouldBe(judgementId);
+        afterCriteria[1].GetProperty("id").GetGuid().ShouldBe(craftId);
+
+        // Invalid edits are refused and change nothing.
+        var invalid = await recruiter.PutAsJsonAsync(
+            $"/api/requisitions/{requisitionId}/interview-kits/{kitId}",
+            new
+            {
+                name = "",
+                instructions = "",
+                durationMinutes = 30,
+                criteria = Array.Empty<object>(),
+            },
+            cancellationToken
+        );
+        invalid.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        // Score the kit, then try to remove a competency that now has a score.
+        var startsAt = DateTimeOffset.UtcNow.AddDays(3);
+        var interviewResponse = await recruiter.PostAsJsonAsync(
+            $"/api/applications/{applicationId}/interviews",
+            new
+            {
+                title = "Edited kit interview",
+                interviewKitId = kitId,
+                startsAt,
+                endsAt = startsAt.AddMinutes(30),
+                timeZone = "America/Chicago",
+                meetingLink = (string?)null,
+                interviewerEmails = new[] { "interviewer@example.test" },
+            },
+            cancellationToken
+        );
+        interviewResponse.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var interviewId = (
+            await interviewResponse.Content.ReadFromJsonAsync<JsonElement>(cancellationToken)
+        )
+            .GetProperty("id")
+            .GetGuid();
+        using var interviewer = await LoginAsync("interviewer@example.test", cancellationToken);
+        var scored = await interviewer.PostAsJsonAsync(
+            $"/api/interviews/{interviewId}/scorecards",
+            new
+            {
+                recommendation = "Yes",
+                rating = 4,
+                evidence = "Strong.",
+                strengths = "Clear.",
+                concerns = "None.",
+                criteria = afterCriteria.Select(x => new
+                {
+                    criterionId = x.GetProperty("id").GetGuid(),
+                    rating = 4,
+                    evidence = "Good.",
+                }),
+            },
+            cancellationToken
+        );
+        scored.StatusCode.ShouldBe(HttpStatusCode.Created);
+
+        var removal = await recruiter.PutAsJsonAsync(
+            $"/api/requisitions/{requisitionId}/interview-kits/{kitId}",
+            new
+            {
+                name = "Edited kit",
+                instructions = "Second draft.",
+                durationMinutes = 30,
+                criteria = new object[]
+                {
+                    new
+                    {
+                        id = (Guid?)craftId,
+                        name = "Craft",
+                        question = "What are you proudest of?",
+                        description = "",
+                        weight = 3,
+                    },
+                },
+            },
+            cancellationToken
+        );
+        removal.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+        (await LoadKitAsync()).GetProperty("criteria").GetArrayLength().ShouldBe(3);
+    }
 }
