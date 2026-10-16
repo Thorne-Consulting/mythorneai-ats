@@ -438,6 +438,8 @@ public static partial class AtsEndpoints
                     if (requisition.RequirementsEmbedding is null)
                         return Results.Ok(new { Items = Array.Empty<object>(), Reason = "Confirm this job's requirements to see past candidates who fit." });
                     var dismissed = await db.CandidateDismissals.Where(x => x.RequisitionId == id).Select(x => x.CandidateId).ToListAsync(ct);
+                    // "Where we saw them before" only mentions applications on jobs this person may see.
+                    var visibleApplicationIds = ScopeApplications(db.Applications.AsNoTracking(), principal).Select(a => a.Id);
                     var rows = await db
                         .Candidates.AsNoTracking()
                         .Where(x =>
@@ -445,7 +447,7 @@ public static partial class AtsEndpoints
                             && x.ResumeEmbedding != null
                             && !dismissed.Contains(x.Id)
                             && !x.Applications.Any(a => a.RequisitionId == id)
-                            && x.Applications.Any()
+                            && x.Applications.Any(a => visibleApplicationIds.Contains(a.Id))
                         )
                         .Select(x => new
                         {
@@ -453,7 +455,7 @@ public static partial class AtsEndpoints
                             Name = x.FirstName + " " + x.LastName,
                             x.CurrentTitle,
                             x.ResumeEmbedding,
-                            Last = x.Applications.OrderByDescending(a => a.LastActivityAt).Select(a => new { Job = a.Requisition!.Title, Status = a.Status.ToString(), Stage = a.PipelineStage!.Name }).First(),
+                            Last = x.Applications.Where(a => visibleApplicationIds.Contains(a.Id)).OrderByDescending(a => a.LastActivityAt).Select(a => new { Job = a.Requisition!.Title, Status = a.Status.ToString(), Stage = a.PipelineStage!.Name }).First(),
                         })
                         .Take(3000)
                         .ToListAsync(ct);

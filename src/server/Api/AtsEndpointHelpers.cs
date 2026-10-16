@@ -63,14 +63,12 @@ public static partial class AtsEndpoints
     {
         if (principal.IsInRole(nameof(UserRole.Admin)))
             return true;
+        // Named viewers can see a job (ScopeRequisitions); only its owner and recruiter can change it.
         var email = principal.Email();
-        var involved =
-            requisition.OwnerEmail == email
-            || requisition.RecruiterEmail == email
-            || requisition.ViewerEmails.Contains(email);
+        var manages = requisition.OwnerEmail == email || requisition.RecruiterEmail == email;
         if (principal.IsInRole(nameof(UserRole.Recruiter)))
-            return !requisition.IsConfidential || involved;
-        return principal.IsInRole(nameof(UserRole.HiringManager)) && involved;
+            return !requisition.IsConfidential || manages;
+        return principal.IsInRole(nameof(UserRole.HiringManager)) && manages;
     }
 
     private static Dictionary<string, string[]> ValidateRequisition(

@@ -263,6 +263,13 @@ public static partial class AtsEndpoints
                                 ["stageId"] = ["Stage does not belong to this hiring session."],
                             }
                         );
+                    if (request.Status is ApplicationStatus.Hired or ApplicationStatus.PendingVerification)
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["status"] = ["Use Active, Rejected or Withdrawn here. Hiring goes through an approved acceptance."],
+                            }
+                        );
                     if (
                         stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase)
                         && applications.Any(x => x.Status != ApplicationStatus.Hired)
@@ -540,6 +547,14 @@ public static partial class AtsEndpoints
                             }
                         );
 
+                    // Hired and PendingVerification are set by the acceptance flow and email verification, never by hand.
+                    if (request.Status is ApplicationStatus.Hired or ApplicationStatus.PendingVerification)
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["status"] = ["Use Active, Rejected or Withdrawn here. Hiring goes through an approved acceptance."],
+                            }
+                        );
                     var movesToHired =
                         stage.IsTerminal
                         && stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase);

@@ -27,9 +27,8 @@ export function useCanManage(requisition?: RequisitionDetail) {
   const user = useCurrentUser();
   return (
     ['Admin', 'Recruiter'].includes(user.role) ||
+    // Named viewers see the job but don't manage it; that stays with the owner and recruiter.
     (user.role === 'HiringManager' &&
-      (requisition?.ownerEmail === user.email ||
-        requisition?.recruiterEmail === user.email ||
-        requisition?.viewerEmails?.includes(user.email) === true))
+      (requisition?.ownerEmail === user.email || requisition?.recruiterEmail === user.email))
   );
 }

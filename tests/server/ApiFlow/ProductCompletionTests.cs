@@ -375,4 +375,31 @@ public sealed partial class ApiFlowTests
     [InlineData("2606:4700:4700::1111", true)]
     public void Webhook_connections_only_go_to_public_addresses(string address, bool expected) =>
         SsrfGuard.IsPublic(System.Net.IPAddress.Parse(address)).ShouldBe(expected);
+
+    [Fact]
+    public async Task Named_viewers_can_read_a_confidential_job_but_not_change_it()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var admin = await LoginAsync("admin@example.test", ct);
+        var created = await admin.PostAsJsonAsync("/api/requisitions", new { title = "Viewer test", department = "Ops", location = "Remote", employmentType = "Full time", workMode = "Remote", openings = 1, ownerEmail = "manager@example.test", recruiterEmail = "recruiter@example.test", description = "x", targetStartDate = (string?)null }, ct);
+        var id = (await created.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetGuid();
+        (await admin.PutAsJsonAsync($"/api/requisitions/{id}/settings", new { isConfidential = true, viewerEmails = new[] { "priya.manager@example.test" }, allowCandidateReschedule = true, allowCandidateWithdraw = true }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+
+        using var viewer = await LoginAsync("priya.manager@example.test", ct);
+        (await viewer.GetAsync($"/api/requisitions/{id}", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await viewer.PutAsJsonAsync($"/api/requisitions/{id}/settings", new { isConfidential = false, viewerEmails = Array.Empty<string>(), allowCandidateReschedule = true, allowCandidateWithdraw = true }, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+        (await viewer.PatchAsJsonAsync($"/api/requisitions/{id}/status", new { status = "Cancelled" }, ct)).StatusCode.ShouldBe(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Hired_cannot_be_set_by_hand_on_a_stage_move()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var recruiter = await LoginAsync("recruiter@example.test", ct);
+        var applicationId = await JordanApplicationAsync(recruiter, ct);
+        var detail = (await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}", ct)).GetProperty("application");
+        var stageId = detail.GetProperty("stageId").GetGuid();
+        (await recruiter.PatchAsJsonAsync($"/api/applications/{applicationId}/stage", new { stageId, status = "Hired", dispositionReason = (string?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await recruiter.PatchAsJsonAsync("/api/applications/bulk-stage", new { applicationIds = new[] { applicationId }, stageId, status = "Hired", dispositionReason = (string?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
 }
