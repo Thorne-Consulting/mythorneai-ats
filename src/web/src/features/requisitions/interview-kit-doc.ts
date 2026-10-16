@@ -1,4 +1,5 @@
 import type { EditorTemplate } from '@/components/editor/PlateMarkdownEditor';
+import type { InterviewKit } from '@/types';
 
 /*
  * An interview kit is written as one document. Its headings carry the structure:
@@ -81,6 +82,40 @@ export function parseKit(markdown: string): ParsedKit {
  * describe observable behavior. Interviewers score each competency on their own, straight after
  * the interview, before any debrief.
  */
+
+/** A saved kit written back out as the editor's document, so it can be edited as one page. */
+export function kitToMarkdown(kit: InterviewKit) {
+  const scorecard = [...kit.criteria]
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((item) =>
+      [
+        `### ${item.name}`,
+        item.question,
+        item.description ? `Good looks like: ${item.description}` : null,
+        `Weight: ${item.weight}`,
+      ]
+        .filter(Boolean)
+        .join('\n\n'),
+    )
+    .join('\n\n');
+  return `# ${kit.name}
+
+## Interviewer instructions
+
+${kit.instructions}
+
+## Candidate booking message
+
+${kit.candidateMessage ?? ''}
+
+## Interviewer assignment message
+
+${kit.interviewerMessage ?? ''}
+
+## Scorecard
+
+${scorecard}`;
+}
 
 const fairness = `Score each competency 1–5 against the "Good looks like" notes, then give an overall recommendation. Write down what the candidate said, not how you felt about it. Submit your scorecard before you talk to anyone else on the panel.`;
 

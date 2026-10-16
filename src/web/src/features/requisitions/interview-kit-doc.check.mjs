@@ -1,6 +1,6 @@
 // Run: node --experimental-strip-types src/features/requisitions/interview-kit-doc.check.mjs
 import assert from 'node:assert';
-import { parseKit, kitTemplates } from './interview-kit-doc.ts';
+import { parseKit, kitTemplates, kitToMarkdown } from './interview-kit-doc.ts';
 const k = parseKit(kitTemplates[0].markdown);
 assert.equal(k.name, 'Recruiter screen');
 assert.equal(k.criteria.length, 4);
@@ -27,3 +27,27 @@ assert.deepEqual(
   ['Real'],
 );
 console.log('kit parser ok');
+
+// A saved kit survives being written out as a document and read back.
+const saved = {
+  id: 'kit-1',
+  name: 'Writing review',
+  instructions: 'Read the sample first.\n\nKeep it to 45 minutes.',
+  candidateMessage: 'Pick a time.',
+  interviewerMessage: 'You are on this one.',
+  durationMinutes: 45,
+  criteria: [
+    { id: 'c2', name: 'Judgement', question: 'What did you cut?', description: '', weight: 4, sortOrder: 1 },
+    { id: 'c1', name: 'Craft', question: 'Proudest of?', description: 'Real decisions.', weight: 2, sortOrder: 0 },
+  ],
+};
+const back = parseKit(kitToMarkdown(saved));
+assert.equal(back.name, 'Writing review');
+assert.equal(back.instructions, saved.instructions);
+assert.equal(back.candidateMessage, 'Pick a time.');
+assert.equal(back.interviewerMessage, 'You are on this one.');
+assert.deepEqual(
+  back.criteria.map((c) => [c.name, c.question, c.description, c.weight]),
+  [['Craft', 'Proudest of?', 'Real decisions.', 2], ['Judgement', 'What did you cut?', '', 4]],
+);
+console.log('kit round trip ok');

@@ -121,6 +121,8 @@ export interface InterviewKit {
   id: string;
   name: string;
   instructions: string;
+  candidateMessage?: string;
+  interviewerMessage?: string;
   durationMinutes: number;
   sortOrder?: number;
   criteria: InterviewCriterion[];

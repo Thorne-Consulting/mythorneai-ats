@@ -8,33 +8,62 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { PlateMarkdownEditor } from '@/components/editor/PlateMarkdownEditor';
-import { kitTemplates, parseKit } from './interview-kit-doc';
+import type { InterviewKit } from '@/types';
+import { kitTemplates, kitToMarkdown, parseKit } from './interview-kit-doc';
 
-/** A new interview kit, written as one document. Type # for templates. */
-export function InterviewKitEditor({ requisitionId }: { requisitionId: string }) {
+/**
+ * An interview kit written as one document. Type # for templates. Pass `existing` to edit a saved
+ * kit: its competencies keep their scorecard history by name.
+ */
+export function InterviewKitEditor({
+  requisitionId,
+  existing,
+}: {
+  requisitionId: string;
+  existing?: InterviewKit;
+}) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [duration, setDuration] = useState<number | string>(60);
-  const [content, setContent] = useState('');
+  const [duration, setDuration] = useState<number | string>(existing?.durationMinutes ?? 60);
+  const [content, setContent] = useState(existing ? kitToMarkdown(existing) : '');
   const kit = parseKit(content);
+  const verb = existing ? 'saved' : 'created';
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.post(`/api/requisitions/${requisitionId}/interview-kits`, {
+    mutationFn: () => {
+      const body = {
         name: kit.name,
         durationMinutes: Number(duration),
         instructions: kit.instructions,
         candidateMessage: kit.candidateMessage,
         interviewerMessage: kit.interviewerMessage,
-        criteria: kit.criteria,
-      }),
+      };
+      if (!existing)
+        return api.post(`/api/requisitions/${requisitionId}/interview-kits`, {
+          ...body,
+          criteria: kit.criteria,
+        });
+      // A competency with the same name as a saved one is the same competency.
+      const idByName = new Map(existing.criteria.map((item) => [item.name.toLowerCase(), item.id]));
+      return api.put(`/api/requisitions/${requisitionId}/interview-kits/${existing.id}`, {
+        ...body,
+        criteria: kit.criteria.map((item) => ({
+          ...item,
+          id: idByName.get(item.name.toLowerCase()),
+        })),
+      });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', requisitionId] });
-      notifications.show({ color: 'teal', message: 'Interview kit created' });
+      notifications.show({ color: 'teal', message: `Interview kit ${verb}` });
       router.push(`/requisitions/${requisitionId}/kits`);
     },
     onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not create kit', message: error.message }),
+      notifications.show({
+        color: 'red',
+        title: `Could not save the kit`,
+        message: error.message,
+      }),
   });
 
   const durationOk = Number(duration) >= 15 && Number(duration) <= 480;
@@ -48,7 +77,7 @@ export function InterviewKitEditor({ requisitionId }: { requisitionId: string })
   return (
     <article className="kit-doc">
       <aside className="kit-rail" aria-label="Create this kit">
-        <p className="kit-rail-title">Before you create</p>
+        <p className="kit-rail-title">{existing ? 'Before you save' : 'Before you create'}</p>
         <NumberInput
           label="Duration"
           min={15}
@@ -70,7 +99,7 @@ export function InterviewKitEditor({ requisitionId }: { requisitionId: string })
           ))}
         </ul>
         <Button loading={mutation.isPending} disabled={!ready} onClick={() => mutation.mutate()}>
-          Create kit
+          {existing ? 'Save changes' : 'Create kit'}
         </Button>
         <Button
           className="kit-rail-cancel"
