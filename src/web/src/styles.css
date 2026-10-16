@@ -1143,7 +1143,7 @@ section[id],
 
 .record-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr) 360px;
   gap: 48px;
   align-items: start;
 }
@@ -1191,6 +1191,25 @@ section[id],
 /* A facts list that opens its panel has no heading above it, so give it its own top space. */
 .panel > .facts:first-child {
   padding-top: 16px;
+}
+
+/* Job side panel: label on the left, value on the right. */
+.facts-grid .fact {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 7px 0;
+}
+
+.facts-grid .fact dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.facts-grid .fact:last-child {
+  align-items: start;
 }
 
 .fact {

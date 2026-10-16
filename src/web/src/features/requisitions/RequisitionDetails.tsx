@@ -15,6 +15,35 @@ export function RequisitionDetails({ id }: { id: string }) {
   if (!details.data) return <LoadingBlock rows={3} />;
   const requisition = details.data as RequisitionWithSettings;
 
+  const openings = (
+    <Fact label="Openings" value={`${requisition.openings} · ${requisition.employmentType}`} />
+  );
+  const people = (
+    <>
+      <Fact label="Hiring manager" value={requisition.ownerEmail} />
+      <Fact label="Recruiter" value={requisition.recruiterEmail} />
+    </>
+  );
+  const dates = (
+    <>
+      <Fact label="Target start" value={formatDate(requisition.targetStartDate)} />
+      <Fact label="Created" value={formatDate(requisition.createdAt)} />
+      <Fact label="Last updated" value={formatRelative(requisition.updatedAt)} />
+    </>
+  );
+  const stages = (
+    <div className="fact">
+      <dt>Stages</dt>
+      <dd>
+        <ol className="stage-timeline">
+          {requisition.stages.map((stage) => (
+            <li key={stage.id}>{stage.name}</li>
+          ))}
+        </ol>
+      </dd>
+    </div>
+  );
+
   return (
     <div className="record-grid">
       <Stack gap={48} style={{ minWidth: 0 }}>
@@ -38,26 +67,11 @@ export function RequisitionDetails({ id }: { id: string }) {
 
       <aside className="record-rail" aria-label="Job details">
         <div className="panel">
-          <dl className="facts">
-            <Fact
-              label="Openings"
-              value={`${requisition.openings} · ${requisition.employmentType}`}
-            />
-            <Fact label="Hiring manager" value={requisition.ownerEmail} />
-            <Fact label="Recruiter" value={requisition.recruiterEmail} />
-            <Fact label="Target start" value={formatDate(requisition.targetStartDate)} />
-            <Fact label="Created" value={formatDate(requisition.createdAt)} />
-            <Fact label="Last updated" value={formatRelative(requisition.updatedAt)} />
-            <div className="fact">
-              <dt>Stages</dt>
-              <dd>
-                <ol className="stage-timeline">
-                  {requisition.stages.map((stage) => (
-                    <li key={stage.id}>{stage.name}</li>
-                  ))}
-                </ol>
-              </dd>
-            </div>
+          <dl className="facts facts-grid">
+            {openings}
+            {people}
+            {dates}
+            {stages}
           </dl>
         </div>
       </aside>
