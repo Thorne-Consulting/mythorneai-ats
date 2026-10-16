@@ -1,17 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  ActionIcon,
-  Badge,
-  Button,
-  Group,
-  Paper,
-  Select,
-  Table,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Badge, Button, Group, Paper, Select, Table, Text, TextInput } from '@mantine/core';
 import { IconArrowRight, IconBriefcase2, IconPlus, IconSearch } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -71,7 +61,7 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
             clearable
             placeholder="All statuses"
             aria-label="Filter by status"
-            data={['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
+            data={['Draft', 'PendingApproval', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
             style={{ flex: '0 1 180px' }}
           />
           {query.data && (
@@ -150,9 +140,7 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
                       <Text size="sm">{formatDate(item.targetStartDate)}</Text>
                     </Table.Td>
                     <Table.Td>
-                      <ActionIcon variant="subtle" color="gray">
-                        <IconArrowRight size={17} />
-                      </ActionIcon>
+                      <IconArrowRight size={17} color="var(--mantine-color-gray-6)" aria-hidden />
                     </Table.Td>
                   </Table.Tr>
                 ))}

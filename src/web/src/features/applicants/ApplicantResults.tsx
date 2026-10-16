@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { StageBadge } from '@/components/ui/Badges';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatRelative } from '@/lib/format';
 import { rowLinkProps } from '@/lib/row-link-props';
 import type { ApplicantPage } from '@/types';
 
@@ -62,6 +62,7 @@ export function ApplicantResults({
                 <Table.Th>Source</Table.Th>
                 <Table.Th>Resume</Table.Th>
                 <Table.Th>Rating</Table.Th>
+                <Table.Th>AI fit</Table.Th>
                 <Table.Th>Applied</Table.Th>
               </Table.Tr>
             </Table.Thead>
@@ -93,6 +94,18 @@ export function ApplicantResults({
                       {item.currentTitle ?? item.email} · {item.location ?? 'No location'}
                     </Text>
                     <Group gap={4} mt={4}>
+                      {item.unreadMessages > 0 && (
+                        <Badge size="xs" variant="light" color="indigo">
+                          {item.unreadMessages === 1
+                            ? '1 new message'
+                            : `${item.unreadMessages} new messages`}
+                        </Badge>
+                      )}
+                      {item.stalled && (
+                        <Badge size="xs" variant="light" color="orange">
+                          No activity for {formatRelative(item.lastActivityAt).replace(' ago', '')}
+                        </Badge>
+                      )}
                       {item.tags.slice(0, 4).map((value) => (
                         <Badge key={value} size="xs" variant="light" color="gray">
                           {value}
@@ -129,6 +142,22 @@ export function ApplicantResults({
                       <Rating value={item.rating} readOnly size="xs" />
                     ) : (
                       <Text c="dimmed">—</Text>
+                    )}
+                  </Table.Td>
+                  <Table.Td>
+                    {item.fitScore != null ? (
+                      <Text
+                        size="sm"
+                        fw={600}
+                        className="tnum"
+                        aria-label={`AI fit ${item.fitScore} out of 100`}
+                      >
+                        {item.fitScore}
+                      </Text>
+                    ) : (
+                      <Text c="dimmed" aria-label="Not assessed">
+                        —
+                      </Text>
                     )}
                   </Table.Td>
                   <Table.Td>

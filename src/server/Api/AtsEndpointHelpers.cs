@@ -17,11 +17,19 @@ public static partial class AtsEndpoints
         ClaimsPrincipal principal
     )
     {
-        if (principal.IsHiringStaff())
+        if (principal.IsInRole(nameof(UserRole.Admin)))
             return query;
         var email = principal.Email();
+        // Confidential jobs are visible only to their owner, recruiter and named viewers (admins aside).
+        if (principal.IsInRole(nameof(UserRole.Recruiter)))
+            return query.Where(x =>
+                !x.IsConfidential
+                || x.OwnerEmail == email
+                || x.RecruiterEmail == email
+                || x.ViewerEmails.Contains(email)
+            );
         if (principal.IsInRole(nameof(UserRole.HiringManager)))
-            return query.Where(x => x.OwnerEmail == email || x.RecruiterEmail == email);
+            return query.Where(x => x.OwnerEmail == email || x.RecruiterEmail == email || x.ViewerEmails.Contains(email));
         return query.Where(x =>
             x.Applications.Any(a => a.Interviews.Any(i => i.InterviewerEmails.Contains(email)))
         );
@@ -32,25 +40,38 @@ public static partial class AtsEndpoints
         ClaimsPrincipal principal
     )
     {
-        if (principal.IsHiringStaff())
+        if (principal.IsInRole(nameof(UserRole.Admin)))
             return query;
         var email = principal.Email();
+        if (principal.IsInRole(nameof(UserRole.Recruiter)))
+            return query.Where(x =>
+                !x.Requisition!.IsConfidential
+                || x.Requisition.OwnerEmail == email
+                || x.Requisition.RecruiterEmail == email
+                || x.Requisition.ViewerEmails.Contains(email)
+            );
         if (principal.IsInRole(nameof(UserRole.HiringManager)))
             return query.Where(x =>
-                x.Requisition!.OwnerEmail == email || x.Requisition.RecruiterEmail == email
+                x.Requisition!.OwnerEmail == email
+                || x.Requisition.RecruiterEmail == email
+                || x.Requisition.ViewerEmails.Contains(email)
             );
         return query.Where(x => x.Interviews.Any(i => i.InterviewerEmails.Contains(email)));
     }
 
-    private static bool CanManage(Requisition requisition, ClaimsPrincipal principal) =>
-        principal.IsHiringStaff()
-        || (
-            principal.IsInRole(nameof(UserRole.HiringManager))
-            && (
-                requisition.OwnerEmail == principal.Email()
-                || requisition.RecruiterEmail == principal.Email()
-            )
-        );
+    internal static bool CanManage(Requisition requisition, ClaimsPrincipal principal)
+    {
+        if (principal.IsInRole(nameof(UserRole.Admin)))
+            return true;
+        var email = principal.Email();
+        var involved =
+            requisition.OwnerEmail == email
+            || requisition.RecruiterEmail == email
+            || requisition.ViewerEmails.Contains(email);
+        if (principal.IsInRole(nameof(UserRole.Recruiter)))
+            return !requisition.IsConfidential || involved;
+        return principal.IsInRole(nameof(UserRole.HiringManager)) && involved;
+    }
 
     private static Dictionary<string, string[]> ValidateRequisition(
         string? title,
@@ -98,6 +119,9 @@ public static partial class AtsEndpoints
 
     private static bool LooksLikeEmail(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.Contains('@') && value.Length <= 320;
+
+    private static async Task<bool> RequiresApprovedAcceptanceAsync(AtsDbContext db, CancellationToken ct) =>
+        await db.Organizations.Select(x => (bool?)x.RequireOfferApproval).SingleOrDefaultAsync(ct) ?? true;
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

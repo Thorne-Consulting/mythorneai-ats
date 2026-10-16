@@ -32,6 +32,19 @@ public static partial class AtsEndpoints
                             organization.AllowMicrosoftLogin,
                             organization.StaleReminderDays,
                             organization.SetupCompleted,
+                            organization.RequireOfferApproval,
+                            organization.RequireRequisitionApproval,
+                            organization.ApprovalsSequential,
+                            organization.DefaultApproverEmails,
+                            organization.BookReminderDays,
+                            organization.ScorecardReminderDays,
+                            organization.MaxReminders,
+                            organization.QuietHoursStart,
+                            organization.QuietHoursEnd,
+                            organization.NotificationWebhookUrl,
+                            organization.PublicUrl,
+                            organization.AiEnabled,
+                            organization.AiModel,
                         });
                 }
             )
@@ -43,6 +56,7 @@ public static partial class AtsEndpoints
                     UpdateOrganizationRequest request,
                     ClaimsPrincipal principal,
                     AtsDbContext db,
+                    IHostEnvironment environment,
                     CancellationToken ct
                 ) =>
                 {
@@ -70,6 +84,53 @@ public static partial class AtsEndpoints
                     organization.AllowGoogleLogin = request.AllowGoogleLogin;
                     organization.AllowMicrosoftLogin = request.AllowMicrosoftLogin;
                     organization.StaleReminderDays = Math.Clamp(request.StaleReminderDays, 1, 30);
+                    if (request.RequireOfferApproval is { } offerApproval)
+                        organization.RequireOfferApproval = offerApproval;
+                    if (request.RequireRequisitionApproval is { } jobApproval)
+                        organization.RequireRequisitionApproval = jobApproval;
+                    if (request.ApprovalsSequential is { } sequential)
+                        organization.ApprovalsSequential = sequential;
+                    if (request.DefaultApproverEmails is { } approvers)
+                        organization.DefaultApproverEmails = approvers
+                            .Select(x => x.Trim().ToLowerInvariant())
+                            .Where(x => x.Contains('@'))
+                            .Distinct()
+                            .Take(20)
+                            .ToArray();
+                    if (request.BookReminderDays is { } bookDays)
+                        organization.BookReminderDays = Math.Clamp(bookDays, 1, 30);
+                    if (request.ScorecardReminderDays is { } scorecardDays)
+                        organization.ScorecardReminderDays = Math.Clamp(scorecardDays, 1, 30);
+                    if (request.MaxReminders is { } maxReminders)
+                        organization.MaxReminders = Math.Clamp(maxReminders, 0, 10);
+                    if (request.QuietHoursStart is { } quietStart)
+                        organization.QuietHoursStart = Math.Clamp(quietStart, 0, 23);
+                    if (request.QuietHoursEnd is { } quietEnd)
+                        organization.QuietHoursEnd = Math.Clamp(quietEnd, 0, 23);
+                    if (request.NotificationWebhookUrl is { } webhookUrl)
+                    {
+                        var trimmed = webhookUrl.Trim();
+                        if (trimmed.Length > 0 && !WebhookUrlAllowed(trimmed, environment))
+                            return Results.ValidationProblem(new Dictionary<string, string[]>
+                            {
+                                ["notificationWebhookUrl"] = ["Use the https address Slack or Teams gave you."],
+                            });
+                        organization.NotificationWebhookUrl = trimmed.Length == 0 ? null : trimmed;
+                    }
+                    if (request.PublicUrl is { } publicUrl)
+                    {
+                        var trimmed = publicUrl.Trim().TrimEnd('/');
+                        if (trimmed.Length > 0 && !(Uri.TryCreate(trimmed, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https"))
+                            return Results.ValidationProblem(new Dictionary<string, string[]>
+                            {
+                                ["publicUrl"] = ["Use the full address, like https://ats.yourcompany.com."],
+                            });
+                        organization.PublicUrl = trimmed.Length == 0 ? null : trimmed;
+                    }
+                    if (request.AiEnabled is { } aiEnabled)
+                        organization.AiEnabled = aiEnabled;
+                    if (request.AiModel is { } aiModel)
+                        organization.AiModel = string.IsNullOrWhiteSpace(aiModel) ? null : aiModel.Trim();
                     organization.SetupCompleted = true;
                     organization.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(db, principal, "Organization", organization.Id, "Updated", new { organization.Name });

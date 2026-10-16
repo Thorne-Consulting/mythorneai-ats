@@ -27,6 +27,19 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<EmailOutboxItem> EmailOutbox => Set<EmailOutboxItem>();
     public DbSet<CandidatePortalSession> CandidatePortalSessions => Set<CandidatePortalSession>();
     public DbSet<CalendarConnection> CalendarConnections => Set<CalendarConnection>();
+    public DbSet<Offer> Offers => Set<Offer>();
+    public DbSet<Approval> Approvals => Set<Approval>();
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<ApplicationMessage> ApplicationMessages => Set<ApplicationMessage>();
+    public DbSet<StageTransition> StageTransitions => Set<StageTransition>();
+    public DbSet<SavedView> SavedViews => Set<SavedView>();
+    public DbSet<AiCallLog> AiCallLogs => Set<AiCallLog>();
+    public DbSet<JobFit> JobFits => Set<JobFit>();
+    public DbSet<CandidateDismissal> CandidateDismissals => Set<CandidateDismissal>();
+    public DbSet<PipelineTemplate> PipelineTemplates => Set<PipelineTemplate>();
+    public DbSet<CustomFieldDefinition> CustomFieldDefinitions => Set<CustomFieldDefinition>();
+    public DbSet<WebhookEndpoint> WebhookEndpoints => Set<WebhookEndpoint>();
+    public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +60,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.OwnerEmail).HasMaxLength(320);
             entity.Property(x => x.TimeZone).HasMaxLength(80);
             entity.Property(x => x.AllowedEmailDomains).HasColumnType("text[]");
+            entity.Property(x => x.DefaultApproverEmails).HasColumnType("text[]");
         });
 
         modelBuilder.Entity<Requisition>(entity =>
@@ -56,6 +70,8 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Code).HasMaxLength(40);
             entity.Property(x => x.Title).HasMaxLength(200);
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.ViewerEmails).HasColumnType("text[]");
+            entity.Property(x => x.RequirementsEmbedding).HasColumnType("real[]");
             entity
                 .HasMany(x => x.Stages)
                 .WithOne(x => x.Requisition)
@@ -110,6 +126,7 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.ResumeEducation).HasColumnType("text[]");
             entity.Property(x => x.ResumeCertifications).HasColumnType("text[]");
             entity.Property(x => x.ResumeLanguages).HasColumnType("text[]");
+            entity.Property(x => x.ResumeEmbedding).HasColumnType("real[]");
         });
 
         modelBuilder.Entity<Application>(entity =>
@@ -209,8 +226,94 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
                 x.OccurredAt,
             })
         );
+        modelBuilder.Entity<Offer>(entity =>
+        {
+            entity.HasIndex(x => new { x.ApplicationId, x.Status });
+            entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.PreviousStatus).HasConversion<string>().HasMaxLength(32);
+            entity
+                .HasOne(x => x.Application)
+                .WithMany()
+                .HasForeignKey(x => x.ApplicationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<Approval>(entity =>
+        {
+            entity.HasIndex(x => new { x.SubjectType, x.SubjectId });
+            entity.HasIndex(x => new { x.ApproverEmail, x.Decision });
+            entity.Property(x => x.SubjectType).HasMaxLength(32);
+            entity.Property(x => x.ApproverEmail).HasMaxLength(320);
+            entity.Property(x => x.Decision).HasConversion<string>().HasMaxLength(32);
+        });
+        modelBuilder.Entity<EmailTemplate>(entity =>
+        {
+            entity.HasIndex(x => new { x.Key, x.RequisitionId }).IsUnique();
+            entity.Property(x => x.Key).HasMaxLength(64);
+            entity.Property(x => x.Subject).HasMaxLength(300);
+        });
+        modelBuilder.Entity<ApplicationMessage>(entity =>
+        {
+            entity.HasIndex(x => new { x.ApplicationId, x.CreatedAt });
+            entity
+                .HasOne(x => x.Application)
+                .WithMany(x => x.Messages)
+                .HasForeignKey(x => x.ApplicationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<StageTransition>(entity =>
+        {
+            entity.HasIndex(x => new { x.ApplicationId, x.OccurredAt });
+            entity.HasIndex(x => new { x.RequisitionId, x.OccurredAt });
+            entity.Property(x => x.FromStatus).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.ToStatus).HasConversion<string>().HasMaxLength(32);
+        });
+        modelBuilder.Entity<SavedView>(entity =>
+        {
+            entity.HasIndex(x => new { x.OwnerEmail, x.Area });
+            entity.Property(x => x.Name).HasMaxLength(120);
+        });
+        modelBuilder.Entity<AiCallLog>(entity =>
+        {
+            entity.HasIndex(x => x.CreatedAt);
+            entity.Property(x => x.Purpose).HasMaxLength(64);
+        });
+        modelBuilder.Entity<JobFit>(entity =>
+            entity.HasIndex(x => new { x.RequisitionId, x.CandidateId }).IsUnique()
+        );
+        modelBuilder.Entity<CandidateDismissal>(entity =>
+            entity.HasIndex(x => new { x.RequisitionId, x.CandidateId }).IsUnique()
+        );
+        modelBuilder.Entity<PipelineTemplate>(entity =>
+        {
+            entity.HasIndex(x => x.Name).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(120);
+            entity.Property(x => x.StageNames).HasColumnType("text[]");
+        });
+        modelBuilder.Entity<CustomFieldDefinition>(entity =>
+        {
+            entity.HasIndex(x => x.Key).IsUnique();
+            entity.Property(x => x.Key).HasMaxLength(64);
+            entity.Property(x => x.Label).HasMaxLength(120);
+            entity.Property(x => x.Options).HasColumnType("text[]");
+        });
+        modelBuilder.Entity<WebhookEndpoint>(entity =>
+        {
+            entity.Property(x => x.Url).HasMaxLength(1000);
+            entity.Property(x => x.Events).HasColumnType("text[]");
+        });
+        modelBuilder.Entity<WebhookDelivery>(entity =>
+        {
+            entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
+            entity.Property(x => x.Status).HasMaxLength(32);
+            entity
+                .HasOne(x => x.Endpoint)
+                .WithMany()
+                .HasForeignKey(x => x.EndpointId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<EmailOutboxItem>(entity =>
         {
+            entity.HasIndex(x => x.ProviderMessageId);
             entity.HasIndex(x => new { x.ApplicationId, x.CreatedAt });
             entity.HasIndex(x => new { x.Status, x.NextAttemptAt });
             entity.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);

@@ -34,8 +34,12 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <PageTabs
         items={[
           { label: 'Users and roles', href: '/admin', count: users.data?.length },
+          { label: 'Settings', href: '/admin/settings' },
           { label: 'Microsoft and Google', href: '/admin/integrations' },
           { label: 'Posting templates', href: '/admin/templates' },
+          { label: 'Email templates', href: '/admin/email-templates' },
+          { label: 'Webhooks', href: '/admin/webhooks' },
+          { label: 'AI activity', href: '/admin/ai' },
           { label: 'Audit log', href: '/admin/audit' },
         ]}
       />

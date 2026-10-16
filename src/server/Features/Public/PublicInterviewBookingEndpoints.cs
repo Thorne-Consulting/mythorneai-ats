@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using MyThorneAI.Ats.Api.Contracts;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
+using MyThorneAI.Ats.Api.Infrastructure;
 using MyThorneAI.Ats.Api.Integrations;
 
 namespace MyThorneAI.Ats.Api.Api;
@@ -95,6 +96,8 @@ public static partial class PublicEndpoints
                     );
                 if (interview is null)
                     return Results.NotFound();
+                if (!interview.Application!.Requisition!.AllowCandidateReschedule)
+                    return Results.Json(new { message = "Changing this interview isn't available online. Message the hiring team." }, statusCode: StatusCodes.Status403Forbidden);
                 var personalConnection = await db.CalendarConnections.AnyAsync(
                     x => interview.InterviewerEmails.Contains(x.UserEmail),
                     ct
@@ -224,8 +227,19 @@ public static partial class PublicEndpoints
                 var bookedStage = interview.Application.Requisition!.Stages.FirstOrDefault(stage =>
                     stage.Name.Equals("Booked", StringComparison.OrdinalIgnoreCase)
                 );
-                if (bookedStage is not null)
+                if (bookedStage is not null && bookedStage.Id != interview.Application.PipelineStageId)
+                {
+                    var fromStage = interview.Application.PipelineStageId;
                     interview.Application.PipelineStageId = bookedStage.Id;
+                    await PipelineEvents.OnMovedAsync(
+                        db,
+                        interview.Application,
+                        fromStage,
+                        interview.Application.Status,
+                        null,
+                        ct
+                    );
+                }
                 QueueEmail(
                     db,
                     interview.Application.Candidate!.Email,
@@ -293,6 +307,8 @@ public static partial class PublicEndpoints
                     );
                 if (interview is null)
                     return Results.NotFound();
+                if (!interview.Application!.Requisition!.AllowCandidateReschedule)
+                    return Results.Json(new { message = "Changing this interview isn't available online. Message the hiring team." }, statusCode: StatusCodes.Status403Forbidden);
                 var availability = await userCalendars.FindCommonAvailabilityAsync(
                     interview.InterviewerEmails,
                     request.StartsAt.Value,

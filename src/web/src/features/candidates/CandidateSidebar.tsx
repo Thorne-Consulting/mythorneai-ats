@@ -32,6 +32,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { formatDate } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
+import { CandidateCustomFields, type CandidateExtras } from './CandidateCustomFields';
 import { PotentialDuplicates } from './PotentialDuplicates';
 import { ResumeProfileReviewModal } from './ResumeProfileReviewModal';
 
@@ -39,7 +40,7 @@ export function CandidateSidebar({
   candidate,
   canUpload,
 }: {
-  candidate: CandidateDetail;
+  candidate: CandidateDetail & CandidateExtras;
   canUpload: boolean;
 }) {
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(null);
@@ -93,6 +94,7 @@ export function CandidateSidebar({
             )}
           </Stack>
         </Paper>
+        <CandidateCustomFields candidate={candidate} canEdit={canUpload} />
         <Paper withBorder radius="lg" p="lg">
           <Group justify="space-between" mb="md">
             <Text fw={700}>Documents</Text>

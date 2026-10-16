@@ -22,6 +22,10 @@ public sealed class Candidate
     public decimal? ResumeYearsExperience { get; set; }
     public DateTimeOffset? ResumeParsedAt { get; set; }
     public bool DoNotContact { get; set; }
+    public bool EmailBounced { get; set; }
+    public float[]? ResumeEmbedding { get; set; }
+    public DateTimeOffset? ResumeEmbeddingAt { get; set; }
+    public string CustomFieldsJson { get; set; } = "{}";
     public string? PortalCodeHash { get; set; }
     public DateTimeOffset? PortalCodeExpiresAt { get; set; }
     public int PortalCodeAttempts { get; set; }
@@ -48,11 +52,13 @@ public sealed class Application
     public DateTimeOffset AppliedAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset LastActivityAt { get; set; } = DateTimeOffset.UtcNow;
     public DateTimeOffset? LastReminderAt { get; set; }
+    public int ReminderCount { get; set; }
     public string? VerificationCodeHash { get; set; }
     public DateTimeOffset? VerificationExpiresAt { get; set; }
     public int VerificationAttempts { get; set; }
     public DateTimeOffset? VerifiedAt { get; set; }
     public List<ApplicationNote> Notes { get; set; } = [];
+    public List<ApplicationMessage> Messages { get; set; } = [];
     public List<Interview> Interviews { get; set; } = [];
 }
 

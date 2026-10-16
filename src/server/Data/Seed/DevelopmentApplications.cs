@@ -206,6 +206,7 @@ public static partial class SeedData
             new Interview
             {
                 Title = "Engineering screen",
+                InterviewKit = technicalKit,
                 StartsAt = now.AddDays(2).AddHours(2),
                 EndsAt = now.AddDays(2).AddHours(3),
                 TimeZone = "America/Chicago",

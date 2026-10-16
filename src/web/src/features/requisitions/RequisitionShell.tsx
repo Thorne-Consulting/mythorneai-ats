@@ -3,16 +3,24 @@
 import { Select, SimpleGrid } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { IconCalendarEvent, IconMapPin, IconTargetArrow, IconUser } from '@tabler/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { StatusBadge } from '@/components/ui/Badges';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { DetailHeader } from '@/components/ui/PageHeaders';
 import { PageTabs } from '@/components/ui/PageTabs';
-import { formatDate } from '@/lib/format';
+import { formatDate, humanize } from '@/lib/format';
 import type { BoardData, RequisitionDetail } from '@/types';
 import { useBoard, useCanManage, useRequisition } from './requisition-data';
+import { RequisitionApproval } from './RequisitionApproval';
 import { RequisitionInfoCard } from './RequisitionInfoCard';
+
+// Opening goes through approval when the organization asks for it, so Open is not offered then.
+function statusOptions(current: string, approvalRequired?: boolean) {
+  if (current === 'PendingApproval') return ['PendingApproval', 'Draft', 'Cancelled'];
+  const all = ['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled'];
+  return current === 'Draft' && approvalRequired ? all.filter((item) => item !== 'Open') : all;
+}
 
 export function RequisitionShell({
   id,
@@ -37,7 +45,20 @@ export function RequisitionShell({
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
       notifications.show({ color: 'teal', message: 'Job status updated' });
     },
+    onError: (error: Error) =>
+      notifications.show({
+        color: 'red',
+        title: 'Could not change the job status',
+        message: error.message,
+      }),
   });
+
+  const approvalRequired = useQuery({
+    queryKey: ['requisition-approval', id],
+    queryFn: () => api.get<{ required: boolean }>(`/api/requisitions/${id}/approval`),
+    enabled: canManage,
+    retry: false,
+  }).data?.required;
 
   if (!details.data) return <LoadingBlock rows={5} />;
   const requisition = details.data;
@@ -59,13 +80,18 @@ export function RequisitionShell({
               aria-label="Job status"
               value={requisition.status}
               onChange={(value) => value && statusMutation.mutate(value)}
-              data={['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
+              data={statusOptions(requisition.status, approvalRequired).map((value) => ({
+                value,
+                label: humanize(value),
+              }))}
               w={160}
               allowDeselect={false}
             />
           )
         }
       />
+
+      <RequisitionApproval id={id} status={requisition.status} canManage={canManage} />
 
       <SimpleGrid cols={{ base: 1, xs: 2, lg: 4 }} spacing="md" mb="xl">
         <RequisitionInfoCard

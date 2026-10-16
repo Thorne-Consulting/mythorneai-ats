@@ -3,6 +3,7 @@
 import {
   AppShell,
   Avatar,
+  Badge,
   Box,
   Burger,
   Divider,
@@ -18,6 +19,8 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconAddressBook,
   IconBriefcase2,
+  IconChecklist,
+  IconChartBar,
   IconCalendarEvent,
   IconChevronDown,
   IconLayoutSidebarLeftCollapse,
@@ -35,6 +38,7 @@ import { useCurrentUser } from '@/auth';
 import { api, resetCsrfToken } from '@/api';
 import { humanize, initials } from '@/lib/format';
 import { OrganizationSetupModal } from '@/features/admin/OrganizationSetupModal';
+import { usePendingApprovals } from '@/features/approvals/approval-data';
 
 const navigation = [
   { label: 'Overview', to: '/', icon: IconLayoutDashboard },
@@ -43,6 +47,8 @@ const navigation = [
   { label: 'Interviews', to: '/interviews', icon: IconCalendarEvent },
   { label: 'Candidates', to: '/candidates', icon: IconAddressBook },
   { label: 'Talent search', to: '/talent', icon: IconUserSearch },
+  { label: 'Approvals', to: '/approvals', icon: IconChecklist },
+  { label: 'Reports', to: '/reports', icon: IconChartBar, permission: 'reports' },
 ] as const;
 
 import { GlobalSearch } from './GlobalSearch';
@@ -57,6 +63,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
   const pathname = usePathname() ?? '/';
   const canAdmin = user.role === 'Admin';
+  const pendingApprovals = usePendingApprovals().data?.length ?? 0;
 
   const logout = async () => {
     await api.post<void>('/api/auth/logout');
@@ -165,21 +172,40 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
 
         <AppShell.Navbar p="sm" className="app-navbar">
           <AppShell.Section grow component={ScrollArea} type="scroll">
-            {navigation.map((item) => (
-              <NavLink
-                key={item.to}
-                component={Link}
-                href={item.to}
-                label={item.label}
-                variant="light"
-                mb={2}
-                leftSection={<item.icon size={18} stroke={1.7} />}
-                onClick={close}
-                active={
-                  pathname === item.to || (item.to !== '/' && pathname.startsWith(`${item.to}/`))
-                }
-              />
-            ))}
+            {navigation
+              .filter(
+                (item) => !('permission' in item) || user.permissions.includes(item.permission),
+              )
+              // An occasional interviewer gets three doors: home, their interviews, their candidates.
+              // Approvals appears only while something waits on them.
+              .filter(
+                (item) =>
+                  user.role !== 'Interviewer' ||
+                  ['/', '/interviews', '/candidates'].includes(item.to) ||
+                  (item.to === '/approvals' && pendingApprovals > 0),
+              )
+              .map((item) => (
+                <NavLink
+                  key={item.to}
+                  component={Link}
+                  href={item.to}
+                  label={item.label}
+                  variant="light"
+                  mb={2}
+                  leftSection={<item.icon size={18} stroke={1.7} />}
+                  rightSection={
+                    item.to === '/approvals' && pendingApprovals > 0 ? (
+                      <Badge size="sm" circle aria-label={`${pendingApprovals} waiting on you`}>
+                        {pendingApprovals}
+                      </Badge>
+                    ) : undefined
+                  }
+                  onClick={close}
+                  active={
+                    pathname === item.to || (item.to !== '/' && pathname.startsWith(`${item.to}/`))
+                  }
+                />
+              ))}
             {canAdmin && (
               <>
                 <Divider my="md" />

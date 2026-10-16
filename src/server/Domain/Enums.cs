@@ -11,6 +11,7 @@ public enum UserRole
 public enum RequisitionStatus
 {
     Draft,
+    PendingApproval,
     Open,
     OnHold,
     Filled,

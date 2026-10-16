@@ -12,6 +12,7 @@ import { initials } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
 import { ApplyModal } from './ApplyModal';
 import { CandidateApplications } from './CandidateApplications';
+import { EmailBouncedAlert, type CandidateExtras } from './CandidateCustomFields';
 import { CandidateSidebar } from './CandidateSidebar';
 
 export function CandidateDetailPage({
@@ -38,7 +39,7 @@ export function CandidateDetailPage({
   const canApply = ['Admin', 'Recruiter', 'HiringManager'].includes(user.role);
   const canUpload = ['Admin', 'Recruiter'].includes(user.role);
   if (!query.data) return <LoadingBlock rows={5} />;
-  const candidate = query.data;
+  const candidate = query.data as CandidateDetail & CandidateExtras;
 
   return (
     <>
@@ -79,6 +80,12 @@ export function CandidateDetailPage({
           )
         }
       />
+
+      {candidate.emailBounced && (
+        <div style={{ marginBottom: 'var(--mantine-spacing-lg)' }}>
+          <EmailBouncedAlert />
+        </div>
+      )}
 
       <Grid gutter="xl">
         <Grid.Col span={{ base: 12, lg: 4 }}>

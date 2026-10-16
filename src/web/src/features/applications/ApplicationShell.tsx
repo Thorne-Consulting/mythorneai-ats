@@ -21,6 +21,7 @@ import {
   useApplication,
   useInvalidateApplication,
 } from './application-data';
+import { useApplicationExtras } from './application-extras';
 import { RejectModal } from './RejectModal';
 
 export function ApplicationShell({
@@ -34,6 +35,7 @@ export function ApplicationShell({
 }) {
   const user = useCurrentUser();
   const query = useApplication(id, initialData);
+  const extras = useApplicationExtras(id);
   const invalidate = useInvalidateApplication(id);
   const [rejectOpened, rejectModal] = useDisclosure();
   const canManage = canManageRole(user.role);
@@ -48,6 +50,13 @@ export function ApplicationShell({
       invalidate();
       notifications.show({ color: 'teal', message: 'Applicant moved' });
     },
+    // The API refuses a straight move to Hired (409) and explains why; show that, not a generic error.
+    onError: (error: Error) =>
+      notifications.show({
+        color: 'red',
+        title: 'Could not move this applicant',
+        message: error.message,
+      }),
   });
 
   if (query.isError) return <LoadError error={query.error} onRetry={query.refetch} />;
@@ -70,7 +79,9 @@ export function ApplicationShell({
         badges={<StatusBadge status={application.status} />}
         subtitle={`${application.candidateTitle ?? 'Applicant'} · ${application.requisitionTitle}`}
         actions={
-          canManage && (
+          // Hired is finished; the only way back is "Reverse" on the acceptance panel.
+          canManage &&
+          application.status !== 'Hired' && (
             <>
               <Select
                 aria-label="Current stage"
@@ -101,7 +112,11 @@ export function ApplicationShell({
             href: `/applications/${id}/interviews`,
             count: application.interviews.length,
           },
-          { label: 'History', href: `/applications/${id}/history`, count: query.data.audit.length },
+          {
+            label: 'History',
+            href: `/applications/${id}/history`,
+            count: query.data.audit.length + extras.emails.length + extras.messages.length,
+          },
         ]}
       />
       {children}

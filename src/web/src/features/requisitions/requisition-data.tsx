@@ -27,6 +27,9 @@ export function useCanManage(requisition?: RequisitionDetail) {
   const user = useCurrentUser();
   return (
     ['Admin', 'Recruiter'].includes(user.role) ||
-    (user.role === 'HiringManager' && requisition?.ownerEmail === user.email)
+    (user.role === 'HiringManager' &&
+      (requisition?.ownerEmail === user.email ||
+        requisition?.recruiterEmail === user.email ||
+        requisition?.viewerEmails?.includes(user.email) === true))
   );
 }

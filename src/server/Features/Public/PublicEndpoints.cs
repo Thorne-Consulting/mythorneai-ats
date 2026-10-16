@@ -15,6 +15,8 @@ public static partial class PublicEndpoints
         MapPublicCandidateAccess(api);
         MapPublicPortal(api);
         MapPublicInterviewBooking(api);
+        MapPublicMessaging(api);
+        MapResendWebhook(api);
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

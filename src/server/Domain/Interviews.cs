@@ -22,6 +22,10 @@ public sealed class Interview
     public string? MeetingNotesSource { get; set; }
     public DateTimeOffset? MeetingNotesUpdatedAt { get; set; }
     public DateTimeOffset? LastScorecardReminderAt { get; set; }
+    public int ScorecardReminderCount { get; set; }
+    public DateTimeOffset? LastBookingReminderAt { get; set; }
+    public int BookingReminderCount { get; set; }
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
     public List<Scorecard> Scorecards { get; set; } = [];
     public List<InterviewRecording> Recordings { get; set; } = [];
 }
@@ -92,5 +96,6 @@ public sealed class InterviewRecording
     public long Length { get; set; }
     public required string UploadedBy { get; set; }
     public bool ConsentConfirmed { get; set; }
+    public string? Transcript { get; set; }
     public DateTimeOffset RecordedAt { get; set; } = DateTimeOffset.UtcNow;
 }

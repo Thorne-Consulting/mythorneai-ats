@@ -160,16 +160,37 @@ public sealed class IntegrationOutboxWorker(
             var organizer = interview.InterviewerEmails.FirstOrDefault();
             if (organizer is null)
                 continue;
-            var external = await calendars.GetEventAsync(
-                interview.ExternalEventId!,
-                organizer,
-                cancellationToken
-            );
+            ExternalCalendarEvent? external;
+            try
+            {
+                external = await calendars.GetEventAsync(
+                    interview.ExternalEventId!,
+                    organizer,
+                    cancellationToken
+                );
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // One unreadable connection (a revoked or undecryptable token) must not stop the
+                // sync for every other interview.
+                logger.LogWarning(exception, "Could not read the calendar event for interview {InterviewId}.", interview.Id);
+                continue;
+            }
             if (external is null || external.Cancelled)
             {
                 if (interview.CalendarStatus == "ExternalCancelled")
                     continue;
                 interview.CalendarStatus = "ExternalCancelled";
+                interview.Status = InterviewStatus.Cancelled;
+                interview.Application!.LastActivityAt = DateTimeOffset.UtcNow;
+                db.AuditEvents.Add(new AuditEvent
+                {
+                    EntityType = "Application",
+                    EntityId = interview.ApplicationId.ToString(),
+                    Action = "InterviewCancelledExternally",
+                    ActorEmail = "system:calendar-sync",
+                    Details = System.Text.Json.JsonSerializer.Serialize(new { interviewId = interview.Id }),
+                });
                 QueueExternalChangeEmail(
                     db,
                     interview,

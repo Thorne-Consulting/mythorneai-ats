@@ -17,7 +17,9 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconCalendarEvent, IconDots, IconNotes, IconSparkles } from '@tabler/icons-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
 import { RecommendationBadge, StatusBadge } from '@/components/ui/Badges';
@@ -26,7 +28,10 @@ import type { InterviewKit } from '@/types';
 import type { Interview } from './application-types';
 import { InterviewModal } from './InterviewModal';
 import { InterviewRecorder } from './InterviewRecorder';
+import { AiSummary } from './AiSummary';
+import { InterviewQuestions } from './InterviewQuestions';
 import { MeetingNotesModal } from './MeetingNotesModal';
+import { RecordingTranscripts } from './RecordingTranscripts';
 import { ScorecardModal } from './ScorecardModal';
 
 function ScoreValue({ value, label }: { value: number; label: string }) {
@@ -65,10 +70,21 @@ export function InterviewCard({
     (scorecard) => scorecard.interviewerEmail === currentEmail,
   );
   const isAssigned = interview.interviewerEmails.includes(currentEmail);
+  // "Write scorecard" on the home page lands here with the form already open.
+  const requestedScorecard = useSearchParams().get('scorecard') === interview.id;
+  useEffect(() => {
+    if (requestedScorecard && isAssigned && !mine) scoreModal.open();
+    // Only on arrival; closing the form must not reopen it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedScorecard]);
   const statusMutation = useMutation({
     mutationFn: (status: string) =>
       api.patch(`/api/interviews/${interview.id}`, interviewPayload(interview, status)),
-    onSuccess: onUpdated,
+    onSuccess: () => {
+      onUpdated();
+      notifications.show({ color: 'teal', message: 'Interview updated' });
+    },
+    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
   const summaryMutation = useMutation({
     mutationFn: () =>
@@ -76,6 +92,7 @@ export function InterviewCard({
         interviewId: interview.id,
       }),
     onSuccess: (result) => setSummary(result.summary),
+    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
   return (
     <Paper withBorder radius="lg" p="lg">
@@ -88,19 +105,21 @@ export function InterviewCard({
             <Group gap="xs" wrap="wrap">
               <Title order={4}>{interview.title}</Title>
               <StatusBadge status={interview.status} />
-              <Badge
-                size="xs"
-                variant="light"
-                color={
-                  interview.calendarStatus === 'Created'
-                    ? 'teal'
-                    : interview.calendarStatus === 'Failed'
-                      ? 'red'
-                      : 'gray'
-                }
-              >
-                Calendar {humanize(interview.calendarStatus).toLowerCase()}
-              </Badge>
+              {canManage && (
+                <Badge
+                  size="xs"
+                  variant="light"
+                  color={
+                    interview.calendarStatus === 'Created'
+                      ? 'teal'
+                      : interview.calendarStatus === 'Failed'
+                        ? 'red'
+                        : 'gray'
+                  }
+                >
+                  Calendar {humanize(interview.calendarStatus).toLowerCase()}
+                </Badge>
+              )}
             </Group>
             <Text size="sm" c="dimmed" mt={4}>
               {formatDateTime(interview.startsAt)}–
@@ -127,6 +146,13 @@ export function InterviewCard({
           </div>
         </Group>
         <Group gap="sm">
+          {interview.status !== 'Cancelled' && (
+            <InterviewQuestions
+              applicationId={applicationId}
+              interviewKitId={interview.interviewKitId}
+              candidateName={candidateName}
+            />
+          )}
           {isAssigned && !mine && interview.status !== 'Cancelled' && (
             <Button size="sm" onClick={scoreModal.open}>
               Submit scorecard
@@ -196,7 +222,8 @@ export function InterviewCard({
                 Meeting notes
               </Text>
               <Text size="xs" c="dimmed">
-                AI-generated notes and interview transcripts live here.
+                Notes from a meeting assistant, or your own. Summarize makes an AI draft for you to
+                check.
               </Text>
             </div>
           </Group>
@@ -236,16 +263,7 @@ export function InterviewCard({
             No meeting notes yet. Paste notes now, or let a meeting assistant add them later.
           </Text>
         )}
-        {summary && (
-          <Paper withBorder p="sm" mt="md">
-            <Text size="xs" fw={600} c="dimmed">
-              AI summary
-            </Text>
-            <Text size="sm" mt="xs" style={{ whiteSpace: 'pre-wrap' }}>
-              {summary}
-            </Text>
-          </Paper>
-        )}
+        {summary && <AiSummary text={summary} />}
       </Paper>
       <InterviewRecorder
         interview={interview}
@@ -253,6 +271,7 @@ export function InterviewCard({
         canDelete={canManage}
         onUpdated={onUpdated}
       />
+      {canManage && <RecordingTranscripts interview={interview} onUpdated={onUpdated} />}
       {isAssigned && !mine && interview.submittedScorecards > 0 && (
         <Text size="xs" c="dimmed" mt="md">
           Other feedback stays hidden until you submit yours.

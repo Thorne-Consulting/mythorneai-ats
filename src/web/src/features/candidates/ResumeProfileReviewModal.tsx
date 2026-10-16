@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Alert,
   Button,
   Group,
   Modal,
@@ -12,7 +13,9 @@ import {
   Textarea,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { IconSparkles } from '@tabler/icons-react';
 import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import type { CandidateDetail } from '@/types';
@@ -41,6 +44,40 @@ export function ResumeProfileReviewModal({
   const form = useForm<ResumeProfileForm>({
     initialValues: valuesFrom(candidate),
   });
+  const [proposal, setProposal] = useState<Partial<ResumeProfileForm> | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const askAi = useMutation({
+    mutationFn: () =>
+      api.post<
+        Partial<Omit<ResumeProfileForm, 'yearsExperience'>> & {
+          yearsExperience?: number | null;
+        }
+      >(`/api/candidates/${candidate.id}/resume-profile/ai`),
+    onSuccess: (result) => {
+      setAiError(null);
+      setProposal({
+        currentTitle: result.currentTitle ?? '',
+        summary: result.summary ?? '',
+        skills: result.skills ?? [],
+        jobTitles: result.jobTitles ?? [],
+        education: result.education ?? [],
+        certifications: result.certifications ?? [],
+        languages: result.languages ?? [],
+        yearsExperience: result.yearsExperience ?? '',
+      });
+    },
+    onError: (error: Error) => {
+      setProposal(null);
+      setAiError(error.message);
+    },
+  });
+  const changes = proposal
+    ? FIELDS.filter(
+        ({ key }) =>
+          JSON.stringify(proposal[key]) !== JSON.stringify(form.values[key]) &&
+          !(isBlank(proposal[key]) && isBlank(form.values[key])),
+      )
+    : [];
   const review = useMutation({
     mutationFn: (values: ResumeProfileForm) =>
       api.put(`/api/candidates/${candidate.id}/resume-profile`, {
@@ -64,6 +101,70 @@ export function ResumeProfileReviewModal({
             Correct the searchable profile against the source resume. This does not alter the
             original document.
           </Text>
+          <Group justify="space-between" align="center" wrap="wrap" gap="xs">
+            <Text size="sm" c="dimmed" maw="52ch">
+              Want a second read? AI can re-read the resume and suggest values. You choose which to
+              use.
+            </Text>
+            <Button
+              variant="light"
+              size="xs"
+              leftSection={<IconSparkles size={14} />}
+              loading={askAi.isPending}
+              onClick={() => askAi.mutate()}
+            >
+              Ask AI to re-read the resume
+            </Button>
+          </Group>
+          {aiError && (
+            <Alert color="gray" variant="light">
+              {aiError}
+            </Alert>
+          )}
+          {proposal && (
+            <Stack
+              gap="xs"
+              p="sm"
+              style={{ border: '1px solid var(--mantine-color-default-border)', borderRadius: 8 }}
+            >
+              <Text size="sm" fw={600}>
+                AI suggestions (a draft, nothing is saved yet)
+              </Text>
+              {changes.length === 0 ? (
+                <Text size="sm" c="dimmed">
+                  AI read the same thing you already have. Nothing to change.
+                </Text>
+              ) : (
+                changes.map(({ key, label }) => (
+                  <Group
+                    key={key}
+                    justify="space-between"
+                    align="flex-start"
+                    wrap="nowrap"
+                    gap="md"
+                  >
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <Text size="xs" fw={600}>
+                        {label}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        Now: {show(form.values[key])}
+                      </Text>
+                      <Text size="xs">AI: {show(proposal[key])}</Text>
+                    </div>
+                    <Button
+                      size="compact-xs"
+                      variant="default"
+                      aria-label={`Use AI value for ${label}`}
+                      onClick={() => form.setFieldValue(key, proposal[key] as never)}
+                    >
+                      Use AI value
+                    </Button>
+                  </Group>
+                ))
+              )}
+            </Stack>
+          )}
           <TextInput label="Current title" {...form.getInputProps('currentTitle')} />
           <Textarea
             label="Summary"
@@ -106,6 +207,26 @@ export function ResumeProfileReviewModal({
       </form>
     </Modal>
   );
+}
+
+const FIELDS: Array<{ key: keyof ResumeProfileForm; label: string }> = [
+  { key: 'currentTitle', label: 'Current title' },
+  { key: 'summary', label: 'Summary' },
+  { key: 'skills', label: 'Skills' },
+  { key: 'yearsExperience', label: 'Years of experience' },
+  { key: 'jobTitles', label: 'Current and past titles' },
+  { key: 'education', label: 'Education' },
+  { key: 'certifications', label: 'Certifications' },
+  { key: 'languages', label: 'Languages' },
+];
+
+function isBlank(value: unknown) {
+  return value === '' || value == null || (Array.isArray(value) && value.length === 0);
+}
+
+function show(value: unknown) {
+  if (isBlank(value)) return 'empty';
+  return Array.isArray(value) ? value.join(', ') : String(value);
 }
 
 function valuesFrom(candidate: CandidateDetail): ResumeProfileForm {

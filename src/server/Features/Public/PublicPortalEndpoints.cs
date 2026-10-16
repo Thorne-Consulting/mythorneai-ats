@@ -27,6 +27,11 @@ public static partial class PublicEndpoints
                     Status = x.Status.ToString(),
                     x.AppliedAt,
                     x.LastActivityAt,
+                    CanWithdraw = x.Status == ApplicationStatus.Active && x.Requisition.AllowCandidateWithdraw,
+                    CanReschedule = x.Requisition.AllowCandidateReschedule,
+                    Thread = x.Messages
+                        .OrderBy(m => m.CreatedAt)
+                        .Select(m => new { m.Id, m.FromCandidate, m.Body, m.CreatedAt, Unread = !m.FromCandidate && m.ReadAt == null }),
                     Interviews = x.Interviews.Where(i => i.Status == InterviewStatus.Scheduled)
                         .Select(i => new { i.Id, i.Title, i.StartsAt, i.EndsAt, i.TimeZone, i.MeetingLink }),
                     ProposedInterviews = x.Interviews.Where(i => i.Status == InterviewStatus.Proposed)
@@ -34,13 +39,20 @@ public static partial class PublicEndpoints
                     Messages = db.EmailOutbox.Where(message =>
                             message.ApplicationId == x.Id
                             && message.Recipient == session.Candidate.Email
-                            && message.Status == EmailOutboxStatus.Succeeded)
+                            && message.Status == EmailOutboxStatus.Succeeded
+                            && message.TemplateKey != "verification")
                         .OrderByDescending(message => message.CreatedAt)
                         .Take(25)
                         .Select(message => new { message.Subject, message.Body, message.CreatedAt })
+                        .ToList()
                 })
                 .ToListAsync(ct);
-            return Results.Ok(new { candidate = new { session.Candidate.FirstName, session.Candidate.LastName }, applications });
+            var company = await db.Organizations.Select(x => x.Name).SingleOrDefaultAsync(ct);
+            return Results.Ok(new { candidate = new { session.Candidate.FirstName, session.Candidate.LastName }, company, applications });
         });
+
+        // Just the name, so the sign-in screen can say whose portal this is.
+        api.MapGet("/organization", async (AtsDbContext db, CancellationToken ct) =>
+            Results.Ok(new { name = await db.Organizations.Select(x => x.Name).SingleOrDefaultAsync(ct) }));
     }
 }

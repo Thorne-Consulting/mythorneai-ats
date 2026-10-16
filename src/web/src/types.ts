@@ -9,12 +9,23 @@ export interface User {
   organizationName?: string;
   organizationSetupCompleted: boolean;
   isOrganizationOwner: boolean;
+  // Extra capabilities granted to the user's role: 'reports', 'import', 'templates'.
+  permissions: string[];
 }
 
 export interface DashboardData {
   openRequisitions: number;
   activeCandidates: number;
   interviewsThisWeek: number;
+  pipeline: Array<{ stage: string; count: number; order: number }>;
+  scorecardsDue: Array<{
+    id: string;
+    applicationId: string;
+    title: string;
+    endsAt: string;
+    candidateName: string;
+    requisitionTitle: string;
+  }>;
   recentApplications: Array<{
     id: string;
     candidateName: string;
@@ -65,6 +76,11 @@ export interface RequisitionDetail extends RequisitionSummary {
   createdAt: string;
   stages: Stage[];
   interviewKits: InterviewKit[];
+  requirementsJson?: string;
+  isConfidential?: boolean;
+  viewerEmails?: string[];
+  allowCandidateReschedule?: boolean;
+  allowCandidateWithdraw?: boolean;
 }
 
 export interface InterviewCriterion {
@@ -227,10 +243,14 @@ export interface ApplicantPage {
     rating?: number;
     appliedAt: string;
     lastActivityAt: string;
+    unreadMessages: number;
+    stalled: boolean;
+    fitScore?: number | null;
   }>;
   total: number;
   page: number;
   pageSize: number;
+  staleDays: number;
 }
 
 export interface ApplicationDetailResponse {
@@ -306,6 +326,7 @@ export interface ApplicationDetailResponse {
         length: number;
         uploadedBy: string;
         consentConfirmed: boolean;
+        transcript?: string | null;
         recordedAt: string;
       }>;
     }>;

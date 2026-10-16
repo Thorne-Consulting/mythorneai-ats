@@ -19,12 +19,13 @@ export function PageTabs({ items }: { items: PageTab[] }) {
 
   return (
     <Tabs value={active} mb="xl">
-      <Tabs.List>
+      <Tabs.List style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {items.map((item) => (
           <Tabs.Tab
             key={item.href}
             value={item.href}
-            renderRoot={(props) => <Link href={item.href} {...props} />}
+            // These tabs are links to other pages, so there is no panel for aria-controls to point at.
+            renderRoot={(props) => <Link href={item.href} {...props} aria-controls={undefined} />}
             rightSection={
               item.count === undefined ? undefined : (
                 <Badge size="xs" variant="default" circle>

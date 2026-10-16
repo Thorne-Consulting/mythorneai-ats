@@ -49,6 +49,42 @@ public static partial class AtsEndpoints
                                 && x.Status == InterviewStatus.Scheduled,
                             ct
                         ),
+                    // Everything active, by stage, so the chart agrees with the "active applicants" count.
+                    Pipeline = await applications
+                        .Where(x => x.Status == ApplicationStatus.Active)
+                        .GroupBy(x => x.PipelineStage!.Name)
+                        .Select(g => new
+                        {
+                            Stage = g.Key,
+                            Count = g.Count(),
+                            Order = g.Min(x => x.PipelineStage!.SortOrder),
+                        })
+                        .OrderBy(x => x.Order)
+                        .ToListAsync(ct),
+                    // Interviews I'm assigned to that have started and still have no scorecard from me.
+                    ScorecardsDue = await db
+                        .Interviews.AsNoTracking()
+                        .Where(x =>
+                            applicationIds.Contains(x.ApplicationId)
+                            && x.InterviewerEmails.Contains(email)
+                            && (x.Status == InterviewStatus.Scheduled || x.Status == InterviewStatus.Completed)
+                            && x.StartsAt < now
+                            && !x.Scorecards.Any(s => s.InterviewerEmail == email)
+                        )
+                        .OrderBy(x => x.EndsAt)
+                        .Take(10)
+                        .Select(x => new
+                        {
+                            x.Id,
+                            x.ApplicationId,
+                            x.Title,
+                            x.EndsAt,
+                            CandidateName = x.Application!.Candidate!.FirstName
+                                + " "
+                                + x.Application.Candidate.LastName,
+                            RequisitionTitle = x.Application.Requisition!.Title,
+                        })
+                        .ToListAsync(ct),
                     RecentApplications = await applications
                         .OrderByDescending(x => x.LastActivityAt)
                         .Take(6)

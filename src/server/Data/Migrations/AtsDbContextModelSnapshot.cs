@@ -23,6 +23,62 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.AiCallLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("CompletionTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Input")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("LatencyMs")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Output")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("PromptTokens")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SubjectId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("SubjectType")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserEmail")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.ToTable("AiCallLogs");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -95,6 +151,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<int?>("Rating")
                         .HasColumnType("integer");
 
+                    b.Property<int>("ReminderCount")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("RequisitionId")
                         .HasColumnType("uuid");
 
@@ -132,6 +191,38 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("Applications");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ApplicationMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AuthorEmail")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("FromCandidate")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId", "CreatedAt");
+
+                    b.ToTable("ApplicationMessages");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ApplicationNote", b =>
                 {
                     b.Property<Guid>("Id")
@@ -160,6 +251,55 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.HasIndex("ApplicationId");
 
                     b.ToTable("Notes");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Approval", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ApproverEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("Comment")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Decision")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("RequestedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Sequence")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SubjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApproverEmail", "Decision");
+
+                    b.HasIndex("SubjectType", "SubjectId");
+
+                    b.ToTable("Approvals");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Attachment", b =>
@@ -315,6 +455,10 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<string>("CurrentTitle")
                         .HasColumnType("text");
 
+                    b.Property<string>("CustomFieldsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<bool>("DoNotContact")
                         .HasColumnType("boolean");
 
@@ -322,6 +466,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
+
+                    b.Property<bool>("EmailBounced")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("FirstName")
                         .IsRequired()
@@ -356,6 +503,12 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.PrimitiveCollection<string[]>("ResumeEducation")
                         .IsRequired()
                         .HasColumnType("text[]");
+
+                    b.PrimitiveCollection<float[]>("ResumeEmbedding")
+                        .HasColumnType("real[]");
+
+                    b.Property<DateTimeOffset?>("ResumeEmbeddingAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.PrimitiveCollection<string[]>("ResumeJobTitles")
                         .IsRequired()
@@ -401,6 +554,37 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("Candidates");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidateDismissal", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DismissedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("RequisitionId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequisitionId", "CandidateId")
+                        .IsUnique();
+
+                    b.ToTable("CandidateDismissals");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidatePortalSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -431,6 +615,41 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("CandidatePortalSessions");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CustomFieldDefinition", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.PrimitiveCollection<string[]>("Options")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("CustomFieldDefinitions");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.EmailOutboxItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -453,6 +672,12 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DeliveryStatus")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("DeliveryUpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("LastError")
                         .HasColumnType("text");
 
@@ -461,6 +686,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
 
                     b.Property<DateTimeOffset>("NextAttemptAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ProviderMessageId")
+                        .HasColumnType("text");
 
                     b.Property<string>("Recipient")
                         .IsRequired()
@@ -477,13 +705,58 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
 
+                    b.Property<string>("TemplateKey")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("TemplateVersion")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("ProviderMessageId");
 
                     b.HasIndex("ApplicationId", "CreatedAt");
 
                     b.HasIndex("Status", "NextAttemptAt");
 
                     b.ToTable("EmailOutbox");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.EmailTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid?>("RequisitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key", "RequisitionId")
+                        .IsUnique();
+
+                    b.ToTable("EmailTemplates");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.IntegrationOutboxItem", b =>
@@ -542,6 +815,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<Guid>("ApplicationId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("BookingReminderCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("CalendarError")
                         .HasColumnType("text");
 
@@ -551,6 +827,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<string>("CalendarStatus")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset>("EndsAt")
                         .HasColumnType("timestamp with time zone");
@@ -564,6 +843,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.PrimitiveCollection<string[]>("InterviewerEmails")
                         .IsRequired()
                         .HasColumnType("text[]");
+
+                    b.Property<DateTimeOffset?>("LastBookingReminderAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTimeOffset?>("LastScorecardReminderAt")
                         .HasColumnType("timestamp with time zone");
@@ -580,6 +862,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
 
                     b.Property<DateTimeOffset?>("MeetingNotesUpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("ScorecardReminderCount")
+                        .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("StartsAt")
                         .HasColumnType("timestamp with time zone");
@@ -716,6 +1001,9 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Transcript")
+                        .HasColumnType("text");
+
                     b.Property<string>("UploadedBy")
                         .IsRequired()
                         .HasColumnType("text");
@@ -727,11 +1015,96 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("InterviewRecordings");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.JobFit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InputHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("RequisitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Score")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequisitionId", "CandidateId")
+                        .IsUnique();
+
+                    b.ToTable("JobFits");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Offer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("PreviousStageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PreviousStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset?>("SentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId", "Status");
+
+                    b.ToTable("Offers");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Organization", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("AiEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AiModel")
+                        .HasColumnType("text");
 
                     b.Property<bool>("AllowGoogleLogin")
                         .HasColumnType("boolean");
@@ -743,18 +1116,55 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text[]");
 
+                    b.Property<bool>("ApprovalsSequential")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("BookReminderDays")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.PrimitiveCollection<string[]>("DefaultApproverEmails")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<int>("MaxReminders")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("NotificationWebhookUrl")
+                        .HasColumnType("text");
+
                     b.Property<string>("OwnerEmail")
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
+
+                    b.Property<string>("PublicUrl")
+                        .HasColumnType("text");
+
+                    b.Property<int>("QuietHoursEnd")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuietHoursStart")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("RequireOfferApproval")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RequireRequisitionApproval")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("RolePermissionsJson")
+                        .HasColumnType("text");
+
+                    b.Property<int>("ScorecardReminderDays")
+                        .HasColumnType("integer");
 
                     b.Property<bool>("SetupCompleted")
                         .HasColumnType("boolean");
@@ -809,6 +1219,35 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("PipelineStages");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PipelineTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.PrimitiveCollection<string[]>("StageNames")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("PipelineTemplates");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PostingTemplate", b =>
@@ -868,6 +1307,12 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AllowCandidateReschedule")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowCandidateWithdraw")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ApplicationQuestionsMarkdown")
                         .IsRequired()
                         .HasColumnType("text");
@@ -892,9 +1337,15 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsConfidential")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Openings")
                         .HasColumnType("integer");
@@ -913,6 +1364,13 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.PrimitiveCollection<float[]>("RequirementsEmbedding")
+                        .HasColumnType("real[]");
+
+                    b.Property<string>("RequirementsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -928,6 +1386,10 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.PrimitiveCollection<string[]>("ViewerEmails")
+                        .IsRequired()
+                        .HasColumnType("text[]");
 
                     b.Property<string>("WorkMode")
                         .IsRequired()
@@ -983,6 +1445,39 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.HasIndex("Status", "NextAttemptAt");
 
                     b.ToTable("ResumeParseJobs");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.SavedView", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Area")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("OwnerEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ParamsJson")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OwnerEmail", "Area");
+
+                    b.ToTable("SavedViews");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Scorecard", b =>
@@ -1058,6 +1553,136 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("ScorecardCriterionRatings");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.StageTransition", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorEmail")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ApplicationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("FromStageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("RequisitionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ToStageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApplicationId", "OccurredAt");
+
+                    b.HasIndex("RequisitionId", "OccurredAt");
+
+                    b.ToTable("StageTransitions");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WebhookDelivery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EndpointId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("LastStatusCode")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("LockedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndpointId");
+
+                    b.HasIndex("Status", "NextAttemptAt");
+
+                    b.ToTable("WebhookDeliveries");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WebhookEndpoint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.PrimitiveCollection<string[]>("Events")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Secret")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("WebhookEndpoints");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Application", b =>
                 {
                     b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
@@ -1083,6 +1708,17 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("PipelineStage");
 
                     b.Navigation("Requisition");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ApplicationMessage", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Application", "Application")
+                        .WithMany("Messages")
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Application");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ApplicationNote", b =>
@@ -1169,6 +1805,17 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Interview");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Offer", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Application", "Application")
+                        .WithMany()
+                        .HasForeignKey("ApplicationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Application");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PipelineStage", b =>
                 {
                     b.HasOne("MyThorneAI.Ats.Api.Domain.Requisition", "Requisition")
@@ -1210,9 +1857,21 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Scorecard");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WebhookDelivery", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.WebhookEndpoint", "Endpoint")
+                        .WithMany()
+                        .HasForeignKey("EndpointId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Endpoint");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Application", b =>
                 {
                     b.Navigation("Interviews");
+
+                    b.Navigation("Messages");
 
                     b.Navigation("Notes");
                 });

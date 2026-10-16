@@ -160,13 +160,15 @@ public static partial class PublicEndpoints
     {
         var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         application.VerificationCodeHash = Hash(code); application.VerificationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); application.VerificationAttempts = 0; application.LastActivityAt = DateTimeOffset.UtcNow;
-        QueueEmail(
-            db,
-            emailAddress,
-            $"Confirm your application for {jobTitle}",
-            $"Your confirmation code is {code}. It expires in 15 minutes.",
-            application.Id
-        );
+        db.EmailOutbox.Add(new EmailOutboxItem
+        {
+            ApplicationId = application.Id,
+            Recipient = emailAddress,
+            Subject = $"Confirm your application for {jobTitle}",
+            Body = $"Your confirmation code is {code}. It expires in 15 minutes.",
+            // Sign-in codes are plumbing, not correspondence; the portal leaves them out.
+            TemplateKey = "verification",
+        });
         await db.SaveChangesAsync(ct);
         return Results.Accepted(value: new { message = "Check your email for a confirmation code." });
     }

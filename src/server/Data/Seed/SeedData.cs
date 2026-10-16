@@ -42,15 +42,47 @@ public static partial class SeedData
                 Name = "Thorne Consulting",
                 OwnerEmail = "admin@example.test",
                 SetupCompleted = true,
+                DefaultApproverEmails = ["manager@example.test", "admin@example.test"],
             });
+            db.PipelineTemplates.AddRange(
+                new PipelineTemplate { Name = "Standard hiring", IsDefault = true, StageNames = ["New", "Review", "Interview", "Booked", "Offer handoff"] },
+                new PipelineTemplate { Name = "Engineering with technical screen", StageNames = ["New", "Review", "Recruiter screen", "Technical screen", "Panel interview", "Booked", "Offer handoff"] }
+            );
+            db.CustomFieldDefinitions.AddRange(
+                new CustomFieldDefinition { Key = "notice-period", Label = "Notice period", Type = "select", Options = ["Immediate", "2 weeks", "1 month", "2 months or more"], SortOrder = 0 },
+                new CustomFieldDefinition { Key = "work-authorization", Label = "Work authorization", Type = "text", SortOrder = 1 }
+            );
+            foreach (var job in new[] { jobs.Engineering, jobs.Platform, jobs.Designer, jobs.Analyst, jobs.Operations, jobs.EngineeringManager, jobs.ContractWriter })
+                if (job.Status != RequisitionStatus.Draft)
+                    job.OpenedAt = job.CreatedAt;
             db.Requisitions.Add(jobs.ContractWriter);
             db.Applications.AddRange(applications.Items);
             AddDevelopmentAuditEvents(db, now, jobs, applications);
+            AddDevelopmentStageHistory(db, jobs, applications);
             await db.SaveChangesAsync(cancellationToken);
             db.ChangeTracker.Clear();
         }
 
         await EnsureDevelopmentResumesAsync(db, files, parser, cancellationToken);
+    }
+
+    private static readonly string[] StageColors =
+        ["gray", "blue", "violet", "indigo", "orange", "cyan", "grape", "teal", "pink", "yellow", "lime", "red"];
+
+    // Custom pipelines: the named stages in order, then a terminal "Hired".
+    public static List<PipelineStage> CreateStages(Guid requisitionId, IEnumerable<string> names)
+    {
+        var stages = names
+            .Select((name, index) => new PipelineStage
+            {
+                RequisitionId = requisitionId,
+                Name = name,
+                SortOrder = index,
+                Color = StageColors[index % StageColors.Length],
+            })
+            .ToList();
+        stages.Add(new PipelineStage { RequisitionId = requisitionId, Name = "Hired", SortOrder = stages.Count, Color = "green", IsTerminal = true });
+        return stages;
     }
 
     public static List<PipelineStage> CreateDefaultStages(Guid requisitionId) =>

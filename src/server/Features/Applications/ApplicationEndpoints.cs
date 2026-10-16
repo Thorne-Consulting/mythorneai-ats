@@ -76,6 +76,8 @@ public static partial class AtsEndpoints
                 }
 
                 var total = await query.CountAsync(ct);
+                var staleDays = await db.Organizations.Select(x => (int?)x.StaleReminderDays).SingleOrDefaultAsync(ct) ?? 3;
+                var staleCutoff = DateTimeOffset.UtcNow.AddDays(-Math.Clamp(staleDays, 1, 30));
                 query = sort?.ToLowerInvariant() switch
                 {
                     "oldest" => query.OrderBy(x => x.AppliedAt),
@@ -112,6 +114,15 @@ public static partial class AtsEndpoints
                         x.Rating,
                         x.AppliedAt,
                         x.LastActivityAt,
+                        // What needs a recruiter's eye: candidate messages nobody has read, and no movement for a while.
+                        UnreadMessages = x.Messages.Count(m => m.FromCandidate && m.ReadAt == null),
+                        Stalled = x.Status == ApplicationStatus.Active
+                            && !x.PipelineStage.IsTerminal
+                            && x.LastActivityAt < staleCutoff,
+                        FitScore = db
+                            .JobFits.Where(f => f.RequisitionId == x.RequisitionId && f.CandidateId == x.CandidateId)
+                            .Select(f => (int?)f.Score)
+                            .FirstOrDefault(),
                     })
                     .ToListAsync(ct);
                 return Results.Ok(
@@ -121,6 +132,7 @@ public static partial class AtsEndpoints
                         Total = total,
                         Page = page,
                         PageSize = pageSize,
+                        StaleDays = staleDays,
                     }
                 );
             }
@@ -179,6 +191,8 @@ public static partial class AtsEndpoints
                         Source = request.Source.Trim(),
                     };
                     db.Applications.Add(application);
+                    PipelineEvents.RecordMove(db, application, null, null, principal.Email());
+                    await PipelineEvents.PublishApplicationAsync(db, "application.created", application, ct);
                     Audit.Add(
                         db,
                         principal,
@@ -249,8 +263,21 @@ public static partial class AtsEndpoints
                                 ["stageId"] = ["Stage does not belong to this hiring session."],
                             }
                         );
+                    if (
+                        stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase)
+                        && applications.Any(x => x.Status != ApplicationStatus.Hired)
+                        && await RequiresApprovedAcceptanceAsync(db, ct)
+                    )
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "Hiring goes through an approved acceptance. Start one from each application.",
+                            }
+                        );
                     foreach (var application in applications)
                     {
+                        var oldStageId = application.PipelineStageId;
+                        var oldStatus = application.Status;
                         application.PipelineStageId = stage.Id;
                         application.Status = stage.Name.Equals(
                             "Hired",
@@ -260,6 +287,14 @@ public static partial class AtsEndpoints
                             : request.Status;
                         application.DispositionReason = Clean(request.DispositionReason);
                         application.LastActivityAt = DateTimeOffset.UtcNow;
+                        await PipelineEvents.OnMovedAsync(
+                            db,
+                            application,
+                            oldStageId,
+                            oldStatus,
+                            principal.Email(),
+                            ct
+                        );
                         Audit.Add(
                             db,
                             principal,
@@ -430,6 +465,7 @@ public static partial class AtsEndpoints
                                         r.Length,
                                         r.UploadedBy,
                                         r.ConsentConfirmed,
+                                        r.Transcript,
                                         r.RecordedAt,
                                     }),
                             }),
@@ -444,7 +480,22 @@ public static partial class AtsEndpoints
                     .OrderByDescending(x => x.OccurredAt)
                     .Take(50)
                     .ToListAsync(ct);
-                return Results.Ok(new { Application = application, Audit = audits });
+                var emails = canSeeHiringDetails
+                    ? await db.EmailOutbox.AsNoTracking()
+                        .Where(x => x.ApplicationId == id)
+                        .OrderByDescending(x => x.CreatedAt)
+                        .Take(50)
+                        .Select(x => new { x.Id, x.Recipient, x.Subject, Status = x.Status.ToString(), x.DeliveryStatus, x.TemplateKey, x.CreatedAt })
+                        .ToListAsync(ct)
+                    : [];
+                var thread = canSeeHiringDetails
+                    ? await db.ApplicationMessages.AsNoTracking()
+                        .Where(x => x.ApplicationId == id)
+                        .OrderBy(x => x.CreatedAt)
+                        .Select(x => new { x.Id, x.FromCandidate, x.Body, x.AuthorEmail, x.CreatedAt, x.ReadAt })
+                        .ToListAsync(ct)
+                    : [];
+                return Results.Ok(new { Application = application, Audit = audits, Emails = emails, Messages = thread });
             }
         );
 
@@ -489,24 +540,49 @@ public static partial class AtsEndpoints
                             }
                         );
 
+                    var movesToHired =
+                        stage.IsTerminal
+                        && stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase);
+                    if (
+                        movesToHired
+                        && application.Status != ApplicationStatus.Hired
+                        && await RequiresApprovedAcceptanceAsync(db, ct)
+                    )
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "Hiring goes through an approved acceptance. Start one from the application.",
+                            }
+                        );
                     var oldStage = application.PipelineStageId;
                     var oldStatus = application.Status;
                     application.PipelineStageId = stage.Id;
-                    application.Status =
-                        stage.IsTerminal
-                        && stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase)
-                            ? ApplicationStatus.Hired
-                            : request.Status;
+                    application.Status = movesToHired ? ApplicationStatus.Hired : request.Status;
                     application.DispositionReason = Clean(request.DispositionReason);
                     application.LastActivityAt = DateTimeOffset.UtcNow;
-                    QueueEmail(
+                    var rejected = application.Status == ApplicationStatus.Rejected;
+                    await EmailTemplates.QueueAsync(
                         db,
+                        rejected ? "rejection" : "stage-update",
+                        application.RequisitionId,
                         application.Candidate!.Email,
-                        $"Update on your {application.Requisition.Title} application",
-                        request.Message?.Trim() is { Length: > 0 } message
-                            ? message
-                            : $"Your application for {application.Requisition.Title} moved to: {stage.Name}.",
-                        application.Id
+                        new Dictionary<string, string>
+                        {
+                            ["firstName"] = application.Candidate.FirstName,
+                            ["jobTitle"] = application.Requisition.Title,
+                            ["stage"] = stage.Name,
+                        },
+                        application.Id,
+                        ct,
+                        request.Message
+                    );
+                    await PipelineEvents.OnMovedAsync(
+                        db,
+                        application,
+                        oldStage,
+                        oldStatus,
+                        principal.Email(),
+                        ct
                     );
                     Audit.Add(
                         db,

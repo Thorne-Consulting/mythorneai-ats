@@ -70,16 +70,29 @@ public sealed partial class ApiFlowTests
             $"/api/applications/{applicationId}",
             cancellationToken
         );
-        var interviewId = application
+        var interview = application
             .GetProperty("application")
             .GetProperty("interviews")
             .EnumerateArray()
             .First(item =>
-                item.GetProperty("criteria").GetArrayLength() == 0
-                && item.GetProperty("scorecards").GetArrayLength() == 0
-            )
-            .GetProperty("id")
-            .GetGuid();
+                item.GetProperty("scorecards").GetArrayLength() == 0
+                && item
+                    .GetProperty("interviewerEmails")
+                    .EnumerateArray()
+                    .Any(email => email.GetString() == "interviewer@example.test")
+            );
+        var interviewId = interview.GetProperty("id").GetGuid();
+        // The interview's kit may have criteria; each one needs a rating.
+        var criterionRatings = interview
+            .GetProperty("criteria")
+            .EnumerateArray()
+            .Select(criterion => new
+            {
+                criterionId = criterion.GetProperty("id").GetGuid(),
+                rating = 4,
+                evidence = "Specific examples with measurable results.",
+            })
+            .ToArray();
 
         using var manager = await LoginAsync("manager@example.test", cancellationToken);
         var managerAttempt = await manager.PostAsJsonAsync(
@@ -105,6 +118,7 @@ public sealed partial class ApiFlowTests
                 evidence = "Clear technical reasoning with relevant examples.",
                 strengths = "Clear reasoning.",
                 concerns = "None observed.",
+                criteria = criterionRatings,
             },
             cancellationToken
         );

@@ -186,6 +186,8 @@ export function InterviewsPage() {
               </Button>
             )}
             <DatePicker
+              previousLabel="Previous month"
+              nextLabel="Next month"
               value={selectedDate.toISOString().slice(0, 10)}
               onChange={(value) => value && setSelectedDate(new Date(`${value}T12:00:00`))}
             />

@@ -161,16 +161,34 @@ public static partial class AtsEndpoints
                     application.LastActivityAt = DateTimeOffset.UtcNow;
                     if (request.Status is InterviewStatus.Scheduled or InterviewStatus.Proposed)
                     {
-                        QueueEmail(
+                        if (request.Status == InterviewStatus.Proposed)
+                            await EmailTemplates.QueueAsync(
+                                db,
+                                "booking-request",
+                                application.RequisitionId,
+                                application.Candidate!.Email,
+                                new Dictionary<string, string>
+                                {
+                                    ["firstName"] = application.Candidate.FirstName,
+                                    ["jobTitle"] = application.Requisition.Title,
+                                    ["interviewTitle"] = interview.Title,
+                                    ["roundMessage"] = interviewKit?.CandidateMessage ?? "Please choose an interview time from the available options.",
+                                },
+                                application.Id,
+                                ct
+                            );
+                        else
+                            QueueEmail(
+                                db,
+                                application.Candidate!.Email,
+                                $"Interview scheduled for {application.Requisition.Title}",
+                                $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}.",
+                                application.Id
+                            );
+                        await PipelineEvents.NotifyAsync(
                             db,
-                            application.Candidate!.Email,
-                            request.Status == InterviewStatus.Proposed
-                                ? $"Book your {interview.Title} interview"
-                                : $"Interview scheduled for {application.Requisition.Title}",
-                            request.Status == InterviewStatus.Proposed
-                                ? interviewKit?.CandidateMessage ?? "Please choose an interview time from the available options."
-                                : $"Your interview, {interview.Title}, is scheduled for {interview.StartsAt:u}.",
-                            application.Id
+                            $"Interview assigned: {interview.Title} for {application.Requisition.Title} ({string.Join(", ", interview.InterviewerEmails)}).",
+                            ct
                         );
                         foreach (var interviewer in interview.InterviewerEmails)
                             QueueEmail(
