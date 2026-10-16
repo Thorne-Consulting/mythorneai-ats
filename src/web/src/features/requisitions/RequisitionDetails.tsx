@@ -15,9 +15,6 @@ export function RequisitionDetails({ id }: { id: string }) {
   if (!details.data) return <LoadingBlock rows={3} />;
   const requisition = details.data as RequisitionWithSettings;
 
-  const openings = (
-    <Fact label="Openings" value={`${requisition.openings} · ${requisition.employmentType}`} />
-  );
   const people = (
     <>
       <Fact label="Hiring manager" value={requisition.ownerEmail} />
@@ -68,7 +65,11 @@ export function RequisitionDetails({ id }: { id: string }) {
       <aside className="record-rail" aria-label="Job details">
         <div className="panel">
           <dl className="facts facts-grid">
-            {openings}
+            <Fact
+              label="To fill"
+              value={`${requisition.openings} ${requisition.openings === 1 ? 'position' : 'positions'}`}
+            />
+            <Fact label="Contract type" value={requisition.employmentType} />
             <PersonFact label="Hiring manager" email={requisition.ownerEmail} />
             <PersonFact label="Recruiter" email={requisition.recruiterEmail} />
             {dates}
