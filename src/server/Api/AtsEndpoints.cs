@@ -10,8 +10,14 @@ public static partial class AtsEndpoints
         MapApplications(api);
         MapInterviews(api);
         MapAdministration(api);
+        MapOffers(api);
+        MapApplicationMessages(api);
         MapSearch(api);
         MapResumes(api);
+        MapReports(api);
+        MapRanking(api);
+        MapCopilot(api);
+        MapConfiguration(api);
         AiEndpoints.MapAiEndpoints(api);
         return api;
     }

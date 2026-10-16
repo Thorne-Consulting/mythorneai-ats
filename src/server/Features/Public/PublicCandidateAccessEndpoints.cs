@@ -26,6 +26,8 @@ public static partial class PublicEndpoints
             }
             application.Status = ApplicationStatus.Active; application.VerifiedAt = DateTimeOffset.UtcNow;
             application.VerificationCodeHash = null; application.VerificationExpiresAt = null; application.VerificationAttempts = 0;
+            PipelineEvents.RecordMove(db, application, null, null, null);
+            await PipelineEvents.PublishApplicationAsync(db, "application.created", application, ct);
             var token = await CreateSessionAsync(db, application.CandidateId, ct);
             return Results.Ok(new { token, applicationId = application.Id });
         });

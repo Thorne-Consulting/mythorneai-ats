@@ -34,8 +34,11 @@ services:
       Integrations__GoogleWorkspace__CreateOnlineMeetings: ${GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS:-true}
       Resend__ApiKey: ${RESEND_API_KEY:-}
       Resend__From: ${RESEND_FROM:-}
+      Resend__WebhookSecret: ${RESEND_WEBHOOK_SECRET:-}
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
+      OpenAI__EmbeddingModel: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OpenAI__TranscriptionModel: ${OPENAI_TRANSCRIPTION_MODEL:-whisper-1}
       DataProtection__KeyPath: /app/data-protection-keys
       FileStorage__RootPath: /app/uploads
     expose:

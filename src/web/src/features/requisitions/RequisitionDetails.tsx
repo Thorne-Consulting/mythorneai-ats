@@ -4,12 +4,16 @@ import { Badge, Grid, Group, Stack, Text } from '@mantine/core';
 import { SectionCard } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatDate, formatDateTime } from '@/lib/format';
-import { useRequisition } from './requisition-data';
+import { useCanManage, useRequisition } from './requisition-data';
+import { RequisitionRequirements } from './RequisitionRequirements';
+import { RequisitionSettings } from './RequisitionSettings';
+import type { RequisitionWithSettings } from './requirements-types';
 
 export function RequisitionDetails({ id }: { id: string }) {
   const details = useRequisition(id);
+  const canManage = useCanManage(details.data);
   if (!details.data) return <LoadingBlock rows={3} />;
-  const requisition = details.data;
+  const requisition = details.data as RequisitionWithSettings;
 
   return (
     <Grid gutter="xl">
@@ -22,6 +26,10 @@ export function RequisitionDetails({ id }: { id: string }) {
             {requisition.description || 'No role summary has been added.'}
           </Text>
         </SectionCard>
+        <Stack gap="xl" mt="xl">
+          <RequisitionRequirements requisition={requisition} canManage={canManage} />
+          {canManage && <RequisitionSettings requisition={requisition} />}
+        </Stack>
       </Grid.Col>
       <Grid.Col span={{ base: 12, lg: 5 }}>
         <Stack gap="xl">

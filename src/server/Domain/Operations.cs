@@ -42,6 +42,11 @@ public sealed class EmailOutboxItem
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid? ApplicationId { get; set; }
+    public string? TemplateKey { get; set; }
+    public int? TemplateVersion { get; set; }
+    public string? ProviderMessageId { get; set; }
+    public string? DeliveryStatus { get; set; }
+    public DateTimeOffset? DeliveryUpdatedAt { get; set; }
     public required string Recipient { get; set; }
     public required string Subject { get; set; }
     public required string Body { get; set; }

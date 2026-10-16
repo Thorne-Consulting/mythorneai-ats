@@ -13,7 +13,8 @@ public sealed record CreateRequisitionRequest(
     string RecruiterEmail,
     string Description,
     DateOnly? TargetStartDate,
-    Guid? PostingTemplateId = null
+    Guid? PostingTemplateId = null,
+    Guid? PipelineTemplateId = null
 );
 
 public sealed record UpdateRequisitionRequest(

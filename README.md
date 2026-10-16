@@ -21,6 +21,11 @@ dotnet run --project src/server/MyThorneAI.Ats.Api.csproj
 The API reads local `.env` values in Development and listens on
 `http://localhost:5080`. Its OpenAPI document is available at
 `/openapi/v1.json`; Scalar API docs are available at `/docs` in Development.
+Features worth knowing about when you run it: acceptance with approvals, AI job matching and
+fit assessments (OpenAI), editable candidate emails, reports with CSV export, outbound webhooks,
+and a candidate portal at `/candidate-portal`. Optional settings are in `.env.example`
+(`RESEND_WEBHOOK_SECRET` for delivery and bounce tracking, `OPENAI_EMBEDDING_MODEL`). Set the
+"Candidate portal address" in Administration > Settings so candidate emails link to the portal.
 Public career-site clients can list and read open jobs, apply, verify their
 email, and manage interview booking through the `/public` API. The web app runs
 separately with `npm run dev` from `src/web` for the internal hiring workspace.

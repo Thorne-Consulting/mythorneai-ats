@@ -101,6 +101,8 @@ public static partial class AtsEndpoints
                         x.Source,
                         x.Tags,
                         x.DoNotContact,
+                        x.EmailBounced,
+                        x.CustomFieldsJson,
                         x.CreatedAt,
                         x.UpdatedAt,
                         x.ResumeSummary,

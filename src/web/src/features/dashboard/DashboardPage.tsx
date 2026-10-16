@@ -4,15 +4,18 @@ import {
   Avatar,
   Badge,
   Box,
+  Button,
   Grid,
   Group,
+  Paper,
   SimpleGrid,
   Stack,
   Text,
   UnstyledButton,
 } from '@mantine/core';
 import { BarChart, DonutChart } from '@mantine/charts';
-import { IconArrowRight } from '@tabler/icons-react';
+import { IconArrowRight, IconCheck } from '@tabler/icons-react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
@@ -22,6 +25,8 @@ import { PageHeader } from '@/components/ui/PageHeaders';
 import { formatDateTime, initials } from '@/lib/format';
 import type { DashboardData } from '@/types';
 import { useCurrentUser } from '@/auth';
+import { usePendingApprovals } from '@/features/approvals/approval-data';
+import { InterviewerHome, ScorecardsDueCard } from './InterviewerHome';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -39,9 +44,17 @@ const STAGE_COLOR: Record<string, string> = {
   Rejected: 'red.4',
 };
 
-function stageColor(stage: string) {
-  return STAGE_COLOR[stage] ?? 'gray.5';
-}
+// Custom pipelines add stages the fixed map doesn't know; give those a distinct colour each.
+const FALLBACK_COLORS = [
+  'gray.5',
+  'indigo.5',
+  'teal.5',
+  'violet.5',
+  'orange.5',
+  'cyan.5',
+  'grape.5',
+  'pink.5',
+];
 
 function stageBadgeColor(stage: string): string {
   const c = STAGE_COLOR[stage];
@@ -57,6 +70,19 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
     queryFn: () => api.get<DashboardData>('/api/dashboard'),
     initialData,
   });
+  const approvals = usePendingApprovals();
+  const waiting = approvals.data?.length ?? 0;
+  const checklist = useQuery({
+    queryKey: ['admin', 'setup-checklist'],
+    queryFn: () =>
+      api.get<Array<{ key: string; title: string; detail: string; done: boolean; href: string }>>(
+        '/api/admin/setup-checklist',
+      ),
+    enabled: user.role === 'Admin',
+    retry: false,
+  });
+  const steps = checklist.data ?? [];
+  const stepsDone = steps.filter((step) => step.done).length;
   const firstName = user.displayName.split(' ')[0];
 
   if (!query.data)
@@ -78,15 +104,16 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
 
   const data = query.data;
 
-  const stageCounts = data.recentApplications.reduce<Record<string, number>>((acc, item) => {
-    acc[item.stage] = (acc[item.stage] || 0) + 1;
-    return acc;
-  }, {});
-  const donutData = Object.entries(stageCounts).map(([name, value]) => ({
-    name,
-    value,
-    color: stageColor(name),
+  if (user.role === 'Interviewer')
+    return <InterviewerHome data={data} firstName={firstName} greeting={greeting()} />;
+
+  // Every active application by stage, so the chart agrees with the "active applicants" tile.
+  const donutData = data.pipeline.map((item, index) => ({
+    name: item.stage,
+    value: item.count,
+    color: STAGE_COLOR[item.stage] ?? FALLBACK_COLORS[index % FALLBACK_COLORS.length],
   }));
+  const activeTotal = data.pipeline.reduce((sum, item) => sum + item.count, 0);
 
   const today = new Date();
   const scheduleData = Array.from({ length: 7 }, (_, i) => {
@@ -118,6 +145,84 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
         description="Your hiring pipeline at a glance"
       />
 
+      {waiting > 0 && (
+        <Paper withBorder radius="lg" p="lg" mb="xl">
+          <Group justify="space-between" wrap="wrap" gap="sm">
+            <Box>
+              <Text fw={650}>Waiting on you</Text>
+              <Text size="sm" c="dimmed">
+                {waiting === 1
+                  ? '1 thing needs your approval before it can go ahead.'
+                  : `${waiting} things need your approval before they can go ahead.`}
+              </Text>
+            </Box>
+            <Button component={Link} href="/approvals" rightSection={<IconArrowRight size={16} />}>
+              Review {waiting === 1 ? 'it' : 'them'}
+            </Button>
+          </Group>
+        </Paper>
+      )}
+
+      {steps.length > 0 && stepsDone < steps.length && (
+        <Box mb="xl">
+          <SectionCard title="Get set up" description={`${stepsDone} of ${steps.length} done`}>
+            <Stack gap={0} component="ul" m={0} p={0} style={{ listStyle: 'none' }}>
+              {steps.map((step) => (
+                <Box component="li" key={step.key}>
+                  <UnstyledButton
+                    component={Link}
+                    href={step.href}
+                    className="list-row"
+                    data-interactive
+                    style={{ display: 'block', width: '100%' }}
+                  >
+                    <Group wrap="nowrap" gap="sm">
+                      {step.done ? (
+                        <IconCheck
+                          size={16}
+                          color="var(--mantine-color-teal-6)"
+                          aria-label="Done"
+                        />
+                      ) : (
+                        <Box
+                          w={16}
+                          h={16}
+                          aria-label="Not done"
+                          style={{
+                            flex: 'none',
+                            borderRadius: 999,
+                            border: '1.5px solid var(--mantine-color-gray-5)',
+                          }}
+                        />
+                      )}
+                      <Box style={{ minWidth: 0 }}>
+                        <Text
+                          size="sm"
+                          fw={600}
+                          td={step.done ? 'line-through' : undefined}
+                          c={step.done ? 'dimmed' : undefined}
+                        >
+                          {step.title}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {step.detail}
+                        </Text>
+                      </Box>
+                    </Group>
+                  </UnstyledButton>
+                </Box>
+              ))}
+            </Stack>
+          </SectionCard>
+        </Box>
+      )}
+
+      {data.scorecardsDue.length > 0 && (
+        <Box mb="xl">
+          <ScorecardsDueCard items={data.scorecardsDue} />
+        </Box>
+      )}
+
       <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md" mb="xl">
         {stats.map((stat) => (
           <UnstyledButton
@@ -130,10 +235,17 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
               background: `var(--mantine-color-${stat.color}-light)`,
             }}
           >
-            <Text size="sm" fw={500} c={`${stat.color}.7`}>
+            <Text size="sm" fw={500} c={`var(--mantine-color-${stat.color}-light-color)`}>
               {stat.label}
             </Text>
-            <Text fz={36} fw={700} lh={1.1} mt={6} className="tnum" c={`${stat.color}.7`}>
+            <Text
+              fz={36}
+              fw={700}
+              lh={1.1}
+              mt={6}
+              className="tnum"
+              c={`var(--mantine-color-${stat.color}-light-color)`}
+            >
               {stat.value}
             </Text>
           </UnstyledButton>
@@ -151,23 +263,29 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
                   thickness={32}
                   withTooltip
                   tooltipDataSource="segment"
-                  chartLabel={`${data.recentApplications.length}`}
+                  chartLabel={`${activeTotal}`}
                   h={200}
                   styles={{ label: { fontSize: 28, fontWeight: 700 } }}
                 />
                 <Group justify="center" gap="sm">
-                  {donutData.map((d, i) => (
-                    <Text key={d.name} size="md" c={d.color}>
-                      {i > 0 && (
-                        <Text span c="dimmed" size="sm" mx={2}>
-                          ·
-                        </Text>
-                      )}
-                      <Text span fw={600} className="tnum">
-                        {d.value}
-                      </Text>{' '}
-                      {d.name.toLowerCase()}
-                    </Text>
+                  {donutData.map((d) => (
+                    <Group key={d.name} gap={6} wrap="nowrap">
+                      <Box
+                        w={10}
+                        h={10}
+                        aria-hidden
+                        style={{
+                          borderRadius: 999,
+                          background: `var(--mantine-color-${d.color.replace('.', '-')})`,
+                        }}
+                      />
+                      <Text size="md">
+                        <Text span fw={600} className="tnum">
+                          {d.value}
+                        </Text>{' '}
+                        {d.name.toLowerCase()}
+                      </Text>
+                    </Group>
                   ))}
                 </Group>
               </Stack>

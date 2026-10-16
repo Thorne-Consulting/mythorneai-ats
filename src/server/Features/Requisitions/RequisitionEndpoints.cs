@@ -95,6 +95,11 @@ public static partial class AtsEndpoints
                         x.TargetStartDate,
                         x.CreatedAt,
                         x.UpdatedAt,
+                        x.RequirementsJson,
+                        x.IsConfidential,
+                        x.ViewerEmails,
+                        x.AllowCandidateReschedule,
+                        x.AllowCandidateWithdraw,
                         Stages = x
                             .Stages.OrderBy(s => s.SortOrder)
                             .Select(s => new
@@ -281,7 +286,19 @@ public static partial class AtsEndpoints
                         PostingTemplateVersion = template?.Version,
                         TargetStartDate = request.TargetStartDate,
                     };
-                    requisition.Stages.AddRange(SeedData.CreateDefaultStages(requisition.Id));
+                    var pipeline = request.PipelineTemplateId is null
+                        ? await db.PipelineTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.IsDefault, ct)
+                        : await db.PipelineTemplates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PipelineTemplateId, ct);
+                    if (request.PipelineTemplateId is not null && pipeline is null)
+                        return Results.ValidationProblem(new Dictionary<string, string[]>
+                        {
+                            ["pipelineTemplateId"] = ["Pipeline not found."]
+                        });
+                    requisition.Stages.AddRange(
+                        pipeline is null
+                            ? SeedData.CreateDefaultStages(requisition.Id)
+                            : SeedData.CreateStages(requisition.Id, pipeline.StageNames)
+                    );
                     db.Requisitions.Add(requisition);
                     Audit.Add(
                         db,
@@ -362,6 +379,24 @@ public static partial class AtsEndpoints
                     if (requisition is null || !CanManage(requisition, principal))
                         return Results.NotFound();
                     var oldStatus = requisition.Status;
+                    if (
+                        request.Status == RequisitionStatus.Open
+                        && requisition.OpenedAt is null
+                        && (
+                            oldStatus == RequisitionStatus.PendingApproval
+                            || await db
+                                .Organizations.Select(x => (bool?)x.RequireRequisitionApproval)
+                                .SingleOrDefaultAsync(ct) == true
+                        )
+                    )
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "Opening this job needs approval. Submit it for approval first.",
+                            }
+                        );
+                    if (request.Status == RequisitionStatus.Open)
+                        requisition.OpenedAt ??= DateTimeOffset.UtcNow;
                     requisition.Status = request.Status;
                     requisition.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(

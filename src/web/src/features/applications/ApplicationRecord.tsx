@@ -14,7 +14,9 @@ import {
   useApplication,
   useInvalidateApplication,
 } from './application-data';
+import { ApplicationMessages } from './ApplicationMessages';
 import { NoteModal } from './NoteModal';
+import { OfferPanel } from './OfferPanel';
 
 export function ApplicationRecord({ id }: { id: string }) {
   const user = useCurrentUser();
@@ -63,45 +65,54 @@ export function ApplicationRecord({ id }: { id: string }) {
           </Paper>
         </Grid.Col>
         <Grid.Col span={{ base: 12, lg: 8 }}>
-          <SectionCard
-            title="Review notes"
-            description="Job-related facts and decision context"
-            action={
-              canManage && (
-                <Button
-                  size="xs"
-                  variant="light"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={noteModal.open}
-                >
-                  Add note
-                </Button>
-              )
-            }
-          >
-            <Stack gap={0}>
-              {application.notes.map((note) => (
-                <Box key={note.id} className="list-row">
-                  <Group justify="space-between" mb={5} wrap="nowrap">
-                    <Text size="sm" fw={650} truncate>
-                      {note.authorEmail}
+          <Stack gap="xl">
+            <OfferPanel
+              applicationId={id}
+              applicationStatus={application.status}
+              candidateName={application.candidateName}
+              canManage={canManage}
+            />
+            <ApplicationMessages id={id} canManage={canManage} />
+            <SectionCard
+              title="Review notes"
+              description="Job-related facts and decision context"
+              action={
+                canManage && (
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconPlus size={14} />}
+                    onClick={noteModal.open}
+                  >
+                    Add note
+                  </Button>
+                )
+              }
+            >
+              <Stack gap={0}>
+                {application.notes.map((note) => (
+                  <Box key={note.id} className="list-row">
+                    <Group justify="space-between" mb={5} wrap="nowrap">
+                      <Text size="sm" fw={650} truncate>
+                        {note.authorEmail}
+                      </Text>
+                      <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
+                        {formatDateTime(note.createdAt)}
+                      </Text>
+                    </Group>
+                    <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                      {note.body}
                     </Text>
-                    <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-                      {formatDateTime(note.createdAt)}
-                    </Text>
-                  </Group>
-                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                    {note.body}
+                  </Box>
+                ))}
+                {application.notes.length === 0 && (
+                  <Text p="xl" c="dimmed" size="sm">
+                    No review notes yet.
                   </Text>
-                </Box>
-              ))}
-              {application.notes.length === 0 && (
-                <Text p="xl" c="dimmed" size="sm">
-                  No review notes yet.
-                </Text>
-              )}
-            </Stack>
-          </SectionCard>
+                )}
+              </Stack>
+            </SectionCard>
+          </Stack>
         </Grid.Col>
       </Grid>
       <NoteModal

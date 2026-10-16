@@ -206,6 +206,7 @@ public static partial class AuthExtensions
                                 OrganizationName = organization?.Name,
                                 OrganizationSetupCompleted = organization?.SetupCompleted ?? false,
                                 IsOrganizationOwner = organization?.OwnerEmail == user.Email,
+                                Permissions = (await Permissions.ForAsync(db, principal, cancellationToken)).Order().ToArray(),
                             }
                         );
                 }

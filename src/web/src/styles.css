@@ -243,3 +243,46 @@ select {
     min-height: 0;
   }
 }
+
+/* The date picker's faded out-of-month days and red weekends fall under 4.5:1 by default. */
+.mantine-DatePicker-day[data-outside] {
+  color: var(--mantine-color-dimmed);
+  opacity: 1;
+}
+
+.mantine-DatePicker-day[data-weekend]:not([data-selected]) {
+  color: var(--mantine-color-red-9);
+}
+
+/* In-page section index on long settings pages. */
+.section-pill {
+  padding: 4px 10px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 999px;
+  color: var(--mantine-color-text);
+  text-decoration: none;
+}
+
+.section-pill:hover {
+  background: var(--mantine-color-default-hover);
+  text-decoration: none;
+}
+
+/* Section anchors land below the sticky header, not under it. */
+section[id],
+[id='candidate-fields'],
+[id='pipelines'],
+[id='roles'] {
+  scroll-margin-top: 76px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

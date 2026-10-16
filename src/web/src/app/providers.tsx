@@ -93,6 +93,20 @@ const cssVariablesResolver = () => ({
     // Accent text on a 10% accent wash is ~4.2:1; darken the text, keep the wash.
     '--mantine-color-indigo-light-color': 'var(--mantine-color-indigo-9)',
     '--mantine-primary-color-light-color': 'var(--mantine-color-indigo-9)',
+    // The same goes for every other badge and tinted-card colour: Mantine's default light text
+    // (shade 6) is 2.7:1 for teal and under 4:1 for several others on its own wash.
+    '--mantine-color-teal-light-color': '#06694a',
+    '--mantine-color-green-light-color': '#226f33',
+    '--mantine-color-violet-light-color': 'var(--mantine-color-violet-9)',
+    '--mantine-color-grape-light-color': 'var(--mantine-color-grape-9)',
+    '--mantine-color-blue-light-color': 'var(--mantine-color-blue-9)',
+    '--mantine-color-cyan-light-color': 'var(--mantine-color-cyan-9)',
+    '--mantine-color-red-light-color': 'var(--mantine-color-red-9)',
+    '--mantine-color-pink-light-color': 'var(--mantine-color-pink-9)',
+    '--mantine-color-lime-light-color': 'var(--mantine-color-lime-9)',
+    '--mantine-color-gray-light-color': 'var(--mantine-color-gray-9)',
+    '--mantine-color-orange-light-color': '#a8470a',
+    '--mantine-color-yellow-light-color': '#8a5a00',
   },
   dark: {
     '--mantine-color-dimmed': '#9aa1a9',

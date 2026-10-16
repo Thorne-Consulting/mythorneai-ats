@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Autocomplete,
+  Badge,
   Button,
   Group,
   NumberInput,
@@ -34,6 +35,10 @@ interface RequisitionForm {
 }
 
 type DirectoryUser = { email: string; displayName: string; role: string };
+// Mirrors SeedData.CreateDefaultStages, which the API uses when no pipeline template exists.
+const DEFAULT_STAGES = ['New', 'Review', 'Interview', 'Booked', 'Offer handoff', 'Hired'];
+
+type PipelineTemplate = { id: string; name: string; stageNames: string[]; isDefault: boolean };
 type PostingTemplate = { id: string; name: string; version: number; descriptionMarkdown: string };
 
 export function CreateRequisitionPage() {
@@ -41,6 +46,7 @@ export function CreateRequisitionPage() {
   const queryClient = useQueryClient();
   const [description, setDescription] = useState('');
   const [postingTemplateId, setPostingTemplateId] = useState<string | null>(null);
+  const [pipelineTemplateId, setPipelineTemplateId] = useState<string | null>(null);
   const [editorVersion, setEditorVersion] = useState(0);
   const form = useForm<RequisitionForm>({
     initialValues: {
@@ -71,12 +77,24 @@ export function CreateRequisitionPage() {
     queryKey: ['posting-templates'],
     queryFn: () => api.get<PostingTemplate[]>('/api/posting-templates'),
   });
+  const pipelines = useQuery({
+    queryKey: ['pipeline-templates'],
+    queryFn: () => api.get<PipelineTemplate[]>('/api/pipeline-templates'),
+  });
+  const pipelineList = pipelines.data ?? [];
+  const defaultPipelineId = (pipelineList.find((item) => item.isDefault) ?? pipelineList[0])?.id;
+  useEffect(() => {
+    // Preselect the default once; later changes by the user are kept.
+    if (defaultPipelineId) setPipelineTemplateId((current) => current ?? defaultPipelineId);
+  }, [defaultPipelineId]);
+  const selectedPipeline = pipelineList.find((item) => item.id === pipelineTemplateId);
   const mutation = useMutation({
     mutationFn: (values: RequisitionForm) =>
       api.post<{ id: string }>('/api/requisitions', {
         ...values,
         description,
         postingTemplateId,
+        pipelineTemplateId,
         targetStartDate: values.targetStartDate || null,
       }),
     onSuccess: ({ id }) => {
@@ -175,6 +193,49 @@ export function CreateRequisitionPage() {
               {...form.getInputProps('recruiterEmail')}
             />
           </SimpleGrid>
+
+          {pipelineList.length === 0 && pipelines.isSuccess && (
+            <Stack gap="xs">
+              <Text size="sm" fw={600}>
+                Pipeline
+              </Text>
+              <Group gap={6} aria-label="Stage order">
+                {DEFAULT_STAGES.map((name, index) => (
+                  <Badge key={name} variant="default" fw={600}>
+                    {index + 1}. {name}
+                  </Badge>
+                ))}
+              </Group>
+              <Text size="xs" c="dimmed">
+                The standard pipeline. An admin can add others under Settings › Pipelines.
+              </Text>
+            </Stack>
+          )}
+          {pipelineList.length > 0 && (
+            <Stack gap="xs">
+              <Select
+                label="Pipeline"
+                description="The stages an applicant moves through for this job."
+                allowDeselect={false}
+                maw={360}
+                data={pipelineList.map((item) => ({
+                  value: item.id,
+                  label: item.isDefault ? `${item.name} (default)` : item.name,
+                }))}
+                value={pipelineTemplateId}
+                onChange={setPipelineTemplateId}
+              />
+              {selectedPipeline && (
+                <Group gap={6} aria-label="Stage order">
+                  {selectedPipeline.stageNames.map((name, index) => (
+                    <Badge key={`${name}-${index}`} variant="default" fw={600}>
+                      {index + 1}. {name}
+                    </Badge>
+                  ))}
+                </Group>
+              )}
+            </Stack>
+          )}
 
           <Stack gap="xs">
             <div>

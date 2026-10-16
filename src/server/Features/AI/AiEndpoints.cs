@@ -32,10 +32,11 @@ public static class AiEndpoints
             {
                 var draft = await assistant.CompleteAsync(
                     "Draft concise, warm recruiting communication. Never make a hiring decision, invent facts, or mention internal notes. Return only the message body.",
-                    $"Purpose: {request.Purpose}\nJob: {application.Requisition.Title}\nCandidate: {application.Candidate!.FirstName}\nNotes: {request.Notes}", ct);
+                    $"Purpose: {request.Purpose}\nJob: {application.Requisition.Title}\nCandidate: {application.Candidate!.FirstName}\nNotes: {request.Notes}", ct,
+                    new AiContext("draft-message", principal.Email(), "Application", application.Id.ToString()));
                 return Results.Ok(new { draft });
             }
-            catch (InvalidOperationException exception) when (exception.Message.Contains("not configured"))
+            catch (AiUnavailableException exception)
             {
                 return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
@@ -63,7 +64,9 @@ public static class AiEndpoints
                 var result = await assistant.CompleteAsync(
                     "Turn the recruiter request into JSON only. Use exactly these keys: q, skills, skillMode, title, location, minYears. skills is an array of short strings, skillMode is any or all, minYears is a number or null. Do not rank candidates or make hiring decisions.",
                     $"{jobContext}\nRecruiter request: {request.Query}",
-                    ct);
+                    ct,
+                    new AiContext("search-filters", principal.Email(), "Requisition", request.RequisitionId?.ToString()),
+                    json: true);
                 using var json = JsonDocument.Parse(result);
                 return Results.Ok(new
                 {
@@ -79,7 +82,7 @@ public static class AiEndpoints
             {
                 return Results.Problem("The search assistant returned an invalid filter set.", statusCode: StatusCodes.Status502BadGateway);
             }
-            catch (InvalidOperationException exception) when (exception.Message.Contains("not configured"))
+            catch (AiUnavailableException exception)
             {
                 return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
@@ -95,24 +98,35 @@ public static class AiEndpoints
             var interview = await db.Interviews
                 .Include(x => x.Application)
                     .ThenInclude(x => x!.Requisition)
+                .Include(x => x.InterviewKit)
+                    .ThenInclude(x => x!.Criteria)
                 .Include(x => x.Scorecards)
+                    .ThenInclude(x => x.CriterionRatings)
+                        .ThenInclude(x => x.InterviewCriterion)
+                .Include(x => x.Recordings)
                 .SingleOrDefaultAsync(x => x.Id == request.InterviewId, ct);
             if (interview?.Application?.Requisition is null || !CanManage(interview.Application.Requisition, principal))
                 return Results.NotFound();
             var notes = interview.MeetingNotes ?? "No meeting notes were provided.";
+            var transcript = string.Join("\n", interview.Recordings.Where(x => !string.IsNullOrWhiteSpace(x.Transcript)).Select(x => x.Transcript));
             var scorecards = interview.Scorecards.Count == 0
                 ? "No scorecards were submitted."
                 : string.Join("\n", interview.Scorecards.Select(scorecard =>
-                    $"{scorecard.InterviewerEmail}: rating {scorecard.Rating}/5, recommendation {scorecard.Recommendation}. Evidence: {scorecard.Evidence}"));
+                    $"{scorecard.InterviewerEmail}: rating {scorecard.Rating}/5, recommendation {scorecard.Recommendation}. Evidence: {scorecard.Evidence}. Per criterion: "
+                    + string.Join("; ", scorecard.CriterionRatings.Select(r => $"{r.InterviewCriterion!.Name} {r.Rating}/5 ({r.Evidence})"))));
+            var criteria = interview.InterviewKit is null
+                ? "No interview kit was used."
+                : string.Join("\n", interview.InterviewKit.Criteria.OrderBy(c => c.SortOrder).Select(c => $"- {c.Name} (weight {c.Weight}): {c.Question}"));
             try
             {
                 var summary = await assistant.CompleteAsync(
-                    "Summarize interview evidence for a recruiter. Be factual, concise, and separate evidence from uncertainty. Do not make a hiring decision. Return plain text with headings: Summary, Evidence, Open questions.",
-                    $"Role: {interview.Application.Requisition.Title}\nMeeting notes:\n{notes}\nScorecards:\n{scorecards}",
-                    ct);
+                    "Summarize interview evidence for a recruiter. Be factual, concise, and separate evidence from uncertainty. Do not make a hiring decision. Return plain text with headings: Summary, Evidence by criterion (one line for each kit criterion, naming what was actually said or scored, or 'no evidence'), Open questions.",
+                    $"Role: {interview.Application.Requisition.Title}\nKit criteria:\n{criteria}\nMeeting notes:\n{notes}\nTranscript:\n{(transcript.Length == 0 ? "None." : transcript[..Math.Min(transcript.Length, 12000)])}\nScorecards:\n{scorecards}",
+                    ct,
+                    new AiContext("summarize-interview", principal.Email(), "Interview", interview.Id.ToString()));
                 return Results.Ok(new { summary });
             }
-            catch (InvalidOperationException exception) when (exception.Message.Contains("not configured"))
+            catch (AiUnavailableException exception)
             {
                 return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
             }
@@ -120,8 +134,7 @@ public static class AiEndpoints
     }
 
     private static bool CanManage(Domain.Requisition requisition, ClaimsPrincipal principal) =>
-        principal.IsHiringStaff() || (principal.IsInRole(nameof(Domain.UserRole.HiringManager))
-            && (requisition.OwnerEmail == principal.Email() || requisition.RecruiterEmail == principal.Email()));
+        AtsEndpoints.CanManage(requisition, principal);
 
     private static string? StringValue(JsonElement root, string name) =>
         root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String

@@ -1,19 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  ActionIcon,
-  Avatar,
-  Badge,
-  Button,
-  Group,
-  Paper,
-  Table,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Avatar, Badge, Button, Group, Paper, Table, Text, TextInput } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconArrowRight, IconPlus, IconSearch, IconUsers } from '@tabler/icons-react';
+import { IconArrowRight, IconPlus, IconSearch, IconUpload, IconUsers } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/auth';
@@ -25,13 +15,16 @@ import { initials } from '@/lib/format';
 import { rowLinkProps } from '@/lib/row-link-props';
 import type { CandidateSummary } from '@/types';
 import { CreateCandidateModal } from './CreateCandidateModal';
+import { ImportCandidatesModal } from './ImportCandidatesModal';
 
 export function CandidatesPage({ initialData }: { initialData: CandidateSummary[] }) {
   const [search, setSearch] = useState('');
   const [opened, modal] = useDisclosure();
+  const [importOpened, importModal] = useDisclosure();
   const router = useRouter();
   const user = useCurrentUser();
   const canCreate = ['Admin', 'Recruiter'].includes(user.role);
+  const canImport = user.permissions?.includes('import') || user.role === 'Admin';
   const query = useQuery({
     queryKey: ['candidates', search],
     queryFn: () =>
@@ -44,11 +37,22 @@ export function CandidatesPage({ initialData }: { initialData: CandidateSummary[
       <PageHeader
         title="Candidates"
         actions={
-          canCreate && (
-            <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
-              Add candidate
-            </Button>
-          )
+          <>
+            {canImport && (
+              <Button
+                variant="default"
+                leftSection={<IconUpload size={17} />}
+                onClick={importModal.open}
+              >
+                Import candidates
+              </Button>
+            )}
+            {canCreate && (
+              <Button leftSection={<IconPlus size={17} />} onClick={modal.open}>
+                Add candidate
+              </Button>
+            )}
+          </>
         }
       />
       <Paper withBorder radius="lg" p="sm" mb="lg">
@@ -150,9 +154,7 @@ export function CandidatesPage({ initialData }: { initialData: CandidateSummary[
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <ActionIcon variant="subtle" color="gray">
-                        <IconArrowRight size={17} />
-                      </ActionIcon>
+                      <IconArrowRight size={17} color="var(--mantine-color-gray-6)" aria-hidden />
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -162,6 +164,7 @@ export function CandidatesPage({ initialData }: { initialData: CandidateSummary[
         </Paper>
       )}
       <CreateCandidateModal opened={opened} onClose={modal.close} />
+      <ImportCandidatesModal opened={importOpened} onClose={importModal.close} />
     </>
   );
 }

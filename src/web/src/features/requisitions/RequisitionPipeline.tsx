@@ -25,6 +25,7 @@ import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatDateTime, initials } from '@/lib/format';
 import type { BoardData } from '@/types';
 import type { BoardApplication } from './requisition-data';
+import { SuggestedCandidates } from './SuggestedCandidates';
 import { useBoard, useCanManage, useRequisition } from './requisition-data';
 
 export function RequisitionPipeline({ id, initialData }: { id: string; initialData: BoardData }) {
@@ -103,6 +104,7 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
           </Text>
         </div>
       </Group>
+      {canManage && <SuggestedCandidates requisitionId={id} />}
       <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
         <Box className="pipeline-scroll">
           <div className="pipeline-grid">

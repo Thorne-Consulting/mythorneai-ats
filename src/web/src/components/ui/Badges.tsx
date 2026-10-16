@@ -11,6 +11,7 @@ const statusColors: Record<string, string> = {
   Scheduled: 'violet',
   Draft: 'gray',
   OnHold: 'yellow',
+  PendingApproval: 'yellow',
   Rejected: 'red',
   Declined: 'red',
   Cancelled: 'red',

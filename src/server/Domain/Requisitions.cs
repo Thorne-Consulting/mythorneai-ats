@@ -14,6 +14,15 @@ public sealed class Requisition
     public required string RecruiterEmail { get; set; }
     public string Description { get; set; } = "";
     public string ApplicationQuestionsMarkdown { get; set; } = "";
+    // AI-extracted, recruiter-confirmed requirements as JSON: { required, preferred, minYears, location }.
+    public string RequirementsJson { get; set; } = "";
+    public float[]? RequirementsEmbedding { get; set; }
+    // First time the job was opened. With approval required, only a job that has been opened (approved) before can open.
+    public DateTimeOffset? OpenedAt { get; set; }
+    public bool IsConfidential { get; set; }
+    public string[] ViewerEmails { get; set; } = [];
+    public bool AllowCandidateReschedule { get; set; } = true;
+    public bool AllowCandidateWithdraw { get; set; } = true;
     public Guid? PostingTemplateId { get; set; }
     public int? PostingTemplateVersion { get; set; }
     public RequisitionStatus Status { get; set; } = RequisitionStatus.Draft;
