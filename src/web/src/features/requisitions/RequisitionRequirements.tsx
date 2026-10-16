@@ -90,7 +90,14 @@ export function RequisitionRequirements({
     <div>
       <div className="section-head">
         <h2 className="section-title">Requirements</h2>
-        {confirmed && actions}
+        {draft && fromAi ? (
+          <span className="ai-notice">
+            <IconSparkles size={13} aria-hidden />
+            Made by AI. Check before saving.
+          </span>
+        ) : (
+          confirmed && actions
+        )}
       </div>
       <Stack gap="md">
         {aiError && (
@@ -106,12 +113,6 @@ export function RequisitionRequirements({
               save.mutate(draft);
             }}
           >
-            {fromAi && (
-              <p className="req-edit-note">
-                Drafted by AI from the role summary. Check each line, then confirm. Nothing is saved
-                until you do.
-              </p>
-            )}
             <h3 className="req-big-label">Must have</h3>
             <div className="req-big-field">
               <TagsInput

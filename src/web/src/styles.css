@@ -951,6 +951,18 @@ section[id],
 
 /* ---------- records ---------- */
 
+/* A small, faint tag-line next to a heading. Deliberately outside the type scale. */
+.ai-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
 /* Running text: a little larger than UI text, with room between lines. */
 .prose {
   font-size: 15px;
@@ -958,12 +970,6 @@ section[id],
 }
 
 /* Requirements editor: reads as a page, with the last line as a sentence. */
-.req-sentence .req-edit-note {
-  margin: 0 0 20px;
-  color: var(--mantine-color-dimmed);
-  font-size: var(--mantine-font-size-sm);
-}
-
 .req-sentence .req-big-label {
   margin: 0 0 6px;
   font-size: var(--mantine-font-size-md);
