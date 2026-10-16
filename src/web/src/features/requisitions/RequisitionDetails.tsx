@@ -69,7 +69,8 @@ export function RequisitionDetails({ id }: { id: string }) {
         <div className="panel">
           <dl className="facts facts-grid">
             {openings}
-            {people}
+            <PersonFact label="Hiring manager" email={requisition.ownerEmail} />
+            <PersonFact label="Recruiter" email={requisition.recruiterEmail} />
             {dates}
             {stages}
           </dl>
@@ -84,6 +85,30 @@ function Fact({ label, value }: { label: string; value: string }) {
     <div className="fact">
       <dt>{label}</dt>
       <dd>{value}</dd>
+    </div>
+  );
+}
+
+/** "priya.manager@acme.com" reads as "Priya Manager". */
+function nameFromEmail(email: string) {
+  return email
+    .split('@')[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+/** A person as a mention: their name on a soft chip, with the address on hover. */
+function PersonFact({ label, email }: { label: string; email: string }) {
+  return (
+    <div className="fact">
+      <dt>{label}</dt>
+      <dd>
+        <span className="mention" title={email}>
+          {nameFromEmail(email)}
+        </span>
+      </dd>
     </div>
   );
 }

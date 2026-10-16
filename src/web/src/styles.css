@@ -1193,6 +1193,24 @@ section[id],
   padding-top: 16px;
 }
 
+/* A person written as an @mention: name on a soft accent chip. */
+.mention {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.mention::before {
+  content: '@';
+  opacity: 0.7;
+}
+
 /* Job side panel: label on the left, value on the right. */
 .facts-grid .fact {
   display: grid;
