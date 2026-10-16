@@ -100,59 +100,79 @@ export function RequisitionRequirements({
         )}
         {draft ? (
           <form
-            className="panel"
-            style={{ padding: 24 }}
+            className="req-sentence"
             onSubmit={(event) => {
               event.preventDefault();
               save.mutate(draft);
             }}
           >
-            <Stack gap="md">
-              {fromAi && (
-                <Alert color="gray" variant="light">
-                  AI drafted this from the role summary. Check every line, change what is wrong,
-                  then confirm. Nothing is saved until you do.
-                </Alert>
-              )}
+            {fromAi && (
+              <p className="req-edit-note">
+                Drafted by AI from the role summary. Check each line, then confirm. Nothing is saved
+                until you do.
+              </p>
+            )}
+            <h3 className="req-big-label">Must have</h3>
+            <div className="req-big-field">
               <TagsInput
-                label="Required"
-                description="Must-haves. Press Enter after each one."
+                variant="unstyled"
+                size="md"
+                aria-label="Must have"
+                placeholder="Type a skill or experience and press Enter"
                 value={draft.required}
                 onChange={(required) => setDraft({ ...draft, required })}
               />
+            </div>
+            <h3 className="req-big-label">Nice to have</h3>
+            <div className="req-big-field">
               <TagsInput
-                label="Preferred"
-                description="Nice to have."
+                variant="unstyled"
+                size="md"
+                aria-label="Nice to have"
+                placeholder="Anything that helps but isn't required"
                 value={draft.preferred}
                 onChange={(preferred) => setDraft({ ...draft, preferred })}
               />
-              <Group grow align="flex-start">
-                <NumberInput
-                  label="Minimum years of experience"
-                  min={0}
-                  max={60}
-                  decimalScale={1}
-                  value={draft.minYears ?? ''}
-                  onChange={(value) =>
-                    setDraft({ ...draft, minYears: value === '' ? null : Number(value) })
-                  }
-                />
-                <TextInput
-                  label="Location rule"
-                  placeholder="For example: Remote, US time zones"
-                  value={draft.location}
-                  onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
-                />
-              </Group>
-              <Group justify="flex-end">
-                <Button variant="default" onClick={() => setDraft(null)} disabled={save.isPending}>
-                  Cancel
-                </Button>
-                <Button type="submit" loading={save.isPending}>
-                  Confirm requirements
-                </Button>
-              </Group>
-            </Stack>
+            </div>
+            <div className="req-line">
+              <span>At least</span>
+              <NumberInput
+                variant="unstyled"
+                aria-label="Minimum years of experience"
+                placeholder="any"
+                min={0}
+                max={60}
+                decimalScale={1}
+                hideControls
+                w={64}
+                value={draft.minYears ?? ''}
+                onChange={(value) =>
+                  setDraft({ ...draft, minYears: value === '' ? null : Number(value) })
+                }
+              />
+              <span>years of experience, based in</span>
+              <TextInput
+                variant="unstyled"
+                aria-label="Location rule"
+                placeholder="anywhere"
+                w={220}
+                value={draft.location}
+                onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
+              />
+            </div>
+            <div className="req-edit-actions">
+              <Button
+                variant="subtle"
+                color="gray"
+                onClick={() => setDraft(null)}
+                disabled={save.isPending}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" loading={save.isPending}>
+                Confirm
+              </Button>
+            </div>
           </form>
         ) : confirmed ? (
           <dl className="req-list">

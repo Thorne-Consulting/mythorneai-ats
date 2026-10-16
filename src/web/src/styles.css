@@ -951,6 +951,49 @@ section[id],
 
 /* ---------- records ---------- */
 
+/* Requirements editor: reads as a page, with the last line as a sentence. */
+.req-sentence .req-edit-note {
+  margin: 0 0 20px;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.req-sentence .req-big-label {
+  margin: 0 0 6px;
+  font-size: var(--mantine-font-size-lg);
+  font-weight: 650;
+}
+
+.req-sentence .req-big-field {
+  margin-bottom: 28px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.req-sentence .req-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 10px;
+  font-size: var(--mantine-font-size-lg);
+}
+
+.req-sentence .req-line input {
+  height: 32px;
+  min-height: 32px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  border-radius: 0;
+  font-size: var(--mantine-font-size-lg);
+  font-weight: 600;
+}
+
+.req-sentence .req-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 28px;
+}
+
 /* Label and value rows for a short definition list, split by hairlines. */
 .req-list {
   margin: 0;
