@@ -14,7 +14,7 @@
     "@mantine/core": "^8.3.2",
     "@mantine/dates": "8.3.18",
     "@mantine/form": "^8.3.2",
-    "@mantine/hooks": "^8.3.2",
+    "@mantine/hooks": "^9.6.2",
     "@mantine/notifications": "^8.3.2",
     "@platejs/basic-nodes": "53.0.0",
     "@platejs/markdown": "53.3.12",
