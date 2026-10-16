@@ -23,6 +23,7 @@ export function RequisitionDetails({ id }: { id: string }) {
             <h2 className="section-title">About the role</h2>
           </div>
           <Text
+            className="prose"
             c={requisition.description ? undefined : 'dimmed'}
             style={{ whiteSpace: 'pre-wrap', maxWidth: '68ch' }}
           >
