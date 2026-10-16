@@ -951,6 +951,160 @@ section[id],
 
 /* ---------- records ---------- */
 
+/* Plain text actions: no buttons, just words that underline on hover. */
+.text-actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.text-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mantine-color-dimmed);
+  font: inherit;
+  font-size: var(--mantine-font-size-sm);
+  cursor: pointer;
+}
+
+.text-action:hover:not(:disabled) {
+  color: var(--mantine-color-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text-action:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.text-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.text-action-primary {
+  color: var(--mantine-primary-color-filled);
+  font-weight: 600;
+}
+
+/* Requirements, written as a page: bullets you can read and type into. */
+.req-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 68ch;
+}
+
+.req-h {
+  margin: 0 0 6px;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 650;
+}
+
+.req-bullets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.req-bullets li {
+  position: relative;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.req-bullets li::before {
+  content: '•';
+  position: absolute;
+  left: 6px;
+  color: var(--mantine-color-dimmed);
+}
+
+.req-input {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.req-input::placeholder,
+.req-inline::placeholder {
+  color: var(--mantine-color-placeholder);
+}
+
+.req-none {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--mantine-color-dimmed);
+  font-size: 15px;
+}
+
+.req-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.req-line-read {
+  color: var(--mantine-color-dimmed);
+}
+
+.req-inline {
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+}
+
+.req-inline:focus {
+  border-bottom-color: var(--mantine-primary-color-filled);
+}
+
+.req-inline-wide {
+  width: 220px;
+  text-align: left;
+}
+
+.req-form-actions {
+  margin: 0;
+}
+
+.req-empty {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.req-empty .text-action {
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.req-error {
+  margin: 0 0 16px;
+  color: var(--mantine-color-red-8);
+  font-size: var(--mantine-font-size-sm);
+}
+
 /* A small, faint tag-line next to a heading. Deliberately outside the type scale. */
 .ai-notice {
   display: inline-flex;
@@ -967,67 +1121,6 @@ section[id],
 .prose {
   font-size: 15px;
   line-height: 1.65;
-}
-
-/* Requirements editor: reads as a page, with the last line as a sentence. */
-.req-sentence .req-big-label {
-  margin: 0 0 6px;
-  font-size: var(--mantine-font-size-md);
-  font-weight: 650;
-}
-
-.req-sentence .req-big-field {
-  margin-bottom: 28px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--mantine-color-default-border);
-}
-
-.req-sentence .req-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 8px 10px;
-  font-size: 15px;
-}
-
-.req-sentence .req-line input {
-  height: 32px;
-  min-height: 32px;
-  border-bottom: 1px solid var(--mantine-color-default-border);
-  border-radius: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.req-sentence .req-edit-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 28px;
-}
-
-/* Label and value rows for a short definition list, split by hairlines. */
-.req-list {
-  margin: 0;
-  border-bottom: 1px solid var(--mantine-color-default-border);
-}
-
-.req-row {
-  display: grid;
-  grid-template-columns: 140px minmax(0, 1fr);
-  gap: 16px;
-  align-items: baseline;
-  padding: 14px 0;
-  border-top: 1px solid var(--mantine-color-default-border);
-  font-size: var(--mantine-font-size-md);
-}
-
-.req-row dt {
-  color: var(--mantine-color-dimmed);
-}
-
-.req-row dd {
-  margin: 0;
 }
 
 .record-header {
