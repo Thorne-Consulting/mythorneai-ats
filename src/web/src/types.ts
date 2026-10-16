@@ -18,6 +18,31 @@ export interface DashboardData {
   activeCandidates: number;
   interviewsThisWeek: number;
   pipeline: Array<{ stage: string; count: number; order: number }>;
+  unreadMessages: Array<{
+    applicationId: string;
+    candidateName: string;
+    requisitionTitle: string;
+    preview: string;
+    at: string;
+  }>;
+  stalled: Array<{
+    applicationId: string;
+    candidateName: string;
+    requisitionTitle: string;
+    stage: string;
+    lastActivityAt: string;
+  }>;
+  stalledTotal: number;
+  jobs: Array<{
+    id: string;
+    code: string;
+    title: string;
+    status: string;
+    openings: number;
+    hired: number;
+    newToday: number;
+    stages: Array<{ name: string; count: number }>;
+  }>;
   scorecardsDue: Array<{
     id: string;
     applicationId: string;

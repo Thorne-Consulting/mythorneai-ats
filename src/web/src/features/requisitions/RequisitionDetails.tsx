@@ -1,14 +1,14 @@
 'use client';
 
-import { Badge, Grid, Group, Stack, Text } from '@mantine/core';
-import { SectionCard } from '@/components/ui/Cards';
+import { Stack, Text } from '@mantine/core';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatRelative } from '@/lib/format';
 import { useCanManage, useRequisition } from './requisition-data';
 import { RequisitionRequirements } from './RequisitionRequirements';
 import { RequisitionSettings } from './RequisitionSettings';
 import type { RequisitionWithSettings } from './requirements-types';
 
+/** What the job is and what it asks for, with the facts alongside. */
 export function RequisitionDetails({ id }: { id: string }) {
   const details = useRequisition(id);
   const canManage = useCanManage(details.data);
@@ -16,70 +16,66 @@ export function RequisitionDetails({ id }: { id: string }) {
   const requisition = details.data as RequisitionWithSettings;
 
   return (
-    <Grid gutter="xl">
-      <Grid.Col span={{ base: 12, lg: 7 }}>
-        <SectionCard title="Role summary" padded>
+    <div className="record-grid">
+      <Stack gap={48} style={{ minWidth: 0 }}>
+        <section id="details" className="record-section">
+          <div className="section-head">
+            <h2 className="section-title">About the role</h2>
+          </div>
           <Text
             c={requisition.description ? undefined : 'dimmed'}
             style={{ whiteSpace: 'pre-wrap', maxWidth: '68ch' }}
           >
             {requisition.description || 'No role summary has been added.'}
           </Text>
-        </SectionCard>
-        <Stack gap="xl" mt="xl">
+        </section>
+
+        <section id="requirements" className="record-section">
           <RequisitionRequirements requisition={requisition} canManage={canManage} />
-          {canManage && <RequisitionSettings requisition={requisition} />}
-        </Stack>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, lg: 5 }}>
-        <Stack gap="xl">
-          <SectionCard title="Job details" padded>
-            <Stack gap="sm">
-              <Field label="Job code" value={requisition.code} />
-              <Field label="Team" value={requisition.department} />
-              <Field label="Location" value={requisition.location} />
-              <Field label="Work mode" value={requisition.workMode} />
-              <Field label="Employment type" value={requisition.employmentType} />
-              <Field label="Openings" value={String(requisition.openings)} />
-              <Field label="Target start" value={formatDate(requisition.targetStartDate)} />
-            </Stack>
-          </SectionCard>
-          <SectionCard title="People and dates" padded>
-            <Stack gap="sm">
-              <Field label="Hiring manager" value={requisition.ownerEmail} />
-              <Field label="Recruiter" value={requisition.recruiterEmail} />
-              <Field label="Created" value={formatDate(requisition.createdAt)} />
-              <Field label="Last updated" value={formatDateTime(requisition.updatedAt)} />
-            </Stack>
-          </SectionCard>
-          <SectionCard
-            title="Pipeline stages"
-            description={`${requisition.stages.length} stages in order`}
-            padded
-          >
-            <Group gap="xs">
-              {requisition.stages.map((stage, index) => (
-                <Badge key={stage.id} variant="light" color={stage.color} leftSection={index + 1}>
-                  {stage.name}
-                </Badge>
-              ))}
-            </Group>
-          </SectionCard>
-        </Stack>
-      </Grid.Col>
-    </Grid>
+        </section>
+      </Stack>
+
+      <aside className="record-rail" aria-label="Job details">
+        <div className="panel">
+          <div className="panel-head">
+            <h2 className="panel-title">Job</h2>
+          </div>
+          <dl className="facts">
+            <Fact
+              label="Openings"
+              value={`${requisition.openings} · ${requisition.employmentType}`}
+            />
+            <Fact label="Hiring manager" value={requisition.ownerEmail} />
+            <Fact label="Recruiter" value={requisition.recruiterEmail} />
+            <Fact label="Target start" value={formatDate(requisition.targetStartDate)} />
+            <Fact label="Created" value={formatDate(requisition.createdAt)} />
+            <Fact label="Last updated" value={formatRelative(requisition.updatedAt)} />
+            <Fact
+              label="Stages"
+              value={requisition.stages.map((stage) => stage.name).join(' → ')}
+            />
+          </dl>
+        </div>
+      </aside>
+    </div>
   );
 }
 
-function Field({ label, value }: { label: string; value: string }) {
+function Fact({ label, value }: { label: string; value: string }) {
   return (
-    <Group justify="space-between" wrap="nowrap" gap="lg" align="flex-start">
-      <Text size="sm" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-        {label}
-      </Text>
-      <Text size="sm" fw={600} ta="right" style={{ minWidth: 0, wordBreak: 'break-word' }}>
-        {value}
-      </Text>
-    </Group>
+    <div className="fact">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+
+export function RequisitionVisibility({ id }: { id: string }) {
+  const details = useRequisition(id);
+  if (!details.data) return <LoadingBlock rows={3} />;
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <RequisitionSettings requisition={details.data as RequisitionWithSettings} />
+    </div>
   );
 }

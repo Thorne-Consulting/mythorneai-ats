@@ -78,11 +78,6 @@ export function CandidatesPage({ initialData }: { initialData: CandidateSummary[
         <EmptyState
           icon={IconUsers}
           title="No candidates found"
-          description={
-            search
-              ? 'Try another search.'
-              : 'Add the first candidate to begin tracking hiring activity.'
-          }
           actionLabel={canCreate && !search ? 'Add candidate' : undefined}
           onAction={modal.open}
         />

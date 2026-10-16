@@ -49,11 +49,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
   });
 
   return (
-    <SectionCard
-      title="Visibility and candidate self-service"
-      description="Who can see this job, and what candidates can do themselves."
-      padded
-    >
+    <SectionCard title="Visibility and candidate self-service" padded>
       <Stack gap="md">
         <Switch
           label="Confidential job"

@@ -4,7 +4,6 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
-  Avatar,
   Badge,
   Button,
   Checkbox,
@@ -12,7 +11,6 @@ import {
   Group,
   NumberInput,
   Pagination,
-  Paper,
   Popover,
   SegmentedControl,
   Select,
@@ -28,7 +26,6 @@ import { useDisclosure } from '@mantine/hooks';
 import {
   IconAdjustmentsHorizontal,
   IconAlertCircle,
-  IconArrowRight,
   IconBookmark,
   IconFileSearch,
   IconSearch,
@@ -40,7 +37,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatDate, initials } from '@/lib/format';
+import { formatRelative } from '@/lib/format';
 import { rowLinkProps } from '@/lib/row-link-props';
 import type { TalentSearchPage as TalentSearchResponse } from '@/types';
 
@@ -221,7 +218,7 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
 
   return (
     <>
-      <Paper withBorder radius="lg" p="md" mb="lg">
+      <div className="toolbar">
         <Stack gap="sm">
           <Group gap="sm" align="flex-end" wrap="wrap">
             <TextInput
@@ -435,7 +432,7 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
             </Stack>
           </Collapse>
         </Stack>
-      </Paper>
+      </div>
 
       {results.isError ? (
         <Alert icon={<IconAlertCircle size={17} />} color="red" title="Search unavailable">
@@ -447,7 +444,6 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
         <EmptyState
           icon={IconFileSearch}
           title="No candidates match"
-          description="Broaden a skill or remove a filter to see more people."
           actionLabel="Clear filters"
           onAction={clearFilters}
         />
@@ -463,18 +459,22 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
               </Text>
             )}
           </Group>
-          <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
-            <Table.ScrollContainer minWidth={1040}>
-              <Table>
+          <div className="panel">
+            <Table.ScrollContainer minWidth={820}>
+              <Table className="inbox-table" verticalSpacing={10} highlightOnHover={false}>
                 <Table.Thead>
                   <Table.Tr>
                     <Table.Th>Candidate</Table.Th>
-                    <Table.Th>Match</Table.Th>
-                    <Table.Th>Experience</Table.Th>
-                    <Table.Th>Skills and evidence</Table.Th>
-                    <Table.Th>Source</Table.Th>
-                    <Table.Th>Profile</Table.Th>
-                    <Table.Th w={48} />
+                    <Table.Th w="34%">Skills</Table.Th>
+                    <Table.Th w={110} ta="right">
+                      Experience
+                    </Table.Th>
+                    <Table.Th w={72} ta="right">
+                      Match
+                    </Table.Th>
+                    <Table.Th w={120} ta="right">
+                      Updated
+                    </Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -486,100 +486,83 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
                       )}
                     >
                       <Table.Td>
-                        <Group wrap="nowrap">
-                          <Avatar color="indigo" variant="light" radius="xl">
-                            {initials(candidate.name)}
-                          </Avatar>
-                          <div>
-                            <Group gap="xs">
-                              <Text fw={650} size="sm">
-                                {candidate.name}
-                              </Text>
+                        <div className="cell-stack">
+                          <span className="cell-title">{candidate.name}</span>
+                          <span className="cell-meta">
+                            {[candidate.currentTitle, candidate.location, candidate.source]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
+                          {(candidate.doNotContact || !candidate.hasParsedResume) && (
+                            <span className="signals">
                               {candidate.doNotContact && (
-                                <Badge size="xs" color="red" variant="light">
-                                  DNC
-                                </Badge>
+                                <span className="signal" data-tone="warn">
+                                  Do not contact
+                                </span>
                               )}
-                            </Group>
-                            <Text size="xs" c="dimmed">
-                              {candidate.currentTitle ?? 'Title not provided'}
-                              {candidate.location ? ` · ${candidate.location}` : ''}
-                            </Text>
-                          </div>
-                        </Group>
+                              {!candidate.hasParsedResume && (
+                                <span className="signal">No resume read</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                       </Table.Td>
                       <Table.Td>
-                        {candidate.matchScore ? (
-                          <Badge variant="outline" color="indigo">
-                            {candidate.matchScore}%
-                          </Badge>
-                        ) : (
+                        {candidate.skills.length === 0 ? (
                           <Text size="sm" c="dimmed">
-                            —
+                            –
                           </Text>
+                        ) : (
+                          <span className="signals" style={{ marginTop: 0 }}>
+                            {(candidate.matchedTerms.length > 0
+                              ? candidate.matchedTerms
+                              : candidate.skills.slice(0, 5)
+                            ).map((skill) => (
+                              <span
+                                key={skill}
+                                className="signal"
+                                data-tone={
+                                  candidate.matchedTerms.includes(skill) ? 'accent' : undefined
+                                }
+                              >
+                                {skill}
+                              </span>
+                            ))}
+                          </span>
                         )}
                       </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">
+                      <Table.Td ta="right">
+                        <Text
+                          size="sm"
+                          className="tnum nowrap"
+                          c={candidate.experienceYears == null ? 'dimmed' : undefined}
+                        >
                           {candidate.experienceYears == null
-                            ? 'Not estimated'
-                            : `${candidate.experienceYears} years`}
+                            ? '–'
+                            : `${candidate.experienceYears} yrs`}
                         </Text>
                       </Table.Td>
-                      <Table.Td>
-                        <Group gap={5} maw={360}>
-                          {(candidate.matchedTerms.length > 0
-                            ? candidate.matchedTerms
-                            : candidate.skills.slice(0, 4)
-                          ).map((skill) => (
-                            <Badge
-                              key={skill}
-                              size="xs"
-                              variant="light"
-                              color={candidate.matchedTerms.includes(skill) ? 'indigo' : 'gray'}
-                            >
-                              {skill}
-                            </Badge>
-                          ))}
-                          {candidate.skills.length === 0 && (
-                            <Text size="sm" c="dimmed">
-                              No skills recorded
-                            </Text>
-                          )}
-                        </Group>
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm">{candidate.source}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <Stack gap={2}>
-                          <Badge
-                            size="xs"
-                            variant="light"
-                            color={candidate.hasParsedResume ? 'teal' : 'gray'}
-                          >
-                            {candidate.hasParsedResume ? 'Resume parsed' : 'Profile only'}
-                          </Badge>
-                          <Text size="xs" c="dimmed">
-                            Updated {formatDate(candidate.updatedAt)}
-                          </Text>
-                        </Stack>
-                      </Table.Td>
-                      <Table.Td>
-                        <ActionIcon
-                          variant="subtle"
-                          color="gray"
-                          aria-label={`Open ${candidate.name}`}
+                      <Table.Td ta="right">
+                        <Text
+                          size="sm"
+                          fw={candidate.matchScore ? 650 : 400}
+                          c={candidate.matchScore ? undefined : 'dimmed'}
+                          className="tnum"
                         >
-                          <IconArrowRight size={17} />
-                        </ActionIcon>
+                          {candidate.matchScore ? `${candidate.matchScore}%` : '–'}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text size="sm" c="dimmed" className="tnum nowrap">
+                          {formatRelative(candidate.updatedAt)}
+                        </Text>
                       </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
               </Table>
             </Table.ScrollContainer>
-          </Paper>
+          </div>
           {results.data.total > results.data.pageSize && (
             <Pagination
               value={page}

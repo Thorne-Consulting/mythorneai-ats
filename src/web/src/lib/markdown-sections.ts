@@ -1,6 +1,7 @@
+/** Splits on top-level `# ` headings only; `##` and below stay part of the section's text. */
 export function markdownSections(markdown: string) {
   const sections: Record<string, string> = {};
-  const matches = [...markdown.matchAll(/^#{1,2}\s+(.+?)\s*$/gm)];
+  const matches = [...markdown.matchAll(/^#\s+(.+?)\s*$/gm)];
   for (const [index, match] of matches.entries()) {
     const start = (match.index ?? 0) + match[0].length;
     const end = matches[index + 1]?.index ?? markdown.length;

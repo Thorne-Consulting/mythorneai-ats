@@ -1,10 +1,9 @@
 'use client';
 
-import { Button, Group, Stack, Text, Title } from '@mantine/core';
+import { Button, Group, Stack, Text } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCalendarEvent, IconPlus } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
 import { useCurrentUser } from '@/auth';
-import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import {
   canManageRole,
@@ -36,19 +35,18 @@ export function ApplicationInterviews({ id }: { id: string }) {
 
   return (
     <>
-      <Group justify="space-between" mb="lg" wrap="wrap" gap="sm">
-        <div style={{ flex: '1 1 260px' }}>
-          <Title order={3}>Interview plan</Title>
-          <Text c="dimmed" size="sm">
-            Scheduling, recordings, structured evaluations, and independent feedback
-          </Text>
-        </div>
-        {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={interviewModal.open}>
+      {canManage && application.interviews.length > 0 && (
+        <Group justify="flex-end" mb="md">
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<IconPlus size={14} />}
+            onClick={interviewModal.open}
+          >
             Schedule interview
           </Button>
-        )}
-      </Group>
+        </Group>
+      )}
       <Stack>
         {orderedInterviews.map((interview) => (
           <InterviewCard
@@ -63,13 +61,16 @@ export function ApplicationInterviews({ id }: { id: string }) {
           />
         ))}
         {application.interviews.length === 0 && (
-          <EmptyState
-            icon={IconCalendarEvent}
-            title="No interviews scheduled"
-            description="Schedule the first interview to start collecting structured feedback."
-            actionLabel={canManage ? 'Schedule interview' : undefined}
-            onAction={interviewModal.open}
-          />
+          <div className="panel empty-row">
+            <Text size="sm" c="dimmed">
+              No interviews yet. Scheduling the first one starts structured feedback.
+            </Text>
+            {canManage && (
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={interviewModal.open}>
+                Schedule interview
+              </Button>
+            )}
+          </div>
         )}
       </Stack>
       <InterviewModal

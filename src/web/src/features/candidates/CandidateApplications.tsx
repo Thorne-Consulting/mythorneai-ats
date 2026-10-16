@@ -17,7 +17,6 @@ export function CandidateApplications({
   return (
     <SectionCard
       title="Applications"
-      description="Every role considered for this person"
       action={
         <Badge variant="light" color="indigo" circle>
           {applications.length}

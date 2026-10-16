@@ -332,11 +332,7 @@ export function RankForJob({
       </Paper>
 
       {!submitted ? (
-        <EmptyState
-          icon={IconFileSearch}
-          title="Build a shortlist for a job"
-          description="Pick a job and we'll rank the people already in your database against what the job needs. Add a plain-language request to narrow it down."
-        />
+        <EmptyState icon={IconFileSearch} title="Build a shortlist for a job" />
       ) : ranking.isError ? (
         <Alert color="red" title="Couldn't build the shortlist">
           {ranking.error.message}
@@ -382,11 +378,7 @@ export function RankForJob({
             )}
           </Group>
           {data.items.length === 0 ? (
-            <EmptyState
-              icon={IconFileSearch}
-              title="No one to show"
-              description="Try removing the minimum years or location, or describe the person in different words."
-            />
+            <EmptyState icon={IconFileSearch} title="No one to show" />
           ) : (
             <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
               {data.items.map((item, index) => (

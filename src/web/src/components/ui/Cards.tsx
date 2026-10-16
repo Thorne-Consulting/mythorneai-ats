@@ -58,7 +58,7 @@ export function SectionCard({
       h="100%"
       style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
     >
-      <Group justify="space-between" wrap="wrap" gap="sm" p="lg">
+      <Group justify="space-between" wrap="wrap" gap="sm" p={24}>
         <Box style={{ flex: '1 1 200px' }}>
           <Text fw={650}>{title}</Text>
           {description && (
@@ -70,7 +70,7 @@ export function SectionCard({
         {action}
       </Group>
       <Divider />
-      <Box style={{ flex: 1 }} p={padded ? 'lg' : undefined}>
+      <Box style={{ flex: 1 }} p={padded ? 24 : undefined}>
         {children}
       </Box>
     </Paper>

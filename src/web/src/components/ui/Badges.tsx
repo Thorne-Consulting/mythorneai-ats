@@ -34,6 +34,7 @@ export function StatusBadge({ status, size }: { status: string; size?: string })
     <Badge
       variant="default"
       size={size}
+      className="nowrap"
       leftSection={<Box className="status-dot" bg={`${color}.6`} />}
     >
       {humanize(status)}

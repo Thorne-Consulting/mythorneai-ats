@@ -91,11 +91,7 @@ export function PipelineTemplatesSection() {
     new Set(names.map((x) => x.toLowerCase())).size === names.length;
 
   return (
-    <SettingsSection
-      id="pipelines"
-      title="Hiring pipelines"
-      description="The stages an application moves through. Pick one when you create a job. “Hired” is added automatically at the end."
-    >
+    <SettingsSection id="pipelines" title="Hiring pipelines">
       <Stack gap="sm">
         {(templates.data ?? []).map((template) => (
           <Paper key={template.id} withBorder radius="md" p="md">

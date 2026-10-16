@@ -192,11 +192,7 @@ export function ReportsPage() {
     return (
       <>
         <PageHeader title="Reports" />
-        <EmptyState
-          icon={IconLock}
-          title="You don’t have access to reports"
-          description="Ask an administrator to turn on reports for your role under Settings, Roles and permissions."
-        />
+        <EmptyState icon={IconLock} title="You don’t have access to reports" />
       </>
     );
 
@@ -222,10 +218,7 @@ export function ReportsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Reports"
-        description="How hiring is going: where people drop out, how long it takes, and which sources work."
-      />
+      <PageHeader title="Reports" />
       <Group align="flex-start" gap="xl" wrap="wrap">
         <Stack gap="lg" style={{ flex: '0 0 250px', minWidth: 220 }}>
           <Box component="nav" aria-label="Reports">
@@ -391,11 +384,6 @@ export function ReportsPage() {
                 <EmptyState
                   icon={IconChartBar}
                   title="Nothing to report yet"
-                  description={
-                    hasFilters
-                      ? 'No applications match these filters. Widen the dates or clear the job and source.'
-                      : 'Reports fill in as people apply and move through your jobs. Add candidates to a job to get started.'
-                  }
                   actionLabel={hasFilters ? 'Clear filters' : undefined}
                   onAction={() => go({ requisitionId: '', source: '', from: '', to: '' })}
                 />

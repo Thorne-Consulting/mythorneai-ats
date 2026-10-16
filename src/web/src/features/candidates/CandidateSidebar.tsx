@@ -212,7 +212,7 @@ export function CandidateSidebar({
               )}
               {candidate.resumeSkills.length > 0 && (
                 <div>
-                  <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={7}>
+                  <Text size="sm" fw={650} c="dimmed" mb={7}>
                     Skills
                   </Text>
                   <Group gap={5}>
@@ -226,7 +226,7 @@ export function CandidateSidebar({
               )}
               {candidate.resumeEducation.length > 0 && (
                 <div>
-                  <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={5}>
+                  <Text size="sm" fw={650} c="dimmed" mb={5}>
                     Education
                   </Text>
                   <Stack gap={4}>

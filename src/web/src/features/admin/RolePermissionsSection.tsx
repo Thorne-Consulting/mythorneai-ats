@@ -64,7 +64,6 @@ function Editor({ source, onSaved }: { source: RolePermissions; onSaved: () => v
     <SettingsSection
       id="roles"
       title="Roles and permissions"
-      description="Everyone can already do what their role needs. These are the extras. Administrators always have all of them."
       dirty={dirty}
       saving={save.isPending}
       onSave={() => save.mutate()}

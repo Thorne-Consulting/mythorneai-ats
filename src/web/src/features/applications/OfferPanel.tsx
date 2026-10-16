@@ -104,7 +104,7 @@ export function OfferPanel({
     // 404 means this person has nothing to do here; anything else deserves a retry.
     if (query.error instanceof ApiError && query.error.status === 404) return null;
     return (
-      <SectionCard title="Acceptance" description="Could not load this section.">
+      <SectionCard title="Acceptance">
         <Group p="lg">
           <Button variant="light" onClick={() => query.refetch()}>
             Try again
@@ -136,18 +136,11 @@ export function OfferPanel({
 
   return (
     <>
-      <SectionCard
-        title="Acceptance"
-        description={
-          live
-            ? descriptions[live.status]
-            : 'Accept this candidate. It goes through approval first, then you send the email.'
-        }
-      >
+      <SectionCard title="Acceptance">
         <Stack gap="md" p="lg">
           {!live && (
             <Group>
-              <Button loading={create.isPending} onClick={() => create.mutate()}>
+              <Button variant="default" loading={create.isPending} onClick={() => create.mutate()}>
                 Start acceptance
               </Button>
             </Group>

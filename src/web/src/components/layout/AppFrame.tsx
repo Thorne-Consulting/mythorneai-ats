@@ -6,64 +6,95 @@ import {
   Badge,
   Box,
   Burger,
-  Divider,
   Group,
   Menu,
-  NavLink,
   ScrollArea,
   Text,
-  ThemeIcon,
+  Tooltip,
   UnstyledButton,
 } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
+import { useDisclosure, useHotkeys } from '@mantine/hooks';
 import {
   IconAddressBook,
   IconBriefcase2,
-  IconChecklist,
-  IconChartBar,
   IconCalendarEvent,
-  IconChevronDown,
+  IconChartBar,
+  IconHome2,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
-  IconClipboardList,
-  IconLayoutDashboard,
   IconLogout,
+  IconSelector,
   IconSettings,
-  IconUserSearch,
+  type Icon,
 } from '@tabler/icons-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCurrentUser } from '@/auth';
 import { api, resetCsrfToken } from '@/api';
+import { useCollapsePref } from '@/lib/collapse-pref';
 import { humanize, initials } from '@/lib/format';
+import type { User } from '@/types';
 import { OrganizationSetupModal } from '@/features/admin/OrganizationSetupModal';
 import { usePendingApprovals } from '@/features/approvals/approval-data';
+import { CommandSearch, SearchTrigger, useSearchHotkeys } from './CommandSearch';
 
-const navigation = [
-  { label: 'Overview', to: '/', icon: IconLayoutDashboard },
-  { label: 'Jobs', to: '/requisitions', icon: IconBriefcase2 },
-  { label: 'Applications', to: '/applicants', icon: IconClipboardList },
-  { label: 'Interviews', to: '/interviews', icon: IconCalendarEvent },
-  { label: 'Candidates', to: '/candidates', icon: IconAddressBook },
-  { label: 'Talent search', to: '/talent', icon: IconUserSearch },
-  { label: 'Approvals', to: '/approvals', icon: IconChecklist },
-  { label: 'Reports', to: '/reports', icon: IconChartBar, permission: 'reports' },
-] as const;
+type NavItem = { label: string; href: string; icon: Icon; match?: string[] };
 
-import { GlobalSearch } from './GlobalSearch';
+// Each role gets the doors it uses, in the order it uses them. Applications, people and talent
+// search are one place (Candidates); approvals surface on Home with a count on that item.
+function navigationFor(user: User): NavItem[] {
+  const home = { label: 'Home', href: '/', icon: IconHome2, match: ['/approvals'] };
+  const candidates = {
+    label: 'Candidates',
+    href: '/candidates',
+    icon: IconAddressBook,
+    match: ['/applications'],
+  };
+  const interviews = { label: 'Interviews', href: '/interviews', icon: IconCalendarEvent };
+  if (user.role === 'Interviewer') return [home, interviews, candidates];
+  const items: NavItem[] = [
+    home,
+    { label: 'Jobs', href: '/requisitions', icon: IconBriefcase2 },
+    candidates,
+    interviews,
+  ];
+  if (user.permissions.includes('reports'))
+    items.push({ label: 'Reports', href: '/reports', icon: IconChartBar });
+  return items;
+}
 
-const HEADER_HEIGHT = 60;
-const NAVBAR_WIDTH = 256;
+function isActive(pathname: string, item: NavItem) {
+  const prefixes = [item.href, ...(item.match ?? [])];
+  return item.href === '/'
+    ? pathname === '/' || (item.match ?? []).some((p) => pathname.startsWith(p))
+    : prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
-export function AppFrame({ children }: { children: React.ReactNode }) {
-  const [opened, { toggle, close }] = useDisclosure();
-  const [desktopOpened, { toggle: toggleDesktop }] = useDisclosure(true);
+export function AppFrame({
+  children,
+  navCollapsed,
+}: {
+  children: React.ReactNode;
+  navCollapsed: boolean;
+}) {
+  const [mobileOpened, mobile] = useDisclosure();
+  const [searchOpened, search] = useDisclosure();
   const user = useCurrentUser();
   const queryClient = useQueryClient();
   const pathname = usePathname() ?? '/';
-  const canAdmin = user.role === 'Admin';
   const pendingApprovals = usePendingApprovals().data?.length ?? 0;
+  useSearchHotkeys(search.open);
+  // Collapsed is a desktop idea; on small screens the sidebar is a drawer either way.
+  const [collapsedPref, toggleCollapsed] = useCollapsePref('ats-nav-collapsed', navCollapsed);
+  const collapsed = collapsedPref && !mobileOpened;
+  useHotkeys([['mod+\\', toggleCollapsed]]);
+  const tip = (label: string) => ({
+    label,
+    position: 'right' as const,
+    disabled: !collapsed,
+    openDelay: 200,
+  });
 
   const logout = async () => {
     await api.post<void>('/api/auth/logout');
@@ -72,161 +103,153 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
     window.location.assign('/');
   };
 
+  const nav = navigationFor(user);
+
   return (
     <>
       <AppShell
-        header={{ height: HEADER_HEIGHT }}
+        header={{ height: { base: 52, md: 0 } }}
         navbar={{
-          width: NAVBAR_WIDTH,
+          width: collapsed ? 60 : 240,
           breakpoint: 'md',
-          collapsed: { mobile: !opened, desktop: !desktopOpened },
+          collapsed: { mobile: !mobileOpened },
         }}
-        padding={{ base: 'md', sm: 'lg', lg: 'xl' }}
+        padding={0}
       >
-        <AppShell.Header className="app-header" withBorder>
-          <Group h="100%" px={{ base: 'sm', md: 'md' }} gap="md" wrap="nowrap">
-            <Group
-              gap="sm"
-              wrap="nowrap"
-              w={{ md: desktopOpened ? NAVBAR_WIDTH - 16 : 'auto' }}
-              style={{ flexShrink: 0 }}
-            >
-              <Burger opened={opened} onClick={toggle} hiddenFrom="md" size="sm" />
+        <AppShell.Header className="app-header" hiddenFrom="md" withBorder>
+          <Group h="100%" px="md" gap="sm" wrap="nowrap">
+            <Burger
+              opened={mobileOpened}
+              onClick={mobile.toggle}
+              size="sm"
+              aria-label={mobileOpened ? 'Close navigation' : 'Open navigation'}
+            />
+            <Text fw={650} size="sm" truncate style={{ flex: 1 }}>
+              {user.organizationName ?? 'Internal ATS'}
+            </Text>
+            <SearchTrigger onOpen={search.open} />
+          </Group>
+        </AppShell.Header>
+
+        <AppShell.Navbar className="app-navbar" data-collapsed={collapsed || undefined} withBorder>
+          <Box className="nav-workspace">
+            <Box className="nav-mark" aria-hidden>
+              {initials(user.organizationName ?? 'Internal ATS')}
+            </Box>
+            <Box className="nav-hide" style={{ minWidth: 0, flex: 1 }}>
+              <Text size="sm" fw={650} truncate>
+                {user.organizationName ?? 'Internal ATS'}
+              </Text>
+              <Text size="xs" c="dimmed">
+                Internal ATS
+              </Text>
+            </Box>
+            <Tooltip label={`${collapsed ? 'Expand' : 'Collapse'} sidebar  ⌘\\`} openDelay={300}>
               <UnstyledButton
+                className="nav-collapse"
                 visibleFrom="md"
-                onClick={toggleDesktop}
-                aria-label={desktopOpened ? 'Collapse sidebar' : 'Expand sidebar'}
-                p={6}
-                style={{ borderRadius: 'var(--mantine-radius-md)' }}
+                onClick={toggleCollapsed}
+                aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                aria-expanded={!collapsed}
               >
-                {desktopOpened ? (
-                  <IconLayoutSidebarLeftCollapse size={18} />
+                {collapsed ? (
+                  <IconLayoutSidebarLeftExpand size={17} stroke={1.7} />
                 ) : (
-                  <IconLayoutSidebarLeftExpand size={18} />
+                  <IconLayoutSidebarLeftCollapse size={17} stroke={1.7} />
                 )}
               </UnstyledButton>
-              <Link href="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-                <Group gap="sm" wrap="nowrap">
-                  <ThemeIcon
-                    size={32}
-                    radius="md"
-                    variant="gradient"
-                    gradient={{ from: 'indigo.6', to: 'violet.5', deg: 135 }}
-                  >
-                    <IconBriefcase2 size={18} />
-                  </ThemeIcon>
-                  <Text fw={700} visibleFrom="sm" style={{ whiteSpace: 'nowrap' }}>
-                    {user.organizationName ?? 'Internal'}{' '}
-                    <Text span c="dimmed" fw={500}>
-                      ATS
-                    </Text>
-                  </Text>
-                </Group>
-              </Link>
-            </Group>
+            </Tooltip>
+          </Box>
 
-            <GlobalSearch />
+          <Box px="sm" pb="sm" visibleFrom="md">
+            <Tooltip {...tip('Search  /')}>
+              <Box>
+                <SearchTrigger onOpen={search.open} />
+              </Box>
+            </Tooltip>
+          </Box>
 
-            <Menu position="bottom-end" width={230} withArrow>
-              <Menu.Target>
-                <UnstyledButton
-                  p={4}
-                  ml="auto"
-                  style={{ borderRadius: 'var(--mantine-radius-md)', flexShrink: 0 }}
+          <AppShell.Section grow component={ScrollArea} type="scroll" px="sm">
+            <nav aria-label="Main">
+              {nav.map((item) => {
+                const active = isActive(pathname, item);
+                return (
+                  <Tooltip key={item.href} {...tip(item.label)}>
+                    <Link
+                      href={item.href}
+                      className="nav-item"
+                      data-active={active || undefined}
+                      aria-current={active ? 'page' : undefined}
+                      aria-label={collapsed ? item.label : undefined}
+                      onClick={mobile.close}
+                    >
+                      <item.icon size={17} stroke={1.7} aria-hidden />
+                      <span className="nav-item-label">{item.label}</span>
+                      {item.href === '/' && pendingApprovals > 0 && (
+                        <Badge
+                          size="sm"
+                          circle
+                          aria-label={`${pendingApprovals} waiting on you`}
+                          className="nav-count"
+                        >
+                          {pendingApprovals}
+                        </Badge>
+                      )}
+                    </Link>
+                  </Tooltip>
+                );
+              })}
+            </nav>
+          </AppShell.Section>
+
+          <Box className="nav-footer">
+            {user.role === 'Admin' && (
+              <Tooltip {...tip('Settings')}>
+                <Link
+                  href="/admin"
+                  className="nav-item"
+                  data-active={pathname.startsWith('/admin') || undefined}
+                  aria-current={pathname.startsWith('/admin') ? 'page' : undefined}
+                  aria-label={collapsed ? 'Settings' : undefined}
+                  onClick={mobile.close}
                 >
-                  <Group gap="xs" wrap="nowrap">
-                    <Avatar size={32} color="indigo" radius="xl">
-                      {initials(user.displayName)}
-                    </Avatar>
-                    <Box visibleFrom="md" maw={150}>
-                      <Text size="sm" fw={600} lineClamp={1}>
-                        {user.displayName}
-                      </Text>
-                      <Text size="xs" c="dimmed" lineClamp={1}>
-                        {humanize(user.role)}
-                      </Text>
-                    </Box>
-                    <IconChevronDown size={14} />
-                  </Group>
+                  <IconSettings size={17} stroke={1.7} aria-hidden />
+                  <span className="nav-item-label">Settings</span>
+                </Link>
+              </Tooltip>
+            )}
+            <Menu position="top-start" width={220} offset={6}>
+              <Menu.Target>
+                <UnstyledButton className="nav-user" aria-label="Account">
+                  <Avatar size={28} radius="xl" color="indigo">
+                    {initials(user.displayName)}
+                  </Avatar>
+                  <Box className="nav-hide" style={{ minWidth: 0, flex: 1 }}>
+                    <Text size="sm" fw={600} truncate>
+                      {user.displayName}
+                    </Text>
+                    <Text size="xs" c="dimmed" truncate>
+                      {humanize(user.role)}
+                    </Text>
+                  </Box>
+                  <IconSelector size={15} aria-hidden className="nav-hide" />
                 </UnstyledButton>
               </Menu.Target>
               <Menu.Dropdown>
                 <Menu.Label>{user.email}</Menu.Label>
-                {canAdmin && (
-                  <Menu.Item
-                    component={Link}
-                    href="/admin"
-                    leftSection={<IconSettings size={16} />}
-                  >
-                    Administration
-                  </Menu.Item>
-                )}
-                <Menu.Divider />
                 <Menu.Item color="red" leftSection={<IconLogout size={16} />} onClick={logout}>
                   Sign out
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
-          </Group>
-        </AppShell.Header>
-
-        <AppShell.Navbar p="sm" className="app-navbar">
-          <AppShell.Section grow component={ScrollArea} type="scroll">
-            {navigation
-              .filter(
-                (item) => !('permission' in item) || user.permissions.includes(item.permission),
-              )
-              // An occasional interviewer gets three doors: home, their interviews, their candidates.
-              // Approvals appears only while something waits on them.
-              .filter(
-                (item) =>
-                  user.role !== 'Interviewer' ||
-                  ['/', '/interviews', '/candidates'].includes(item.to) ||
-                  (item.to === '/approvals' && pendingApprovals > 0),
-              )
-              .map((item) => (
-                <NavLink
-                  key={item.to}
-                  component={Link}
-                  href={item.to}
-                  label={item.label}
-                  variant="light"
-                  mb={2}
-                  leftSection={<item.icon size={18} stroke={1.7} />}
-                  rightSection={
-                    item.to === '/approvals' && pendingApprovals > 0 ? (
-                      <Badge size="sm" circle aria-label={`${pendingApprovals} waiting on you`}>
-                        {pendingApprovals}
-                      </Badge>
-                    ) : undefined
-                  }
-                  onClick={close}
-                  active={
-                    pathname === item.to || (item.to !== '/' && pathname.startsWith(`${item.to}/`))
-                  }
-                />
-              ))}
-            {canAdmin && (
-              <>
-                <Divider my="md" />
-                <NavLink
-                  component={Link}
-                  href="/admin"
-                  label="Administration"
-                  variant="light"
-                  leftSection={<IconSettings size={18} stroke={1.7} />}
-                  onClick={close}
-                  active={pathname.startsWith('/admin')}
-                />
-              </>
-            )}
-          </AppShell.Section>
+          </Box>
         </AppShell.Navbar>
 
         <AppShell.Main className="app-main">
           <div className="page-container">{children}</div>
         </AppShell.Main>
       </AppShell>
+      <CommandSearch opened={searchOpened} onClose={search.close} />
       <OrganizationSetupModal
         opened={user.isOrganizationOwner && !user.organizationSetupCompleted}
       />

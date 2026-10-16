@@ -32,9 +32,12 @@ import { RejectManyModal } from './RejectManyModal';
 export function ApplicantsPage({
   initialApplicants,
   initialSessions,
+  embedded = false,
 }: {
   initialApplicants: ApplicantPage;
   initialSessions: RequisitionSummary[];
+  // Inside the Candidates hub, which supplies the page header.
+  embedded?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
@@ -120,13 +123,13 @@ export function ApplicantsPage({
     };
   return (
     <>
-      <PageHeader title="Applications" />
-      <Paper withBorder radius="lg" p="md" mb="lg">
+      {!embedded && <PageHeader title="Applications" />}
+      <div className="toolbar">
         <Stack gap="sm">
-          <Group gap="sm" wrap="wrap" align="flex-end">
+          <Group gap="sm" wrap="wrap" align="center">
             <TextInput
-              label="Search"
-              placeholder="Name, email, title, or tag"
+              aria-label="Search applications"
+              placeholder="Search name, email, title or tag"
               value={search}
               onChange={(event) => resetPage(setSearch)(event.currentTarget.value)}
               leftSection={<IconSearch size={15} />}
@@ -135,8 +138,10 @@ export function ApplicantsPage({
             <Select
               searchable
               clearable
-              label="Job"
-              placeholder="All jobs"
+              aria-label="Job"
+              leftSection={<span className="inline-label">Job</span>}
+              leftSectionWidth={44}
+              placeholder="All"
               value={sessionId}
               onChange={(value) => {
                 resetPage(setSessionId)(value);
@@ -153,8 +158,10 @@ export function ApplicantsPage({
             />
             <Select
               clearable
-              label="Stage"
-              placeholder={sessionId ? 'All stages' : 'Pick a job first'}
+              aria-label="Stage"
+              leftSection={<span className="inline-label">Stage</span>}
+              leftSectionWidth={52}
+              placeholder={sessionId ? 'All' : 'Pick a job'}
               value={stageId}
               onChange={resetPage(setStageId)}
               disabled={!sessionId}
@@ -165,7 +172,10 @@ export function ApplicantsPage({
             />
             <Select
               clearable
-              label="Status"
+              aria-label="Status"
+              leftSection={<span className="inline-label">Status</span>}
+              leftSectionWidth={56}
+              placeholder="Any"
               value={status}
               onChange={resetPage(setStatus)}
               data={['Active', 'Rejected', 'Withdrawn', 'Hired']}
@@ -234,9 +244,24 @@ export function ApplicantsPage({
             </SimpleGrid>
           </Collapse>
         </Stack>
-      </Paper>
+      </div>
+      <ApplicantResults
+        data={applicants.data}
+        selected={selected}
+        setSelected={setSelected}
+        page={page}
+        setPage={setPage}
+      />
       {selected.length > 0 && (
-        <Paper withBorder radius="lg" p="sm" mb="md" pos="sticky" top={72} style={{ zIndex: 2 }}>
+        <Paper
+          className="bulk-bar"
+          withBorder
+          radius="lg"
+          p="sm"
+          shadow="md"
+          role="region"
+          aria-label="Bulk actions"
+        >
           <Group gap="sm" wrap="wrap">
             <Text fw={650} size="sm">
               {selected.length} selected
@@ -279,13 +304,6 @@ export function ApplicantsPage({
           </Group>
         </Paper>
       )}
-      <ApplicantResults
-        data={applicants.data}
-        selected={selected}
-        setSelected={setSelected}
-        page={page}
-        setPage={setPage}
-      />
       <RejectManyModal
         opened={rejectOpened}
         onClose={rejectModal.close}

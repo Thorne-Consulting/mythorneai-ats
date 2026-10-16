@@ -16,7 +16,6 @@ import { notifications } from '@mantine/notifications';
 import { IconSparkles } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { SectionCard } from '@/components/ui/Cards';
 import {
   parseRequirements,
   type Requirements,
@@ -70,30 +69,29 @@ export function RequisitionRequirements({
     setDraft(confirmed ?? EMPTY);
   };
 
+  const actions = canManage && !draft && (
+    <Group gap="xs">
+      <Button
+        size="xs"
+        variant="subtle"
+        leftSection={<IconSparkles size={14} />}
+        loading={extract.isPending}
+        onClick={() => extract.mutate()}
+      >
+        Extract with AI
+      </Button>
+      <Button size="xs" variant="default" onClick={edit}>
+        {confirmed ? 'Edit' : 'Add manually'}
+      </Button>
+    </Group>
+  );
+
   return (
-    <SectionCard
-      title="What this job needs"
-      description="Matching and ranking are made against the requirements confirmed here."
-      action={
-        canManage && !draft ? (
-          <Group gap="xs">
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconSparkles size={14} />}
-              loading={extract.isPending}
-              onClick={() => extract.mutate()}
-            >
-              Extract with AI
-            </Button>
-            <Button size="xs" variant="default" onClick={edit}>
-              {confirmed ? 'Edit' : 'Add requirements'}
-            </Button>
-          </Group>
-        ) : undefined
-      }
-      padded
-    >
+    <div>
+      <div className="section-head">
+        <h2 className="section-title">Requirements</h2>
+        {confirmed && actions}
+      </div>
       <Stack gap="md">
         {aiError && (
           <Alert color="gray" variant="light" title="AI extraction didn't run">
@@ -102,6 +100,8 @@ export function RequisitionRequirements({
         )}
         {draft ? (
           <form
+            className="panel"
+            style={{ padding: 24 }}
             onSubmit={(event) => {
               event.preventDefault();
               save.mutate(draft);
@@ -155,52 +155,49 @@ export function RequisitionRequirements({
             </Stack>
           </form>
         ) : confirmed ? (
-          <Stack gap="sm">
-            <ChipRow label="Required" items={confirmed.required} filled />
-            <ChipRow label="Preferred" items={confirmed.preferred} />
-            <Text size="sm">
-              <Text span c="dimmed">
-                Minimum years:{' '}
-              </Text>
-              {confirmed.minYears ?? 'not set'}
-            </Text>
-            <Text size="sm">
-              <Text span c="dimmed">
-                Location rule:{' '}
-              </Text>
-              {confirmed.location || 'not set'}
-            </Text>
-          </Stack>
+          <dl className="req-list">
+            <ReqRow label="Must have">
+              <Chips items={confirmed.required} filled />
+            </ReqRow>
+            <ReqRow label="Nice to have">
+              <Chips items={confirmed.preferred} />
+            </ReqRow>
+            <ReqRow label="Experience">
+              {confirmed.minYears != null ? `${confirmed.minYears}+ years` : 'Not set'}
+            </ReqRow>
+            <ReqRow label="Location">{confirmed.location || 'Not set'}</ReqRow>
+          </dl>
         ) : (
-          <Text size="sm" c="dimmed" maw="60ch">
-            No requirements confirmed yet. Add them, or let AI draft a list from the role summary
-            for you to review. Until then, ranking candidates for this job is keyword-only.
-          </Text>
+          <div className="panel empty-row">
+            <Text size="sm" c="dimmed">
+              Nothing set yet, so candidates are ranked by keywords only.
+            </Text>
+            {actions}
+          </div>
         )}
       </Stack>
-    </SectionCard>
+    </div>
   );
 }
 
-function ChipRow({ label, items, filled }: { label: string; items: string[]; filled?: boolean }) {
+function ReqRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <Text size="xs" c="dimmed" mb={4}>
-        {label}
-      </Text>
-      {items.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          None
-        </Text>
-      ) : (
-        <Group gap={6}>
-          {items.map((item) => (
-            <Badge key={item} variant={filled ? 'light' : 'default'} tt="none" fw={500}>
-              {item}
-            </Badge>
-          ))}
-        </Group>
-      )}
+    <div className="req-row">
+      <dt>{label}</dt>
+      <dd>{children}</dd>
     </div>
+  );
+}
+
+function Chips({ items, filled }: { items: string[]; filled?: boolean }) {
+  if (items.length === 0) return <Text c="dimmed">None</Text>;
+  return (
+    <Group gap={6}>
+      {items.map((item) => (
+        <Badge key={item} variant={filled ? 'light' : 'default'} tt="none" fw={500}>
+          {item}
+        </Badge>
+      ))}
+    </Group>
   );
 }

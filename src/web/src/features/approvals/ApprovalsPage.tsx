@@ -15,26 +15,18 @@ export function ApprovalsPage() {
   const items = query.data ?? [];
   return (
     <>
-      <PageHeader
-        title="Approvals"
-        description="Acceptances and jobs that need your yes or no before they go ahead."
-      />
+      <PageHeader title="Approvals" />
       {query.isError ? (
         <EmptyState
           icon={IconChecks}
           title="Could not load your approvals"
-          description="This is usually temporary. Try again in a moment."
           actionLabel="Try again"
           onAction={() => query.refetch()}
         />
       ) : !query.data ? (
         <LoadingBlock rows={3} />
       ) : items.length === 0 ? (
-        <EmptyState
-          icon={IconChecks}
-          title="Nothing is waiting on you."
-          description="When someone asks you to approve an acceptance or open a job, it shows up here. You will also get an email."
-        />
+        <EmptyState icon={IconChecks} title="Nothing is waiting on you." />
       ) : (
         <Stack gap="md" maw={820}>
           {items.map((item) => {
@@ -47,7 +39,6 @@ export function ApprovalsPage() {
               <SectionCard
                 key={item.id}
                 title={item.title}
-                description={item.detail}
                 action={
                   href && (
                     <Button

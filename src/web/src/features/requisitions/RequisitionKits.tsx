@@ -1,9 +1,8 @@
 'use client';
 
-import { Badge, Button, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/core';
-import { IconClipboardList, IconPlus } from '@tabler/icons-react';
+import { Badge, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
+import { IconPlus } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
-import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { useCanManage, useRequisition } from './requisition-data';
 
@@ -17,30 +16,34 @@ export function RequisitionKits({ id }: { id: string }) {
 
   return (
     <>
-      <Group justify="space-between" align="flex-end" mb="md" wrap="wrap" gap="sm">
-        <div style={{ flex: '1 1 280px' }}>
-          <Title order={3}>Interview kits</Title>
-          <Text c="dimmed" size="sm">
-            Shared instructions and scoring criteria every interviewer works from.
-          </Text>
-        </div>
-        {canManage && (
+      <div className="section-head">
+        <h2 className="section-title">Interview kits</h2>
+        {canManage && requisition.interviewKits.length > 0 && (
           <Button
-            leftSection={<IconPlus size={16} />}
+            size="xs"
+            variant="default"
+            leftSection={<IconPlus size={14} />}
             onClick={() => router.push(`/requisitions/${id}/kits/new`)}
           >
             New kit
           </Button>
         )}
-      </Group>
+      </div>
       {requisition.interviewKits.length === 0 ? (
-        <EmptyState
-          icon={IconClipboardList}
-          title="No interview kits yet"
-          description="Kits keep every interviewer on the same questions and the same scoring scale, which makes candidates comparable."
-          actionLabel={canManage ? 'Add the first kit' : undefined}
-          onAction={() => router.push(`/requisitions/${id}/kits/new`)}
-        />
+        <div className="panel empty-row">
+          <Text size="sm" c="dimmed">
+            No kits yet. A kit gives every interviewer the same questions and scoring scale.
+          </Text>
+          {canManage && (
+            <Button
+              size="xs"
+              variant="default"
+              onClick={() => router.push(`/requisitions/${id}/kits/new`)}
+            >
+              Add a kit
+            </Button>
+          )}
+        </div>
       ) : (
         <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
           {requisition.interviewKits.map((kit) => (

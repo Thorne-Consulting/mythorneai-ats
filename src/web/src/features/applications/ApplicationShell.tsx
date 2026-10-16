@@ -1,18 +1,19 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { Avatar, Button, Select } from '@mantine/core';
+import { Anchor, Box, Button, Group, Select } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import { IconUserOff } from '@tabler/icons-react';
 import { useMutation } from '@tanstack/react-query';
+import Link from 'next/link';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
 import { StatusBadge } from '@/components/ui/Badges';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { DetailHeader } from '@/components/ui/PageHeaders';
 import { PageTabs } from '@/components/ui/PageTabs';
-import { initials } from '@/lib/format';
+import { formatDate, formatRelative } from '@/lib/format';
 import type { ApplicationDetailResponse } from '@/types';
 import {
   canManageRole,
@@ -35,7 +36,7 @@ export function ApplicationShell({
 }) {
   const user = useCurrentUser();
   const query = useApplication(id, initialData);
-  const extras = useApplicationExtras(id);
+  const { messages } = useApplicationExtras(id);
   const invalidate = useInvalidateApplication(id);
   const [rejectOpened, rejectModal] = useDisclosure();
   const canManage = canManageRole(user.role);
@@ -63,21 +64,23 @@ export function ApplicationShell({
   if (query.fetchStatus === 'paused') return <OfflineNotice onRetry={query.refetch} />;
   if (!query.data) return <LoadingBlock rows={5} />;
   const application = query.data.application;
+  const unread = messages.filter((message) => message.fromCandidate && !message.readAt).length;
 
   return (
     <>
       <DetailHeader
-        backHref={`/requisitions/${application.requisitionId}`}
-        backLabel={application.requisitionCode}
-        current={application.candidateName}
-        avatar={
-          <Avatar size={56} radius="xl" color="indigo" variant="light">
-            {initials(application.candidateName)}
-          </Avatar>
-        }
+        crumbs={[
+          { label: 'Candidates', href: '/candidates' },
+          {
+            label: application.requisitionTitle,
+            href: `/requisitions/${application.requisitionId}`,
+          },
+        ]}
         title={application.candidateName}
         badges={<StatusBadge status={application.status} />}
-        subtitle={`${application.candidateTitle ?? 'Applicant'} · ${application.requisitionTitle}`}
+        subtitle={[application.candidateTitle, application.candidateLocation]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           // Hired is finished; the only way back is "Reverse" on the acceptance panel.
           canManage &&
@@ -112,14 +115,53 @@ export function ApplicationShell({
             href: `/applications/${id}/interviews`,
             count: application.interviews.length,
           },
-          {
-            label: 'History',
-            href: `/applications/${id}/history`,
-            count: query.data.audit.length + extras.emails.length + extras.messages.length,
-          },
+          ...(canManage || messages.length > 0
+            ? [
+                {
+                  label: 'Messages',
+                  href: `/applications/${id}/messages`,
+                  count: unread || undefined,
+                },
+              ]
+            : []),
+          { label: 'Activity', href: `/applications/${id}/activity` },
         ]}
       />
-      {children}
+      <div className="record-grid">
+        <div style={{ minWidth: 0 }}>{children}</div>
+        <aside className="record-rail" aria-label="Applicant details">
+          <div className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title">Applicant</h2>
+            </div>
+            <dl className="facts">
+              <Fact label="Email" value={application.candidateEmail} />
+              <Fact label="Phone" value={application.candidatePhone ?? '–'} />
+              <Fact label="Location" value={application.candidateLocation ?? '–'} />
+              <Fact label="Source" value={application.source} />
+              <Fact label="Applied" value={formatDate(application.appliedAt)} />
+              <Fact label="Last activity" value={formatRelative(application.lastActivityAt)} />
+              {application.dispositionReason && (
+                <Fact label="Reason" value={application.dispositionReason} />
+              )}
+            </dl>
+            {application.candidateTags.length > 0 && (
+              <Box px={24} pb="md" className="signals" style={{ marginTop: 0 }}>
+                {application.candidateTags.map((tag) => (
+                  <span key={tag} className="signal">
+                    {tag}
+                  </span>
+                ))}
+              </Box>
+            )}
+            <Group px={24} pb="lg">
+              <Anchor component={Link} href={`/candidates/${application.candidateId}`} size="sm">
+                Resume and other applications
+              </Anchor>
+            </Group>
+          </div>
+        </aside>
+      </div>
       <RejectModal
         applicationId={id}
         stageId={application.stageId}
@@ -128,5 +170,14 @@ export function ApplicationShell({
         onSaved={invalidate}
       />
     </>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="fact">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }

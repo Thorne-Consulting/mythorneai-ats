@@ -29,7 +29,6 @@ export function TalentSearchPage({
     <>
       <PageHeader
         title="Talent search"
-        description="Find people already in your database. Rank them for a job, or search profiles and resumes directly."
         actions={
           canImport && (
             <Button leftSection={<IconFileImport size={17} />} onClick={importModal.open}>

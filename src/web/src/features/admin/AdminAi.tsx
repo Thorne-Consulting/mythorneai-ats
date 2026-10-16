@@ -128,11 +128,6 @@ export function AdminAi() {
         <EmptyState
           icon={IconSparkles}
           title="No AI activity yet"
-          description={
-            purpose
-              ? 'Nothing for this filter. Try showing all activity.'
-              : 'When someone uses an AI feature, like reading a resume, it is recorded here.'
-          }
           actionLabel={purpose ? 'Show all activity' : undefined}
           onAction={() => setPurpose(null)}
         />
@@ -192,7 +187,7 @@ export function AdminAi() {
                         <Table.Td colSpan={7} bg="var(--mantine-color-gray-0)">
                           {item.error && (
                             <>
-                              <Text size="xs" fw={650} c="red" tt="uppercase">
+                              <Text size="sm" fw={650} c="red">
                                 Error
                               </Text>
                               <Text size="sm" c="red" mb="sm">
@@ -200,13 +195,13 @@ export function AdminAi() {
                               </Text>
                             </>
                           )}
-                          <Text size="xs" fw={650} c="dimmed" tt="uppercase">
+                          <Text size="sm" fw={650} c="dimmed">
                             What was asked
                           </Text>
                           <Text size="sm" mb="sm" style={{ whiteSpace: 'pre-wrap' }}>
                             {item.input || '—'}
                           </Text>
-                          <Text size="xs" fw={650} c="dimmed" tt="uppercase">
+                          <Text size="sm" fw={650} c="dimmed">
                             What came back
                           </Text>
                           <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>

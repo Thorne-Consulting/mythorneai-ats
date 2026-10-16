@@ -10,7 +10,7 @@ import { StatusBadge } from '@/components/ui/Badges';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { PageHeader } from '@/components/ui/PageHeaders';
-import { formatDate } from '@/lib/format';
+import { formatDate, humanize } from '@/lib/format';
 import { rowLinkProps } from '@/lib/row-link-props';
 import type { RequisitionSummary } from '@/types';
 import { useCurrentUser } from '@/auth';
@@ -61,7 +61,15 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
             clearable
             placeholder="All statuses"
             aria-label="Filter by status"
-            data={['Draft', 'PendingApproval', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled']}
+            data={[
+              'Draft',
+              'PendingApproval',
+              'Open',
+              'OnHold',
+              'Filled',
+              'Closed',
+              'Cancelled',
+            ].map((value) => ({ value, label: humanize(value) }))}
             style={{ flex: '0 1 180px' }}
           />
           {query.data && (
@@ -78,26 +86,21 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
         <EmptyState
           icon={IconBriefcase2}
           title="No jobs found"
-          description={
-            search || status
-              ? 'Try a different filter.'
-              : 'Create the first job to start reviewing applicants.'
-          }
           actionLabel={canCreate && !search && !status ? 'Create job' : undefined}
           onAction={() => router.push('/requisitions/new')}
         />
       ) : (
         <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
-          <Table.ScrollContainer minWidth={920}>
-            <Table>
+          <Table.ScrollContainer minWidth={960}>
+            <Table className="inbox-table" layout="fixed">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Role</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th>Location</Table.Th>
-                  <Table.Th>Pipeline</Table.Th>
-                  <Table.Th>Owner</Table.Th>
-                  <Table.Th>Target start</Table.Th>
+                  <Table.Th w={150}>Status</Table.Th>
+                  <Table.Th w={160}>Location</Table.Th>
+                  <Table.Th w={130}>Pipeline</Table.Th>
+                  <Table.Th w={230}>Owner</Table.Th>
+                  <Table.Th w={130}>Target start</Table.Th>
                   <Table.Th w={48} />
                 </Table.Tr>
               </Table.Thead>
@@ -127,17 +130,23 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Badge variant="light" color={item.activeApplications ? 'indigo' : 'gray'}>
+                      <Badge
+                        variant="light"
+                        color={item.activeApplications ? 'indigo' : 'gray'}
+                        className="nowrap"
+                      >
                         {item.activeApplications} active
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm" truncate maw={180}>
+                      <Text size="sm" className="nowrap">
                         {item.ownerEmail}
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{formatDate(item.targetStartDate)}</Text>
+                      <Text size="sm" className="nowrap tnum">
+                        {formatDate(item.targetStartDate)}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <IconArrowRight size={17} color="var(--mantine-color-gray-6)" aria-hidden />

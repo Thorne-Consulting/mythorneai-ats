@@ -1,31 +1,32 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActionIcon,
-  Box,
   Button,
   Group,
-  Paper,
-  SimpleGrid,
-  Select,
-  Stack,
+  Menu,
+  Popover,
   Text,
-  ThemeIcon,
   Tooltip,
+  UnstyledButton,
 } from '@mantine/core';
 import { DatePicker } from '@mantine/dates';
 import { useDisclosure } from '@mantine/hooks';
-import { IconCalendarPlus, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
+import {
+  IconCalendar,
+  IconCalendarPlus,
+  IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
+} from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
-import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { PageHeader } from '@/components/ui/PageHeaders';
 import { ScheduleInterviewDrawer } from './ScheduleInterviewDrawer';
-
 type CalendarInterview = {
   id: string;
   applicationId: string;
@@ -43,9 +44,10 @@ const dateRange = new Intl.DateTimeFormat(undefined, {
   year: 'numeric',
 });
 const timeName = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' });
-const CALENDAR_START_HOUR = 8;
-const CALENDAR_END_HOUR = 20;
-const HOUR_HEIGHT = 72;
+// The working day is always shown; the grid stretches to fit anything booked outside it.
+const DAY_START = 8;
+const DAY_END = 19;
+const HOUR_HEIGHT = 64;
 
 function startOfWeek(date: Date) {
   const result = new Date(date);
@@ -75,14 +77,24 @@ function weekLabel(weekStart: Date) {
   }
   return `${dateRange.format(weekStart)} – ${dateRange.format(weekEnd)}`;
 }
-function timePosition(value: string) {
-  const date = new Date(value);
-  return (date.getHours() + date.getMinutes() / 60 - CALENDAR_START_HOUR) * HOUR_HEIGHT;
+function hoursOf(date: Date) {
+  return date.getHours() + date.getMinutes() / 60;
 }
-function eventHeight(interview: CalendarInterview) {
-  const duration = new Date(interview.endsAt).getTime() - new Date(interview.startsAt).getTime();
-  return Math.max((duration / 3_600_000) * HOUR_HEIGHT, 34);
+
+/** Visible hour range for a week: the working day, widened to fit every interview. */
+function hourRange(interviews: CalendarInterview[]) {
+  let start = DAY_START;
+  let end = DAY_END;
+  for (const interview of interviews) {
+    const from = new Date(interview.startsAt);
+    const to = new Date(interview.endsAt);
+    start = Math.min(start, Math.floor(hoursOf(from)));
+    end = Math.max(end, sameDay(from, to) ? Math.ceil(hoursOf(to)) : 24);
+  }
+  return { start, end: Math.min(end, 24) };
 }
+
+type CalendarConnection = { connected: boolean; provider?: string; accountEmail?: string };
 
 export function InterviewsPage() {
   const router = useRouter();
@@ -92,20 +104,23 @@ export function InterviewsPage() {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
   const [scheduleAt, setScheduleAt] = useState<Date>(() => new Date());
   const [opened, drawer] = useDisclosure();
-  const [calendarProvider, setCalendarProvider] = useState<string | null>('Google');
-  const calendarConnection = useQuery({
+  const [pickerOpened, picker] = useDisclosure();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const connection = useQuery({
     queryKey: ['calendar-connection'],
-    queryFn: () =>
-      api.get<{ connected: boolean; provider?: string; accountEmail?: string }>(
-        '/api/calendar/connection',
-      ),
-  });
-  const disconnectCalendar = useMutation({
+    queryFn: () => api.get<CalendarConnection>('/api/calendar/connection'),
+  }).data;
+  const disconnect = useMutation({
     mutationFn: () => api.delete('/api/calendar/connection'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar-connection'] }),
   });
+  const connect = async (provider: 'Google' | 'Microsoft') => {
+    const result = await api.get<{ authorizationUrl: string }>(`/api/calendar/connect/${provider}`);
+    window.location.assign(result.authorizationUrl);
+  };
+
   const weekStart = useMemo(() => startOfWeek(selectedDate), [selectedDate]);
-  const weekEnd = useMemo(() => addDays(weekStart, 7), [weekStart]);
   const weekDays = useMemo(
     () => Array.from({ length: 7 }, (_, index) => addDays(weekStart, index)),
     [weekStart],
@@ -114,302 +129,253 @@ export function InterviewsPage() {
     queryKey: ['interview-calendar', weekStart.toISOString()],
     queryFn: () =>
       api.get<CalendarInterview[]>(
-        `/api/interviews?from=${encodeURIComponent(weekStart.toISOString())}&to=${encodeURIComponent(weekEnd.toISOString())}`,
+        `/api/interviews?from=${encodeURIComponent(weekStart.toISOString())}&to=${encodeURIComponent(addDays(weekStart, 7).toISOString())}`,
       ),
   });
-  const interviewsByDay = useMemo(() => {
+  const interviews = useMemo(() => query.data ?? [], [query.data]);
+  const range = useMemo(() => hourRange(interviews), [interviews]);
+  const byDay = useMemo(() => {
     const result = new Map<string, CalendarInterview[]>();
-    for (const interview of query.data ?? []) {
+    for (const interview of interviews) {
       const key = dateKey(new Date(interview.startsAt));
       result.set(key, [...(result.get(key) ?? []), interview]);
     }
     return result;
-  }, [query.data]);
+  }, [interviews]);
+
+  // Land on the working day, or on the first interview if it starts later.
+  useEffect(() => {
+    if (!scrollRef.current || query.isLoading) return;
+    const first = interviews.length
+      ? Math.min(...interviews.map((item) => hoursOf(new Date(item.startsAt))))
+      : DAY_START;
+    const target = Math.max(range.start, Math.min(DAY_START, first) - 0.5);
+    scrollRef.current.scrollTop = (target - range.start) * HOUR_HEIGHT;
+  }, [weekStart, interviews, range.start, query.isLoading]);
+
   const openSchedule = (date = selectedDate) => {
     setScheduleAt(date);
     drawer.open();
   };
+  const top = (value: string) => (hoursOf(new Date(value)) - range.start) * HOUR_HEIGHT;
+  const height = (item: CalendarInterview) => {
+    const from = new Date(item.startsAt);
+    const to = new Date(item.endsAt);
+    const endHour = sameDay(from, to) ? hoursOf(to) : 24;
+    return Math.max((endHour - hoursOf(from)) * HOUR_HEIGHT - 2, 26);
+  };
+  const now = new Date();
+  const count = interviews.length;
 
   return (
     <>
       <PageHeader
         title="Interviews"
         actions={
-          <Group>
-            <Select
-              aria-label="Calendar provider"
-              value={calendarProvider}
-              onChange={setCalendarProvider}
-              data={['Google', 'Microsoft']}
-              w={130}
-            />
-            <Button
-              variant={calendarConnection.data?.connected ? 'light' : 'default'}
-              disabled={!calendarProvider}
-              onClick={async () => {
-                const result = await api.get<{ authorizationUrl: string }>(
-                  `/api/calendar/connect/${calendarProvider}`,
-                );
-                window.location.assign(result.authorizationUrl);
-              }}
-            >
-              {calendarConnection.data?.connected ? 'Reconnect calendar' : 'Connect calendar'}
-            </Button>
-            {calendarConnection.data?.connected && (
-              <Button
-                variant="subtle"
-                color="red"
-                loading={disconnectCalendar.isPending}
-                onClick={() => disconnectCalendar.mutate()}
-              >
-                Disconnect
-              </Button>
-            )}
+          <>
+            <Menu position="bottom-end" width={240}>
+              <Menu.Target>
+                <Button
+                  variant="default"
+                  leftSection={<IconCalendar size={16} />}
+                  rightSection={<IconChevronDown size={14} />}
+                >
+                  {connection?.connected ? `${connection.provider} calendar` : 'Connect calendar'}
+                </Button>
+              </Menu.Target>
+              <Menu.Dropdown>
+                <Menu.Label>
+                  {connection?.connected
+                    ? `Connected as ${connection.accountEmail ?? connection.provider}`
+                    : 'Booking checks your real availability'}
+                </Menu.Label>
+                <Menu.Item onClick={() => connect('Google')}>
+                  {connection?.provider === 'Google' ? 'Reconnect Google' : 'Connect Google'}
+                </Menu.Item>
+                <Menu.Item onClick={() => connect('Microsoft')}>
+                  {connection?.provider === 'Microsoft'
+                    ? 'Reconnect Microsoft'
+                    : 'Connect Microsoft'}
+                </Menu.Item>
+                {connection?.connected && (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Item color="red" onClick={() => disconnect.mutate()}>
+                      Disconnect
+                    </Menu.Item>
+                  </>
+                )}
+              </Menu.Dropdown>
+            </Menu>
             {canSchedule && (
               <Button leftSection={<IconCalendarPlus size={16} />} onClick={() => openSchedule()}>
                 Schedule interview
               </Button>
             )}
-          </Group>
+          </>
         }
       />
-      <SimpleGrid cols={{ base: 1, xl: 5 }} spacing="lg" className="interviews-workspace">
-        <Paper withBorder radius="lg" p="md">
-          <Stack gap="md">
-            {canSchedule && (
-              <Button
-                leftSection={<IconCalendarPlus size={16} />}
-                fullWidth
-                onClick={() => openSchedule()}
-              >
-                Schedule interview
-              </Button>
-            )}
-            <DatePicker
-              previousLabel="Previous month"
-              nextLabel="Next month"
-              value={selectedDate.toISOString().slice(0, 10)}
-              onChange={(value) => value && setSelectedDate(new Date(`${value}T12:00:00`))}
-            />
-            <Button variant="default" fullWidth onClick={() => setSelectedDate(new Date())}>
-              Today
-            </Button>
-            <Text size="sm" c="dimmed">
-              Select a day to view its week or open a new interview slot.
-            </Text>
-          </Stack>
-        </Paper>
-        <Paper
-          withBorder
-          radius="lg"
-          p="md"
-          className="interviews-calendar-panel"
-          style={{ gridColumn: 'span 4', minWidth: 0 }}
-        >
-          <Group justify="space-between" mb="md" wrap="wrap">
-            <Group gap="xs">
-              <Button variant="default" size="sm" onClick={() => setSelectedDate(new Date())}>
-                Today
-              </Button>
-              <Tooltip label="Previous week">
-                <ActionIcon
-                  variant="default"
-                  aria-label="Previous week"
-                  onClick={() => setSelectedDate(addDays(selectedDate, -7))}
-                >
-                  <IconChevronLeft size={16} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label="Next week">
-                <ActionIcon
-                  variant="default"
-                  aria-label="Next week"
-                  onClick={() => setSelectedDate(addDays(selectedDate, 7))}
-                >
-                  <IconChevronRight size={16} />
-                </ActionIcon>
-              </Tooltip>
-              <Text fw={650} size="lg">
+
+      <div className="cal-toolbar">
+        <Group gap={8} wrap="nowrap">
+          <Button variant="default" size="sm" onClick={() => setSelectedDate(new Date())}>
+            Today
+          </Button>
+          <Tooltip label="Previous week">
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="lg"
+              aria-label="Previous week"
+              onClick={() => setSelectedDate(addDays(selectedDate, -7))}
+            >
+              <IconChevronLeft size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <Tooltip label="Next week">
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="lg"
+              aria-label="Next week"
+              onClick={() => setSelectedDate(addDays(selectedDate, 7))}
+            >
+              <IconChevronRight size={18} />
+            </ActionIcon>
+          </Tooltip>
+          <Popover opened={pickerOpened} onChange={picker.toggle} position="bottom-start">
+            <Popover.Target>
+              <UnstyledButton className="cal-week-label" onClick={picker.toggle}>
                 {weekLabel(weekStart)}
-              </Text>
-            </Group>
-            <Text size="sm" c="dimmed">
-              {query.data?.length ?? 0} scheduled this week
-            </Text>
-          </Group>
-          {query.isLoading ? (
-            <LoadingBlock rows={5} />
-          ) : (
-            <Box className="interviews-calendar-grid" style={{ overflow: 'auto' }}>
-              <Box
-                style={{
-                  minWidth: 1080,
-                  display: 'grid',
-                  gridTemplateColumns: '72px repeat(7, minmax(144px, 1fr))',
-                  borderTop: '1px solid var(--mantine-color-default-border)',
-                  borderLeft: '1px solid var(--mantine-color-default-border)',
+                <IconChevronDown size={15} aria-hidden />
+              </UnstyledButton>
+            </Popover.Target>
+            <Popover.Dropdown>
+              <DatePicker
+                firstDayOfWeek={1}
+                weekendDays={[]}
+                previousLabel="Previous month"
+                nextLabel="Next month"
+                value={selectedDate.toISOString().slice(0, 10)}
+                onChange={(value) => {
+                  if (value) setSelectedDate(new Date(`${value}T12:00:00`));
+                  picker.close();
                 }}
+              />
+            </Popover.Dropdown>
+          </Popover>
+        </Group>
+        <Text size="sm" c="dimmed" className="tnum">
+          {query.isLoading
+            ? ''
+            : count === 0
+              ? 'Nothing scheduled this week'
+              : `${count} ${count === 1 ? 'interview' : 'interviews'} this week`}
+        </Text>
+      </div>
+
+      {query.isLoading ? (
+        <LoadingBlock rows={6} />
+      ) : (
+        <div className="panel cal">
+          <div className="cal-scroll" ref={scrollRef}>
+            <div className="cal-grid">
+              <div className="cal-head cal-corner" />
+              {weekDays.map((day) => {
+                const today = sameDay(day, now);
+                return (
+                  <div
+                    key={dateKey(day)}
+                    className="cal-head"
+                    data-today={today || undefined}
+                    aria-current={today ? 'date' : undefined}
+                  >
+                    <span className="cal-head-day">{dayName.format(day)}</span>
+                    <span className="cal-head-date tnum">{day.getDate()}</span>
+                  </div>
+                );
+              })}
+
+              <div
+                className="cal-times"
+                style={{ height: (range.end - range.start) * HOUR_HEIGHT }}
               >
-                <Box
-                  style={{
-                    borderRight: '1px solid var(--mantine-color-default-border)',
-                    minHeight: 62,
-                  }}
-                />
-                {weekDays.map((day) => {
-                  const today = sameDay(day, new Date());
-                  return (
-                    <Stack
-                      key={dateKey(day)}
-                      gap={2}
-                      align="center"
-                      justify="center"
-                      style={{
-                        borderRight: '1px solid var(--mantine-color-default-border)',
-                        borderBottom: '1px solid var(--mantine-color-default-border)',
-                        minHeight: 62,
-                      }}
-                    >
-                      <Text size="xs" fw={600} tt="uppercase" c="dimmed">
-                        {dayName.format(day)}
-                      </Text>
-                      {today ? (
-                        <ThemeIcon size={38} radius="xl" color="indigo" variant="filled">
-                          {day.getDate()}
-                        </ThemeIcon>
-                      ) : (
-                        <Text fw={650} size="xl" className="tnum">
-                          {day.getDate()}
-                        </Text>
-                      )}
-                    </Stack>
-                  );
-                })}
-                <Box style={{ borderRight: '1px solid var(--mantine-color-default-border)' }}>
-                  {Array.from({ length: CALENDAR_END_HOUR - CALENDAR_START_HOUR }, (_, index) => (
-                    <Box
-                      key={index}
-                      h={HOUR_HEIGHT}
-                      pr="xs"
-                      style={{
-                        borderBottom: '1px solid var(--mantine-color-default-border)',
-                        textAlign: 'right',
-                      }}
-                    >
-                      <Text size="xs" c="dimmed" className="tnum">
-                        {timeName.format(new Date(2026, 0, 1, CALENDAR_START_HOUR + index))}
-                      </Text>
-                    </Box>
-                  ))}
-                </Box>
-                {weekDays.map((day) => {
-                  const interviews = (interviewsByDay.get(dateKey(day)) ?? []).filter(
-                    (item) =>
-                      timePosition(item.startsAt) >= 0 &&
-                      timePosition(item.startsAt) <
-                        (CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT,
-                  );
-                  const today = sameDay(day, new Date());
-                  return (
-                    <Box
-                      key={dateKey(day)}
-                      pos="relative"
-                      role={canSchedule ? 'button' : undefined}
-                      tabIndex={canSchedule ? 0 : undefined}
-                      aria-label={
-                        canSchedule
-                          ? `Schedule an interview on ${day.toLocaleDateString()}`
-                          : undefined
+                {Array.from({ length: range.end - range.start }, (_, index) => (
+                  <span key={index} className="cal-time tnum" style={{ top: index * HOUR_HEIGHT }}>
+                    {index === 0 ? '' : timeName.format(new Date(2026, 0, 1, range.start + index))}
+                  </span>
+                ))}
+              </div>
+
+              {weekDays.map((day) => {
+                const today = sameDay(day, now);
+                const weekend = day.getDay() === 0 || day.getDay() === 6;
+                const nowTop = (hoursOf(now) - range.start) * HOUR_HEIGHT;
+                return (
+                  <div
+                    key={dateKey(day)}
+                    className="cal-day"
+                    data-today={today || undefined}
+                    data-weekend={weekend || undefined}
+                    style={{
+                      height: (range.end - range.start) * HOUR_HEIGHT,
+                      backgroundSize: `100% ${HOUR_HEIGHT}px`,
+                    }}
+                    role={canSchedule ? 'button' : undefined}
+                    tabIndex={canSchedule ? 0 : undefined}
+                    aria-label={
+                      canSchedule
+                        ? `Schedule an interview on ${day.toLocaleDateString()}`
+                        : undefined
+                    }
+                    onKeyDown={(event) => {
+                      if (canSchedule && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        openSchedule(day);
                       }
-                      onKeyDown={(event) => {
-                        if (canSchedule && (event.key === 'Enter' || event.key === ' ')) {
-                          event.preventDefault();
-                          openSchedule(day);
-                        }
-                      }}
-                      onClick={(event) => {
-                        if (!canSchedule) return;
-                        const bounds = event.currentTarget.getBoundingClientRect();
-                        const minutes = Math.max(
-                          0,
-                          Math.min(
-                            (CALENDAR_END_HOUR - CALENDAR_START_HOUR) * 60 - 30,
-                            Math.round(((event.clientY - bounds.top) / HOUR_HEIGHT) * 2) * 30,
-                          ),
-                        );
-                        const date = new Date(day);
-                        date.setHours(
-                          CALENDAR_START_HOUR + Math.floor(minutes / 60),
-                          minutes % 60,
-                          0,
-                          0,
-                        );
-                        openSchedule(date);
-                      }}
-                      style={{
-                        height: (CALENDAR_END_HOUR - CALENDAR_START_HOUR) * HOUR_HEIGHT,
-                        borderRight: '1px solid var(--mantine-color-default-border)',
-                        backgroundColor: today ? 'var(--mantine-color-indigo-light)' : undefined,
-                        backgroundImage:
-                          'repeating-linear-gradient(to bottom, transparent 0, transparent 71px, var(--mantine-color-default-border) 72px)',
-                      }}
-                    >
-                      {interviews.map((interview) => (
-                        <Button
+                    }}
+                    onClick={(event) => {
+                      if (!canSchedule) return;
+                      const bounds = event.currentTarget.getBoundingClientRect();
+                      // Snap the click to the half hour it landed in.
+                      const halfHours = Math.floor(
+                        ((event.clientY - bounds.top) / HOUR_HEIGHT) * 2,
+                      );
+                      const date = new Date(day);
+                      date.setHours(range.start, halfHours * 30, 0, 0);
+                      openSchedule(date);
+                    }}
+                  >
+                    {today && nowTop >= 0 && nowTop <= (range.end - range.start) * HOUR_HEIGHT && (
+                      <span className="cal-now" style={{ top: nowTop }} aria-hidden />
+                    )}
+                    {(byDay.get(dateKey(day)) ?? []).map((interview) => {
+                      const h = height(interview);
+                      return (
+                        <UnstyledButton
                           key={interview.id}
-                          variant="filled"
-                          color="indigo"
-                          pos="absolute"
-                          left={4}
-                          right={4}
-                          top={timePosition(interview.startsAt)}
-                          h={eventHeight(interview)}
-                          px={8}
-                          py={4}
-                          justify="flex-start"
+                          className="cal-event"
+                          data-compact={h < 44 || undefined}
+                          style={{ top: top(interview.startsAt) + 1, height: h }}
                           onClick={(event) => {
                             event.stopPropagation();
-                            router.push(`/applications/${interview.applicationId}`);
-                          }}
-                          styles={{
-                            root: { overflow: 'hidden', borderRadius: 'var(--mantine-radius-sm)' },
-                            label: {
-                              display: 'block',
-                              width: '100%',
-                              textAlign: 'left',
-                              whiteSpace: 'normal',
-                              lineHeight: 1.2,
-                            },
+                            router.push(`/applications/${interview.applicationId}/interviews`);
                           }}
                         >
-                          <Text size="xs" fw={700}>
-                            {timeName.format(new Date(interview.startsAt))}
-                          </Text>
-                          <Text size="sm" fw={600} lineClamp={1}>
-                            {interview.candidateName}
-                          </Text>
-                          <Text size="xs" lineClamp={1} style={{ opacity: 0.88 }}>
-                            {interview.title}
-                          </Text>
-                        </Button>
-                      ))}
-                    </Box>
-                  );
-                })}
-              </Box>
-            </Box>
-          )}
-          {!query.isLoading && query.data?.length === 0 && (
-            <EmptyState
-              icon={IconCalendarPlus}
-              title="No interviews this week"
-              description="Schedule an interview to add it to this calendar."
-              actionLabel={canSchedule ? 'Schedule interview' : undefined}
-              onAction={canSchedule ? () => openSchedule() : undefined}
-            />
-          )}
-        </Paper>
-      </SimpleGrid>
+                          <span className="cal-event-title">{interview.candidateName}</span>
+                          <span className="cal-event-meta">
+                            {timeName.format(new Date(interview.startsAt))} · {interview.title}
+                          </span>
+                        </UnstyledButton>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
       {canSchedule && (
         <ScheduleInterviewDrawer opened={opened} onClose={drawer.close} selectedDate={scheduleAt} />
       )}

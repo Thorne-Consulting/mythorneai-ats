@@ -72,7 +72,6 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
     <SettingsSection
       id="candidate-fields"
       title="Candidate fields"
-      description="Extra details your team wants on every candidate, like notice period or work authorization. They appear on the candidate page. Saving replaces the whole list."
       dirty={dirty && valid}
       saving={save.isPending}
       onSave={() => save.mutate()}
