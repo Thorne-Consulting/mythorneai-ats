@@ -56,6 +56,11 @@ select {
   padding: 40px 48px 96px;
 }
 
+/* Tables of people use the whole width; reading pages keep the measure. */
+.page-container:has(.applicants) {
+  max-width: none;
+}
+
 @media (max-width: 62em) {
   .page-container {
     padding: 24px 16px 64px;
