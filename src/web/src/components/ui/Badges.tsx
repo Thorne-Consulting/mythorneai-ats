@@ -1,7 +1,7 @@
 import { Badge, Box } from '@mantine/core';
 import { humanize } from '@/lib/format';
 
-const statusColors: Record<string, string> = {
+export const statusColors: Record<string, string> = {
   Open: 'teal',
   Active: 'teal',
   Accepted: 'teal',
