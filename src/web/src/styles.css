@@ -1675,6 +1675,23 @@ section[id],
   margin: 0;
 }
 
+.doc-editor {
+  position: relative;
+}
+
+/* Row and column controls, pinned above the table that holds the caret. */
+.doc-table-bar {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+}
+
+.doc-table-bar [data-gap] {
+  margin-left: 6px;
+}
+
 .doc-editor-menu {
   position: fixed;
   z-index: 300;

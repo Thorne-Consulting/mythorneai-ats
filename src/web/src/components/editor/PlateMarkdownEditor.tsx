@@ -38,10 +38,17 @@ import { ActionIcon, Group, Paper, Text, Tooltip, UnstyledButton } from '@mantin
 import {
   IconBlockquote,
   IconBold,
+  IconColumnInsertLeft,
+  IconColumnInsertRight,
+  IconColumnRemove,
   IconH1,
   IconH2,
   IconH3,
   IconItalic,
+  IconRowInsertBottom,
+  IconRowInsertTop,
+  IconRowRemove,
+  IconTableOff,
   IconUnderline,
 } from '@tabler/icons-react';
 
@@ -122,6 +129,8 @@ export function PlateMarkdownEditor({
   readOnly?: boolean;
 }) {
   const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null);
+  // Where the table toolbar sits, relative to the editor, while the caret is in a table.
+  const [tableBar, setTableBar] = useState<{ top: number; right: number } | null>(null);
   const [menu, setMenu] = useState<{
     trigger: '#' | '/';
     query: string;
@@ -171,6 +180,39 @@ export function PlateMarkdownEditor({
 
   const save = (nextValue: Value) => onChange(serializeMd(editor, { value: nextValue }));
 
+  const tableActions = [
+    [
+      'Row above',
+      IconRowInsertTop,
+      () => editor.tf.insert.tableRow({ before: true, select: true }),
+    ],
+    ['Row below', IconRowInsertBottom, () => editor.tf.insert.tableRow({ select: true })],
+    ['Delete row', IconRowRemove, () => editor.tf.remove.tableRow()],
+    [
+      'Column left',
+      IconColumnInsertLeft,
+      () => editor.tf.insert.tableColumn({ before: true, select: true }),
+    ],
+    ['Column right', IconColumnInsertRight, () => editor.tf.insert.tableColumn({ select: true })],
+    ['Delete column', IconColumnRemove, () => editor.tf.remove.tableColumn()],
+    ['Delete table', IconTableOff, () => editor.tf.remove.table()],
+  ] as const;
+
+  // Keep the table toolbar pinned just above whichever table holds the caret.
+  const syncTableBar = () => {
+    const table = readOnly ? undefined : editor.api.above({ match: { type: 'table' } });
+    const tableNode = table ? editor.api.toDOMNode(table[0]) : undefined;
+    const container = tableNode?.closest('.doc-editor');
+    if (!tableNode || !container) {
+      setTableBar(null);
+      return;
+    }
+    const tableRect = tableNode.getBoundingClientRect();
+    const boxRect = container.getBoundingClientRect();
+    // Right-aligned, so the section heading on the left stays readable.
+    setTableBar({ top: tableRect.top - boxRect.top - 40, right: boxRect.right - tableRect.right });
+  };
+
   const matches = menu
     ? (menu.trigger === '/' ? [...BLOCKS, ...templates] : templates).filter((item) =>
         item.label.toLowerCase().includes(menu.query.toLowerCase()),
@@ -219,8 +261,10 @@ export function PlateMarkdownEditor({
           onChange={({ value: nextValue }) => {
             save(nextValue);
             syncMenu();
+            syncTableBar();
           }}
           onSelectionChange={() => {
+            syncTableBar();
             // Show the toolbar just above a non-empty selection, hide it otherwise.
             const selection = window.getSelection();
             if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
@@ -238,6 +282,7 @@ export function PlateMarkdownEditor({
             onBlur={() => {
               setBubble(null);
               setMenu(null);
+              setTableBar(null);
             }}
             onKeyDown={(event) => {
               // Tab in the last cell of a table adds a row, the way Notion and Docs do.
@@ -275,6 +320,34 @@ export function PlateMarkdownEditor({
             }}
           />
         </Plate>
+        {tableBar && (
+          <Paper
+            className="doc-table-bar"
+            shadow="sm"
+            radius="md"
+            style={{ top: tableBar.top, right: tableBar.right }}
+            role="toolbar"
+            aria-label="Table"
+          >
+            {tableActions.map(([label, Icon, action], index) => (
+              <Tooltip label={label} key={label} openDelay={300}>
+                <ActionIcon
+                  variant="subtle"
+                  color={label === 'Delete table' ? 'red' : 'gray'}
+                  aria-label={label}
+                  data-gap={index === 3 || index === 6 || undefined}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => {
+                    action();
+                    requestAnimationFrame(syncTableBar);
+                  }}
+                >
+                  <Icon size={16} />
+                </ActionIcon>
+              </Tooltip>
+            ))}
+          </Paper>
+        )}
         {menu && matches.length > 0 && (
           <Paper
             className="doc-editor-menu"
