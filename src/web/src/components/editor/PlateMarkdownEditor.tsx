@@ -28,6 +28,7 @@ import {
 } from '@platejs/table/react';
 import remarkGfm from 'remark-gfm';
 import {
+  BlockPlaceholderPlugin,
   Plate,
   PlateContent,
   PlateElement,
@@ -160,6 +161,21 @@ export function PlateMarkdownEditor({
       TableCellPlugin.withComponent(TableCell),
       TableCellHeaderPlugin.withComponent(TableHeaderCell),
       MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
+      // Notion-style hint on the empty line holding the caret (Plate's BlockPlaceholderPlugin).
+      ...(variant === 'document' && !readOnly
+        ? [
+            BlockPlaceholderPlugin.configure({
+              options: {
+                className: 'doc-block-placeholder',
+                placeholders: {
+                  p: templates.length
+                    ? 'Type # for a template, / for a block'
+                    : 'Type / for a block',
+                },
+              },
+            }),
+          ]
+        : []),
     ],
     value: (instance) => (value.trim() ? deserializeMd(instance, value) : emptyValue()),
   });
@@ -320,18 +336,6 @@ export function PlateMarkdownEditor({
             }}
           />
         </Plate>
-        {/* The empty-page placeholder says the same thing, so only show this once there's text. */}
-        {!readOnly && value.trim() !== '' && (
-          <p className="doc-editor-hint">
-            {templates.length > 0 && (
-              <>
-                <kbd>#</kbd> templates
-                <span aria-hidden> · </span>
-              </>
-            )}
-            <kbd>/</kbd> blocks, on an empty line
-          </p>
-        )}
         {tableBar && (
           <Paper
             className="doc-table-bar"
