@@ -1,7 +1,8 @@
 'use client';
 
 import { Button, Text } from '@mantine/core';
-import { IconPlus } from '@tabler/icons-react';
+import { IconChevronRight, IconPlus } from '@tabler/icons-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { useCanManage, useRequisition } from './requisition-data';
@@ -45,47 +46,23 @@ export function RequisitionKits({ id }: { id: string }) {
           )}
         </div>
       ) : (
-        <div className="kl3">
-          {requisition.interviewKits.map((kit, index) => (
-            <details key={kit.id} className="kl3-kit" open={index === 0}>
-              <summary className="kl3-summary">
-                <span className="kl3-title">{kit.name}</span>
-                <span className="kl3-meta">
+        <ul className="kit-lines">
+          {requisition.interviewKits.map((kit) => (
+            <li key={kit.id}>
+              <Link href={`/requisitions/${id}/kits/${kit.id}`} className="kit-line">
+                <span className="kit-line-title">{kit.name}</span>
+                <span className="kit-line-meta">
                   {kit.durationMinutes} min · {kit.criteria.length}{' '}
                   {kit.criteria.length === 1 ? 'competency' : 'competencies'}
                 </span>
-              </summary>
-              <div className="kl3-body">
-                {kit.instructions && <p className="kl3-prose">{kit.instructions}</p>}
-                <ul className="kl-crit">
-                  {kit.criteria.map((criterion) => (
-                    <li key={criterion.id}>
-                      <span className="kl-crit-head">
-                        <span className="kl-crit-name">{criterion.name}</span>
-                        <span className="kl-crit-weight">weight {criterion.weight}</span>
-                      </span>
-                      <span className="kl-crit-q">{criterion.question}</span>
-                      {criterion.description && (
-                        <span className="kl-crit-good">
-                          Good looks like: {criterion.description}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-                {canManage && (
-                  <button
-                    type="button"
-                    className="text-action"
-                    onClick={() => router.push(`/requisitions/${id}/kits/${kit.id}/edit`)}
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-            </details>
+                <span className="kit-line-names">
+                  {kit.criteria.map((criterion) => criterion.name).join(', ')}
+                </span>
+                <IconChevronRight size={16} className="kit-line-go" aria-hidden />
+              </Link>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </>
   );
