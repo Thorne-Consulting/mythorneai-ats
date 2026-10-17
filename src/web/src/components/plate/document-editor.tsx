@@ -98,6 +98,9 @@ export function DocumentEditor({
   /** Show the document exactly as it will look, with nothing editable. */
   readOnly?: boolean;
 }) {
+  const hint = templates.length
+    ? 'Type # for a template, / for a block'
+    : 'Type / for a block';
   const editor = usePlateEditor({
     readOnly,
     plugins: [
@@ -117,11 +120,10 @@ export function DocumentEditor({
           className:
             'before:absolute before:cursor-text before:text-muted-foreground/70 before:content-[attr(placeholder)]',
           placeholders: {
-            [KEYS.p]: templates.length
-              ? 'Type # for a template, / for a block'
-              : 'Type / for a block',
+            [KEYS.p]: hint,
           },
-          query: ({ path }) => path.length === 1,
+          // An empty page shows the editor's own placeholder instead, focused or not.
+          query: ({ editor, path }) => path.length === 1 && !editor.api.isEmpty(),
         },
       }),
       createPlatePlugin({
@@ -153,6 +155,7 @@ export function DocumentEditor({
           <EditorContainer variant="default" className="plate-ui overflow-visible">
             <Editor
               variant="none"
+              placeholder={readOnly ? undefined : hint}
               className="min-h-[50vh] text-base"
               onKeyDown={(event) => {
                 // Tab in the last cell of a table adds a row, the way Notion and Docs do.
