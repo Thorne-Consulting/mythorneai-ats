@@ -2174,3 +2174,85 @@ a.crumb-link:focus-visible {
   font-size: 12px;
   text-align: center;
 }
+
+/* ---------- candidates: filters in a sidebar, the table beside them ---------- */
+
+.applicants {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+
+.applicants-rail {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.applicants-group-title {
+  margin: 0 0 6px;
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.applicants-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.applicants-count {
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.applicants-table td {
+  padding-block: 7px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.applicants-table thead th {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.applicants-name {
+  font-weight: 600;
+}
+
+.applicants-sub {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.applicants-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.applicants-dim {
+  color: var(--mantine-color-dimmed);
+}
+
+@media (max-width: 62em) {
+  .applicants {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .applicants-rail {
+    position: static;
+  }
+}
