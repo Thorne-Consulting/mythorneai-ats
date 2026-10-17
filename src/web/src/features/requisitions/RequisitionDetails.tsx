@@ -114,11 +114,11 @@ function PersonFact({ label, email }: { label: string; email: string }) {
   );
 }
 
-export function RequisitionVisibility({ id }: { id: string }) {
+export function RequisitionSettingsTab({ id }: { id: string }) {
   const details = useRequisition(id);
   if (!details.data) return <LoadingBlock rows={3} />;
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: 920 }}>
       <RequisitionSettings requisition={details.data as RequisitionWithSettings} />
     </div>
   );

@@ -1962,6 +1962,16 @@ a.crumb-link:focus-visible {
   border-top: 1px solid var(--mantine-color-default-border);
 }
 
+.settings-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.settings-wide {
+  grid-column: 1 / -1;
+}
+
 .settings-title {
   margin: 0 0 6px;
   font-size: 15px;

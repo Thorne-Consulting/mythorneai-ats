@@ -65,7 +65,7 @@ export function RequisitionShell({
     { label: 'Pipeline', href: base },
     { label: 'Role', href: `${base}/details` },
     { label: 'Interview kits', href: `${base}/kits`, count: requisition.interviewKits.length },
-    ...(canManage ? [{ label: 'Visibility', href: `${base}/visibility` }] : []),
+    ...(canManage ? [{ label: 'Settings', href: `${base}/settings` }] : []),
   ];
 
   // The trail follows the URL: Jobs / this job / the tab / a kit / Edit.
