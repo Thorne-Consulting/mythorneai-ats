@@ -14,7 +14,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCalendarEvent, IconDots } from '@tabler/icons-react';
+import { IconDots } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -167,6 +167,10 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
                           {application.currentTitle ?? 'Candidate'}
                         </span>
                       </UnstyledButton>
+                      <span className="candidate-card-score" title="Average rating">
+                        {application.rating ? application.rating.toFixed(1) : '–'}
+                        <small>rating</small>
+                      </span>
                       {canManage && (
                         <Menu position="bottom-end" withArrow>
                           <Menu.Target>
@@ -200,41 +204,41 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
                         </Menu>
                       )}
                     </div>
-                    {application.nextInterviewAt && (
-                      <span className="candidate-card-soon">
-                        <IconCalendarEvent size={12} aria-hidden />
-                        Interview {formatDateTime(application.nextInterviewAt)}
-                      </span>
-                    )}
-                    <dl className="candidate-card-facts">
+                    <dl className="candidate-card-rows">
+                      {application.nextInterviewAt && (
+                        <div className="candidate-card-key">
+                          <dt>Interview</dt>
+                          <dd>{formatDateTime(application.nextInterviewAt)}</dd>
+                        </div>
+                      )}
                       {application.yearsExperience != null && (
-                        <>
+                        <div>
                           <dt>Experience</dt>
                           <dd>{Math.round(application.yearsExperience)} yrs</dd>
-                        </>
+                        </div>
                       )}
                       {application.skills.length > 0 && (
-                        <>
+                        <div>
                           <dt>Skills</dt>
                           <dd title={application.skills.join(', ')}>
                             {application.skills.slice(0, 3).join(', ')}
                           </dd>
-                        </>
+                        </div>
                       )}
                       {application.location && (
-                        <>
+                        <div>
                           <dt>Location</dt>
                           <dd>{application.location}</dd>
-                        </>
+                        </div>
                       )}
-                      <dt>Rating</dt>
-                      <dd>
-                        {application.rating ? `${application.rating.toFixed(1)} of 5` : 'Not yet'}
-                      </dd>
-                      <dt>Applied</dt>
-                      <dd>{formatRelative(application.appliedAt)}</dd>
-                      <dt>Source</dt>
-                      <dd>{application.source}</dd>
+                      <div>
+                        <dt>Applied</dt>
+                        <dd>{formatRelative(application.appliedAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>Source</dt>
+                        <dd>{application.source}</dd>
+                      </div>
                     </dl>
                   </div>
                 ))}

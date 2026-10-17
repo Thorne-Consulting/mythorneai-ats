@@ -423,10 +423,10 @@ select {
 }
 
 .candidate-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 4px;
 }
 
 .candidate-card-who {
@@ -448,36 +448,57 @@ select {
   font-size: 12px;
 }
 
-.candidate-card-soon {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--mantine-color-violet-light);
-  color: var(--mantine-color-violet-light-color);
-  font-size: 11px;
-  font-weight: 600;
+/* The average rating, read at a glance opposite the name. */
+.candidate-card-score {
+  padding-right: 2px;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.candidate-card-facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 3px 12px;
+.candidate-card-score small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mantine-color-dimmed);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.candidate-card-rows {
   margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--mantine-color-gray-2);
   font-size: 12px;
 }
 
-.candidate-card-facts dt {
+.candidate-card-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.candidate-card-rows dt {
+  flex: none;
   color: var(--mantine-color-dimmed);
 }
 
-.candidate-card-facts dd {
+.candidate-card-rows dd {
   overflow: hidden;
   margin: 0;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An upcoming interview leads the list. */
+.candidate-card-key dt,
+.candidate-card-key dd {
+  color: var(--mantine-color-text);
+  font-weight: 600;
 }
 
 .candidate-card[data-draggable] {
