@@ -150,7 +150,7 @@ export function DocumentEditor({
           editor={editor}
           onValueChange={({ value: next }) => onChange?.(serializeMd(editor, { value: next }))}
         >
-          <EditorContainer variant="default" className="overflow-visible">
+          <EditorContainer variant="default" className="plate-ui overflow-visible">
             <Editor
               variant="none"
               className="min-h-[50vh] text-base"

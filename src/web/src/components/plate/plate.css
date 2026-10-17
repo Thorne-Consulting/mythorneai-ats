@@ -1,7 +1,9 @@
 /*
  * Tailwind for the Plate editor UI only.
  *
- * - No preflight (Tailwind's global reset), so Mantine pages are untouched.
+ * - No global preflight, so Mantine pages are untouched. Plate's components still expect one
+ *   (buttons without native borders, no default margins), so a copy of the parts they rely on is
+ *   applied only inside the editor and Plate's own popups, below.
  * - Utilities are generated only for classes found in src/components/plate, and they sit in a
  *   CSS layer, so Mantine's unlayered styles still win anywhere both could apply.
  * - The shadcn colour tokens below map onto the Mantine theme, so the editor looks like the app.
@@ -87,4 +89,34 @@
   --color-ring: var(--ring);
   --color-brand: var(--brand);
   --color-highlight: var(--highlight);
+}
+
+/* Tailwind's reset, limited to the editor (.plate-ui) and the popups Plate renders into <body>. */
+@layer base {
+  :where(.plate-ui, [data-slot='popover-content'], [data-slot='tooltip-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'])
+    :where(*, ::before, ::after),
+  :where(.plate-ui, [data-slot='popover-content'], [data-slot='tooltip-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content']) {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border: 0 solid var(--border);
+  }
+
+  :where(.plate-ui, [data-slot='popover-content'], [data-slot='tooltip-content'], [data-slot='dropdown-menu-content'], [data-slot='dropdown-menu-sub-content'])
+    :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+    background-color: transparent;
+    border-radius: 0;
+  }
+
+  :where(.plate-ui, [data-slot='popover-content'], [data-slot='dropdown-menu-content'])
+    :where(svg) {
+    display: block;
+    vertical-align: middle;
+  }
+
+  :where(.plate-ui) :where(ol, ul) {
+    list-style: none;
+  }
 }
