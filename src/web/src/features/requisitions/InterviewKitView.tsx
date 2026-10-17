@@ -2,12 +2,10 @@
 
 import Link from 'next/link';
 import { Text } from '@mantine/core';
-import { PlateMarkdownEditor } from '@/components/editor/PlateMarkdownEditor';
+import { DocumentEditor } from '@/components/plate/document-editor';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { kitToMarkdown } from './interview-kit-doc';
 import { useCanManage, useRequisition } from './requisition-data';
-
-const noop = () => {};
 
 /**
  * One interview kit, read in full. It renders the same document the editor shows, read-only, so
@@ -42,12 +40,10 @@ export function InterviewKitView({
           </Link>
         )}
       </p>
-      <PlateMarkdownEditor
+      <DocumentEditor
         key={`${kit.id}-${kitToMarkdown(kit).length}`}
-        variant="document"
         readOnly
         value={kitToMarkdown(kit)}
-        onChange={noop}
       />
     </article>
   );

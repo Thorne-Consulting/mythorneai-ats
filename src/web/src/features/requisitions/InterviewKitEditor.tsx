@@ -7,7 +7,7 @@ import { IconCircleCheck, IconCircleDashed } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
-import { PlateMarkdownEditor } from '@/components/editor/PlateMarkdownEditor';
+import { DocumentEditor } from '@/components/plate/document-editor';
 import type { InterviewKit } from '@/types';
 import { kitBlocks, kitTemplates, kitToMarkdown, parseKit } from './interview-kit-doc';
 
@@ -112,13 +112,11 @@ export function InterviewKitEditor({
         </Button>
       </aside>
 
-      <PlateMarkdownEditor
-        variant="document"
+      <DocumentEditor
         value={content}
         onChange={setContent}
         templates={kitTemplates}
         blocks={kitBlocks}
-        placeholder="Type # for a template, / for a block, or just start writing…"
       />
     </article>
   );

@@ -1,0 +1,90 @@
+/*
+ * Tailwind for the Plate editor UI only.
+ *
+ * - No preflight (Tailwind's global reset), so Mantine pages are untouched.
+ * - Utilities are generated only for classes found in src/components/plate, and they sit in a
+ *   CSS layer, so Mantine's unlayered styles still win anywhere both could apply.
+ * - The shadcn colour tokens below map onto the Mantine theme, so the editor looks like the app.
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
+@source './';
+@plugin 'tailwind-scrollbar-hide';
+
+@custom-variant dark (&:where([data-mantine-color-scheme='dark'], [data-mantine-color-scheme='dark'] *));
+
+:root {
+  --radius: 0.5rem;
+  --background: #ffffff;
+  --foreground: #000000;
+  --card: #ffffff;
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #4263eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f3f5;
+  --secondary-foreground: #000000;
+  --muted: #f8f9fa;
+  --muted-foreground: #6b7280;
+  --accent: #f1f3f5;
+  --accent-foreground: #000000;
+  --destructive: #e03131;
+  --border: #dee2e6;
+  --input: #ced4da;
+  --ring: #4263eb;
+  --brand: #4263eb;
+  --highlight: #fff3bf;
+}
+
+[data-mantine-color-scheme='dark'] {
+  --background: #242424;
+  --foreground: #c9c9c9;
+  --card: #2e2e2e;
+  --card-foreground: #c9c9c9;
+  --popover: #2e2e2e;
+  --popover-foreground: #c9c9c9;
+  --primary: #4c6ef5;
+  --primary-foreground: #ffffff;
+  --secondary: #3b3b3b;
+  --secondary-foreground: #c9c9c9;
+  --muted: #2e2e2e;
+  --muted-foreground: #828282;
+  --accent: #3b3b3b;
+  --accent-foreground: #c9c9c9;
+  --destructive: #fa5252;
+  --border: #424242;
+  --input: #424242;
+  --ring: #4c6ef5;
+  --brand: #5c7cfa;
+  --highlight: #5c4a00;
+}
+
+@theme inline {
+  --font-sans: var(--mantine-font-family);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-highlight: var(--highlight);
+}

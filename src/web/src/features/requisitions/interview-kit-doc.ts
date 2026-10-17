@@ -1,4 +1,4 @@
-import type { EditorTemplate } from '@/components/editor/PlateMarkdownEditor';
+import type { EditorTemplate } from '@/components/plate/document-editor';
 import type { InterviewKit } from '@/types';
 
 /*
