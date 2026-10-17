@@ -63,7 +63,8 @@ export function RequisitionShell({
       <DetailHeader
         crumbs={[{ label: 'Jobs', href: '/requisitions' }]}
         title={requisition.title}
-        badges={<StatusBadge status={requisition.status} />}
+        // Managers change the status in the control on the right, so the badge would repeat it.
+        badges={canManage ? undefined : <StatusBadge status={requisition.status} />}
         subtitle={`${requisition.code} · ${requisition.department} · ${requisition.location} (${requisition.workMode})`}
         actions={
           canManage && (
