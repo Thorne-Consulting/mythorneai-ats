@@ -62,8 +62,8 @@ export interface EditorTemplate {
   block?: 'p' | 'h1' | 'h2' | 'h3' | 'blockquote';
 }
 
-// On an empty line, "/" opens every insert command and "#" opens templates only. Typing after
-// either filters the list. "# " (with a space) is left to the heading shortcut instead.
+// On an empty line, "/" opens the block commands and "#" opens the templates. Typing after either
+// filters the list. "# " (with a space) is left to the heading shortcut instead.
 const MENU_QUERY = /^([#/])([a-z][a-z0-9 ]*)?$/i;
 
 const BLOCKS: EditorTemplate[] = [
@@ -214,7 +214,7 @@ export function PlateMarkdownEditor({
   };
 
   const matches = menu
-    ? (menu.trigger === '/' ? [...BLOCKS, ...templates] : templates).filter((item) =>
+    ? (menu.trigger === '/' ? BLOCKS : templates).filter((item) =>
         item.label.toLowerCase().includes(menu.query.toLowerCase()),
       )
     : [];
@@ -320,6 +320,18 @@ export function PlateMarkdownEditor({
             }}
           />
         </Plate>
+        {/* The empty-page placeholder says the same thing, so only show this once there's text. */}
+        {!readOnly && value.trim() !== '' && (
+          <p className="doc-editor-hint">
+            {templates.length > 0 && (
+              <>
+                <kbd>#</kbd> templates
+                <span aria-hidden> · </span>
+              </>
+            )}
+            <kbd>/</kbd> blocks, on an empty line
+          </p>
+        )}
         {tableBar && (
           <Paper
             className="doc-table-bar"
@@ -355,10 +367,10 @@ export function PlateMarkdownEditor({
             radius="md"
             style={{ top: menu.top, left: menu.left }}
             role="listbox"
-            aria-label={menu.trigger === '/' ? 'Insert' : 'Templates'}
+            aria-label={menu.trigger === '/' ? 'Blocks' : 'Templates'}
           >
             <Text size="xs" c="dimmed" px={10} pt={6} pb={4}>
-              {menu.trigger === '/' ? 'Insert' : 'Templates'}
+              {menu.trigger === '/' ? 'Blocks' : 'Templates'}
             </Text>
             {matches.map((item, index) => (
               <UnstyledButton

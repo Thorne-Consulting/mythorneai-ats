@@ -117,7 +117,7 @@ export function InterviewKitEditor({
         value={content}
         onChange={setContent}
         templates={kitTemplates}
-        placeholder="Type # for a template, or start writing…"
+        placeholder="Type # for a template, / for a block, or just start writing…"
       />
     </article>
   );
