@@ -243,6 +243,10 @@ export interface BoardData {
         source: string;
         rating?: number;
         lastActivityAt: string;
+        appliedAt: string;
+        yearsExperience?: number;
+        skills: string[];
+        nextInterviewAt?: string;
       }>;
     }
   >;

@@ -4,26 +4,23 @@ import { useState } from 'react';
 import {
   ActionIcon,
   Anchor,
-  Avatar,
   Badge,
   Box,
-  Divider,
   Group,
   Menu,
   Paper,
-  Rating,
   Stack,
   Text,
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconDots, IconMapPin } from '@tabler/icons-react';
+import { IconCalendarEvent, IconDots } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatDateTime, initials } from '@/lib/format';
+import { formatDateTime, formatRelative } from '@/lib/format';
 import type { BoardData } from '@/types';
 import type { BoardApplication } from './requisition-data';
 import { useBoard, useCanManage, useRequisition } from './requisition-data';
@@ -144,13 +141,9 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
               </Group>
               <Stack gap="sm">
                 {stage.applications.map((application) => (
-                  <Paper
+                  <div
                     key={application.id}
-                    withBorder
-                    radius="md"
-                    p="md"
-                    bg="var(--mantine-color-body)"
-                    className="hover-card candidate-card"
+                    className="candidate-card"
                     draggable={canManage}
                     data-draggable={canManage || undefined}
                     data-dragging={dragging?.id === application.id || undefined}
@@ -164,24 +157,15 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
                       setDropStage(null);
                     }}
                   >
-                    <Group justify="space-between" align="flex-start" wrap="nowrap">
+                    <div className="candidate-card-head">
                       <UnstyledButton
-                        style={{ flex: 1, minWidth: 0 }}
+                        className="candidate-card-who"
                         onClick={() => router.push(`/applications/${application.id}`)}
                       >
-                        <Group wrap="nowrap" align="flex-start" gap="sm">
-                          <Avatar size={36} color={stage.color} variant="light">
-                            {initials(application.candidateName)}
-                          </Avatar>
-                          <div style={{ minWidth: 0 }}>
-                            <Text fw={650} size="sm" truncate>
-                              {application.candidateName}
-                            </Text>
-                            <Text size="xs" c="dimmed" truncate>
-                              {application.currentTitle ?? 'Candidate'}
-                            </Text>
-                          </div>
-                        </Group>
+                        <span className="candidate-card-name">{application.candidateName}</span>
+                        <span className="candidate-card-role">
+                          {application.currentTitle ?? 'Candidate'}
+                        </span>
                       </UnstyledButton>
                       {canManage && (
                         <Menu position="bottom-end" withArrow>
@@ -215,37 +199,44 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
                           </Menu.Dropdown>
                         </Menu>
                       )}
-                    </Group>
-                    {application.location && (
-                      <Group gap={5} mt="sm" wrap="nowrap">
-                        <IconMapPin size={13} color="var(--mantine-color-dimmed)" />
-                        <Text size="xs" c="dimmed" truncate>
-                          {application.location}
-                        </Text>
-                      </Group>
+                    </div>
+                    {application.nextInterviewAt && (
+                      <span className="candidate-card-soon">
+                        <IconCalendarEvent size={12} aria-hidden />
+                        Interview {formatDateTime(application.nextInterviewAt)}
+                      </span>
                     )}
-                    {application.rating ? (
-                      <Group gap={6} mt={6} wrap="nowrap">
-                        <Rating value={application.rating} readOnly size="xs" />
-                        <Text size="xs" c="dimmed">
-                          {application.rating.toFixed(1)}
-                        </Text>
-                      </Group>
-                    ) : (
-                      <Text size="xs" c="dimmed" mt={6}>
-                        Not rated yet
-                      </Text>
-                    )}
-                    <Divider my="sm" />
-                    <Group justify="space-between" gap="xs" wrap="nowrap">
-                      <Badge size="xs" variant="default">
-                        {application.source}
-                      </Badge>
-                      <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-                        {formatDateTime(application.lastActivityAt)}
-                      </Text>
-                    </Group>
-                  </Paper>
+                    <dl className="candidate-card-facts">
+                      {application.yearsExperience != null && (
+                        <>
+                          <dt>Experience</dt>
+                          <dd>{Math.round(application.yearsExperience)} yrs</dd>
+                        </>
+                      )}
+                      {application.skills.length > 0 && (
+                        <>
+                          <dt>Skills</dt>
+                          <dd title={application.skills.join(', ')}>
+                            {application.skills.slice(0, 3).join(', ')}
+                          </dd>
+                        </>
+                      )}
+                      {application.location && (
+                        <>
+                          <dt>Location</dt>
+                          <dd>{application.location}</dd>
+                        </>
+                      )}
+                      <dt>Rating</dt>
+                      <dd>
+                        {application.rating ? `${application.rating.toFixed(1)} of 5` : 'Not yet'}
+                      </dd>
+                      <dt>Applied</dt>
+                      <dd>{formatRelative(application.appliedAt)}</dd>
+                      <dt>Source</dt>
+                      <dd>{application.source}</dd>
+                    </dl>
+                  </div>
                 ))}
                 {stage.applications.length === 0 && (
                   <Paper withBorder radius="md" p="lg" className="empty-stage">

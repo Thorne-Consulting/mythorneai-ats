@@ -604,6 +604,15 @@ public static partial class AtsEndpoints
                                         a.Source,
                                         a.Rating,
                                         a.LastActivityAt,
+                                        a.AppliedAt,
+                                        YearsExperience = a.Candidate.ResumeYearsExperience,
+                                        Skills = a.Candidate.ResumeSkills,
+                                        NextInterviewAt = a
+                                            .Interviews.Where(i =>
+                                                i.Status == InterviewStatus.Scheduled
+                                                && i.StartsAt > DateTimeOffset.UtcNow
+                                            )
+                                            .Min(i => (DateTimeOffset?)i.StartsAt),
                                     }),
                             }),
                     })
