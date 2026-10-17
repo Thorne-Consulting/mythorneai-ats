@@ -118,6 +118,7 @@ export function PlateMarkdownEditor({
   header,
   variant = 'boxed',
   templates = [],
+  blocks = [],
   readOnly = false,
 }: {
   value: string;
@@ -126,6 +127,8 @@ export function PlateMarkdownEditor({
   header?: ReactNode;
   variant?: 'boxed' | 'document';
   templates?: EditorTemplate[];
+  /** Extra blocks for the / menu, after the built-in ones (for example a scorecard table). */
+  blocks?: EditorTemplate[];
   /** Show the document exactly as it will look, with nothing editable. */
   readOnly?: boolean;
 }) {
@@ -230,7 +233,7 @@ export function PlateMarkdownEditor({
   };
 
   const matches = menu
-    ? (menu.trigger === '/' ? BLOCKS : templates).filter((item) =>
+    ? (menu.trigger === '/' ? [...BLOCKS, ...blocks] : templates).filter((item) =>
         item.label.toLowerCase().includes(menu.query.toLowerCase()),
       )
     : [];

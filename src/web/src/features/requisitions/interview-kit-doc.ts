@@ -174,6 +174,15 @@ ${messages(instructions, booking)}
 ${SCORECARD_HEADER}
 ${items.join('\n')}`;
 
+/** Blocks offered on / in the kit editor: a bare competency table, without the heading. */
+export const kitBlocks: EditorTemplate[] = [
+  {
+    label: 'Competency table',
+    hint: 'Competency, question, what good looks like, weight',
+    markdown: `${SCORECARD_HEADER}\n${scorecardRow('', '', '', 3)}`,
+  },
+];
+
 export const kitTemplates: EditorTemplate[] = [
   {
     label: 'Recruiter screen',

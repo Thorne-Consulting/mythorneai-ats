@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { PlateMarkdownEditor } from '@/components/editor/PlateMarkdownEditor';
 import type { InterviewKit } from '@/types';
-import { kitTemplates, kitToMarkdown, parseKit } from './interview-kit-doc';
+import { kitBlocks, kitTemplates, kitToMarkdown, parseKit } from './interview-kit-doc';
 
 /**
  * An interview kit written as one document. Type # for templates. Pass `existing` to edit a saved
@@ -117,6 +117,7 @@ export function InterviewKitEditor({
         value={content}
         onChange={setContent}
         templates={kitTemplates}
+        blocks={kitBlocks}
         placeholder="Type # for a template, / for a block, or just start writing…"
       />
     </article>
