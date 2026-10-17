@@ -4,7 +4,6 @@ import { useState } from 'react';
 import {
   ActionIcon,
   Anchor,
-  Badge,
   Box,
   Group,
   Menu,
@@ -128,17 +127,15 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
                 moveTo(stage.id);
               }}
             >
-              <Group justify="space-between" mb="md" className="pipeline-column-header">
-                <Group gap="xs" wrap="nowrap">
-                  <Box className="stage-dot" bg={`${stage.color}.5`} />
-                  <Text fw={650} size="sm" truncate>
-                    {stage.name}
-                  </Text>
-                </Group>
-                <Badge color="gray" variant="light" circle>
-                  {stage.applications.length}
-                </Badge>
-              </Group>
+              <div
+                className="pipeline-column-header"
+                style={
+                  { '--stage': `var(--mantine-color-${stage.color}-5)` } as React.CSSProperties
+                }
+              >
+                <span className="pipeline-column-name">{stage.name}</span>
+                <span className="pipeline-column-count">{stage.applications.length}</span>
+              </div>
               <Stack gap="sm">
                 {stage.applications.map((application) => (
                   <div

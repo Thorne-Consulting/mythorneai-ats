@@ -393,11 +393,35 @@ select {
   overflow-y: auto;
 }
 
+/* Each stage reads as a title with its count, underlined in the stage colour. */
 .pipeline-column-header {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding-bottom: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 4px 0 10px;
+  border-bottom: 3px solid var(--stage);
+  background: var(--mantine-color-body);
+}
+
+.pipeline-column-name {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-column-count {
+  color: var(--mantine-color-dimmed);
+  font-size: 18px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
 }
 
 .pipeline-column[data-drop-target] {
@@ -517,12 +541,6 @@ select {
 .status-dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-}
-
-.stage-dot {
-  width: 8px;
-  height: 8px;
   border-radius: 50%;
 }
 
