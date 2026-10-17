@@ -51,3 +51,19 @@ assert.deepEqual(
   [['Craft', 'Proudest of?', 'Real decisions.', 2], ['Judgement', 'What did you cut?', '', 4]],
 );
 console.log('kit round trip ok');
+
+// The scorecard table: pipes inside a cell survive, a bad weight falls back to 3.
+const tabled = parseKit(`# T
+
+## Scorecard
+
+| Competency | Question to ask | What good looks like | Weight |
+| --- | --- | --- | --- |
+| Range | Pick one: A \\| B? | Explains why | 5 |
+| Depth | Go deeper? |  | x |
+|  | No name, dropped |  | 3 |`);
+assert.deepEqual(
+  tabled.criteria.map((c) => [c.name, c.question, c.description, c.weight]),
+  [['Range', 'Pick one: A | B?', 'Explains why', 5], ['Depth', 'Go deeper?', '', 3]],
+);
+console.log('kit table ok');

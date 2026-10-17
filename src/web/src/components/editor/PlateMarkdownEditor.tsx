@@ -19,7 +19,14 @@ import {
   ItalicPlugin,
   UnderlinePlugin,
 } from '@platejs/basic-nodes/react';
-import { deserializeMd, serializeMd } from '@platejs/markdown';
+import { deserializeMd, MarkdownPlugin, serializeMd } from '@platejs/markdown';
+import {
+  TableCellHeaderPlugin,
+  TableCellPlugin,
+  TablePlugin,
+  TableRowPlugin,
+} from '@platejs/table/react';
+import remarkGfm from 'remark-gfm';
 import {
   Plate,
   PlateContent,
@@ -40,20 +47,46 @@ import {
 
 const emptyValue = (): Value => [{ type: 'p', children: [{ text: '' }] }];
 
-/** A block of markdown offered from the "#" menu in document mode. */
+/** Something the menu can insert: a block of markdown, or an empty block of one type. */
 export interface EditorTemplate {
   label: string;
   hint?: string;
-  markdown: string;
+  markdown?: string;
+  block?: 'p' | 'h1' | 'h2' | 'h3' | 'blockquote';
 }
 
-// "#" alone or "#tech" on an empty paragraph opens the template menu. "# " (with a space) is
-// left to the heading shortcut, which turns the line into a heading before this ever sees it.
-const TEMPLATE_QUERY = /^#([a-z][a-z0-9 ]*)?$/i;
+// On an empty line, "/" opens every insert command and "#" opens templates only. Typing after
+// either filters the list. "# " (with a space) is left to the heading shortcut instead.
+const MENU_QUERY = /^([#/])([a-z][a-z0-9 ]*)?$/i;
+
+const BLOCKS: EditorTemplate[] = [
+  { label: 'Text', hint: 'A plain paragraph', block: 'p' },
+  { label: 'Heading 1', hint: 'The page title', block: 'h1' },
+  { label: 'Heading 2', hint: 'A section', block: 'h2' },
+  { label: 'Heading 3', hint: 'A sub-section', block: 'h3' },
+  { label: 'Quote', hint: 'Set a passage apart', block: 'blockquote' },
+  {
+    label: 'Table',
+    hint: 'Three columns; Tab in the last cell adds a row',
+    markdown: '|   |   |   |\n| --- | --- | --- |\n|   |   |   |',
+  },
+];
 
 function Heading({ as, ...props }: PlateElementProps & { as: 'h1' | 'h2' | 'h3' }) {
   return <PlateElement as={as} {...props} />;
 }
+
+function TableElement({ children, ...props }: PlateElementProps) {
+  return (
+    <PlateElement as="table" className="doc-table" {...props}>
+      <tbody>{children}</tbody>
+    </PlateElement>
+  );
+}
+
+const TableRow = (props: PlateElementProps) => <PlateElement as="tr" {...props} />;
+const TableCell = (props: PlateElementProps) => <PlateElement as="td" {...props} />;
+const TableHeaderCell = (props: PlateElementProps) => <PlateElement as="th" {...props} />;
 
 function Quote(props: PlateElementProps) {
   return (
@@ -87,6 +120,7 @@ export function PlateMarkdownEditor({
 }) {
   const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null);
   const [menu, setMenu] = useState<{
+    trigger: '#' | '/';
     query: string;
     top: number;
     left: number;
@@ -109,6 +143,11 @@ export function PlateMarkdownEditor({
       BlockquotePlugin.withComponent(Quote).configure({
         inputRules: [BlockquoteRules.markdown()],
       }),
+      TablePlugin.withComponent(TableElement),
+      TableRowPlugin.withComponent(TableRow),
+      TableCellPlugin.withComponent(TableCell),
+      TableCellHeaderPlugin.withComponent(TableHeaderCell),
+      MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
     ],
     value: (instance) => (value.trim() ? deserializeMd(instance, value) : emptyValue()),
   });
@@ -130,25 +169,30 @@ export function PlateMarkdownEditor({
   const save = (nextValue: Value) => onChange(serializeMd(editor, { value: nextValue }));
 
   const matches = menu
-    ? templates.filter((item) => item.label.toLowerCase().includes(menu.query.toLowerCase()))
+    ? (menu.trigger === '/' ? [...BLOCKS, ...templates] : templates).filter((item) =>
+        item.label.toLowerCase().includes(menu.query.toLowerCase()),
+      )
     : [];
 
   // Look at the line the caret is on and open, update or close the template menu.
   const syncMenu = () => {
     const entry = editor.api.block();
     const text = entry ? editor.api.string(entry[1]) : '';
-    const match = entry && entry[0].type === 'p' ? TEMPLATE_QUERY.exec(text) : null;
-    if (!templates.length || !match || !editor.selection) {
+    const match = entry && entry[0].type === 'p' ? MENU_QUERY.exec(text) : null;
+    const trigger = match?.[1] as '#' | '/' | undefined;
+    if (!match || !trigger || !editor.selection || (trigger === '#' && !templates.length)) {
       setMenu(null);
       return;
     }
     const range = window.getSelection()?.rangeCount ? window.getSelection()!.getRangeAt(0) : null;
     const rect = range?.getBoundingClientRect();
+    const query = match[2] ?? '';
     setMenu((current) => ({
-      query: match[1] ?? '',
+      trigger,
+      query,
       top: (rect?.bottom ?? 0) + 6,
       left: rect?.left ?? 0,
-      index: current && current.query === (match[1] ?? '') ? current.index : 0,
+      index: current && current.query === query ? current.index : 0,
     }));
   };
 
@@ -156,7 +200,9 @@ export function PlateMarkdownEditor({
     const entry = editor.api.block();
     if (!entry) return;
     const [, path] = entry;
-    const nodes = deserializeMd(editor, template.markdown);
+    const nodes = template.block
+      ? [{ type: template.block, children: [{ text: '' }] }]
+      : deserializeMd(editor, template.markdown ?? '');
     editor.tf.insertNodes(nodes, { at: path, select: true });
     editor.tf.removeNodes({ at: [path[0] + nodes.length] });
     setMenu(null);
@@ -190,6 +236,23 @@ export function PlateMarkdownEditor({
               setMenu(null);
             }}
             onKeyDown={(event) => {
+              // Tab in the last cell of a table adds a row, the way Notion and Docs do.
+              if (event.key === 'Tab' && !event.shiftKey && !menu) {
+                const table = editor.api.above({ match: { type: 'table' } });
+                const row = editor.api.above({ match: { type: 'tr' } });
+                const cell = editor.api.above({ match: { type: ['td', 'th'] } });
+                if (table && row && cell) {
+                  const rowIndex = row[1][row[1].length - 1];
+                  const cellIndex = cell[1][cell[1].length - 1];
+                  const lastRow = rowIndex === table[0].children.length - 1;
+                  const lastCell = cellIndex === row[0].children.length - 1;
+                  if (lastRow && lastCell) {
+                    event.preventDefault();
+                    editor.tf.insert.tableRow({ select: true });
+                    return;
+                  }
+                }
+              }
               if (!menu || matches.length === 0) return;
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault();
@@ -215,10 +278,10 @@ export function PlateMarkdownEditor({
             radius="md"
             style={{ top: menu.top, left: menu.left }}
             role="listbox"
-            aria-label="Templates"
+            aria-label={menu.trigger === '/' ? 'Insert' : 'Templates'}
           >
             <Text size="xs" c="dimmed" px={10} pt={6} pb={4}>
-              Templates
+              {menu.trigger === '/' ? 'Insert' : 'Templates'}
             </Text>
             {matches.map((item, index) => (
               <UnstyledButton

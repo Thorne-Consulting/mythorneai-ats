@@ -6,9 +6,10 @@ import type { InterviewKit } from '@/types';
  *
  *   # Kit name
  *   ## Interviewer instructions / ## Candidate booking message / ## Interviewer assignment message
- *   ## Scorecard
- *   ### Competency name      (the paragraph under it is the question;
- *                             "Good looks like: …" and "Weight: 1–5" are optional lines)
+ *   ## Scorecard             a table: Competency | Question to ask | What good looks like | Weight
+ *
+ * Kits written before the table used one "### Competency" heading per item, with the question
+ * underneath and optional "Good looks like:" and "Weight:" lines; those still parse.
  */
 
 export interface KitCriterion {
@@ -58,6 +59,35 @@ function parseCriterion(title: string, body: string): KitCriterion {
   return { name: title, question: question.join(' '), description, weight };
 }
 
+export const SCORECARD_HEADER =
+  '| Competency | Question to ask | What good looks like | Weight |\n| --- | --- | --- | --- |';
+
+const escapeCell = (value: string) => value.replace(/\|/g, '\\|').replace(/\n+/g, ' ').trim();
+
+/** One scorecard table row. Pipes inside text are escaped so the columns stay put. */
+export function scorecardRow(name: string, question: string, good: string, weight: number) {
+  return `| ${escapeCell(name)} | ${escapeCell(question)} | ${escapeCell(good)} | ${weight} |`;
+}
+
+/** Rows of the first markdown table in `body`, header and divider skipped. */
+function tableRows(body: string) {
+  const lines = body.split('\n').map((line) => line.trim());
+  const start = lines.findIndex((line) => line.startsWith('|'));
+  if (start === -1) return null;
+  const rows: string[][] = [];
+  for (const line of lines.slice(start)) {
+    if (!line.startsWith('|')) break;
+    const cells = line
+      .replace(/^\|/, '')
+      .replace(/(?<!\\)\|$/, '')
+      .split(/(?<!\\)\|/)
+      .map((cell) => cell.replace(/\\\|/g, '|').trim());
+    if (cells.every((cell) => /^:?-{3,}:?$/.test(cell))) continue;
+    rows.push(cells);
+  }
+  return rows.slice(1);
+}
+
 export function parseKit(markdown: string): ParsedKit {
   const name = /^#\s+(.+?)\s*$/m.exec(markdown)?.[1] ?? '';
   const sections = new Map(
@@ -69,9 +99,14 @@ export function parseKit(markdown: string): ParsedKit {
     instructions: sections.get('interviewer instructions') ?? '',
     candidateMessage: sections.get('candidate booking message') ?? '',
     interviewerMessage: sections.get('interviewer assignment message') ?? '',
-    criteria: sectionsAt(scorecard, 3)
-      .map((item) => parseCriterion(item.title, item.body))
-      .filter((item) => item.name && item.question),
+    criteria: (
+      tableRows(scorecard)?.map(([name = '', question = '', good = '', weight = '']) => ({
+        name,
+        question,
+        description: good,
+        weight: Math.min(5, Math.max(1, Number.parseInt(weight, 10) || 3)),
+      })) ?? sectionsAt(scorecard, 3).map((item) => parseCriterion(item.title, item.body))
+    ).filter((item) => item.name && item.question),
   };
 }
 
@@ -85,19 +120,12 @@ export function parseKit(markdown: string): ParsedKit {
 
 /** A saved kit written back out as the editor's document, so it can be edited as one page. */
 export function kitToMarkdown(kit: InterviewKit) {
-  const scorecard = [...kit.criteria]
-    .sort((a, b) => a.sortOrder - b.sortOrder)
-    .map((item) =>
-      [
-        `### ${item.name}`,
-        item.question,
-        item.description ? `Good looks like: ${item.description}` : null,
-        `Weight: ${item.weight}`,
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
-    )
-    .join('\n\n');
+  const scorecard = [
+    SCORECARD_HEADER,
+    ...[...kit.criteria]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((item) => scorecardRow(item.name, item.question, item.description, item.weight)),
+  ].join('\n');
   return `# ${kit.name}
 
 ## Interviewer instructions
@@ -133,21 +161,8 @@ ${booking}
 
 You are interviewing for this round. Read the kit before you join, stick to the questions in it, and submit your scorecard within 24 hours.`;
 
-const competency = (
-  name: string,
-  question: string,
-  followUp: string,
-  good: string,
-  weight = 3,
-) => `### ${name}
-
-${question}
-
-Follow-up: ${followUp}
-
-Good looks like: ${good}
-
-Weight: ${weight}`;
+const competency = (name: string, question: string, followUp: string, good: string, weight = 3) =>
+  scorecardRow(name, `${question} Follow-up: ${followUp}`, good, weight);
 
 const kit = (title: string, instructions: string, booking: string, items: string[]) =>
   `# ${title}
@@ -156,7 +171,8 @@ ${messages(instructions, booking)}
 
 ## Scorecard
 
-${items.join('\n\n')}`;
+${SCORECARD_HEADER}
+${items.join('\n')}`;
 
 export const kitTemplates: EditorTemplate[] = [
   {
@@ -380,19 +396,9 @@ export const kitTemplates: EditorTemplate[] = [
     ),
   },
   {
-    label: 'Competency',
-    hint: 'One scorecard item, under Scorecard',
-    markdown: competency(
-      'New competency',
-      'Tell me about a time when…',
-      'What did you do, specifically?',
-      'Describe what a strong answer shows, as behavior you can observe.',
-    ),
-  },
-  {
-    label: 'Scorecard',
-    hint: 'The section that holds competencies',
-    markdown: `## Scorecard\n\n${competency('New competency', 'Tell me about a time when…', 'What did you do, specifically?', 'Describe what a strong answer shows, as behavior you can observe.')}`,
+    label: 'Scorecard table',
+    hint: 'Competencies to score; Tab in the last cell adds one',
+    markdown: `## Scorecard\n\n${SCORECARD_HEADER}\n${scorecardRow('New competency', 'Tell me about a time when…', 'What a strong answer shows', 3)}`,
   },
   {
     label: 'Messages',
