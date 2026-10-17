@@ -110,6 +110,7 @@ export function PlateMarkdownEditor({
   header,
   variant = 'boxed',
   templates = [],
+  readOnly = false,
 }: {
   value: string;
   onChange: (markdown: string) => void;
@@ -117,6 +118,8 @@ export function PlateMarkdownEditor({
   header?: ReactNode;
   variant?: 'boxed' | 'document';
   templates?: EditorTemplate[];
+  /** Show the document exactly as it will look, with nothing editable. */
+  readOnly?: boolean;
 }) {
   const [bubble, setBubble] = useState<{ top: number; left: number } | null>(null);
   const [menu, setMenu] = useState<{
@@ -229,6 +232,7 @@ export function PlateMarkdownEditor({
           }}
         >
           <PlateContent
+            readOnly={readOnly}
             placeholder={placeholder}
             className="doc-editor-content"
             onBlur={() => {

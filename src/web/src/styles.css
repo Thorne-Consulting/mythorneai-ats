@@ -1775,115 +1775,20 @@ section[id],
 }
 
 .kit-read {
-  max-width: 72ch;
+  max-width: 880px;
 }
 
-.kit-read-crumb {
-  margin: 0 0 12px;
-}
-
-.kit-read-head {
+.kit-read-bar {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 16px;
-}
-
-.kit-read-title {
-  margin: 0;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.2;
+  margin: 0 0 20px;
 }
 
 .kit-read-meta {
-  margin: 6px 0 0;
+  flex: 1;
   color: var(--mantine-color-dimmed);
   font-size: 13px;
-}
-
-.kit-read-section {
-  margin-top: 40px;
-}
-
-.kit-read-h {
-  margin: 0 0 12px;
-  font-size: 18px;
-  font-weight: 650;
-}
-
-.kit-read-prose {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.65;
-  white-space: pre-wrap;
-}
-
-.kit-read-empty {
-  color: var(--mantine-color-dimmed);
-}
-
-.kit-read-crit {
-  counter-reset: c;
-  gap: 22px;
-}
-
-.kit-read-crit li {
-  position: relative;
-  padding-left: 28px;
-  counter-increment: c;
-}
-
-.kit-read-crit li::before {
-  content: counter(c);
-  position: absolute;
-  top: 1px;
-  left: 0;
-  color: var(--mantine-color-dimmed);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.kl-crit {
-  display: grid;
-  gap: 16px;
-  margin: 0 0 20px;
-  padding: 0;
-  list-style: none;
-}
-
-.kl-crit li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.kl-crit-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.kl-crit-name {
-  font-size: 15px;
-  font-weight: 650;
-}
-
-.kl-crit-weight {
-  color: var(--mantine-color-dimmed);
-  font-size: 12px;
-}
-
-.kl-crit-q {
-  font-size: 15px;
-  line-height: 1.6;
-}
-
-.kl-crit-good {
-  color: var(--mantine-color-dimmed);
-  font-size: 14px;
-  line-height: 1.55;
 }
 
 /* ---------- interview kit document ---------- */
