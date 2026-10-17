@@ -12,6 +12,8 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
 {
     private const int MaxFileBytes = 10 * 1024 * 1024;
     private const int MaxExtractedCharacters = 250_000;
+    // ponytail: name and location are only looked for in the top lines; widen if real resumes bury them.
+    private const int HeaderLines = 8;
 
     private static readonly string[] KnownSkills =
     [
@@ -87,15 +89,14 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
         var email = EmailRegex().Match(text).Value.ToLowerInvariant();
         var phone = PhoneRegex().Match(text).Value.Trim();
         var linkedIn = LinkedInRegex().Match(text).Value.TrimEnd('.', ',', ';');
-        var name = FindName(lines, email);
+        var (name, nameLine) = FindName(lines, email);
         var currentTitle = lines.FirstOrDefault(line =>
             line.Length < 100
             && TitleTerms.Any(term => line.Contains(term, StringComparison.OrdinalIgnoreCase))
             && !line.Contains("experience", StringComparison.OrdinalIgnoreCase)
         );
-        var location = lines.FirstOrDefault(line =>
-            line.Length < 90 && LocationRegex().IsMatch(line)
-        );
+        var header = lines.Take(HeaderLines).ToArray();
+        var location = FindLocation(header);
         var skills = KnownSkills
             .Where(skill => ContainsTerm(text, skill))
             .Select(skill => skill == ".net" ? "dotnet" : skill)
@@ -124,7 +125,7 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
         var years = EstimateYearsExperience(text);
         var summaryLines = lines
             .Where(line =>
-                !line.Equals(name, StringComparison.OrdinalIgnoreCase)
+                line != nameLine
                 && !line.Contains(email, StringComparison.OrdinalIgnoreCase)
                 && !SectionHeadingRegex().IsMatch(line)
             )
@@ -170,20 +171,61 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
         );
     }
 
-    private static string FindName(string[] lines, string email)
+    private static (string Name, string? Line) FindName(string[] lines, string email)
     {
-        var candidate = lines.FirstOrDefault(line =>
-            NameRegex().IsMatch(line)
-            && !line.Contains('@')
-            && !TitleTerms.Any(term => line.Contains(term, StringComparison.OrdinalIgnoreCase))
-            && !SectionHeadingRegex().IsMatch(line)
-        );
-        if (!string.IsNullOrWhiteSpace(candidate))
-            return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(candidate.ToLowerInvariant());
+        var local = new string(email.Split('@')[0].Where(char.IsLetter).ToArray());
+        foreach (var raw in lines.Take(HeaderLines))
+        {
+            if (raw.Contains('@') || ResumeLabelRegex().IsMatch(raw) || SectionHeadingRegex().IsMatch(raw))
+                continue;
+            var line = SplitGluedName(MultiSpaceRegex().Replace(NicknameRegex().Replace(raw, " "), " ").Trim(), local);
+            if (!NameRegex().IsMatch(line) || TitleTerms.Any(term => ContainsTerm(line, term)))
+                continue;
+            // Middle initials ("Miranda W. Hudson", "Claudio V di Leo") are dropped.
+            var words = line.Split(' ').Where(word => word.TrimEnd('.').Length > 1).ToArray();
+            if (words.Length < 2)
+                continue;
+            var name = string.Join(' ', words);
+            return (name.Any(char.IsLower)
+                ? name
+                : CultureInfo.InvariantCulture.TextInfo.ToTitleCase(name.ToLowerInvariant()), raw);
+        }
         if (string.IsNullOrWhiteSpace(email))
-            return string.Empty;
-        var local = email.Split('@')[0].Replace('.', ' ').Replace('-', ' ').Replace('_', ' ');
-        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(local);
+            return (string.Empty, null);
+        var fallback = email.Split('@')[0].Replace('.', ' ').Replace('-', ' ').Replace('_', ' ');
+        return (CultureInfo.InvariantCulture.TextInfo.ToTitleCase(fallback), null);
+    }
+
+    public static string? FindLocation(IEnumerable<string> headerLines)
+    {
+        var lines = headerLines.ToArray();
+        var match = lines.Select(line => CityStateRegex().Match(line)).FirstOrDefault(value => value.Success);
+        if (match is null)
+            return lines.Any(line => ContainsTerm(line, "remote")) ? "Remote" : null;
+        // "1177 Mass Ave. Cambridge, MA" has no comma before the city, so drop the street words.
+        var city = match.Groups["city"].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var street = Array.FindLastIndex(city, word => StreetWords.Contains(word.TrimEnd('.')));
+        return $"{string.Join(' ', street > 0 ? city[(street + 1)..] : city)}, {match.Groups["state"].Value}";
+    }
+
+    private static readonly HashSet<string> StreetWords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "street", "st", "avenue", "ave", "av", "drive", "dr", "road", "rd", "boulevard", "blvd",
+        "lane", "ln", "way", "court", "ct", "place", "pl", "parkway", "pkwy",
+    };
+
+    // PDFs set in small caps can lose the space: "YasmineHejazi", or "SHIRLEYGALLO" next to sgallo@.
+    private static string SplitGluedName(string line, string emailLocal)
+    {
+        if (line.Length < 5 || !line.All(char.IsLetter))
+            return line;
+        var camel = CamelCaseRegex().Replace(line, " ");
+        if (camel != line)
+            return camel;
+        for (var length = line.Length - 2; length >= 3; length--)
+            if (emailLocal.EndsWith(line[^length..], StringComparison.OrdinalIgnoreCase))
+                return $"{line[..^length]} {line[^length..]}";
+        return line;
     }
 
     private static decimal? EstimateYearsExperience(string text)
@@ -274,11 +316,22 @@ public sealed partial class ResumeParser(LocalResumeOcr ocr)
     [GeneratedRegex(@"https?://(?:www\.)?linkedin\.com/in/[A-Z0-9_\-/]+", RegexOptions.IgnoreCase)]
     private static partial Regex LinkedInRegex();
 
-    [GeneratedRegex(@"^[\p{L}][\p{L}'\-]+(?:\s+[\p{L}][\p{L}'\-]+){1,3}$")]
+    // Two to four words; anything after the first may be a bare initial.
+    [GeneratedRegex(@"^[\p{L}][\p{L}'\-]+(?:\s+(?:\p{L}\.?|[\p{L}][\p{L}'\-]+)){1,3}$")]
     private static partial Regex NameRegex();
 
-    [GeneratedRegex(@"\b(?:remote|[A-Z][A-Za-z .'-]+,\s*[A-Z]{2})\b", RegexOptions.IgnoreCase)]
-    private static partial Regex LocationRegex();
+    [GeneratedRegex(@"[“""][^”""]*[”""]")]
+    private static partial Regex NicknameRegex();
+
+    [GeneratedRegex(@"(?<=\p{Ll})(?=\p{Lu})")]
+    private static partial Regex CamelCaseRegex();
+
+    [GeneratedRegex(@"\b(?:sample|resumes?|résumé|curriculum vitae|cv|address)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex ResumeLabelRegex();
+
+    // "Cambridge, MA" out of "100 Charles St., Cambridge, MA 02139 ☞ 617.123.4567"; case-sensitive on purpose.
+    [GeneratedRegex(@"(?<!\p{L})(?<city>\p{Lu}[\p{L}.'\-]*(?:\s+\p{Lu}[\p{L}.'\-]*){0,3}),\s*(?<state>AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)(?!\p{L})")]
+    private static partial Regex CityStateRegex();
 
     [GeneratedRegex(@"\b(?:university|college|bachelor|master|ph\.?d|b\.?s\.?|b\.?a\.?|m\.?s\.?|m\.?b\.?a\.?)\b", RegexOptions.IgnoreCase)]
     private static partial Regex EducationRegex();
