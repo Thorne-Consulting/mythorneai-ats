@@ -2,9 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import {
+  ActionIcon,
   Button,
   Checkbox,
   Group,
+  Menu,
   Pagination,
   Paper,
   Radio,
@@ -17,7 +19,13 @@ import {
 } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
-import { IconSearch, IconUserCheck, IconUserOff, IconUserSearch } from '@tabler/icons-react';
+import {
+  IconDots,
+  IconSearch,
+  IconUserCheck,
+  IconUserOff,
+  IconUserSearch,
+} from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
@@ -64,6 +72,7 @@ export function ApplicantsPage({
   const [selected, setSelected] = useState<string[]>([]);
   const [targetStage, setTargetStage] = useState<string | null>(null);
   const [rejectOpened, rejectModal] = useDisclosure();
+  const [rejecting, setRejecting] = useState<ApplicantPage['items'][number] | null>(null);
   const sessions = useQuery({
     queryKey: ['requisitions', 'applicant-filter'],
     queryFn: () => api.get<RequisitionSummary[]>('/api/requisitions'),
@@ -105,6 +114,22 @@ export function ApplicantsPage({
       queryClient.invalidateQueries({ queryKey: ['applicants'] });
       queryClient.invalidateQueries({ queryKey: ['board'] });
       notifications.show({ color: 'teal', message: 'Applicants updated' });
+    },
+    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+  });
+  // One application from the row menu: keep its stage and mark it rejected.
+  const rejectOne = useMutation({
+    mutationFn: ({ id, stageId, reason }: { id: string; stageId: string; reason: string }) =>
+      api.patch(`/api/applications/${id}/stage`, {
+        stageId,
+        status: 'Rejected',
+        dispositionReason: reason,
+      }),
+    onSuccess: () => {
+      setRejecting(null);
+      queryClient.invalidateQueries({ queryKey: ['applicants'] });
+      queryClient.invalidateQueries({ queryKey: ['board'] });
+      notifications.show({ color: 'teal', message: 'Application rejected' });
     },
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
@@ -183,151 +208,197 @@ export function ApplicantsPage({
     </Group>
   );
 
+  const rail = (
+    <aside className="applicants-rail" aria-label="Filters">
+      <TextInput
+        aria-label="Search applications"
+        placeholder="Search"
+        value={search}
+        onChange={(event) => resetPage(setSearch)(event.currentTarget.value)}
+        leftSection={<IconSearch size={15} />}
+      />
+      <div>
+        <p className="applicants-group-title">Status</p>
+        <Radio.Group
+          value={status ?? 'all'}
+          onChange={(value) => resetPage(setStatus)(value === 'all' ? null : value)}
+        >
+          <Stack gap={6}>
+            {[...STATUS_OPTIONS, 'all'].map((value) => (
+              <Radio
+                key={value}
+                size="xs"
+                value={value}
+                label={value === 'all' ? 'Any status' : value}
+              />
+            ))}
+          </Stack>
+        </Radio.Group>
+      </div>
+      <div>
+        <p className="applicants-group-title">Job</p>
+        <Select
+          size="xs"
+          searchable
+          clearable
+          placeholder="All jobs"
+          aria-label="Job"
+          value={sessionId}
+          onChange={chooseJob}
+          data={jobOptions}
+        />
+        <Select
+          mt={6}
+          size="xs"
+          clearable
+          placeholder={sessionId ? 'All stages' : 'Pick a job first'}
+          aria-label="Stage"
+          disabled={!sessionId}
+          value={stageId}
+          onChange={resetPage(setStageId)}
+          data={stageOptions}
+        />
+      </div>
+      <div>
+        <p className="applicants-group-title">Minimum rating</p>
+        <SegmentedControl
+          size="xs"
+          fullWidth
+          value={rating ?? 'any'}
+          onChange={(value) => resetPage(setRating)(value === 'any' ? null : value)}
+          data={[
+            { value: 'any', label: 'Any' },
+            ...RATING_OPTIONS.map((value) => ({ value, label: value })),
+          ]}
+        />
+      </div>
+      <div>
+        <p className="applicants-group-title">Resume</p>
+        <SegmentedControl
+          size="xs"
+          fullWidth
+          value={resume ?? 'any'}
+          onChange={(value) => resetPage(setResume)(value === 'any' ? null : value)}
+          data={[
+            { value: 'any', label: 'Any' },
+            { value: 'true', label: 'Has' },
+            { value: 'false', label: 'Missing' },
+          ]}
+        />
+      </div>
+      <div>
+        <p className="applicants-group-title">More</p>
+        <Stack gap={6}>
+          <TextInput
+            size="xs"
+            placeholder="Source"
+            aria-label="Source"
+            value={source}
+            onChange={(event) => resetPage(setSource)(event.currentTarget.value)}
+          />
+          <TextInput
+            size="xs"
+            placeholder="Tag or skill"
+            aria-label="Tag or skill"
+            value={tag}
+            onChange={(event) => resetPage(setTag)(event.currentTarget.value)}
+          />
+          <TextInput
+            size="xs"
+            placeholder="Location"
+            aria-label="Location"
+            value={location}
+            onChange={(event) => resetPage(setLocation)(event.currentTarget.value)}
+          />
+        </Stack>
+      </div>
+      {anyFilter && (
+        <button
+          type="button"
+          className="text-action"
+          onClick={clearFilters}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          Clear all filters
+        </button>
+      )}
+    </aside>
+  );
+  const listHead = (
+    <div className="applicants-head">
+      <span className="applicants-count">{countLabel}</span>
+      <Select
+        size="xs"
+        w={170}
+        aria-label="Sort"
+        value={sort}
+        allowDeselect={false}
+        onChange={(value) => value && resetPage(setSort)(value)}
+        data={SORT_OPTIONS}
+      />
+    </div>
+  );
+  const listState = !applicants.data ? (
+    <LoadingBlock rows={6} />
+  ) : items.length === 0 ? (
+    <EmptyState icon={IconUserSearch} title="No applications match these filters" />
+  ) : null;
+  const rowMenu = (item: (typeof items)[number]) => (
+    <Menu position="bottom-end" withArrow shadow="md">
+      <Menu.Target>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          aria-label={`Actions for ${item.candidateName}`}
+        >
+          <IconDots size={16} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Item onClick={() => router.push(`/applications/${item.id}`)}>
+          Open application
+        </Menu.Item>
+        <Menu.Item onClick={() => router.push(`/requisitions/${item.requisitionId}`)}>
+          Open job
+        </Menu.Item>
+        <Menu.Item
+          onClick={() => {
+            navigator.clipboard.writeText(item.email);
+            notifications.show({ message: `Copied ${item.email}` });
+          }}
+        >
+          Copy email
+        </Menu.Item>
+        {item.status === 'Active' && (
+          <>
+            <Menu.Divider />
+            <Menu.Item color="red" onClick={() => setRejecting(item)}>
+              Reject…
+            </Menu.Item>
+          </>
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+
   return (
     <>
       {!embedded && <PageHeader title="Applications" />}
       <div className="applicants">
-        <aside className="applicants-rail" aria-label="Filters">
-          <TextInput
-            aria-label="Search applications"
-            placeholder="Search"
-            value={search}
-            onChange={(event) => resetPage(setSearch)(event.currentTarget.value)}
-            leftSection={<IconSearch size={15} />}
-          />
-          <div>
-            <p className="applicants-group-title">Status</p>
-            <Radio.Group
-              value={status ?? 'all'}
-              onChange={(value) => resetPage(setStatus)(value === 'all' ? null : value)}
-            >
-              <Stack gap={6}>
-                {[...STATUS_OPTIONS, 'all'].map((value) => (
-                  <Radio
-                    key={value}
-                    size="xs"
-                    value={value}
-                    label={value === 'all' ? 'Any status' : value}
-                  />
-                ))}
-              </Stack>
-            </Radio.Group>
-          </div>
-          <div>
-            <p className="applicants-group-title">Job</p>
-            <Select
-              size="xs"
-              searchable
-              clearable
-              placeholder="All jobs"
-              aria-label="Job"
-              value={sessionId}
-              onChange={chooseJob}
-              data={jobOptions}
-            />
-            <Select
-              mt={6}
-              size="xs"
-              clearable
-              placeholder={sessionId ? 'All stages' : 'Pick a job first'}
-              aria-label="Stage"
-              disabled={!sessionId}
-              value={stageId}
-              onChange={resetPage(setStageId)}
-              data={stageOptions}
-            />
-          </div>
-          <div>
-            <p className="applicants-group-title">Minimum rating</p>
-            <SegmentedControl
-              size="xs"
-              fullWidth
-              value={rating ?? 'any'}
-              onChange={(value) => resetPage(setRating)(value === 'any' ? null : value)}
-              data={[
-                { value: 'any', label: 'Any' },
-                ...RATING_OPTIONS.map((value) => ({ value, label: value })),
-              ]}
-            />
-          </div>
-          <div>
-            <p className="applicants-group-title">Resume</p>
-            <SegmentedControl
-              size="xs"
-              fullWidth
-              value={resume ?? 'any'}
-              onChange={(value) => resetPage(setResume)(value === 'any' ? null : value)}
-              data={[
-                { value: 'any', label: 'Any' },
-                { value: 'true', label: 'Has' },
-                { value: 'false', label: 'Missing' },
-              ]}
-            />
-          </div>
-          <div>
-            <p className="applicants-group-title">More</p>
-            <Stack gap={6}>
-              <TextInput
-                size="xs"
-                placeholder="Source"
-                aria-label="Source"
-                value={source}
-                onChange={(event) => resetPage(setSource)(event.currentTarget.value)}
-              />
-              <TextInput
-                size="xs"
-                placeholder="Tag or skill"
-                aria-label="Tag or skill"
-                value={tag}
-                onChange={(event) => resetPage(setTag)(event.currentTarget.value)}
-              />
-              <TextInput
-                size="xs"
-                placeholder="Location"
-                aria-label="Location"
-                value={location}
-                onChange={(event) => resetPage(setLocation)(event.currentTarget.value)}
-              />
-            </Stack>
-          </div>
-          {anyFilter && (
-            <button
-              type="button"
-              className="text-action"
-              onClick={clearFilters}
-              style={{ alignSelf: 'flex-start' }}
-            >
-              Clear all filters
-            </button>
-          )}
-        </aside>
+        {rail}
         <div>
-          <div className="applicants-head">
-            <span className="applicants-count">{countLabel}</span>
-            <Select
-              size="xs"
-              w={170}
-              aria-label="Sort"
-              value={sort}
-              allowDeselect={false}
-              onChange={(value) => value && resetPage(setSort)(value)}
-              data={SORT_OPTIONS}
-            />
-          </div>
-          {!applicants.data ? (
-            <LoadingBlock rows={6} />
-          ) : items.length === 0 ? (
-            <EmptyState icon={IconUserSearch} title="No applications match these filters" />
-          ) : (
+          {listHead}
+          {listState ?? (
             <div className="panel">
-              <Table.ScrollContainer minWidth={820}>
+              <Table.ScrollContainer minWidth={860}>
                 <Table className="inbox-table applicants-table" verticalSpacing={0}>
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th w={40}>{selectAll}</Table.Th>
                       <Table.Th>Candidate</Table.Th>
                       <Table.Th>Job</Table.Th>
-                      <Table.Th w={120}>Stage</Table.Th>
+                      <Table.Th w={130}>Stage</Table.Th>
                       <Table.Th w={60} ta="right">
                         Fit
                       </Table.Th>
@@ -337,6 +408,7 @@ export function ApplicantsPage({
                       <Table.Th w={110} ta="right">
                         Last activity
                       </Table.Th>
+                      <Table.Th w={44} />
                     </Table.Tr>
                   </Table.Thead>
                   <Table.Tbody>
@@ -350,12 +422,14 @@ export function ApplicantsPage({
                           {selectOne(item)}
                         </Table.Td>
                         <Table.Td>
-                          <span className="applicants-name">{item.candidateName}</span>{' '}
-                          <span className="applicants-sub">{item.currentTitle ?? ''}</span>
+                          <span className="applicants-name">{item.candidateName}</span>
+                          {item.currentTitle && (
+                            <span className="applicants-title">{item.currentTitle}</span>
+                          )}
                         </Table.Td>
                         <Table.Td>
-                          {item.requisitionTitle}{' '}
-                          <span className="applicants-sub">{item.requisitionCode}</span>
+                          {item.requisitionTitle}
+                          <span className="applicants-code">{item.requisitionCode}</span>
                         </Table.Td>
                         <Table.Td>{item.stage}</Table.Td>
                         <Table.Td className="applicants-num">
@@ -368,13 +442,11 @@ export function ApplicantsPage({
                             <span className="applicants-dim">–</span>
                           )}
                         </Table.Td>
-                        <Table.Td
-                          className={
-                            item.stalled ? 'applicants-num' : 'applicants-num applicants-dim'
-                          }
-                          title={item.stalled ? 'Quiet for a while' : undefined}
-                        >
+                        <Table.Td className="applicants-num applicants-dim">
                           {formatRelative(item.lastActivityAt)}
+                        </Table.Td>
+                        <Table.Td onClick={(event) => event.stopPropagation()}>
+                          {rowMenu(item)}
                         </Table.Td>
                       </Table.Tr>
                     ))}
@@ -438,6 +510,15 @@ export function ApplicantsPage({
           </Group>
         </Paper>
       )}
+      <RejectManyModal
+        opened={rejecting !== null}
+        onClose={() => setRejecting(null)}
+        loading={rejectOne.isPending}
+        title={rejecting ? `Reject ${rejecting.candidateName}` : undefined}
+        onReject={(reason) =>
+          rejecting && rejectOne.mutate({ id: rejecting.id, stageId: rejecting.stageId, reason })
+        }
+      />
       <RejectManyModal
         opened={rejectOpened}
         onClose={rejectModal.close}

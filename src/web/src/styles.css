@@ -2189,16 +2189,15 @@ a.crumb-link:focus-visible {
   top: 16px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 26px;
 }
 
+/* Hierarchy from size and weight, not capitals. */
 .applicants-group-title {
-  margin: 0 0 6px;
-  color: var(--mantine-color-dimmed);
-  font-size: 11px;
+  margin: 0 0 10px;
+  font-size: 15px;
   font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: -0.01em;
 }
 
 .applicants-head {
@@ -2210,31 +2209,40 @@ a.crumb-link:focus-visible {
 }
 
 .applicants-count {
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 
 .applicants-table td {
-  padding-block: 7px;
+  padding-block: 11px;
   font-size: 13px;
   white-space: nowrap;
 }
 
 .applicants-table thead th {
-  color: var(--mantine-color-dimmed);
-  font-size: 11px;
+  padding-block: 10px;
+  border-bottom: 1px solid var(--mantine-color-dark-2);
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .applicants-name {
+  font-size: 15px;
   font-weight: 600;
 }
 
-.applicants-sub {
+.applicants-title {
+  margin-left: 8px;
   color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.applicants-code {
+  margin-left: 8px;
+  color: var(--mantine-color-dimmed);
+  font-family: var(--mantine-font-family-monospace);
   font-size: 12px;
 }
 

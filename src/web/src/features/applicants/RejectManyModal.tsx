@@ -8,15 +8,17 @@ export function RejectManyModal({
   onClose,
   loading,
   onReject,
+  title = 'Reject selected applicants',
 }: {
   opened: boolean;
   onClose: () => void;
   loading: boolean;
   onReject: (reason: string) => void;
+  title?: string;
 }) {
   const [reason, setReason] = useState<string | null>(null);
   return (
-    <Modal opened={opened} onClose={onClose} title="Reject selected applicants">
+    <Modal opened={opened} onClose={onClose} title={title}>
       <Stack>
         <Select
           label="Disposition reason"
