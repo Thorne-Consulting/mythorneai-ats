@@ -1132,13 +1132,52 @@ section[id],
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  margin-bottom: 8px;
+  margin: 0 0 10px -8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
 }
 
 .crumb-sep {
-  margin: 0 6px;
   color: var(--mantine-color-dimmed);
-  font-size: var(--mantine-font-size-sm);
+  opacity: 0.7;
+}
+
+.crumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  max-width: 240px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--mantine-color-dimmed);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.crumb-link:hover {
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-text);
+}
+
+a.crumb-link:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 0;
+}
+
+.crumb-current {
+  color: var(--mantine-color-text);
+  font-weight: 550;
 }
 
 .record-grid {

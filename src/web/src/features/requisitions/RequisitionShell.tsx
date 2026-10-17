@@ -3,10 +3,12 @@
 import { Select } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { usePathname } from 'next/navigation';
+import { IconBriefcase } from '@tabler/icons-react';
 import { api } from '@/api';
 import { StatusBadge } from '@/components/ui/Badges';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { DetailHeader } from '@/components/ui/PageHeaders';
+import { type Crumb, DetailHeader } from '@/components/ui/PageHeaders';
 import { PageTabs } from '@/components/ui/PageTabs';
 import { humanize } from '@/lib/format';
 import type { RequisitionDetail } from '@/types';
@@ -30,6 +32,7 @@ export function RequisitionShell({
   children: React.ReactNode;
 }) {
   const queryClient = useQueryClient();
+  const pathname = usePathname();
   const details = useRequisition(id, initialData);
   const canManage = useCanManage(details.data);
   const statusMutation = useMutation({
@@ -57,11 +60,35 @@ export function RequisitionShell({
 
   if (!details.data) return <LoadingBlock rows={5} />;
   const requisition = details.data;
+  const base = `/requisitions/${id}`;
+  const tabs = [
+    { label: 'Pipeline', href: base },
+    { label: 'Role', href: `${base}/details` },
+    { label: 'Interview kits', href: `${base}/kits`, count: requisition.interviewKits.length },
+    ...(canManage ? [{ label: 'Visibility', href: `${base}/visibility` }] : []),
+  ];
+
+  // The trail follows the URL: Jobs / this job / the tab / a kit / Edit.
+  const crumbs: Crumb[] = [
+    { label: 'Jobs', href: '/requisitions', icon: <IconBriefcase size={14} aria-hidden /> },
+    { label: requisition.title, href: base },
+  ];
+  const [tab, kitId, action] = pathname.slice(base.length + 1).split('/');
+  const tabCrumb = tabs.find((item) => item.href === `${base}/${tab}`);
+  if (tabCrumb) crumbs.push({ label: tabCrumb.label, href: tabCrumb.href });
+  if (tab === 'kits' && kitId === 'new') {
+    crumbs.push({ label: 'New kit', href: `${base}/kits/new` });
+  } else if (tab === 'kits' && kitId) {
+    const kit = requisition.interviewKits.find((item) => item.id === kitId);
+    crumbs.push({ label: kit?.name ?? 'Kit', href: `${base}/kits/${kitId}` });
+    if (action === 'edit') crumbs.push({ label: 'Edit', href: `${base}/kits/${kitId}/edit` });
+  }
+  crumbs[crumbs.length - 1].current = true;
 
   return (
     <>
       <DetailHeader
-        crumbs={[{ label: 'Jobs', href: '/requisitions' }]}
+        crumbs={crumbs}
         title={requisition.title}
         // Managers change the status in the control on the right, so the badge would repeat it.
         badges={canManage ? undefined : <StatusBadge status={requisition.status} />}
@@ -85,18 +112,7 @@ export function RequisitionShell({
 
       <RequisitionApproval id={id} status={requisition.status} canManage={canManage} />
 
-      <PageTabs
-        items={[
-          { label: 'Pipeline', href: `/requisitions/${id}` },
-          { label: 'Role', href: `/requisitions/${id}/details` },
-          {
-            label: 'Interview kits',
-            href: `/requisitions/${id}/kits`,
-            count: requisition.interviewKits.length,
-          },
-          ...(canManage ? [{ label: 'Visibility', href: `/requisitions/${id}/visibility` }] : []),
-        ]}
-      />
+      <PageTabs items={tabs} />
       {children}
     </>
   );

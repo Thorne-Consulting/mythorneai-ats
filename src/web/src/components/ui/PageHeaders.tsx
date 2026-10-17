@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { Anchor, Box, Group, Text, Title } from '@mantine/core';
+import { Box, Group, Text, Title } from '@mantine/core';
 import Link from 'next/link';
+import { IconChevronRight } from '@tabler/icons-react';
 
 export function PageHeader({
   title,
@@ -29,6 +30,10 @@ export function PageHeader({
 export interface Crumb {
   label: string;
   href: string;
+  /** Shown before the label, for the section the trail starts in. */
+  icon?: ReactNode;
+  /** The page being viewed: drawn as plain text, not a link. */
+  current?: boolean;
 }
 
 /**
@@ -62,19 +67,28 @@ export function DetailHeader({
   return (
     <Box component="header" className="record-header">
       {trail.length > 0 && (
-        <nav aria-label="Breadcrumb" className="crumbs">
-          {trail.map((crumb, index) => (
-            <span key={crumb.href} className="crumb">
-              {index > 0 && (
-                <span className="crumb-sep" aria-hidden>
-                  /
-                </span>
-              )}
-              <Anchor component={Link} href={crumb.href} size="sm" c="dimmed">
-                {crumb.label}
-              </Anchor>
-            </span>
-          ))}
+        <nav aria-label="Breadcrumb">
+          <ol className="crumbs">
+            {trail.map((crumb, index) => (
+              <li key={crumb.href} className="crumb">
+                {index > 0 && <IconChevronRight size={14} className="crumb-sep" aria-hidden />}
+                {crumb.current ? (
+                  <span
+                    className="crumb-link crumb-current"
+                    aria-current="page"
+                    title={crumb.label}
+                  >
+                    {crumb.label}
+                  </span>
+                ) : (
+                  <Link href={crumb.href} className="crumb-link" title={crumb.label}>
+                    {crumb.icon}
+                    {crumb.label}
+                  </Link>
+                )}
+              </li>
+            ))}
+          </ol>
         </nav>
       )}
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
