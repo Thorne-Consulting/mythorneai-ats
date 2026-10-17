@@ -12,12 +12,12 @@ const headingVariants = cva(
   {
     variants: {
       variant: {
-        h1: 'mt-[1.6em] pb-1 font-bold font-heading text-4xl',
-        h2: 'mt-[1.4em] pb-px font-heading font-semibold text-2xl tracking-tight',
-        h3: 'mt-[1em] pb-px font-heading font-semibold text-xl tracking-tight',
-        h4: 'mt-[0.75em] font-heading font-semibold text-lg tracking-tight',
-        h5: 'mt-[0.75em] font-semibold text-lg tracking-tight',
-        h6: 'mt-[0.75em] font-semibold text-base tracking-tight',
+        h1: 'mt-[1.6em] pb-px font-heading text-(length:--mantine-h1-font-size) leading-(--mantine-h1-line-height) font-(--mantine-h1-font-weight)',
+        h2: 'mt-[1.4em] pb-px font-heading text-(length:--mantine-h2-font-size) leading-(--mantine-h2-line-height) font-(--mantine-h2-font-weight)',
+        h3: 'mt-[1em] pb-px font-heading text-(length:--mantine-h3-font-size) leading-(--mantine-h3-line-height) font-(--mantine-h3-font-weight)',
+        h4: 'mt-[0.75em] pb-px font-heading text-(length:--mantine-h4-font-size) leading-(--mantine-h4-line-height) font-(--mantine-h4-font-weight)',
+        h5: 'mt-[0.75em] pb-px font-heading text-(length:--mantine-h5-font-size) leading-(--mantine-h5-line-height) font-(--mantine-h5-font-weight)',
+        h6: 'mt-[0.75em] pb-px font-heading text-(length:--mantine-h6-font-size) leading-(--mantine-h6-line-height) font-(--mantine-h6-font-weight)',
       },
     },
   },

@@ -65,6 +65,18 @@
 
 @theme inline {
   --font-sans: var(--mantine-font-family);
+  --font-heading: var(--mantine-font-family-headings);
+  /* Mantine's type scale, so the editor reads like the rest of the app. */
+  --text-xs: var(--mantine-font-size-xs);
+  --text-xs--line-height: var(--mantine-line-height-xs);
+  --text-sm: var(--mantine-font-size-sm);
+  --text-sm--line-height: var(--mantine-line-height-sm);
+  --text-base: var(--mantine-font-size-md);
+  --text-base--line-height: var(--mantine-line-height-md);
+  --text-lg: var(--mantine-font-size-lg);
+  --text-lg--line-height: var(--mantine-line-height-lg);
+  --text-xl: var(--mantine-font-size-xl);
+  --text-xl--line-height: var(--mantine-line-height-xl);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
