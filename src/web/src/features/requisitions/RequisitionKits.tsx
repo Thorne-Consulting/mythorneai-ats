@@ -1,6 +1,6 @@
 'use client';
 
-import { Badge, Button, Group, Paper, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Button, Text } from '@mantine/core';
 import { IconPlus } from '@tabler/icons-react';
 import { useRouter } from 'next/navigation';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
@@ -45,47 +45,47 @@ export function RequisitionKits({ id }: { id: string }) {
           )}
         </div>
       ) : (
-        <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="lg">
-          {requisition.interviewKits.map((kit) => (
-            <Paper key={kit.id} withBorder radius="lg" p="lg">
-              <Group justify="space-between" wrap="nowrap" mb={kit.instructions ? 'xs' : 'md'}>
-                <Text fw={650}>{kit.name}</Text>
-                <Badge variant="light" color="gray">
-                  {kit.durationMinutes} min
-                </Badge>
-              </Group>
-              {kit.instructions && (
-                <Text size="sm" c="dimmed" mb="md">
-                  {kit.instructions}
-                </Text>
-              )}
-              <Text size="xs" c="dimmed" fw={500} mb="xs">
-                {kit.criteria.length} scored{' '}
-                {kit.criteria.length === 1 ? 'competency' : 'competencies'}
-              </Text>
-              <Stack gap="sm">
-                {kit.criteria.map((criterion) => (
-                  <Paper key={criterion.id} p="md" radius="md" bg="var(--surface-sunken)">
-                    <Group justify="space-between" wrap="nowrap" mb={4}>
-                      <Text size="sm" fw={650}>
-                        {criterion.name}
-                      </Text>
-                      <Text size="xs" c="dimmed">
-                        weight {criterion.weight}
-                      </Text>
-                    </Group>
-                    <Text size="sm">{criterion.question}</Text>
-                    {criterion.description && (
-                      <Text size="xs" c="dimmed" mt={6}>
-                        Good looks like: {criterion.description}
-                      </Text>
-                    )}
-                  </Paper>
-                ))}
-              </Stack>
-            </Paper>
+        <div className="kl3">
+          {requisition.interviewKits.map((kit, index) => (
+            <details key={kit.id} className="kl3-kit" open={index === 0}>
+              <summary className="kl3-summary">
+                <span className="kl3-title">{kit.name}</span>
+                <span className="kl3-meta">
+                  {kit.durationMinutes} min · {kit.criteria.length}{' '}
+                  {kit.criteria.length === 1 ? 'competency' : 'competencies'}
+                </span>
+              </summary>
+              <div className="kl3-body">
+                {kit.instructions && <p className="kl3-prose">{kit.instructions}</p>}
+                <ul className="kl-crit">
+                  {kit.criteria.map((criterion) => (
+                    <li key={criterion.id}>
+                      <span className="kl-crit-head">
+                        <span className="kl-crit-name">{criterion.name}</span>
+                        <span className="kl-crit-weight">weight {criterion.weight}</span>
+                      </span>
+                      <span className="kl-crit-q">{criterion.question}</span>
+                      {criterion.description && (
+                        <span className="kl-crit-good">
+                          Good looks like: {criterion.description}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="text-action"
+                    onClick={() => router.push(`/requisitions/${id}/kits/${kit.id}/edit`)}
+                  >
+                    Edit
+                  </button>
+                )}
+              </div>
+            </details>
           ))}
-        </SimpleGrid>
+        </div>
       )}
     </>
   );

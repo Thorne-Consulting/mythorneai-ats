@@ -1681,6 +1681,116 @@ section[id],
   transform: translateX(-50%);
 }
 
+/* ---------- interview kits list: one toggle per kit ---------- */
+
+.kl3-kit {
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.kl3-kit:last-child {
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.kl3-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 16px 0;
+  list-style: none;
+  cursor: pointer;
+}
+
+.kl3-summary::-webkit-details-marker {
+  display: none;
+}
+
+.kl3-summary::before {
+  content: '›';
+  display: inline-block;
+  width: 14px;
+  color: var(--mantine-color-dimmed);
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+
+.kl3-kit[open] .kl3-summary::before {
+  transform: rotate(90deg);
+}
+
+.kl3-summary:hover .kl3-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.kl3-summary:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.kl3-title {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.kl3-meta {
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.kl3-body {
+  max-width: 70ch;
+  padding: 0 0 28px 26px;
+}
+
+.kl3-prose {
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.kl-crit {
+  display: grid;
+  gap: 16px;
+  margin: 0 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.kl-crit li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kl-crit-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.kl-crit-name {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.kl-crit-weight {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.kl-crit-q {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.kl-crit-good {
+  color: var(--mantine-color-dimmed);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
 /* ---------- interview kit document ---------- */
 
 .kit-doc {
