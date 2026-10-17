@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Text } from '@mantine/core';
+import { IconArrowLeft, IconPencil } from '@tabler/icons-react';
 import { DocumentEditor } from '@/components/plate/document-editor';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { kitToMarkdown } from './interview-kit-doc';
@@ -23,21 +24,26 @@ export function InterviewKitView({
   if (!job.data) return <LoadingBlock rows={4} />;
   const kit = job.data.interviewKits.find((item) => item.id === kitId);
   if (!kit) return <Text c="dimmed">This kit no longer exists.</Text>;
+  const kitsHref = `/requisitions/${requisitionId}/kits`;
+  const editHref = `/requisitions/${requisitionId}/kits/${kit.id}/edit`;
 
   return (
     <article className="kit-read">
       <p className="kit-read-bar">
-        <Link href={`/requisitions/${requisitionId}/kits`} className="text-action">
+        <Link href={kitsHref} className="kit-read-btn">
+          <IconArrowLeft size={15} aria-hidden />
           All kits
         </Link>
+        <span className="kit-read-sep" aria-hidden />
         <span className="kit-read-meta">{kit.durationMinutes} min</span>
         {canManage && (
-          <Link
-            href={`/requisitions/${requisitionId}/kits/${kit.id}/edit`}
-            className="text-action text-action-primary"
-          >
-            Edit
-          </Link>
+          <>
+            <span className="kit-read-sep" aria-hidden />
+            <Link href={editHref} className="kit-read-btn">
+              <IconPencil size={15} aria-hidden />
+              Edit
+            </Link>
+          </>
         )}
       </p>
       <DocumentEditor
