@@ -56,8 +56,8 @@ select {
   padding: 40px 48px 96px;
 }
 
-/* Tables of people use the whole width; reading pages keep the measure. */
-.page-container:has(.applicants) {
+/* The Candidates tabs are tables of people: they use the whole width. Reading pages keep the measure. */
+.page-container:has(.candidates-hub) {
   max-width: none;
 }
 
@@ -2266,6 +2266,151 @@ a.crumb-link:focus-visible {
   }
 
   .applicants-rail {
+    position: static;
+  }
+}
+
+/* ---------- people: a list on the left, everything about one person on the right ---------- */
+
+.people-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.people-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.people {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  align-items: start;
+  gap: 24px;
+}
+
+.people-list {
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.people-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  cursor: pointer;
+}
+
+.people-item:hover {
+  background: var(--surface-sunken);
+}
+
+.people-item[data-active] {
+  background: var(--mantine-primary-color-light);
+}
+
+.people-item:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.people-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.people-sub {
+  display: block;
+  overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-num {
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.people-panel {
+  position: sticky;
+  top: 16px;
+  padding: 22px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 14px;
+  background: var(--mantine-color-body);
+}
+
+.people-pname {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.people-prole {
+  margin: 2px 0 0;
+  color: var(--mantine-color-gray-7);
+  font-size: 14px;
+}
+
+.people-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 14px;
+  margin: 18px 0;
+  font-size: 13px;
+}
+
+.people-facts dt {
+  color: var(--mantine-color-dimmed);
+}
+
+.people-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.people-skills-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.people-skills {
+  margin: 0 0 18px;
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.people-skills b {
+  color: var(--mantine-color-text);
+}
+
+.people-empty {
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+@media (max-width: 75em) {
+  .people {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .people-panel {
     position: static;
   }
 }

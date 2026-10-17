@@ -4,7 +4,6 @@ import { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
   Alert,
-  Badge,
   Button,
   Checkbox,
   Collapse,
@@ -14,9 +13,7 @@ import {
   Popover,
   SegmentedControl,
   Select,
-  SimpleGrid,
   Stack,
-  Table,
   TagsInput,
   Text,
   TextInput,
@@ -30,15 +27,14 @@ import {
   IconFileSearch,
   IconSearch,
   IconSparkles,
-  IconX,
 } from '@tabler/icons-react';
+import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatRelative } from '@/lib/format';
-import { rowLinkProps } from '@/lib/row-link-props';
 import type { TalentSearchPage as TalentSearchResponse } from '@/types';
 
 const SOURCE_OPTIONS = [
@@ -50,6 +46,8 @@ const SOURCE_OPTIONS = [
   'University fair',
   'Resume import',
 ];
+
+type Person = TalentSearchResponse['items'][number];
 
 export function ProfileSearch({ initialData }: { initialData: TalentSearchResponse }) {
   const router = useRouter();
@@ -216,363 +214,373 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
       advanced.open();
   };
 
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const items = results.data?.items ?? [];
+  const preview = items.find((item) => item.candidateId === previewId) ?? items[0];
+  const total = results.data?.total ?? 0;
+  const countLabel = `${total} ${total === 1 ? 'candidate' : 'candidates'}`;
+  // Skills that matched the search come first, in bold.
+  const skillText = (candidate: Person, limit: number) => {
+    const matched = candidate.matchedTerms.filter((term) => candidate.skills.includes(term));
+    const rest = candidate.skills.filter((skill) => !matched.includes(skill));
+    const list = [...matched, ...rest].slice(0, limit);
+    return list.map((skill, index) => (
+      <span key={skill}>
+        {index > 0 && ', '}
+        {matched.includes(skill) ? <b>{skill}</b> : skill}
+      </span>
+    ));
+  };
+  const searchBox = (
+    <TextInput
+      aria-label="Search resumes and profiles"
+      placeholder="Search resumes and profiles"
+      value={search}
+      onChange={(event) => {
+        setSearch(event.currentTarget.value);
+        setPage(1);
+      }}
+      leftSection={<IconSearch size={16} />}
+    />
+  );
+  const describeBox = (
+    <TextInput
+      aria-label="Describe the candidate you need"
+      placeholder="Describe who you need, and let AI set the filters"
+      value={aiQuery}
+      onChange={(event) => setAiQuery(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' && aiQuery.trim()) aiSearch.mutate();
+      }}
+      rightSectionWidth={36}
+      rightSection={
+        <ActionIcon
+          variant="subtle"
+          aria-label="Apply AI filters"
+          loading={aiSearch.isPending}
+          disabled={!aiQuery.trim()}
+          onClick={() => aiSearch.mutate()}
+        >
+          <IconSparkles size={16} />
+        </ActionIcon>
+      }
+    />
+  );
+  const sortPicker = (
+    <Select
+      aria-label="Sort"
+      value={sort}
+      allowDeselect={false}
+      onChange={(value) => {
+        if (value) setSort(value);
+        setPage(1);
+      }}
+      data={[
+        { value: 'relevance', label: 'Best match' },
+        { value: 'recent', label: 'Recently updated' },
+        { value: 'experience', label: 'Most experience' },
+        { value: 'name', label: 'Name' },
+      ]}
+      w={170}
+    />
+  );
+  const savedPicker = (
+    <Select
+      clearable
+      searchable
+      label="Saved search"
+      placeholder="Choose saved"
+      value={selectedSavedSearch}
+      onChange={loadSavedSearch}
+      data={Object.keys(savedSearches).sort()}
+    />
+  );
+  const saveButton = (
+    <Popover
+      opened={saveOpened}
+      onChange={(nextOpened) => (nextOpened ? savePopover.open() : savePopover.close())}
+      position="bottom-end"
+      width={280}
+      withArrow
+      shadow="lg"
+    >
+      <Popover.Target>
+        <Tooltip label="Save this search in this browser">
+          <ActionIcon
+            variant="default"
+            size={36}
+            aria-label="Save current search"
+            onClick={savePopover.toggle}
+          >
+            <IconBookmark size={17} />
+          </ActionIcon>
+        </Tooltip>
+      </Popover.Target>
+      <Popover.Dropdown>
+        <Stack gap="sm">
+          <TextInput
+            label="Search name"
+            placeholder="e.g. Chicago React leads"
+            value={saveName}
+            onChange={(event) => setSaveName(event.currentTarget.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') saveSearch();
+            }}
+            autoFocus
+          />
+          <Button size="sm" onClick={saveSearch} disabled={!saveName.trim()}>
+            Save search
+          </Button>
+        </Stack>
+      </Popover.Dropdown>
+    </Popover>
+  );
+  const filterFields = (
+    <>
+      <TagsInput
+        label="Skills"
+        placeholder="Type a skill and press Enter"
+        value={skills}
+        onChange={(value) => {
+          setSkills(value.map((item) => item.toLowerCase()));
+          setPage(1);
+        }}
+      />
+      <SegmentedControl
+        aria-label="Skill match"
+        size="xs"
+        value={skillMode}
+        onChange={(value) => {
+          setSkillMode(value);
+          setPage(1);
+        }}
+        data={[
+          { value: 'any', label: 'Any skill' },
+          { value: 'all', label: 'All skills' },
+        ]}
+      />
+      <TextInput
+        label="Job title"
+        placeholder="e.g. Staff engineer"
+        value={title}
+        onChange={(event) => {
+          setTitle(event.currentTarget.value);
+          setPage(1);
+        }}
+      />
+      <TextInput
+        label="Location"
+        placeholder="City, state, or remote"
+        value={location}
+        onChange={(event) => {
+          setLocation(event.currentTarget.value);
+          setPage(1);
+        }}
+      />
+      <Select
+        clearable
+        searchable
+        label="Source"
+        placeholder="Any source"
+        data={SOURCE_OPTIONS}
+        value={source}
+        onChange={(value) => {
+          setSource(value);
+          setPage(1);
+        }}
+      />
+      <NumberInput
+        label="Minimum experience"
+        suffix=" years"
+        min={0}
+        max={50}
+        value={minYears}
+        onChange={(value) => {
+          setMinYears(value);
+          setPage(1);
+        }}
+      />
+      <Select
+        clearable
+        label="Parsed resume"
+        placeholder="Either"
+        value={hasResume}
+        onChange={(value) => {
+          setHasResume(value);
+          setPage(1);
+        }}
+        data={[
+          { value: 'true', label: 'Parsed' },
+          { value: 'false', label: 'Not parsed' },
+        ]}
+      />
+      <Checkbox
+        label="Include do-not-contact"
+        checked={includeDnc}
+        onChange={(event) => {
+          setIncludeDnc(event.currentTarget.checked);
+          setPage(1);
+        }}
+      />
+    </>
+  );
+  const resultState = results.isError ? (
+    <Alert icon={<IconAlertCircle size={17} />} color="red" title="Search unavailable">
+      {results.error.message}
+    </Alert>
+  ) : !results.data ? (
+    <LoadingBlock rows={6} />
+  ) : items.length === 0 ? (
+    <EmptyState
+      icon={IconFileSearch}
+      title="No candidates match"
+      actionLabel="Clear filters"
+      onAction={clearFilters}
+    />
+  ) : null;
+  const pager = results.data && results.data.total > results.data.pageSize && (
+    <Group justify="flex-end" mt="md">
+      <Pagination
+        value={page}
+        onChange={setPage}
+        total={Math.ceil(results.data.total / results.data.pageSize)}
+        size="sm"
+      />
+    </Group>
+  );
+
   return (
     <>
-      <div className="toolbar">
-        <Stack gap="sm">
-          <Group gap="sm" align="flex-end" wrap="wrap">
-            <TextInput
-              label="Search resumes and profiles"
-              placeholder="Try React, platform engineer, or Chicago"
-              value={search}
-              onChange={(event) => {
-                setSearch(event.currentTarget.value);
-                setPage(1);
-              }}
-              leftSection={<IconSearch size={16} />}
-              style={{ flex: '3 1 360px' }}
-            />
-            <Select
-              label="Sort"
-              value={sort}
-              onChange={(value) => {
-                if (value) setSort(value);
-                setPage(1);
-              }}
-              data={[
-                { value: 'relevance', label: 'Best match' },
-                { value: 'recent', label: 'Recently updated' },
-                { value: 'experience', label: 'Most experience' },
-                { value: 'name', label: 'Name' },
-              ]}
-              w={180}
-            />
-            <Select
-              clearable
-              searchable
-              label="Saved search"
-              placeholder="Choose saved"
-              value={selectedSavedSearch}
-              onChange={loadSavedSearch}
-              data={Object.keys(savedSearches).sort()}
-              w={190}
-            />
-            <Button
-              variant={advancedOpened ? 'light' : 'default'}
-              leftSection={<IconAdjustmentsHorizontal size={16} />}
-              onClick={advanced.toggle}
-            >
-              Filters
-              {activeAdvanced > 0 && (
-                <Badge ml={8} size="xs" circle variant="filled">
-                  {activeAdvanced}
-                </Badge>
-              )}
-            </Button>
-            <Popover
-              opened={saveOpened}
-              onChange={(nextOpened) => (nextOpened ? savePopover.open() : savePopover.close())}
-              position="bottom-end"
-              width={280}
-              withArrow
-              shadow="lg"
-            >
-              <Popover.Target>
-                <Tooltip label="Save this search in this browser">
-                  <ActionIcon
-                    variant="default"
-                    size={36}
-                    aria-label="Save current search"
-                    onClick={savePopover.toggle}
-                  >
-                    <IconBookmark size={17} />
-                  </ActionIcon>
-                </Tooltip>
-              </Popover.Target>
-              <Popover.Dropdown>
-                <Stack gap="sm">
-                  <TextInput
-                    label="Search name"
-                    placeholder="e.g. Chicago React leads"
-                    value={saveName}
-                    onChange={(event) => setSaveName(event.currentTarget.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') saveSearch();
-                    }}
-                    autoFocus
-                  />
-                  <Button size="sm" onClick={saveSearch} disabled={!saveName.trim()}>
-                    Save search
-                  </Button>
-                </Stack>
-              </Popover.Dropdown>
-            </Popover>
-          </Group>
-          <Group align="flex-end" wrap="wrap">
-            <TextInput
-              label="Describe the candidate you need"
-              placeholder="Senior backend engineer with payments experience"
-              value={aiQuery}
-              onChange={(event) => setAiQuery(event.currentTarget.value)}
-              style={{ flex: '1 1 360px' }}
-            />
-            <Button
-              leftSection={<IconSparkles size={16} />}
-              loading={aiSearch.isPending}
-              disabled={!aiQuery.trim()}
-              onClick={() => aiSearch.mutate()}
-            >
-              Apply AI filters
-            </Button>
-          </Group>
-          <Collapse in={advancedOpened}>
-            <Stack gap="sm" pt="xs">
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing="sm">
-                <TagsInput
-                  label="Skills"
-                  placeholder="Type a skill and press Enter"
-                  value={skills}
-                  onChange={(value) => {
-                    setSkills(value.map((item) => item.toLowerCase()));
-                    setPage(1);
-                  }}
-                />
-                <div>
-                  <Text size="sm" fw={500} mb={5}>
-                    Skill match
-                  </Text>
-                  <SegmentedControl
-                    fullWidth
-                    value={skillMode}
-                    onChange={(value) => {
-                      setSkillMode(value);
-                      setPage(1);
-                    }}
-                    data={[
-                      { value: 'any', label: 'Any skill' },
-                      { value: 'all', label: 'All skills' },
-                    ]}
-                  />
-                </div>
-                <TextInput
-                  label="Job title"
-                  placeholder="e.g. Staff engineer"
-                  value={title}
-                  onChange={(event) => {
-                    setTitle(event.currentTarget.value);
-                    setPage(1);
-                  }}
-                />
-                <TextInput
-                  label="Location"
-                  placeholder="City, state, or remote"
-                  value={location}
-                  onChange={(event) => {
-                    setLocation(event.currentTarget.value);
-                    setPage(1);
-                  }}
-                />
-                <Select
-                  clearable
-                  searchable
-                  label="Source"
-                  placeholder="Any source"
-                  data={SOURCE_OPTIONS}
-                  value={source}
-                  onChange={(value) => {
-                    setSource(value);
-                    setPage(1);
-                  }}
-                />
-                <NumberInput
-                  label="Minimum experience"
-                  suffix=" years"
-                  min={0}
-                  max={50}
-                  value={minYears}
-                  onChange={(value) => {
-                    setMinYears(value);
-                    setPage(1);
-                  }}
-                />
-                <Select
-                  clearable
-                  label="Parsed resume"
-                  placeholder="Either"
-                  value={hasResume}
-                  onChange={(value) => {
-                    setHasResume(value);
-                    setPage(1);
-                  }}
-                  data={[
-                    { value: 'true', label: 'Parsed' },
-                    { value: 'false', label: 'Not parsed' },
-                  ]}
-                />
-                <Checkbox
-                  label="Include do-not-contact records"
-                  checked={includeDnc}
-                  onChange={(event) => {
-                    setIncludeDnc(event.currentTarget.checked);
-                    setPage(1);
-                  }}
-                  mt={30}
-                />
-              </SimpleGrid>
-              <Group justify="flex-end">
-                <Button
-                  variant="subtle"
-                  color="gray"
-                  leftSection={<IconX size={15} />}
-                  onClick={clearFilters}
-                >
-                  Clear filters
-                </Button>
-              </Group>
-            </Stack>
-          </Collapse>
-        </Stack>
-      </div>
-
-      {results.isError ? (
-        <Alert icon={<IconAlertCircle size={17} />} color="red" title="Search unavailable">
-          {results.error.message}
-        </Alert>
-      ) : !results.data ? (
-        <LoadingBlock rows={6} />
-      ) : results.data.items.length === 0 ? (
-        <EmptyState
-          icon={IconFileSearch}
-          title="No candidates match"
-          actionLabel="Clear filters"
-          onAction={clearFilters}
-        />
-      ) : (
-        <Stack gap="md">
-          <Group justify="space-between">
-            <Text size="sm" c="dimmed" aria-live="polite">
-              {results.data.total} {results.data.total === 1 ? 'candidate' : 'candidates'} found
-            </Text>
-            {results.isFetching && (
-              <Text size="xs" c="dimmed">
-                Updating results…
-              </Text>
-            )}
-          </Group>
-          <div className="panel">
-            <Table.ScrollContainer minWidth={820}>
-              <Table className="inbox-table" verticalSpacing={10} highlightOnHover={false}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Candidate</Table.Th>
-                    <Table.Th w="34%">Skills</Table.Th>
-                    <Table.Th w={110} ta="right">
-                      Experience
-                    </Table.Th>
-                    <Table.Th w={72} ta="right">
-                      Match
-                    </Table.Th>
-                    <Table.Th w={120} ta="right">
-                      Updated
-                    </Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {results.data.items.map((candidate) => (
-                    <Table.Tr
-                      key={candidate.candidateId}
-                      {...rowLinkProps(`Open ${candidate.name}`, () =>
-                        router.push(`/candidates/${candidate.candidateId}`),
-                      )}
-                    >
-                      <Table.Td>
-                        <div className="cell-stack">
-                          <span className="cell-title">{candidate.name}</span>
-                          <span className="cell-meta">
-                            {[candidate.currentTitle, candidate.location, candidate.source]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </span>
-                          {(candidate.doNotContact || !candidate.hasParsedResume) && (
-                            <span className="signals">
-                              {candidate.doNotContact && (
-                                <span className="signal" data-tone="warn">
-                                  Do not contact
-                                </span>
-                              )}
-                              {!candidate.hasParsedResume && (
-                                <span className="signal">No resume read</span>
-                              )}
-                            </span>
-                          )}
-                        </div>
-                      </Table.Td>
-                      <Table.Td>
-                        {candidate.skills.length === 0 ? (
-                          <Text size="sm" c="dimmed">
-                            –
-                          </Text>
-                        ) : (
-                          <span className="signals" style={{ marginTop: 0 }}>
-                            {(candidate.matchedTerms.length > 0
-                              ? candidate.matchedTerms
-                              : candidate.skills.slice(0, 5)
-                            ).map((skill) => (
-                              <span
-                                key={skill}
-                                className="signal"
-                                data-tone={
-                                  candidate.matchedTerms.includes(skill) ? 'accent' : undefined
-                                }
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text
-                          size="sm"
-                          className="tnum nowrap"
-                          c={candidate.experienceYears == null ? 'dimmed' : undefined}
-                        >
-                          {candidate.experienceYears == null
-                            ? '–'
-                            : `${candidate.experienceYears} yrs`}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text
-                          size="sm"
-                          fw={candidate.matchScore ? 650 : 400}
-                          c={candidate.matchScore ? undefined : 'dimmed'}
-                          className="tnum"
-                        >
-                          {candidate.matchScore ? `${candidate.matchScore}%` : '–'}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text size="sm" c="dimmed" className="tnum nowrap">
-                          {formatRelative(candidate.updatedAt)}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
+      <div>
+        <div className="people-bar">
+          <div style={{ flex: '2 1 280px' }}>{searchBox}</div>
+          <div style={{ flex: '2 1 280px' }}>{describeBox}</div>
+          {sortPicker}
+          <Button
+            variant={advancedOpened ? 'light' : 'default'}
+            leftSection={<IconAdjustmentsHorizontal size={16} />}
+            onClick={advanced.toggle}
+          >
+            Filters{activeAdvanced > 0 ? ` (${activeAdvanced})` : ''}
+          </Button>
+          {saveButton}
+        </div>
+        <Collapse in={advancedOpened}>
+          <div
+            className="people-filters"
+            style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}
+          >
+            {filterFields}
+            {savedPicker}
           </div>
-          {results.data.total > results.data.pageSize && (
-            <Pagination
-              value={page}
-              onChange={setPage}
-              total={Math.ceil(results.data.total / results.data.pageSize)}
-              ml="auto"
-            />
-          )}
-        </Stack>
-      )}
+        </Collapse>
+        {resultState ?? (
+          <div className="people">
+            <div>
+              <Text size="sm" fw={650} mb={6} aria-live="polite">
+                {countLabel}
+              </Text>
+              <div className="people-list">
+                {items.map((candidate) => (
+                  <div
+                    key={candidate.candidateId}
+                    className="people-item"
+                    role="button"
+                    tabIndex={0}
+                    data-active={preview?.candidateId === candidate.candidateId || undefined}
+                    onClick={() => setPreviewId(candidate.candidateId)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setPreviewId(candidate.candidateId);
+                      }
+                    }}
+                    onDoubleClick={() => router.push(`/candidates/${candidate.candidateId}`)}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span className="people-name">{candidate.name}</span>
+                      <span className="people-sub">
+                        {[candidate.currentTitle, candidate.location].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                    <span className="people-num">
+                      {candidate.matchScore
+                        ? `${candidate.matchScore}%`
+                        : candidate.experienceYears != null
+                          ? `${candidate.experienceYears} yrs`
+                          : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {pager}
+            </div>
+            {preview && (
+              <aside className="people-panel" aria-label={`About ${preview.name}`}>
+                <h3 className="people-pname">{preview.name}</h3>
+                <p className="people-prole">{preview.currentTitle ?? 'No title on file'}</p>
+                <dl className="people-facts">
+                  <dt>Email</dt>
+                  <dd>{preview.email}</dd>
+                  <dt>Location</dt>
+                  <dd>{preview.location ?? '—'}</dd>
+                  <dt>Experience</dt>
+                  <dd>
+                    {preview.experienceYears != null ? `${preview.experienceYears} years` : '—'}
+                  </dd>
+                  <dt>Active applications</dt>
+                  <dd>{preview.activeApplications}</dd>
+                  <dt>Source</dt>
+                  <dd>{preview.source}</dd>
+                  <dt>Updated</dt>
+                  <dd>{formatRelative(preview.updatedAt)}</dd>
+                  {preview.matchScore ? (
+                    <>
+                      <dt>Match</dt>
+                      <dd>{preview.matchScore}%</dd>
+                    </>
+                  ) : null}
+                  {(preview.doNotContact || !preview.hasParsedResume) && (
+                    <>
+                      <dt>Notes</dt>
+                      <dd>
+                        {[
+                          preview.doNotContact && 'Do not contact',
+                          !preview.hasParsedResume && 'Resume not read yet',
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </dd>
+                    </>
+                  )}
+                </dl>
+                <p className="people-skills-title">Skills</p>
+                <p className="people-skills">
+                  {preview.skills.length ? (
+                    skillText(preview, 40)
+                  ) : (
+                    <span className="people-empty">None recorded</span>
+                  )}
+                </p>
+                <Group gap="sm">
+                  <Button onClick={() => router.push(`/candidates/${preview.candidateId}`)}>
+                    Open profile
+                  </Button>
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      navigator.clipboard.writeText(preview.email);
+                      notifications.show({ message: `Copied ${preview.email}` });
+                    }}
+                  >
+                    Copy email
+                  </Button>
+                </Group>
+              </aside>
+            )}
+          </div>
+        )}
+      </div>
     </>
   );
 }

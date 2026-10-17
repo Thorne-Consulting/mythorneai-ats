@@ -58,7 +58,7 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
         }
       />
       {views.length > 1 && <PageTabs items={views} />}
-      {children}
+      <div className="candidates-hub">{children}</div>
       <CreateCandidateModal opened={createOpened} onClose={create.close} />
       <ImportCandidatesModal opened={csvOpened} onClose={csv.close} />
       <ResumeImportModal opened={resumeOpened} onClose={resume.close} />
