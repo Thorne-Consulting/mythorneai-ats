@@ -1750,3 +1750,42 @@ section[id],
     width: auto;
   }
 }
+
+/* ---------- job visibility: what each group does on the left, the controls on the right ---------- */
+
+.settings-block {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 48px;
+  padding: 28px 0;
+}
+
+.settings-block + .settings-block {
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.settings-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.settings-copy {
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-status {
+  margin: 12px 0 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+@media (max-width: 48em) {
+  .settings-block {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}

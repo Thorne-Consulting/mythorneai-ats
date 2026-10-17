@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Group, MultiSelect, Stack, Switch, Text } from '@mantine/core';
+import { Checkbox, MultiSelect, Radio, Stack } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { SectionCard } from '@/components/ui/Cards';
 import type { RequisitionWithSettings } from './requirements-types';
 
 type DirectoryUser = { email: string; displayName: string; role: string };
@@ -21,7 +20,6 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
   const [value, setValue] = useState(initial);
   const key = JSON.stringify(initial);
   useEffect(() => setValue(JSON.parse(key) as typeof initial), [key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const dirty = JSON.stringify(value) !== key;
 
   const directory = useQuery({
     queryKey: ['directory-users'],
@@ -39,59 +37,89 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
   ];
 
   const save = useMutation({
-    mutationFn: () => api.put(`/api/requisitions/${requisition.id}/settings`, value),
+    mutationFn: (next: typeof value) =>
+      api.put(`/api/requisitions/${requisition.id}/settings`, next),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-      notifications.show({ color: 'teal', message: 'Job settings saved' });
     },
     onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
   });
 
+  // Every change saves straight away; there is no Save button.
+  const change = (next: typeof value) => {
+    setValue(next);
+    save.mutate(next);
+  };
+  const status = save.isPending ? 'Saving…' : save.isError ? 'Not saved' : 'Saved';
+
   return (
-    <SectionCard title="Visibility and candidate self-service" padded>
-      <Stack gap="md">
-        <Switch
-          label="Confidential job"
-          description="Only the owner, recruiter and the people named below can see this job and its applications."
-          checked={value.isConfidential}
-          onChange={(event) => setValue({ ...value, isConfidential: event.currentTarget.checked })}
-        />
-        <MultiSelect
-          label="People who can also see this job"
-          description="Pick teammates by name. They get read access."
-          placeholder="Search by name or email"
-          searchable
-          clearable
-          data={options}
-          value={value.viewerEmails}
-          onChange={(viewerEmails) => setValue({ ...value, viewerEmails })}
-        />
-        <Switch
-          label="Candidates can reschedule or cancel their interview"
-          description="They manage it from the candidate portal."
-          checked={value.allowCandidateReschedule}
-          onChange={(event) =>
-            setValue({ ...value, allowCandidateReschedule: event.currentTarget.checked })
-          }
-        />
-        <Switch
-          label="Candidates can withdraw their application"
-          description="They use the link in their emails and portal."
-          checked={value.allowCandidateWithdraw}
-          onChange={(event) =>
-            setValue({ ...value, allowCandidateWithdraw: event.currentTarget.checked })
-          }
-        />
-        <Group justify="space-between">
-          <Text size="xs" c="dimmed">
-            {dirty ? 'You have unsaved changes.' : 'All changes saved.'}
-          </Text>
-          <Button disabled={!dirty} loading={save.isPending} onClick={() => save.mutate()}>
-            Save settings
-          </Button>
-        </Group>
-      </Stack>
-    </SectionCard>
+    <div className="settings-page">
+      <section className="settings-block">
+        <div>
+          <h2 className="settings-title">Who can see this job</h2>
+          <p className="settings-copy">
+            A confidential job is hidden from everyone except the owner, the recruiter and the
+            people you add here.
+          </p>
+          <p className="settings-status" aria-live="polite">
+            {status}
+          </p>
+        </div>
+        <Stack gap="lg">
+          <Radio.Group
+            aria-label="Who can see this job"
+            value={value.isConfidential ? 'confidential' : 'team'}
+            onChange={(next) => change({ ...value, isConfidential: next === 'confidential' })}
+          >
+            <Stack gap="sm">
+              <Radio
+                value="team"
+                label="Everyone who can see jobs"
+                description="The usual setting."
+              />
+              <Radio
+                value="confidential"
+                label="Confidential"
+                description="The owner, the recruiter and the people below."
+              />
+            </Stack>
+          </Radio.Group>
+          <MultiSelect
+            label="Also give access to"
+            description="Read access to the job and its applications."
+            placeholder={value.viewerEmails.length ? '' : 'Search by name or email'}
+            searchable
+            data={options}
+            value={value.viewerEmails}
+            onChange={(viewerEmails) => change({ ...value, viewerEmails })}
+          />
+        </Stack>
+      </section>
+      <section className="settings-block">
+        <div>
+          <h2 className="settings-title">Candidate self-service</h2>
+          <p className="settings-copy">
+            What candidates can do on their own, from the portal and the links in their emails.
+          </p>
+        </div>
+        <Stack gap="md">
+          <Checkbox
+            label="Reschedule or cancel their interview"
+            checked={value.allowCandidateReschedule}
+            onChange={(event) =>
+              change({ ...value, allowCandidateReschedule: event.currentTarget.checked })
+            }
+          />
+          <Checkbox
+            label="Withdraw their application"
+            checked={value.allowCandidateWithdraw}
+            onChange={(event) =>
+              change({ ...value, allowCandidateWithdraw: event.currentTarget.checked })
+            }
+          />
+        </Stack>
+      </section>
+    </div>
   );
 }
