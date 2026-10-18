@@ -31,19 +31,34 @@ public static class Similarity
 
 public static class EmbeddingText
 {
-    public static string ForCandidate(Candidate candidate) =>
-        string.Join(
-            "\n",
-            new[]
-            {
-                candidate.CurrentTitle,
-                candidate.ResumeSummary,
-                "Skills: " + string.Join(", ", candidate.ResumeSkills.Concat(candidate.Tags)),
-                "Roles: " + string.Join(", ", candidate.ResumeJobTitles),
-                "Education: " + string.Join(", ", candidate.ResumeEducation),
-                candidate.ResumeText is { Length: > 0 } text ? text[..Math.Min(text.Length, 6000)] : null,
-            }.Where(x => !string.IsNullOrWhiteSpace(x))
-        );
+    // Built from the parsed rows, not the raw resume, so two similar people land close together
+    // and addresses and formatting noise stay out. Falls back to the text when nothing is parsed.
+    public static string ForCandidate(Candidate candidate)
+    {
+        var roles = candidate.WorkExperiences.OrderBy(x => x.SortOrder).ToList();
+        var lines = new List<string?> { candidate.CurrentTitle };
+        if (roles.Count > 0)
+        {
+            var current = roles[0];
+            lines.Add($"{current.Title} at {current.CompanyNameRaw} ({Span(current)}).");
+            if (roles.Count > 1)
+                lines.Add("Previously " + string.Join("; ", roles.Skip(1).Take(5).Select(x => $"{x.Title} at {x.CompanyNameRaw}")) + ".");
+        }
+        else
+            lines.Add("Roles: " + string.Join(", ", candidate.ResumeJobTitles));
+        lines.Add("Skills: " + string.Join(", ", candidate.ResumeSkills.Concat(candidate.Tags).Distinct(StringComparer.OrdinalIgnoreCase)));
+        lines.Add("Education: " + string.Join("; ", candidate.ResumeEducation));
+        if (candidate.ResumeCertifications.Length > 0)
+            lines.Add("Certifications: " + string.Join(", ", candidate.ResumeCertifications));
+        lines.Add(candidate.ResumeSummary);
+        lines.AddRange(roles.Take(3).Select(x => x.Description[..Math.Min(x.Description.Length, 800)]));
+        if (roles.Count == 0 && candidate.ResumeText is { Length: > 0 } text)
+            lines.Add(text[..Math.Min(text.Length, 6000)]);
+        return string.Join("\n", lines.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+        static string Span(WorkExperience role) =>
+            $"{role.StartYear?.ToString() ?? "?"}–{(role.IsCurrent ? "present" : role.EndYear?.ToString() ?? "?")}";
+    }
 
     public static string ForRequisition(Requisition requisition)
     {
@@ -104,7 +119,8 @@ public sealed class EmbeddingWorker(
             );
 
         var candidates = await db
-            .Candidates.Where(x =>
+            .Candidates.Include(x => x.WorkExperiences)
+            .Where(x =>
                 x.ResumeText != null
                 && (x.ResumeEmbeddingAt == null || x.ResumeEmbeddingAt < x.UpdatedAt)
             )

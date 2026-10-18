@@ -62,7 +62,7 @@ public static class AiEndpoints
             try
             {
                 var result = await assistant.CompleteAsync(
-                    "Turn the recruiter request into JSON only. Use exactly these keys: q, skills, skillMode, title, location, minYears. skills is an array of short strings, skillMode is any or all, minYears is a number or null. Do not rank candidates or make hiring decisions.",
+                    "Turn the recruiter request into JSON only. Use exactly these keys: q, skills, skillMode, title, location, minYears, seniority, minDegree, company, school. skills is an array of short strings, skillMode is any or all, minYears is a number or null, seniority is one of Intern, Junior, Mid, Senior, Lead, Manager, Director, Executive or null, minDegree is one of HighSchool, Associate, Bachelor, Master, Doctorate or null, company and school are strings or null. q is only for words that fit no other key. Do not rank candidates or make hiring decisions.",
                     $"{jobContext}\nRecruiter request: {request.Query}",
                     ct,
                     new AiContext("search-filters", principal.Email(), "Requisition", request.RequisitionId?.ToString()),
@@ -76,6 +76,10 @@ public static class AiEndpoints
                     title = StringValue(json.RootElement, "title"),
                     location = StringValue(json.RootElement, "location"),
                     minYears = NumberValue(json.RootElement, "minYears"),
+                    seniority = StringValue(json.RootElement, "seniority"),
+                    minDegree = StringValue(json.RootElement, "minDegree"),
+                    company = StringValue(json.RootElement, "company"),
+                    school = StringValue(json.RootElement, "school"),
                 });
             }
             catch (JsonException)

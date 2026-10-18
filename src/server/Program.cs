@@ -4,11 +4,13 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Threading.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
 using MyThorneAI.Ats.Api.Api;
 using MyThorneAI.Ats.Api.Auth;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Infrastructure;
 using MyThorneAI.Ats.Api.Integrations;
+using OpenAI;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,7 +46,18 @@ builder.Services.AddAtsAuthentication(builder.Configuration, builder.Environment
 builder.Services.AddScoped<AntiforgeryEndpointFilter>();
 builder.Services.AddSingleton<LocalFileStore>();
 builder.Services.AddSingleton<LocalResumeOcr>();
-builder.Services.AddSingleton<ResumeParser>();
+builder.Services.AddSingleton<ResumeTextExtractor>();
+builder.Services.AddScoped<ResumeExtractor>();
+builder.Services.AddMemoryCache();
+// The resume parser's model, through Microsoft.Extensions.AI so the provider is a config change.
+builder.Services.AddSingleton<IChatClient>(services =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var apiKey = configuration["OpenAI:ApiKey"];
+    return string.IsNullOrWhiteSpace(apiKey)
+        ? new UnconfiguredChatClient()
+        : new OpenAIClient(apiKey).GetChatClient(ResumeExtractor.ModelName(configuration)).AsIChatClient();
+});
 builder.Services.AddHostedService<ResumeParseWorker>();
 builder.Services.AddHostedService<EmailOutboxWorker>();
 builder.Services.AddHostedService<EmbeddingWorker>();

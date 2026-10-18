@@ -53,6 +53,7 @@ public static class LocalDotEnvConfiguration
             ["Resend:From"] = Get(values, "RESEND_FROM"),
             ["OpenAI:ApiKey"] = Get(values, "OPENAI_API_KEY"),
             ["OpenAI:Model"] = Get(values, "OPENAI_MODEL"),
+            ["OpenAI:ResumeModel"] = Get(values, "OPENAI_RESUME_MODEL"),
             ["OpenAI:EmbeddingModel"] = Get(values, "OPENAI_EMBEDDING_MODEL"),
             ["OpenAI:TranscriptionModel"] = Get(values, "OPENAI_TRANSCRIPTION_MODEL"),
             ["Resend:WebhookSecret"] = Get(values, "RESEND_WEBHOOK_SECRET"),

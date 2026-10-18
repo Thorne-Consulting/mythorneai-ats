@@ -4,6 +4,7 @@ using MyThorneAI.Ats.Api.Domain;
 
 namespace MyThorneAI.Ats.Api.Infrastructure;
 
+/// <summary>Runs the parse pipeline (docs/resume-parsing.md) for every queued attachment, one at a time.</summary>
 public sealed class ResumeParseWorker(
     IServiceScopeFactory scopeFactory,
     ILogger<ResumeParseWorker> logger
@@ -71,12 +72,20 @@ public sealed class ResumeParseWorker(
 
         try
         {
-            var candidate = await db.Candidates.SingleAsync(x => x.Id == attachment.CandidateId, cancellationToken);
+            var candidate = await db.Candidates.WithProfile().SingleAsync(x => x.Id == attachment.CandidateId, cancellationToken);
             var files = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
-            var parser = scope.ServiceProvider.GetRequiredService<ResumeParser>();
-            await using var stream = files.OpenRead(attachment.StoredFileName);
-            var parsed = await parser.ParseAsync(stream, attachment.OriginalFileName, cancellationToken);
-            ResumeProfileMapper.Apply(candidate, parsed);
+            var textExtractor = scope.ServiceProvider.GetRequiredService<ResumeTextExtractor>();
+            var extractor = scope.ServiceProvider.GetRequiredService<ResumeExtractor>();
+            string text;
+            await using (var stream = files.OpenRead(attachment.StoredFileName))
+                text = await textExtractor.ExtractAsync(stream, attachment.OriginalFileName, cancellationToken);
+
+            var extraction = await extractor.ExtractAsync(
+                text,
+                new AiContext("parse-resume", null, "Candidate", candidate.Id.ToString()),
+                cancellationToken
+            );
+            await ResumeProfileWriter.ApplyAsync(db, candidate, extraction, text, cancellationToken);
             attachment.ParseStatus = "Parsed";
             attachment.ParseError = null;
             attachment.ParsedAt = DateTimeOffset.UtcNow;
@@ -90,24 +99,35 @@ public sealed class ResumeParseWorker(
                 EntityId = candidate.Id.ToString(),
                 Action = "ResumeParsed",
                 ActorEmail = "system:resume-parser",
-                Details = System.Text.Json.JsonSerializer.Serialize(new { attachment.Id, parsed.Confidence }),
+                Details = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    attachment.Id,
+                    extraction.Model,
+                    extraction.PromptVersion,
+                    Jobs = candidate.WorkExperiences.Count,
+                    Unverified = candidate.WorkExperiences.Count(x => !x.Verified) + candidate.Educations.Count(x => !x.Verified),
+                }),
             });
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            var finalAttempt = job.Attempts >= MaximumAttempts;
+            // No text layer and no model are not going to fix themselves by retrying.
+            var finalAttempt = job.Attempts >= MaximumAttempts
+                || exception is ResumeNeedsOcrException or AiUnavailableException or InvalidDataException;
             job.Status = finalAttempt ? "Failed" : "Pending";
             job.LockedUntil = null;
-            job.LastError = Truncate(exception.Message, 2000);
+            job.LastError = Truncate(exception is DbUpdateConcurrencyException concurrency
+                ? exception.Message + " Entries: " + string.Join(", ", concurrency.Entries.Select(x => $"{x.Metadata.ClrType.Name}:{x.State}"))
+                : exception.Message, 2000);
             job.NextAttemptAt = DateTimeOffset.UtcNow.AddSeconds(5 * Math.Pow(2, job.Attempts - 1));
             if (finalAttempt)
             {
-                attachment.ParseStatus = "Failed";
+                attachment.ParseStatus = exception is ResumeNeedsOcrException ? "NeedsOcr" : "Failed";
                 attachment.ParseError = job.LastError;
                 attachment.ParsedAt = null;
                 job.CompletedAt = DateTimeOffset.UtcNow;
             }
-            logger.LogWarning(exception, "Resume parsing failed for {AttachmentId}; attempt {Attempt}.", attachment.Id, job.Attempts);
+            logger.LogWarning(exception, "Resume parsing failed for {AttachmentId}; attempt {Attempt}: {Error}", attachment.Id, job.Attempts, job.LastError);
         }
 
         await db.SaveChangesAsync(cancellationToken);

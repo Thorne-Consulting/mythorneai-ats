@@ -4,6 +4,9 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Shouldly;
 using Testcontainers.PostgreSql;
@@ -27,6 +30,8 @@ public sealed partial class ApiFlowTests : IAsyncLifetime
         _factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Development");
+            // The model is stubbed: the tests check the pipeline around it, not the parse itself.
+            builder.ConfigureTestServices(services => services.AddSingleton<IChatClient>(new FakeResumeChat()));
             builder.ConfigureAppConfiguration(
                 (_, configuration) =>
                 {
