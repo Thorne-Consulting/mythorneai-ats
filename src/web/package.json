@@ -16,7 +16,7 @@
     "@mantine/dates": "8.3.18",
     "@mantine/form": "^8.3.2",
     "@mantine/hooks": "^8.3.2",
-    "@mantine/notifications": "^8.3.2",
+    "@mantine/notifications": "^9.7.2",
     "@platejs/basic-nodes": "53.0.0",
     "@platejs/basic-styles": "53.0.0",
     "@platejs/combobox": "53.0.0",
