@@ -35,6 +35,7 @@ import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatRelative } from '@/lib/format';
+import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail, TalentSearchPage as TalentSearchResponse } from '@/types';
 
 const SOURCE_OPTIONS = [
@@ -224,6 +225,7 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
     enabled: Boolean(preview),
   });
   const detail = detailQuery.data?.id === preview?.candidateId ? detailQuery.data : undefined;
+  const linkedIn = safeWebUrl(detail?.linkedInUrl);
   const detailState = detailQuery.isError ? (
     <Text size="sm" c="red" mt="md">
       Could not load the full record.
@@ -592,9 +594,7 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
                       {detail.resumeSummary ?? 'No resume summary yet.'}
                     </p>
                     {preview.skills.length > 0 && (
-                      <p className="people-text people-text-more">
-                        {skillText(preview, 20)}
-                      </p>
+                      <p className="people-text people-text-more">{skillText(preview, 20)}</p>
                     )}
                     {(detail.resumeEducation.length > 0 || detail.resumeJobTitles.length > 0) && (
                       <p className="people-text people-text-more">
@@ -606,10 +606,10 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
                     <div className="people-contact">
                       <a href={`mailto:${preview.email}`}>{preview.email}</a>
                       {detail.phone && <> · {detail.phone}</>}
-                      {detail.linkedInUrl && (
+                      {linkedIn && (
                         <>
                           {' · '}
-                          <a href={detail.linkedInUrl} target="_blank" rel="noreferrer">
+                          <a href={linkedIn} target="_blank" rel="noopener noreferrer">
                             LinkedIn
                           </a>
                         </>

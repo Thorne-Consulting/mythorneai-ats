@@ -35,6 +35,7 @@ import type { CandidateDetail } from '@/types';
 import { CandidateCustomFields, type CandidateExtras } from './CandidateCustomFields';
 import { PotentialDuplicates } from './PotentialDuplicates';
 import { ResumeProfileReviewModal } from './ResumeProfileReviewModal';
+import { safeWebUrl } from '@/lib/safe-url';
 
 export function CandidateSidebar({
   candidate,
@@ -85,9 +86,14 @@ export function CandidateSidebar({
             <Contact icon={IconMapPin}>
               <Text size="sm">{candidate.location ?? 'Not provided'}</Text>
             </Contact>
-            {candidate.linkedInUrl && (
+            {safeWebUrl(candidate.linkedInUrl) && (
               <Contact icon={IconExternalLink}>
-                <Anchor href={candidate.linkedInUrl} target="_blank" size="sm">
+                <Anchor
+                  href={safeWebUrl(candidate.linkedInUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="sm"
+                >
                   LinkedIn profile
                 </Anchor>
               </Contact>
