@@ -23,6 +23,17 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
     public DbSet<IntegrationOutboxItem> IntegrationOutbox => Set<IntegrationOutboxItem>();
     public DbSet<ResumeParseJob> ResumeParseJobs => Set<ResumeParseJob>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<Skill> Skills => Set<Skill>();
+    public DbSet<Company> Companies => Set<Company>();
+    public DbSet<School> Schools => Set<School>();
+    public DbSet<WorkExperience> WorkExperiences => Set<WorkExperience>();
+    public DbSet<Education> Educations => Set<Education>();
+    public DbSet<CandidateSkill> CandidateSkills => Set<CandidateSkill>();
+    public DbSet<Certification> Certifications => Set<Certification>();
+    public DbSet<CandidateLanguage> CandidateLanguages => Set<CandidateLanguage>();
+    public DbSet<Project> Projects => Set<Project>();
+    public DbSet<Publication> Publications => Set<Publication>();
+    public DbSet<Award> Awards => Set<Award>();
     public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
     public DbSet<EmailOutboxItem> EmailOutbox => Set<EmailOutboxItem>();
     public DbSet<CandidatePortalSession> CandidatePortalSessions => Set<CandidatePortalSession>();
@@ -127,6 +138,116 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.ResumeCertifications).HasColumnType("text[]");
             entity.Property(x => x.ResumeLanguages).HasColumnType("text[]");
             entity.Property(x => x.ResumeEmbedding).HasColumnType("real[]");
+            entity.Property(x => x.OtherUrls).HasColumnType("text[]");
+            entity.Property(x => x.ResumeProfileJson).HasColumnType("jsonb");
+            entity.Property(x => x.Seniority).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.HighestDegreeLevel).HasConversion<string>().HasMaxLength(24);
+            entity.HasIndex(x => x.Seniority);
+            entity.HasIndex(x => x.HighestDegreeLevel);
+            entity.HasIndex(x => x.ResumeYearsExperience);
+            entity
+                .HasOne(x => x.CurrentEmployer)
+                .WithMany()
+                .HasForeignKey(x => x.CurrentEmployerId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // Parsed resume rows. Trigram indexes on the names live in the migration (pg_trgm).
+        modelBuilder.Entity<Skill>(entity =>
+        {
+            entity.HasIndex(x => x.NormalizedName).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(120);
+            entity.Property(x => x.NormalizedName).HasMaxLength(120);
+            entity.Property(x => x.Category).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.Aliases).HasColumnType("text[]");
+        });
+        modelBuilder.Entity<Company>(entity =>
+        {
+            entity.HasIndex(x => x.NormalizedName).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.NormalizedName).HasMaxLength(200);
+        });
+        modelBuilder.Entity<School>(entity =>
+        {
+            entity.HasIndex(x => x.NormalizedName).IsUnique();
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.NormalizedName).HasMaxLength(200);
+        });
+        modelBuilder.Entity<WorkExperience>(entity =>
+        {
+            entity.HasIndex(x => new { x.CandidateId, x.SortOrder });
+            entity.HasIndex(x => x.CompanyId);
+            entity.Property(x => x.CompanyNameRaw).HasMaxLength(200);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Seniority).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.EmploymentType).HasConversion<string>().HasMaxLength(24);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.WorkExperiences).HasForeignKey(x => x.CandidateId);
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<WorkExperienceSkill>(entity =>
+        {
+            entity.HasKey(x => new { x.WorkExperienceId, x.SkillId });
+            entity.HasOne(x => x.WorkExperience).WithMany(x => x.Skills).HasForeignKey(x => x.WorkExperienceId);
+            entity.HasOne(x => x.Skill).WithMany().HasForeignKey(x => x.SkillId);
+        });
+        modelBuilder.Entity<Education>(entity =>
+        {
+            entity.HasIndex(x => new { x.CandidateId, x.SortOrder });
+            entity.HasIndex(x => x.SchoolId);
+            entity.HasIndex(x => x.DegreeLevel);
+            entity.Property(x => x.SchoolNameRaw).HasMaxLength(200);
+            entity.Property(x => x.Degree).HasMaxLength(200);
+            entity.Property(x => x.Field).HasMaxLength(200);
+            entity.Property(x => x.DegreeLevel).HasConversion<string>().HasMaxLength(24);
+            entity.Property(x => x.FieldNormalized).HasConversion<string>().HasMaxLength(24);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Educations).HasForeignKey(x => x.CandidateId);
+            entity.HasOne(x => x.School).WithMany().HasForeignKey(x => x.SchoolId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<CandidateSkill>(entity =>
+        {
+            entity.HasKey(x => new { x.CandidateId, x.SkillId });
+            entity.HasIndex(x => x.SkillId);
+            entity.Property(x => x.Source).HasConversion<string>().HasMaxLength(24);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Skills).HasForeignKey(x => x.CandidateId);
+            entity.HasOne(x => x.Skill).WithMany().HasForeignKey(x => x.SkillId);
+        });
+        modelBuilder.Entity<Certification>(entity =>
+        {
+            entity.HasIndex(x => x.CandidateId);
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.Issuer).HasMaxLength(200);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Certifications).HasForeignKey(x => x.CandidateId);
+        });
+        modelBuilder.Entity<CandidateLanguage>(entity =>
+        {
+            entity.HasKey(x => new { x.CandidateId, x.Language });
+            entity.Property(x => x.Language).HasMaxLength(80);
+            entity.Property(x => x.Proficiency).HasConversion<string>().HasMaxLength(24);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Languages).HasForeignKey(x => x.CandidateId);
+        });
+        modelBuilder.Entity<Project>(entity =>
+        {
+            entity.HasIndex(x => x.CandidateId);
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Projects).HasForeignKey(x => x.CandidateId);
+        });
+        modelBuilder.Entity<ProjectSkill>(entity =>
+        {
+            entity.HasKey(x => new { x.ProjectId, x.SkillId });
+            entity.HasOne(x => x.Project).WithMany(x => x.Skills).HasForeignKey(x => x.ProjectId);
+            entity.HasOne(x => x.Skill).WithMany().HasForeignKey(x => x.SkillId);
+        });
+        modelBuilder.Entity<Publication>(entity =>
+        {
+            entity.HasIndex(x => x.CandidateId);
+            entity.Property(x => x.Title).HasMaxLength(400);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Publications).HasForeignKey(x => x.CandidateId);
+        });
+        modelBuilder.Entity<Award>(entity =>
+        {
+            entity.HasIndex(x => x.CandidateId);
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.HasOne(x => x.Candidate).WithMany(x => x.Awards).HasForeignKey(x => x.CandidateId);
         });
 
         modelBuilder.Entity<Application>(entity =>

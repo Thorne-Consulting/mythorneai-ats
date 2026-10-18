@@ -393,6 +393,33 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("AuditEvents");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Award", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Issuer")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
+
+                    b.ToTable("Awards");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CalendarConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -449,8 +476,17 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("City")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CurrentEmployerId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CurrentTitle")
                         .HasColumnType("text");
@@ -474,6 +510,14 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("GitHubUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HighestDegreeLevel")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasColumnType("text");
@@ -483,6 +527,13 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
 
                     b.Property<string>("Location")
                         .HasColumnType("text");
+
+                    b.Property<bool?>("OpenToRemote")
+                        .HasColumnType("boolean");
+
+                    b.PrimitiveCollection<string[]>("OtherUrls")
+                        .IsRequired()
+                        .HasColumnType("text[]");
 
                     b.Property<string>("Phone")
                         .HasColumnType("text");
@@ -494,6 +545,12 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("PortalCodeHash")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PortfolioUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Region")
                         .HasColumnType("text");
 
                     b.PrimitiveCollection<string[]>("ResumeCertifications")
@@ -518,8 +575,17 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired()
                         .HasColumnType("text[]");
 
+                    b.Property<string>("ResumeModel")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset?>("ResumeParsedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResumeProfileJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ResumePromptVersion")
+                        .HasColumnType("text");
 
                     b.PrimitiveCollection<string[]>("ResumeSkills")
                         .IsRequired()
@@ -531,8 +597,16 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<string>("ResumeText")
                         .HasColumnType("text");
 
+                    b.Property<string>("ResumeTextHash")
+                        .HasColumnType("text");
+
                     b.Property<decimal?>("ResumeYearsExperience")
                         .HasColumnType("numeric");
+
+                    b.Property<string>("Seniority")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -545,9 +619,23 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool?>("WillingToRelocate")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("YearsManagement")
+                        .HasColumnType("numeric");
+
                     b.HasKey("Id");
 
+                    b.HasIndex("CurrentEmployerId");
+
                     b.HasIndex("Email");
+
+                    b.HasIndex("HighestDegreeLevel");
+
+                    b.HasIndex("ResumeYearsExperience");
+
+                    b.HasIndex("Seniority");
 
                     b.HasIndex("LastName", "FirstName");
 
@@ -585,6 +673,25 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("CandidateDismissals");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidateLanguage", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Language")
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Proficiency")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.HasKey("CandidateId", "Language");
+
+                    b.ToTable("CandidateLanguages");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidatePortalSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -613,6 +720,96 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.HasIndex("CandidateId", "ExpiresAt");
 
                     b.ToTable("CandidatePortalSessions");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidateSkill", b =>
+                {
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SkillId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("LastUsedYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<bool>("Verified")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("YearsUsed")
+                        .HasColumnType("numeric");
+
+                    b.HasKey("CandidateId", "SkillId");
+
+                    b.HasIndex("SkillId");
+
+                    b.ToTable("CandidateSkills");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Certification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("ExpiresYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Issuer")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Verified")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
+
+                    b.ToTable("Certifications");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Company", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("Companies");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CustomFieldDefinition", b =>
@@ -648,6 +845,76 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("CustomFieldDefinitions");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Education", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Degree")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DegreeLevel")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<int?>("EndYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Field")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("FieldNormalized")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<decimal?>("Gpa")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("GpaScale")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("Honors")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsInProgress")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("SchoolId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SchoolNameRaw")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StartYear")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Verified")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DegreeLevel");
+
+                    b.HasIndex("SchoolId");
+
+                    b.HasIndex("CandidateId", "SortOrder");
+
+                    b.ToTable("Educations");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.EmailOutboxItem", b =>
@@ -1301,6 +1568,82 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("PostingTemplates");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Project", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
+
+                    b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ProjectSkill", b =>
+                {
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SkillId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ProjectId", "SkillId");
+
+                    b.HasIndex("SkillId");
+
+                    b.ToTable("ProjectSkill");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Publication", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("Url")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Venue")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
+
+                    b.ToTable("Publications");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Requisition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1480,6 +1823,30 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("SavedViews");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.School", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("Schools");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Scorecard", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1551,6 +1918,39 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ScorecardCriterionRatings");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Skill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<string[]>("Aliases")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
+
+                    b.ToTable("Skills");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.StageTransition", b =>
@@ -1683,6 +2083,105 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("WebhookEndpoints");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WorkExperience", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("City")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("CompanyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CompanyNameRaw")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Country")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int?>("DurationMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("EmploymentType")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<int?>("EndMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("EndYear")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsCurrent")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsRemote")
+                        .HasColumnType("boolean");
+
+                    b.Property<int?>("ManagedPeople")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Region")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Seniority")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StartMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StartYear")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("Verified")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.HasIndex("CandidateId", "SortOrder");
+
+                    b.ToTable("WorkExperiences");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WorkExperienceSkill", b =>
+                {
+                    b.Property<Guid>("WorkExperienceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SkillId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("WorkExperienceId", "SkillId");
+
+                    b.HasIndex("SkillId");
+
+                    b.ToTable("WorkExperienceSkill");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Application", b =>
                 {
                     b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
@@ -1743,6 +2242,38 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Candidate");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Award", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Awards")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Candidate", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Company", "CurrentEmployer")
+                        .WithMany()
+                        .HasForeignKey("CurrentEmployerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("CurrentEmployer");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidateLanguage", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Languages")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidate");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidatePortalSession", b =>
                 {
                     b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
@@ -1752,6 +2283,54 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CandidateSkill", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Skills")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Skill", "Skill")
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("Skill");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Certification", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Certifications")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Education", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Educations")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.School", "School")
+                        .WithMany()
+                        .HasForeignKey("SchoolId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("School");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Interview", b =>
@@ -1827,6 +2406,47 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Requisition");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Project", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Projects")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidate");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ProjectSkill", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Project", "Project")
+                        .WithMany("Skills")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Skill", "Skill")
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Skill");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Publication", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("Publications")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Candidate");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Scorecard", b =>
                 {
                     b.HasOne("MyThorneAI.Ats.Api.Domain.Interview", "Interview")
@@ -1867,6 +2487,43 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Endpoint");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WorkExperience", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Candidate", "Candidate")
+                        .WithMany("WorkExperiences")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Company", "Company")
+                        .WithMany()
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WorkExperienceSkill", b =>
+                {
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.Skill", "Skill")
+                        .WithMany()
+                        .HasForeignKey("SkillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MyThorneAI.Ats.Api.Domain.WorkExperience", "WorkExperience")
+                        .WithMany("Skills")
+                        .HasForeignKey("WorkExperienceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Skill");
+
+                    b.Navigation("WorkExperience");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Application", b =>
                 {
                     b.Navigation("Interviews");
@@ -1881,6 +2538,22 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Applications");
 
                     b.Navigation("Attachments");
+
+                    b.Navigation("Awards");
+
+                    b.Navigation("Certifications");
+
+                    b.Navigation("Educations");
+
+                    b.Navigation("Languages");
+
+                    b.Navigation("Projects");
+
+                    b.Navigation("Publications");
+
+                    b.Navigation("Skills");
+
+                    b.Navigation("WorkExperiences");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Interview", b =>
@@ -1907,6 +2580,11 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Navigation("Applications");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Project", b =>
+                {
+                    b.Navigation("Skills");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Requisition", b =>
                 {
                     b.Navigation("Applications");
@@ -1919,6 +2597,11 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Scorecard", b =>
                 {
                     b.Navigation("CriterionRatings");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.WorkExperience", b =>
+                {
+                    b.Navigation("Skills");
                 });
 #pragma warning restore 612, 618
         }

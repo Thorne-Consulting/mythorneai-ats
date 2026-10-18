@@ -12,8 +12,26 @@ public sealed class Candidate
     public string? LinkedInUrl { get; set; }
     public required string Source { get; set; }
     public string[] Tags { get; set; } = [];
+    public string? City { get; set; }
+    public string? Region { get; set; }
+    public string? Country { get; set; }
+    public bool? WillingToRelocate { get; set; }
+    public bool? OpenToRemote { get; set; }
+    public string? GitHubUrl { get; set; }
+    public string? PortfolioUrl { get; set; }
+    public string[] OtherUrls { get; set; } = [];
+    public Guid? CurrentEmployerId { get; set; }
+    public Company? CurrentEmployer { get; set; }
+    public Seniority Seniority { get; set; }
+    public decimal? YearsManagement { get; set; }
+    public DegreeLevel HighestDegreeLevel { get; set; }
     public string? ResumeText { get; set; }
+    public string? ResumeTextHash { get; set; }
+    public string? ResumeProfileJson { get; set; }
+    public string? ResumeModel { get; set; }
+    public string? ResumePromptVersion { get; set; }
     public string? ResumeSummary { get; set; }
+    // Flat copies of the rows below, kept for the list filters and the in-memory ranking.
     public string[] ResumeSkills { get; set; } = [];
     public string[] ResumeJobTitles { get; set; } = [];
     public string[] ResumeEducation { get; set; } = [];
@@ -21,6 +39,14 @@ public sealed class Candidate
     public string[] ResumeLanguages { get; set; } = [];
     public decimal? ResumeYearsExperience { get; set; }
     public DateTimeOffset? ResumeParsedAt { get; set; }
+    public List<WorkExperience> WorkExperiences { get; set; } = [];
+    public List<Education> Educations { get; set; } = [];
+    public List<CandidateSkill> Skills { get; set; } = [];
+    public List<Certification> Certifications { get; set; } = [];
+    public List<CandidateLanguage> Languages { get; set; } = [];
+    public List<Project> Projects { get; set; } = [];
+    public List<Publication> Publications { get; set; } = [];
+    public List<Award> Awards { get; set; } = [];
     public bool DoNotContact { get; set; }
     public bool EmailBounced { get; set; }
     public float[]? ResumeEmbedding { get; set; }
