@@ -2527,3 +2527,12 @@ a.crumb-link:focus-visible {
   padding: 0 0 8px;
   font-size: 13px;
 }
+
+/* One plain sentence under a tab bar saying what that tab is for. */
+.hub-note {
+  max-width: 68ch;
+  margin: -12px 0 24px;
+  color: var(--mantine-color-gray-7);
+  font-size: 14px;
+  line-height: 1.5;
+}

@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Button, Menu } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
+import { usePathname } from 'next/navigation';
 import { IconChevronDown, IconFileImport, IconPlus, IconUpload } from '@tabler/icons-react';
 import { useCurrentUser } from '@/auth';
 import { PageHeader } from '@/components/ui/PageHeaders';
@@ -21,10 +22,35 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
   const canImport = staff && (user.permissions.includes('import') || user.role === 'Admin');
 
   const views = [
-    ...(user.role === 'Interviewer' ? [] : [{ label: 'Applications', href: '/candidates' }]),
-    { label: 'People', href: '/candidates/people' },
-    ...(staff ? [{ label: 'Find for a job', href: '/candidates/find' }] : []),
+    ...(user.role === 'Interviewer'
+      ? []
+      : [
+          {
+            label: 'Applications',
+            href: '/candidates',
+            note: 'Everyone who has applied to a job, and where they are in it. Move them along, reject, or follow up from here.',
+          },
+        ]),
+    {
+      label: 'People',
+      href: '/candidates/people',
+      note: 'Everyone you have on file, whether or not they have applied. Search their resumes and profiles.',
+    },
+    ...(staff
+      ? [
+          {
+            label: 'Find for a job',
+            href: '/candidates/find',
+            note: 'Pick a job and see who on file fits it best, ranked from the strongest match down.',
+          },
+        ]
+      : []),
   ];
+  const pathname = usePathname() ?? '';
+  // The most specific tab that matches, so /candidates/people is People, not Applications.
+  const current = views
+    .filter((view) => pathname === view.href || pathname.startsWith(`${view.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
 
   return (
     <>
@@ -58,6 +84,7 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
         }
       />
       {views.length > 1 && <PageTabs items={views} />}
+      {current && <p className="hub-note">{current.note}</p>}
       <div className="candidates-hub">{children}</div>
       <CreateCandidateModal opened={createOpened} onClose={create.close} />
       <ImportCandidatesModal opened={csvOpened} onClose={csv.close} />
