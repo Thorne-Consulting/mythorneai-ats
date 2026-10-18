@@ -2505,3 +2505,29 @@ a.crumb-link:focus-visible {
     overflow-y: auto;
   }
 }
+
+/* A visible scrollbar on the list whenever there are more people than fit, so you can tell there is more.
+   macOS hides scrollbars until you scroll; a styled one stays put. */
+.candidates-main > .panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.candidates-main > .panel::-webkit-scrollbar-track {
+  background: var(--mantine-color-gray-0);
+}
+
+.candidates-main > .panel::-webkit-scrollbar-thumb {
+  border: 2px solid var(--mantine-color-gray-0);
+  border-radius: 999px;
+  background: var(--mantine-color-gray-4);
+}
+
+.candidates-main > .panel::-webkit-scrollbar-thumb:hover {
+  background: var(--mantine-color-gray-5);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .candidates-main > .panel {
+    scrollbar-color: var(--mantine-color-gray-4) var(--mantine-color-gray-0);
+  }
+}
