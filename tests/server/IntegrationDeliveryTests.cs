@@ -82,10 +82,11 @@ public sealed class IntegrationDeliveryTests : IAsyncLifetime
         var csrf = await client.GetFromJsonAsync<JsonElement>("/api/auth/csrf", cancellationToken);
         client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", csrf.GetProperty("token").GetString());
         var candidates = await client.GetFromJsonAsync<JsonElement>(
-            "/api/candidates",
+            "/api/candidates?search=Jordan%20Lee",
             cancellationToken
         );
         var jordan = candidates
+            .GetProperty("items")
             .EnumerateArray()
             .Single(x => x.GetProperty("name").GetString() == "Jordan Lee");
         var candidate = await client.GetFromJsonAsync<JsonElement>(

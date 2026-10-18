@@ -19,10 +19,11 @@ public sealed partial class ApiFlowTests
         var cancellationToken = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var candidates = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/candidates",
+            "/api/candidates?search=Jordan%20Lee",
             cancellationToken
         );
         var candidateId = candidates
+            .GetProperty("items")
             .EnumerateArray()
             .Single(x => x.GetProperty("name").GetString() == "Jordan Lee")
             .GetProperty("id")
@@ -135,10 +136,11 @@ public sealed partial class ApiFlowTests
         var cancellationToken = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var allCandidates = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/candidates",
+            "/api/candidates?search=Jordan%20Lee",
             cancellationToken
         );
         var jordanId = allCandidates
+            .GetProperty("items")
             .EnumerateArray()
             .Single(x => x.GetProperty("name").GetString() == "Jordan Lee")
             .GetProperty("id")
@@ -316,10 +318,11 @@ public sealed partial class ApiFlowTests
         var cancellationToken = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var allCandidates = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/candidates",
+            "/api/candidates?search=Jordan%20Lee",
             cancellationToken
         );
         var jordanId = allCandidates
+            .GetProperty("items")
             .EnumerateArray()
             .Single(x => x.GetProperty("name").GetString() == "Jordan Lee")
             .GetProperty("id")

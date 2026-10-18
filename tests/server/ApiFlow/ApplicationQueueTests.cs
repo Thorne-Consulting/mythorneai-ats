@@ -19,10 +19,11 @@ public sealed partial class ApiFlowTests
         var cancellationToken = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var candidates = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/candidates",
+            "/api/candidates?search=Jordan%20Lee",
             cancellationToken
         );
         var candidateId = candidates
+            .GetProperty("items")
             .EnumerateArray()
             .Single(x => x.GetProperty("name").GetString() == "Jordan Lee")
             .GetProperty("id")
@@ -42,11 +43,12 @@ public sealed partial class ApiFlowTests
             .GetGuid();
 
         var filtered = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/applications?search=Jordan&tag=react&page=1&pageSize=10",
+            "/api/candidates?search=Jordan&skills=react&page=1&pageSize=10",
             cancellationToken
         );
         filtered.GetProperty("total").GetInt32().ShouldBe(1);
-        filtered.GetProperty("items")[0].GetProperty("id").GetGuid().ShouldBe(applicationId);
+        filtered.GetProperty("items")[0].GetProperty("applications").EnumerateArray()
+            .ShouldContain(x => x.GetProperty("id").GetGuid() == applicationId);
 
         var response = await recruiter.PatchAsJsonAsync(
             "/api/applications/bulk-stage",
@@ -64,12 +66,16 @@ public sealed partial class ApiFlowTests
         result.GetProperty("updated").GetInt32().ShouldBe(1);
 
         var rejected = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/applications?status=Rejected&page=1&pageSize=10",
+            "/api/candidates?status=Rejected&page=1&pageSize=100",
             cancellationToken
         );
         rejected
             .GetProperty("items")
             .EnumerateArray()
-            .ShouldContain(x => x.GetProperty("id").GetGuid() == applicationId);
+            .SelectMany(x => x.GetProperty("applications").EnumerateArray())
+            .ShouldContain(x =>
+                x.GetProperty("id").GetGuid() == applicationId
+                && x.GetProperty("status").GetString() == "Rejected"
+            );
     }
 }

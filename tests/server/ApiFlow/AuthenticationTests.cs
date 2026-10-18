@@ -85,10 +85,11 @@ public sealed partial class ApiFlowTests
         previewResponse.Headers.GetValues("X-Frame-Options").Single().ShouldBe("SAMEORIGIN");
 
         var adminCandidates = await admin.GetFromJsonAsync<JsonElement>(
-            "/api/candidates",
+            "/api/candidates?pageSize=100",
             cancellationToken
         );
         var adminCandidateIds = adminCandidates
+            .GetProperty("items")
             .EnumerateArray()
             .Select(item => item.GetProperty("id").GetGuid())
             .ToList();
@@ -130,10 +131,11 @@ public sealed partial class ApiFlowTests
             "/api/candidates",
             cancellationToken
         );
-        candidates.GetArrayLength().ShouldBe(1);
-        candidates[0].GetProperty("name").GetString().ShouldBe("Jordan Lee");
+        var interviewerItems = candidates.GetProperty("items");
+        interviewerItems.GetArrayLength().ShouldBe(1);
+        interviewerItems[0].GetProperty("name").GetString().ShouldBe("Jordan Lee");
         // An admin sees the whole workspace; an interviewer only sees who they interview.
-        adminCandidateIds.Count.ShouldBeGreaterThan(candidates.GetArrayLength());
+        adminCandidateIds.Count.ShouldBeGreaterThan(interviewerItems.GetArrayLength());
         (await interviewer.GetAsync("/api/admin/users", cancellationToken)).StatusCode.ShouldBe(
             HttpStatusCode.Forbidden
         );

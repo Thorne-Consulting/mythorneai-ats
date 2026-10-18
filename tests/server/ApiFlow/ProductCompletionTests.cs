@@ -18,8 +18,8 @@ public sealed partial class ApiFlowTests
 {
     private async Task<Guid> JordanApplicationAsync(HttpClient client, CancellationToken ct)
     {
-        var candidates = await client.GetFromJsonAsync<JsonElement>("/api/candidates", ct);
-        var id = candidates.EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Jordan Lee").GetProperty("id").GetGuid();
+        var candidates = await client.GetFromJsonAsync<JsonElement>("/api/candidates?search=Jordan%20Lee", ct);
+        var id = candidates.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Jordan Lee").GetProperty("id").GetGuid();
         var candidate = await client.GetFromJsonAsync<JsonElement>($"/api/candidates/{id}", ct);
         return candidate.GetProperty("applications")[0].GetProperty("id").GetGuid();
     }
