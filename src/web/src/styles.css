@@ -39,17 +39,241 @@ select {
 }
 
 .app-navbar {
+  display: flex;
+  flex-direction: column;
   background: var(--surface-sunken);
 }
 
 .app-main {
   background: var(--surface-sunken);
+  min-height: 100dvh;
 }
 
 .page-container {
   width: 100%;
-  max-width: 1440px;
+  max-width: 1280px;
   margin-inline: auto;
+  padding: 40px 48px 96px;
+}
+
+/* The Candidates tabs are tables of people: they use the whole width. Reading pages keep the measure. */
+.page-container:has(.candidates-hub) {
+  max-width: none;
+}
+
+@media (max-width: 62em) {
+  .page-container {
+    padding: 24px 16px 64px;
+  }
+}
+
+/* Sidebar: workspace, search, a short list of places, then you. */
+.nav-workspace {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 16px 14px;
+}
+
+.nav-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-text);
+  color: var(--mantine-color-body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  margin-bottom: 1px;
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-text);
+  font-size: var(--mantine-font-size-md);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background-color 120ms ease;
+}
+
+.nav-item svg {
+  color: var(--mantine-color-dimmed);
+  flex: none;
+}
+
+.nav-item:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.nav-item[data-active] {
+  background: var(--mantine-color-body);
+  box-shadow: inset 0 0 0 1px var(--mantine-color-default-border);
+  font-weight: 600;
+}
+
+.nav-item[data-active] svg {
+  color: var(--mantine-primary-color-filled);
+}
+
+.nav-item:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+.nav-item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-footer {
+  padding: 8px var(--mantine-spacing-sm) 12px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.nav-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.nav-user:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.nav-user svg {
+  color: var(--mantine-color-dimmed);
+}
+
+.search-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.search-trigger:hover {
+  border-color: var(--mantine-color-gray-5);
+}
+
+.search-trigger-label {
+  flex: 1;
+  text-align: left;
+}
+
+@media (max-width: 62em) {
+  .app-header .search-trigger {
+    width: auto;
+  }
+
+  .app-header .search-trigger .search-trigger-label {
+    display: none;
+  }
+}
+
+/* Collapse toggle, and the icon-only rail it leaves behind. */
+.nav-collapse {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-dimmed);
+}
+
+.nav-collapse:hover {
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-text);
+}
+
+.app-navbar[data-collapsed] .nav-workspace {
+  flex-direction: column;
+  gap: 8px;
+  padding-inline: 0;
+}
+
+.app-navbar[data-collapsed] .nav-hide,
+.app-navbar[data-collapsed] .nav-item-label,
+.app-navbar[data-collapsed] .search-trigger-label,
+.app-navbar[data-collapsed] .search-trigger kbd {
+  display: none;
+}
+
+.app-navbar[data-collapsed] .nav-item,
+.app-navbar[data-collapsed] .nav-user,
+.app-navbar[data-collapsed] .search-trigger {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.app-navbar[data-collapsed] .nav-item {
+  position: relative;
+}
+
+.app-navbar[data-collapsed] .nav-count {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+}
+
+/* Command palette */
+.command-input input {
+  height: 52px;
+  padding-right: var(--mantine-spacing-md);
+  font-size: var(--mantine-font-size-lg);
+}
+
+.command-input {
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+
+.command-results {
+  max-height: min(380px, 52vh);
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.command-hit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.command-hit svg {
+  flex: none;
+  color: var(--mantine-color-dimmed);
+}
+
+.command-hit[data-active] {
+  background: var(--mantine-color-default-hover);
+}
+
+.command-footer {
+  padding: 8px var(--mantine-spacing-md);
+  border-top: 1px solid var(--mantine-color-default-border);
+  background: var(--surface-sunken);
 }
 
 /* ---------- global search ---------- */
@@ -136,38 +360,174 @@ select {
 /* ---------- pipeline board ---------- */
 
 .pipeline-scroll {
+  height: calc(100dvh - 330px);
+  min-height: 420px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  padding: var(--mantine-spacing-lg);
+  padding-bottom: 8px;
 }
 
 .pipeline-grid {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(264px, 1fr);
-  gap: var(--mantine-spacing-md);
+  grid-auto-columns: minmax(280px, 1fr);
+  height: 100%;
 }
 
+/* Stages sit side by side, split by hairlines; each column scrolls on its own. */
 .pipeline-column {
   display: flex;
   flex-direction: column;
-  padding: var(--mantine-spacing-sm);
-  border-radius: var(--mantine-radius-lg);
-  background: var(--surface-sunken);
-  min-height: 180px;
+  min-height: 0;
+  padding: 0 14px;
+  overflow: hidden;
 }
 
+.pipeline-column:first-child {
+  padding-left: 0;
+}
+
+.pipeline-column + .pipeline-column {
+  border-left: 1px solid var(--mantine-color-default-border);
+}
+
+.pipeline-column > :last-child {
+  flex: 1;
+  min-height: 0;
+  padding-bottom: 12px;
+  overflow-y: auto;
+}
+
+/* Each stage reads as a title with its count, underlined in the stage colour. */
 .pipeline-column-header {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding-bottom: var(--mantine-spacing-xs);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 4px 0 10px;
+  border-bottom: 3px solid var(--stage);
+  background: var(--mantine-color-body);
+}
+
+.pipeline-column-name {
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pipeline-column-count {
+  color: var(--mantine-color-dimmed);
+  font-size: 18px;
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
 }
 
 .pipeline-column[data-drop-target] {
   outline: 2px dashed var(--mantine-primary-color-filled);
   outline-offset: -2px;
   background: var(--mantine-primary-color-light);
+}
+
+/* A candidate on the pipeline: name and role, then the facts that decide the next step. */
+.candidate-card {
+  padding: 14px;
+  border: 1px solid var(--mantine-color-gray-2);
+  border-radius: 12px;
+  background: var(--mantine-color-body);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.candidate-card:hover {
+  border-color: var(--mantine-color-gray-4);
+  box-shadow: 0 6px 16px -12px rgba(15, 23, 42, 0.3);
+}
+
+.candidate-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 4px;
+}
+
+.candidate-card-who {
+  min-width: 0;
+  text-align: left;
+}
+
+.candidate-card-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.candidate-card-role {
+  display: block;
+  margin-top: 2px;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+/* The average rating, read at a glance opposite the name. */
+.candidate-card-score {
+  padding-right: 2px;
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.candidate-card-score small {
+  display: block;
+  margin-top: 2px;
+  color: var(--mantine-color-dimmed);
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.candidate-card-rows {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--mantine-color-gray-2);
+  font-size: 12px;
+}
+
+.candidate-card-rows > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+}
+
+.candidate-card-rows dt {
+  flex: none;
+  color: var(--mantine-color-dimmed);
+}
+
+.candidate-card-rows dd {
+  overflow: hidden;
+  margin: 0;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* An upcoming interview leads the list. */
+.candidate-card-key dt,
+.candidate-card-key dd {
+  color: var(--mantine-color-text);
+  font-weight: 600;
 }
 
 .candidate-card[data-draggable] {
@@ -186,12 +546,6 @@ select {
 .status-dot {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-}
-
-.stage-dot {
-  width: 8px;
-  height: 8px;
   border-radius: 50%;
 }
 
@@ -222,28 +576,7 @@ select {
   .list-row {
     padding: var(--mantine-spacing-sm) var(--mantine-spacing-md);
   }
-  .pipeline-scroll {
-    padding: var(--mantine-spacing-sm);
-  }
 }
-@media (min-width: 80em) {
-  .interviews-workspace {
-    height: calc(100dvh - 156px);
-    min-height: 520px;
-  }
-
-  .interviews-calendar-panel {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .interviews-calendar-grid {
-    flex: 1;
-    min-height: 0;
-  }
-}
-
 /* The date picker's faded out-of-month days and red weekends fall under 4.5:1 by default. */
 .mantine-DatePicker-day[data-outside] {
   color: var(--mantine-color-dimmed);
@@ -284,5 +617,2274 @@ section[id],
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- kit: panels and rows ----------
+   One panel (a titled white surface) and one row (a link-shaped line item) are the building
+   blocks of every list in the app. */
+
+.panel {
+  background: var(--mantine-color-body);
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-lg);
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-md);
+  padding: 20px 24px 12px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.rows {
+  margin: 0;
+  padding: 0 0 8px;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 58px;
+  padding: 10px 24px;
+  color: inherit;
+  text-decoration: none;
+  border-top: 1px solid var(--mantine-color-default-border);
+  transition: background-color 100ms ease;
+}
+
+.rows > li:first-child > .row {
+  border-top-color: transparent;
+}
+
+.row:hover {
+  background: var(--surface-sunken);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.row-icon {
+  flex: none;
+  color: var(--mantine-color-dimmed);
+}
+
+.row-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.row-title {
+  overflow: hidden;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-meta {
+  overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row-action {
+  flex: none;
+  padding: 4px 10px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+}
+
+.row:hover .row-action {
+  border-color: var(--mantine-primary-color-filled);
+  color: var(--mantine-primary-color-filled);
+}
+
+.row-more {
+  min-height: 40px;
+  color: var(--mantine-primary-color-filled);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+}
+
+/* ---------- home ---------- */
+
+/* Setup checklist: pinned at the bottom of the sidebar on desktop, one quiet line on small screens. */
+.setup-side {
+  position: relative;
+}
+
+.setup-side summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-left: -10px;
+  border-radius: var(--mantine-radius-md);
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+  cursor: pointer;
+  list-style: none;
+}
+
+.setup-side summary::-webkit-details-marker {
+  display: none;
+}
+
+.setup-side summary:hover {
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-text);
+}
+
+.setup-side summary:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+.setup-meter {
+  position: relative;
+  width: 48px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--mantine-color-default-border);
+}
+
+.setup-meter span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--mantine-primary-color-filled);
+}
+
+.setup-chevron {
+  transition: transform 120ms ease;
+}
+
+.setup-side details[open] .setup-chevron {
+  transform: rotate(90deg);
+}
+
+.setup-list {
+  margin: 8px 0 0;
+  padding: 4px 0;
+  list-style: none;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-color-body);
+}
+
+.setup-list a {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 14px;
+  color: inherit;
+  font-size: var(--mantine-font-size-sm);
+  text-decoration: none;
+}
+
+.setup-list a:hover {
+  background: var(--surface-sunken);
+}
+
+.setup-step {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-detail {
+  display: block;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+}
+
+.setup-go {
+  color: var(--mantine-primary-color-filled);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Desktop: a compact row pinned above Settings in the sidebar, the list opens upward. */
+@media (min-width: 62em) {
+  .setup-side {
+    position: fixed;
+    left: 12px;
+    bottom: 120px;
+    z-index: 110;
+    width: calc(var(--app-shell-navbar-width, 240px) - 24px);
+  }
+
+  .setup-side details {
+    display: flex;
+    flex-direction: column-reverse;
+  }
+
+  .setup-side summary {
+    display: flex;
+    width: 100%;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--mantine-color-default-border);
+    background: var(--mantine-color-body);
+    color: var(--mantine-color-text);
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .setup-side summary:hover {
+    border-color: var(--mantine-color-gray-5);
+  }
+
+  .setup-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .setup-side .setup-chevron {
+    transform: rotate(-90deg);
+  }
+
+  .setup-side details[open] .setup-chevron {
+    transform: rotate(90deg);
+  }
+
+  .setup-side .setup-list {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    width: 320px;
+    margin: 0;
+    box-shadow: 0 8px 28px rgb(0 0 0 / 0.1);
+  }
+}
+
+.home-header {
+  margin-bottom: 40px;
+}
+
+.home-title {
+  margin: 0 0 4px;
+  font-size: var(--page-title-size);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 40px;
+  align-items: start;
+}
+
+@media (max-width: 75em) {
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.job-row {
+  gap: 20px;
+}
+
+.job-row .row-main {
+  flex: 0 1 260px;
+}
+
+.stage-bar {
+  display: flex;
+  flex: 1;
+  gap: 2px;
+  height: 8px;
+  min-width: 80px;
+  overflow: hidden;
+  border-radius: 999px;
+}
+
+.stage-bar-seg {
+  min-width: 6px;
+  background: var(--mantine-primary-color-filled);
+}
+
+.stage-bar-empty {
+  flex: 1;
+  background: var(--mantine-color-default-border);
+}
+
+.job-figures {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 64px;
+}
+
+.job-active {
+  font-size: var(--mantine-font-size-lg);
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.when {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  width: 64px;
+}
+
+.when-day {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 650;
+  color: var(--mantine-color-dimmed);
+}
+
+.when-time {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+}
+
+@media (max-width: 48em) {
+  .job-row {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+
+  .job-row .row-main {
+    flex: 1 1 100%;
+  }
+}
+
+.inline-label {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.signal {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  line-height: 18px;
+  background: var(--surface-sunken);
+  color: var(--mantine-color-dimmed);
+  box-shadow: inset 0 0 0 1px var(--mantine-color-default-border);
+}
+
+.signal[data-tone='accent'] {
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+  box-shadow: none;
+}
+
+.signal[data-tone='warn'] {
+  background: var(--mantine-color-orange-light);
+  color: var(--mantine-color-orange-light-color);
+  box-shadow: none;
+}
+
+.inbox-table tbody tr {
+  transition: background-color 100ms ease;
+}
+
+.inbox-table tbody tr:hover,
+.inbox-table tbody tr[data-selected] {
+  background: var(--surface-sunken);
+}
+
+.inbox-table td,
+.inbox-table th {
+  vertical-align: middle;
+}
+
+.bulk-bar {
+  position: sticky;
+  bottom: 20px;
+  z-index: 5;
+  margin-top: var(--mantine-spacing-md);
+}
+
+/* ---------- records ---------- */
+
+/* Plain text actions: no buttons, just words that underline on hover. */
+.text-actions {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 16px;
+}
+
+.text-action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--mantine-color-dimmed);
+  font: inherit;
+  font-size: var(--mantine-font-size-sm);
+  cursor: pointer;
+}
+
+.text-action:hover:not(:disabled) {
+  color: var(--mantine-color-text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text-action:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.text-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.text-action-primary {
+  color: var(--mantine-primary-color-filled);
+  font-weight: 600;
+}
+
+/* Requirements, written as a page: bullets you can read and type into. */
+.req-page {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 68ch;
+}
+
+.req-h {
+  margin: 0 0 6px;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 650;
+}
+
+.req-bullets {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.req-bullets li {
+  position: relative;
+  padding-left: 20px;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.req-bullets li::before {
+  content: '•';
+  position: absolute;
+  left: 6px;
+  color: var(--mantine-color-dimmed);
+}
+
+.req-input {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.req-input::placeholder,
+.req-inline::placeholder {
+  color: var(--mantine-color-placeholder);
+}
+
+.req-none {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--mantine-color-dimmed);
+  font-size: 15px;
+}
+
+.req-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: baseline;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.req-line-read {
+  color: var(--mantine-color-dimmed);
+}
+
+.req-inline {
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+}
+
+.req-inline:focus {
+  border-bottom-color: var(--mantine-primary-color-filled);
+}
+
+.req-inline-wide {
+  width: 220px;
+  text-align: left;
+}
+
+.req-form-actions {
+  margin: 0;
+}
+
+.req-empty {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.req-empty .text-action {
+  font-size: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.req-error {
+  margin: 0 0 16px;
+  color: var(--mantine-color-red-8);
+  font-size: var(--mantine-font-size-sm);
+}
+
+/* A small, faint tag-line next to a heading. Deliberately outside the type scale. */
+.ai-notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.75;
+  white-space: nowrap;
+}
+
+/* Running text: a little larger than UI text, with room between lines. */
+.prose {
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.record-header {
+  margin-bottom: 20px;
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin: 0 0 10px -8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crumb-sep {
+  color: var(--mantine-color-dimmed);
+  opacity: 0.7;
+}
+
+.crumb-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  max-width: 240px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--mantine-color-dimmed);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+a.crumb-link:hover {
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-text);
+}
+
+a.crumb-link:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 0;
+}
+
+.crumb-current {
+  color: var(--mantine-color-text);
+  font-weight: 550;
+}
+
+.record-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 48px;
+  align-items: start;
+}
+
+.record-rail {
+  position: sticky;
+  top: 24px;
+}
+
+@media (max-width: 75em) {
+  .record-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .record-rail {
+    position: static;
+    order: -1;
+  }
+}
+
+.record-section {
+  scroll-margin-top: 24px;
+}
+
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-md);
+  margin-bottom: 16px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: var(--mantine-font-size-xl);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.facts {
+  margin: 0;
+  padding: 4px 24px 20px;
+}
+
+/* A facts list that opens its panel has no heading above it, so give it its own top space. */
+.panel > .facts:first-child {
+  padding-top: 16px;
+}
+
+/* A person written as an @mention: name on a soft accent chip. */
+.mention {
+  display: inline-flex;
+  align-items: baseline;
+  max-width: 100%;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.mention::before {
+  content: '@';
+  opacity: 0.7;
+}
+
+/* Job side panel: label on the left, value on the right. */
+.facts-grid .fact {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 12px;
+  align-items: baseline;
+  padding: 7px 0;
+}
+
+.facts-grid .fact dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.facts-grid .fact:last-child {
+  align-items: start;
+}
+
+.fact {
+  padding: 8px 0;
+  font-size: var(--mantine-font-size-md);
+}
+
+.fact dt {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.fact dd {
+  margin: 1px 0 0;
+  overflow-wrap: break-word;
+  font-weight: 500;
+}
+
+/* Pipeline stages as a vertical timeline: a dot per stage on one thin line. */
+.stage-timeline {
+  position: relative;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-timeline li {
+  position: relative;
+  padding: 0 0 12px 22px;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.stage-timeline li:last-child {
+  padding-bottom: 0;
+}
+
+.stage-timeline li::before {
+  content: '';
+  position: absolute;
+  top: 4px;
+  left: 0;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--mantine-color-gray-5);
+}
+
+.stage-timeline li::after {
+  content: '';
+  position: absolute;
+  top: 13px;
+  bottom: -4px;
+  left: 4px;
+  width: 1px;
+  background: var(--mantine-color-gray-4);
+}
+
+.stage-timeline li:last-child::after {
+  display: none;
+}
+
+.stage-timeline li:last-child::before {
+  background: var(--mantine-primary-color-filled);
+}
+
+.empty-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mantine-spacing-md);
+  padding: 20px 24px;
+}
+
+.next-step {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  border: 1px solid var(--mantine-primary-color-light-color);
+  border-radius: var(--mantine-radius-lg);
+  background: var(--mantine-primary-color-light);
+}
+
+.next-step-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Settings: grouped menu on the left, the page on the right. */
+.settings-layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.settings-layout[data-collapsed] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Hidden on desktop only; on small screens the menu is a row of links and always shows. */
+@media (min-width: 62em) {
+  .settings-layout[data-collapsed] .settings-nav {
+    display: none;
+  }
+}
+
+.settings-nav {
+  position: sticky;
+  top: 40px;
+}
+
+.settings-nav-group + .settings-nav-group {
+  margin-top: 24px;
+}
+
+.settings-nav-label {
+  padding: 0 10px 4px;
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 500;
+}
+
+.settings-nav .nav-item[data-active] {
+  background: var(--mantine-color-gray-1);
+  box-shadow: none;
+}
+
+[data-mantine-color-scheme='dark'] .settings-nav .nav-item[data-active] {
+  background: var(--mantine-color-dark-5);
+}
+
+.settings-nav-count {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-xs);
+}
+
+@media (max-width: 62em) {
+  .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+
+  .settings-nav {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .settings-nav-group {
+    display: contents;
+  }
+
+  .settings-nav-label {
+    display: none;
+  }
+}
+
+/* ---------- interviews calendar ---------- */
+
+.cal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.cal-week-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 4px 8px;
+  border-radius: var(--mantine-radius-md);
+  font-size: var(--mantine-font-size-lg);
+  font-weight: 650;
+}
+
+.cal-week-label:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.cal-week-label svg {
+  color: var(--mantine-color-dimmed);
+}
+
+.cal-scroll {
+  max-height: calc(100dvh - 230px);
+  min-height: 420px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.cal-grid {
+  display: grid;
+  grid-template-columns: 60px repeat(7, minmax(110px, 1fr));
+  min-width: 840px;
+}
+
+.cal-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  padding: 14px 0 12px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+}
+
+.cal-head-day {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.cal-head-date {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  font-size: var(--mantine-font-size-md);
+  font-weight: 600;
+}
+
+.cal-head[data-today] .cal-head-day {
+  color: var(--mantine-primary-color-filled);
+  font-weight: 600;
+}
+
+.cal-head[data-today] .cal-head-date {
+  background: var(--mantine-primary-color-filled);
+  color: var(--mantine-color-white);
+}
+
+.cal-times {
+  position: relative;
+}
+
+.cal-time {
+  position: absolute;
+  right: 10px;
+  transform: translateY(-50%);
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.cal-day {
+  position: relative;
+  border-left: 1px solid var(--mantine-color-default-border);
+  background-image: linear-gradient(
+    to bottom,
+    var(--mantine-color-default-border) 1px,
+    transparent 1px
+  );
+  cursor: default;
+}
+
+.cal-day[role='button'] {
+  cursor: cell;
+}
+
+.cal-day[data-weekend] {
+  background-color: var(--surface-sunken);
+}
+
+.cal-day[data-today] {
+  background-color: color-mix(in srgb, var(--mantine-primary-color-filled) 4%, transparent);
+}
+
+.cal-day:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.cal-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 2px;
+  background: var(--mantine-primary-color-filled);
+  pointer-events: none;
+}
+
+.cal-now::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mantine-primary-color-filled);
+}
+
+.cal-event {
+  position: absolute;
+  left: 4px;
+  right: 6px;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--mantine-primary-color-filled) 30%, transparent);
+  border-radius: var(--mantine-radius-sm);
+  background: color-mix(
+    in srgb,
+    var(--mantine-primary-color-filled) 12%,
+    var(--mantine-color-body)
+  );
+  color: var(--mantine-color-text);
+  text-align: left;
+}
+
+.cal-event:hover {
+  background: color-mix(
+    in srgb,
+    var(--mantine-primary-color-filled) 20%,
+    var(--mantine-color-body)
+  );
+}
+
+.cal-event:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+.cal-event-title {
+  overflow: hidden;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 600;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-event-meta {
+  overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cal-event[data-compact] {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding-block: 2px;
+}
+
+/* ---------- interview kits: summary lines, and one kit read as a page ---------- */
+
+.kit-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.kit-line {
+  display: grid;
+  grid-template-columns: minmax(0, auto) auto minmax(0, 1fr) 16px;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  color: inherit;
+  text-decoration: none;
+}
+
+.kit-line:hover {
+  background: var(--mantine-color-default-hover);
+}
+
+.kit-line:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.kit-line-title {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.kit-line-meta,
+.kit-line-names {
+  overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kit-line-go {
+  align-self: center;
+  color: var(--mantine-color-dimmed);
+}
+
+@media (max-width: 48em) {
+  .kit-line {
+    grid-template-columns: minmax(0, 1fr) 16px;
+  }
+
+  .kit-line-meta,
+  .kit-line-names {
+    grid-column: 1;
+  }
+}
+
+/* The kit's title starts the page, so the bar sits on the title's line instead of above it. */
+.kit-read {
+  position: relative;
+  max-width: 880px;
+}
+
+.kit-read [data-slate-editor] > :first-child,
+.kit-doc [data-slate-editor] > :first-child {
+  margin-top: 0;
+}
+
+.kit-read-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+  margin: 0 0 8px;
+}
+
+@media (min-width: 62em) {
+  .kit-read-bar {
+    position: absolute;
+    top: 4px;
+    right: 0;
+    z-index: 2;
+    margin: 0;
+  }
+}
+
+.kit-read-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 6px;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.kit-read-btn:hover {
+  background: var(--mantine-color-default-hover);
+  color: var(--mantine-color-text);
+}
+
+.kit-read-btn:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 1px;
+}
+
+.kit-read-meta {
+  padding: 0 10px;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.kit-read-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--mantine-color-default-border);
+}
+
+/* ---------- interview kit document ---------- */
+
+.kit-doc {
+  max-width: 880px;
+}
+
+/* Create panel: a row of buttons on narrow screens, a checklist beside the page on wide ones. */
+.kit-rail {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.kit-rail-title,
+.kit-rail-list {
+  display: none;
+}
+
+@media (min-width: 88em) {
+  .kit-rail {
+    position: fixed;
+    top: 200px;
+    right: max(32px, calc((100vw - var(--app-shell-navbar-offset, 0px) - 1184px) / 2 + 8px));
+    z-index: 5;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    width: 230px;
+    margin: 0;
+    padding: 16px;
+    border: 1px solid var(--mantine-color-default-border);
+    border-radius: 12px;
+    background: var(--mantine-color-body);
+  }
+
+  .kit-rail-title {
+    display: block;
+    margin: 0;
+    font-size: var(--mantine-font-size-sm);
+    font-weight: 600;
+  }
+
+  .kit-rail-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--mantine-font-size-sm);
+  }
+
+  .kit-rail-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--mantine-color-dimmed);
+  }
+
+  .kit-rail-list li[data-done] {
+    color: var(--mantine-color-text);
+  }
+
+  .kit-rail-list li[data-done] svg {
+    color: var(--mantine-primary-color-filled);
+  }
+
+  .kit-rail-cancel {
+    align-self: center;
+  }
+}
+
+.kit-rail-duration {
+  width: 130px;
+}
+
+@media (min-width: 88em) {
+  .kit-rail-duration {
+    width: auto;
+  }
+}
+
+/* ---------- job visibility: what each group does on the left, the controls on the right ---------- */
+
+.settings-block {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 48px;
+  padding: 28px 0;
+}
+
+.settings-block + .settings-block {
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+
+.settings-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.settings-wide {
+  grid-column: 1 / -1;
+}
+
+.settings-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.settings-copy {
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.settings-status {
+  margin: 12px 0 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+@media (max-width: 48em) {
+  .settings-block {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+/* ---------- jobs board: a soft-tinted column per status, a card per job ---------- */
+
+.board-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.board-search {
+  width: 280px;
+}
+
+.board {
+  display: grid;
+  grid-auto-columns: minmax(270px, 1fr);
+  grid-auto-flow: column;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.board-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 320px;
+  padding: 12px;
+  border-radius: 18px;
+}
+
+.board-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 6px;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.board-count {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.board-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.board-col {
+  transition: box-shadow 120ms ease;
+}
+
+/* The column a dragged card would land in. */
+.board-col[data-over] {
+  box-shadow: inset 0 0 0 2px var(--mantine-primary-color-filled);
+}
+
+.job-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 16px;
+  border-radius: 14px;
+  background: var(--mantine-color-body);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    box-shadow 160ms ease,
+    opacity 120ms ease;
+}
+
+.job-card[draggable='true'] {
+  cursor: grab;
+}
+
+.job-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px -12px rgba(15, 23, 42, 0.3);
+}
+
+.job-card[data-dragging] {
+  opacity: 0.4;
+}
+
+.job-card:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-card,
+  .job-card:hover {
+    transform: none;
+    transition: none;
+  }
+}
+
+.job-card-team {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.job-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.job-card-count {
+  grid-row: 2 / span 2;
+  grid-column: 2;
+  text-align: right;
+}
+
+.job-card-count b {
+  display: block;
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.job-card-count span {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+}
+
+.job-card-place {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.job-card-facts {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--mantine-color-gray-2);
+  font-size: 12px;
+}
+
+.job-card-facts dt {
+  color: var(--mantine-color-dimmed);
+}
+
+.job-card-facts dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-empty {
+  margin: 0;
+  padding: 18px 8px;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  text-align: center;
+}
+
+.applicants-rail {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+/* Hierarchy from size and weight, not capitals. */
+.applicants-group-title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.applicants-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.applicants-count {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.applicants-table td {
+  padding-block: 11px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.applicants-table thead th {
+  padding-block: 10px;
+  border-bottom: 1px solid var(--mantine-color-dark-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.applicants-name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.applicants-title {
+  margin-left: 8px;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.applicants-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.applicants-dim {
+  color: var(--mantine-color-dimmed);
+}
+
+@media (max-width: 62em) {
+  .applicants-rail {
+    position: static;
+  }
+}
+
+.people-panel {
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 22px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: 14px;
+  background: var(--mantine-color-body);
+}
+
+.people-pname {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.people-prole {
+  margin: 2px 0 0;
+  color: var(--mantine-color-gray-7);
+  font-size: 14px;
+}
+
+@media (max-width: 75em) {
+  .people-panel {
+    position: static;
+  }
+}
+
+/* The person's numbers first, then where they are, then the fact sheet. */
+.people-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 18px 0 4px;
+  padding: 14px 0;
+  border-block: 1px solid var(--mantine-color-gray-2);
+}
+
+.people-stats b {
+  display: block;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.people-stats span,
+.people-sub {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.people-sub {
+  display: block;
+}
+
+.people-h {
+  margin: 20px 0 10px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.people-where {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.people-where li {
+  position: relative;
+  padding: 0 0 12px 16px;
+  font-size: 13px;
+}
+
+.people-where li::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mantine-primary-color-filled);
+}
+
+.people-where li[data-closed]::before {
+  background: var(--mantine-color-gray-4);
+}
+
+.people-where a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.people-where a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.people-none {
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+/* One label, one short answer per row. The full record lives on the profile. */
+.people-sheet {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px 14px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.people-sheet dt,
+.people-dim {
+  color: var(--mantine-color-dimmed);
+}
+
+.people-sheet dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.people-sheet dd > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-sheet a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.people-sheet a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.people-sheet .people-link {
+  color: var(--mantine-primary-color-filled);
+}
+
+/* ---------- candidates: filters, the list, and the selected person, side by side ---------- */
+
+.candidates {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 360px;
+  align-items: start;
+  gap: 24px;
+}
+
+.candidates-describe {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.candidates-table tbody tr {
+  cursor: pointer;
+}
+
+.candidates-table tbody tr[data-active] {
+  background: var(--mantine-primary-color-light);
+}
+
+.candidates-table tbody tr[data-dismissed] {
+  opacity: 0.55;
+}
+
+.candidates-table tbody tr:focus-visible {
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: -2px;
+}
+
+.candidates-score {
+  font-size: 18px;
+  font-weight: 300;
+}
+
+.candidates-matches {
+  white-space: normal;
+}
+
+@media (max-width: 90em) {
+  .candidates {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .candidates > .people-panel {
+    grid-column: 2;
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 62em) {
+  .candidates {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .candidates > .people-panel {
+    grid-column: auto;
+  }
+}
+
+/* Two lines per row: who they are under the name, where they are under the job. */
+.person-table td {
+  padding-block: 10px;
+}
+
+.person-table thead th {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.person-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.person-job,
+.person-sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-job {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.person-sub,
+.person-dim {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.person-num {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.person-dim {
+  white-space: nowrap;
+}
+
+/* When all three columns fit, the page is exactly the window and each column scrolls on its own. */
+.candidates-main {
+  min-width: 0;
+}
+
+@media (min-width: 90.0625em) {
+  .page-container:has(.candidates-hub) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding-bottom: 24px;
+  }
+
+  .candidates-hub {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .candidates {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .candidates > .applicants-rail,
+  .candidates > .people-panel {
+    position: static;
+    max-height: none;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .candidates-main {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .candidates-main > .panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}
+
+/* A visible scrollbar on the list whenever there are more people than fit, so you can tell there is more.
+   macOS hides scrollbars until you scroll; a styled one stays put. */
+.candidates-main > .panel::-webkit-scrollbar {
+  width: 10px;
+}
+
+.candidates-main > .panel::-webkit-scrollbar-track {
+  background: var(--mantine-color-gray-0);
+}
+
+.candidates-main > .panel::-webkit-scrollbar-thumb {
+  border: 2px solid var(--mantine-color-gray-0);
+  border-radius: 999px;
+  background: var(--mantine-color-gray-4);
+}
+
+.candidates-main > .panel::-webkit-scrollbar-thumb:hover {
+  background: var(--mantine-color-gray-5);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .candidates-main > .panel {
+    scrollbar-color: var(--mantine-color-gray-4) var(--mantine-color-gray-0);
+  }
+}
+
+/* ---------- reports ---------- */
+
+/* The page is the window; the report list and the report scroll on their own.
+   A report reads top to bottom: headline numbers, then its charts, then the full table. */
+.reports-main {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.reports-table {
+  overflow: hidden;
+}
+
+.page-container:has(.reports) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: none;
+  padding: 0 32px 24px;
+}
+
+/* The title stays the same size as on every other page. */
+.page-container:has(.reports) > .mantine-Group-root:first-child {
+  flex: none;
+  margin: 0 !important;
+  padding: 40px 0 20px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.reports {
+  flex: 1;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  min-height: 0;
+}
+
+.reports-side {
+  flex: 0 0 210px;
+  gap: 20px !important;
+  padding: 10px 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--mantine-color-gray-2);
+  --input-height-sm: 28px;
+  --button-height-sm: 28px;
+}
+
+.reports-nav .mantine-NavLink-root {
+  min-height: 28px;
+  height: auto;
+  padding: 4px 8px;
+  border-radius: 5px !important;
+}
+
+.reports-nav .mantine-NavLink-label {
+  font-size: 13px;
+}
+
+.reports-nav .mantine-NavLink-root[data-active] {
+  background: var(--mantine-color-gray-1);
+  color: var(--mantine-color-text);
+  font-weight: 600;
+}
+
+.reports-views {
+  padding: 0 8px;
+}
+
+.reports-views > p:first-child {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.reports-main {
+  gap: 0 !important;
+  overflow-y: auto;
+}
+
+.reports-filters {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 6px 16px 8px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mantine-color-gray-2) !important;
+  border-radius: 0 !important;
+  --input-height-sm: 28px;
+  --button-height-sm: 28px;
+}
+
+.reports-filters label {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.reports-head {
+  align-items: center !important;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.reports-title {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+.reports-desc {
+  font-size: 12px !important;
+}
+
+.reports-main > .mantine-Alert-root {
+  margin: 12px 16px 0;
+}
+
+.reports-table {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.reports-table th {
+  position: sticky;
+  top: 0;
+  height: 32px;
+  padding-block: 0;
+  background: var(--surface-sunken);
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.reports-table td {
+  padding-block: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports-table th:first-child,
+.reports-table td:first-child {
+  padding-left: 16px;
+}
+
+.reports-print-meta {
+  display: none;
+}
+
+.reports-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.reports-stats dt {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.reports-stats dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Charts tile two across, split by hairlines (the grid gap shows the line colour behind). */
+.reports-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  background: var(--mantine-color-gray-2);
+}
+
+.reports-chart {
+  min-width: 0;
+  margin: 0;
+  padding: 16px 16px 20px;
+  background: var(--mantine-color-body);
+}
+
+.reports-chart figcaption {
+  margin-bottom: 14px;
+}
+
+.reports-chart-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reports-chart-caption,
+.reports-chart-empty {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.reports-donut {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.reports-legend {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  list-style: none;
+}
+
+.reports-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reports-legend b {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* Download PDF prints the report alone: no app chrome, no controls, charts and table on A4. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  .app-main {
+    padding: 0 !important;
+  }
+
+  .mantine-AppShell-navbar,
+  .reports-side,
+  .reports-filters,
+  .reports-actions,
+  .page-container:has(.reports) > .mantine-Group-root:first-child,
+  .mantine-Notifications-root {
+    display: none !important;
+  }
+
+  .page-container:has(.reports),
+  .reports,
+  .reports-main {
+    display: block !important;
+    height: auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .reports-head {
+    display: block !important;
+    padding: 0 0 12px !important;
+  }
+
+  .reports-title {
+    font-size: 20px !important;
+  }
+
+  .reports-desc {
+    font-size: 12px !important;
+  }
+
+  .reports-print-meta {
+    display: block;
+    margin: 6px 0 0;
+    color: var(--mantine-color-gray-7);
+    font-size: 11px;
+  }
+
+  .reports-stats {
+    padding: 12px 0;
+  }
+
+  .reports-charts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reports-chart,
+  .reports-table tr {
+    break-inside: avoid;
+  }
+
+  .reports-table th {
+    position: static;
+  }
+
+  .reports-table th:first-child,
+  .reports-table td:first-child {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 48em) {
+  .page-container:has(.reports) {
+    height: auto;
+    padding-inline: 16px;
+  }
+
+  .reports {
+    flex-direction: column;
+  }
+
+  .reports-side {
+    flex: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--mantine-color-gray-2);
   }
 }

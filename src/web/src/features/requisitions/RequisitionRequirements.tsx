@@ -1,22 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import {
-  Alert,
-  Badge,
-  Button,
-  Group,
-  NumberInput,
-  Stack,
-  TagsInput,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { useEffect, useRef, useState } from 'react';
 import { notifications } from '@mantine/notifications';
 import { IconSparkles } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { SectionCard } from '@/components/ui/Cards';
 import {
   parseRequirements,
   type Requirements,
@@ -25,6 +13,12 @@ import {
 
 const EMPTY: Requirements = { required: [], preferred: [], minYears: null, location: '' };
 
+const clean = (items: string[]) => items.map((item) => item.trim()).filter(Boolean);
+
+/**
+ * What a job needs, written as a short page: two bullet lists and one line. Editing happens in
+ * place, in the same bullets. Enter adds a line, Backspace on an empty line removes it.
+ */
 export function RequisitionRequirements({
   requisition,
   canManage,
@@ -51,14 +45,14 @@ export function RequisitionRequirements({
   const save = useMutation({
     mutationFn: (value: Requirements) =>
       api.put(`/api/requisitions/${requisition.id}/requirements`, {
-        required: value.required,
-        preferred: value.preferred,
+        required: clean(value.required),
+        preferred: clean(value.preferred),
         minYears: value.minYears,
-        location: value.location,
+        location: value.location.trim(),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
-      notifications.show({ color: 'teal', message: 'Requirements confirmed' });
+      notifications.show({ color: 'teal', message: 'Requirements saved' });
       setDraft(null);
       setFromAi(false);
     },
@@ -71,136 +65,213 @@ export function RequisitionRequirements({
   };
 
   return (
-    <SectionCard
-      title="What this job needs"
-      description="Matching and ranking are made against the requirements confirmed here."
-      action={
-        canManage && !draft ? (
-          <Group gap="xs">
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconSparkles size={14} />}
-              loading={extract.isPending}
-              onClick={() => extract.mutate()}
-            >
-              Extract with AI
-            </Button>
-            <Button size="xs" variant="default" onClick={edit}>
-              {confirmed ? 'Edit' : 'Add requirements'}
-            </Button>
-          </Group>
-        ) : undefined
-      }
-      padded
-    >
-      <Stack gap="md">
-        {aiError && (
-          <Alert color="gray" variant="light" title="AI extraction didn't run">
-            {aiError}
-          </Alert>
-        )}
-        {draft ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              save.mutate(draft);
-            }}
-          >
-            <Stack gap="md">
-              {fromAi && (
-                <Alert color="gray" variant="light">
-                  AI drafted this from the role summary. Check every line, change what is wrong,
-                  then confirm. Nothing is saved until you do.
-                </Alert>
-              )}
-              <TagsInput
-                label="Required"
-                description="Must-haves. Press Enter after each one."
-                value={draft.required}
-                onChange={(required) => setDraft({ ...draft, required })}
-              />
-              <TagsInput
-                label="Preferred"
-                description="Nice to have."
-                value={draft.preferred}
-                onChange={(preferred) => setDraft({ ...draft, preferred })}
-              />
-              <Group grow align="flex-start">
-                <NumberInput
-                  label="Minimum years of experience"
-                  min={0}
-                  max={60}
-                  decimalScale={1}
-                  value={draft.minYears ?? ''}
-                  onChange={(value) =>
-                    setDraft({ ...draft, minYears: value === '' ? null : Number(value) })
-                  }
-                />
-                <TextInput
-                  label="Location rule"
-                  placeholder="For example: Remote, US time zones"
-                  value={draft.location}
-                  onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
-                />
-              </Group>
-              <Group justify="flex-end">
-                <Button variant="default" onClick={() => setDraft(null)} disabled={save.isPending}>
-                  Cancel
-                </Button>
-                <Button type="submit" loading={save.isPending}>
-                  Confirm requirements
-                </Button>
-              </Group>
-            </Stack>
-          </form>
-        ) : confirmed ? (
-          <Stack gap="sm">
-            <ChipRow label="Required" items={confirmed.required} filled />
-            <ChipRow label="Preferred" items={confirmed.preferred} />
-            <Text size="sm">
-              <Text span c="dimmed">
-                Minimum years:{' '}
-              </Text>
-              {confirmed.minYears ?? 'not set'}
-            </Text>
-            <Text size="sm">
-              <Text span c="dimmed">
-                Location rule:{' '}
-              </Text>
-              {confirmed.location || 'not set'}
-            </Text>
-          </Stack>
+    <div>
+      <div className="section-head">
+        <h2 className="section-title">Requirements</h2>
+        {draft && fromAi ? (
+          <span className="ai-notice">
+            <IconSparkles size={13} aria-hidden />
+            Made by AI. Check before saving.
+          </span>
         ) : (
-          <Text size="sm" c="dimmed" maw="60ch">
-            No requirements confirmed yet. Add them, or let AI draft a list from the role summary
-            for you to review. Until then, ranking candidates for this job is keyword-only.
-          </Text>
+          canManage &&
+          !draft && (
+            <span className="text-actions">
+              <button
+                type="button"
+                className="text-action"
+                onClick={() => extract.mutate()}
+                disabled={extract.isPending}
+              >
+                {extract.isPending ? 'Drafting…' : 'Draft with AI'}
+              </button>
+              {confirmed && (
+                <button type="button" className="text-action" onClick={edit}>
+                  Edit
+                </button>
+              )}
+            </span>
+          )
         )}
-      </Stack>
-    </SectionCard>
+      </div>
+
+      {aiError && (
+        <p className="req-error" role="alert">
+          The AI draft didn’t run: {aiError}
+        </p>
+      )}
+
+      {draft ? (
+        <form
+          className="req-page"
+          onSubmit={(event) => {
+            event.preventDefault();
+            save.mutate(draft);
+          }}
+        >
+          <EditGroup
+            label="Must have"
+            items={draft.required}
+            onChange={(required) => setDraft({ ...draft, required })}
+            placeholder="Add a must-have"
+          />
+          <EditGroup
+            label="Nice to have"
+            items={draft.preferred}
+            onChange={(preferred) => setDraft({ ...draft, preferred })}
+            placeholder="Add a nice-to-have"
+          />
+          <p className="req-line">
+            At least
+            <input
+              className="req-inline"
+              aria-label="Minimum years of experience"
+              inputMode="decimal"
+              placeholder="any"
+              size={3}
+              value={draft.minYears ?? ''}
+              onChange={(event) => {
+                const value = event.currentTarget.value.replace(/[^0-9.]/g, '');
+                setDraft({ ...draft, minYears: value === '' ? null : Number(value) });
+              }}
+            />
+            years of experience, based in
+            <input
+              className="req-inline req-inline-wide"
+              aria-label="Location rule"
+              placeholder="anywhere"
+              value={draft.location}
+              onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
+            />
+          </p>
+          <p className="text-actions req-form-actions">
+            <button
+              type="submit"
+              className="text-action text-action-primary"
+              disabled={save.isPending}
+            >
+              {save.isPending ? 'Saving…' : 'Done'}
+            </button>
+            <button
+              type="button"
+              className="text-action"
+              onClick={() => setDraft(null)}
+              disabled={save.isPending}
+            >
+              Cancel
+            </button>
+          </p>
+        </form>
+      ) : confirmed ? (
+        <div className="req-page">
+          <ReadGroup label="Must have" items={confirmed.required} />
+          <ReadGroup label="Nice to have" items={confirmed.preferred} />
+          <p className="req-line req-line-read">
+            {[
+              confirmed.minYears != null ? `${confirmed.minYears}+ years of experience` : null,
+              confirmed.location || null,
+            ]
+              .filter(Boolean)
+              .join(' · ') || 'No experience or location rule'}
+          </p>
+        </div>
+      ) : (
+        <p className="req-empty">
+          Nothing set yet, so candidates are ranked by keywords only. Let AI draft a list from the
+          role description
+          {canManage && (
+            <>
+              , or{' '}
+              <button type="button" className="text-action" onClick={edit}>
+                write it yourself
+              </button>
+            </>
+          )}
+          .
+        </p>
+      )}
+    </div>
   );
 }
 
-function ChipRow({ label, items, filled }: { label: string; items: string[]; filled?: boolean }) {
+function ReadGroup({ label, items }: { label: string; items: string[] }) {
   return (
-    <div>
-      <Text size="xs" c="dimmed" mb={4}>
-        {label}
-      </Text>
+    <section className="req-group">
+      <h3 className="req-h">{label}</h3>
       {items.length === 0 ? (
-        <Text size="sm" c="dimmed">
-          None
-        </Text>
+        <p className="req-none">None</p>
       ) : (
-        <Group gap={6}>
+        <ul className="req-bullets">
           {items.map((item) => (
-            <Badge key={item} variant={filled ? 'light' : 'default'} tt="none" fw={500}>
-              {item}
-            </Badge>
+            <li key={item}>{item}</li>
           ))}
-        </Group>
+        </ul>
       )}
-    </div>
+    </section>
+  );
+}
+
+/** A bullet list you type straight into. The last line is always blank, ready for the next one. */
+function EditGroup({
+  label,
+  items,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  items: string[];
+  onChange: (items: string[]) => void;
+  placeholder: string;
+}) {
+  const refs = useRef<Array<HTMLInputElement | null>>([]);
+  const [focus, setFocus] = useState<number | null>(null);
+  const lines =
+    items.length === 0 || items[items.length - 1].trim() !== '' ? [...items, ''] : items;
+
+  // Move the caret once the new line has rendered.
+  useEffect(() => {
+    if (focus === null) return;
+    refs.current[focus]?.focus();
+    setFocus(null);
+  }, [focus, lines.length]);
+
+  const set = (index: number, value: string) =>
+    onChange(lines.map((line, i) => (i === index ? value : line)));
+
+  return (
+    <section className="req-group">
+      <h3 className="req-h">{label}</h3>
+      <ul className="req-bullets">
+        {lines.map((line, index) => (
+          <li key={index}>
+            <input
+              ref={(node) => {
+                refs.current[index] = node;
+              }}
+              className="req-input"
+              aria-label={`${label}, line ${index + 1}`}
+              placeholder={index === lines.length - 1 ? placeholder : undefined}
+              value={line}
+              onChange={(event) => set(index, event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  if (line.trim() === '') return;
+                  // The blank line after the last item already exists; only insert mid-list.
+                  if (lines[index + 1] !== '') {
+                    onChange([...lines.slice(0, index + 1), '', ...lines.slice(index + 1)]);
+                  }
+                  setFocus(index + 1);
+                } else if (event.key === 'Backspace' && line === '' && index > 0) {
+                  event.preventDefault();
+                  onChange(lines.filter((_, i) => i !== index));
+                  setFocus(index - 1);
+                }
+              }}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

@@ -231,6 +231,17 @@ so it adapts to any number of stages.
 
 ### Named Rules
 
+**The Room To Breathe Rule.** Nothing is squeezed. The reference is Linear: calm, roomy, layered.
+Page, section and row each get their own type size and their own space above (page title to
+tabs 20px, tabs to content 32px, section to section 40px or more, section heading to content
+24px). Panels never touch. If a screen feels dense, remove a box before removing space.
+
+**The Own Place Rule.** Every section deserves its own place. Distinct jobs on one record go in
+tabs; an area with many pages (Settings) gets a second, grouped sidebar inside the content well.
+Don't pile unrelated sections into one long scroll to save a click. Every tab and second-sidebar
+item is its own route with its own server-rendered page under a shared layout, never a `?view=`
+query or a `#hash`.
+
 **The 1440 Rule.** Content stops at 1440px. A hiring table stretched across a 34-inch monitor is
 unreadable, and whitespace at the edges costs nothing.
 
@@ -329,6 +340,9 @@ wrong size for its role.
 - **Sidebar:** 256px on the Sunken field. Items are Mantine `NavLink variant="light"` — no fill
   at rest, accent wash plus accent text when active. Grouped under 11px uppercase Quiet Ink
   section captions ("Workspace", "System").
+- **Second sidebar:** areas with many pages (Settings) get a grouped left menu inside the content
+  well, 200px wide, captions per group ("Workspace", "Hiring", "Connections", "Activity"). It
+  replaces a long row of tabs.
 - **Section tabs are real links.** Every tab in this product is a route (`/admin/audit`,
   `/requisitions/[id]/kits`), rendered through Mantine `Tabs` with `renderRoot` so it looks like
   a tab and behaves like navigation — bookmarkable, back-button correct.

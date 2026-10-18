@@ -3,29 +3,25 @@
 import { useState } from 'react';
 import {
   ActionIcon,
-  Avatar,
-  Badge,
+  Anchor,
   Box,
-  Divider,
   Group,
   Menu,
   Paper,
-  Rating,
   Stack,
   Text,
-  Title,
   UnstyledButton,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconDots, IconMapPin } from '@tabler/icons-react';
+import { IconDots } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatDateTime, initials } from '@/lib/format';
+import { formatDateTime, formatRelative } from '@/lib/format';
 import type { BoardData } from '@/types';
 import type { BoardApplication } from './requisition-data';
-import { SuggestedCandidates } from './SuggestedCandidates';
 import { useBoard, useCanManage, useRequisition } from './requisition-data';
 
 export function RequisitionPipeline({ id, initialData }: { id: string; initialData: BoardData }) {
@@ -95,168 +91,166 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
 
   return (
     <>
-      <Group justify="space-between" align="flex-end" mb="md" wrap="wrap" gap="sm">
-        <div>
-          <Title order={3}>Hiring pipeline</Title>
+      <div className="section-head">
+        <h2 className="section-title">Pipeline</h2>
+        <Group gap="md">
           <Text c="dimmed" size="sm">
-            {totalActive} active across {board.data.stages.length} stages.{' '}
-            {canManage && 'Drag a card to another stage, or use the menu on the card.'}
+            {totalActive} active
+            {canManage && totalActive > 0 && ' · drag a card to move it'}
           </Text>
-        </div>
-      </Group>
-      {canManage && <SuggestedCandidates requisitionId={id} />}
-      <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
-        <Box className="pipeline-scroll">
-          <div className="pipeline-grid">
-            {board.data.stages.map((stage) => (
-              <section
-                key={stage.id}
-                className="pipeline-column"
-                data-drop-target={dropStage === stage.id || undefined}
-                onDragOver={(event) => {
-                  if (!dragging || dragging.from === stage.id) return;
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                  setDropStage(stage.id);
-                }}
-                onDragLeave={(event) => {
-                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
-                  setDropStage((current) => (current === stage.id ? null : current));
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  moveTo(stage.id);
-                }}
+          {canManage && (
+            <Anchor component={Link} href={`/candidates?job=${id}`} size="sm">
+              Find candidates
+            </Anchor>
+          )}
+        </Group>
+      </div>
+      <Box className="pipeline-scroll">
+        <div className="pipeline-grid">
+          {board.data.stages.map((stage) => (
+            <section
+              key={stage.id}
+              className="pipeline-column"
+              data-drop-target={dropStage === stage.id || undefined}
+              onDragOver={(event) => {
+                if (!dragging || dragging.from === stage.id) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                setDropStage(stage.id);
+              }}
+              onDragLeave={(event) => {
+                if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                setDropStage((current) => (current === stage.id ? null : current));
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                moveTo(stage.id);
+              }}
+            >
+              <div
+                className="pipeline-column-header"
+                style={
+                  { '--stage': `var(--mantine-color-${stage.color}-5)` } as React.CSSProperties
+                }
               >
-                <Group justify="space-between" mb="md" className="pipeline-column-header">
-                  <Group gap="xs" wrap="nowrap">
-                    <Box className="stage-dot" bg={`${stage.color}.5`} />
-                    <Text fw={650} size="sm" truncate>
-                      {stage.name}
-                    </Text>
-                  </Group>
-                  <Badge color="gray" variant="light" circle>
-                    {stage.applications.length}
-                  </Badge>
-                </Group>
-                <Stack gap="sm">
-                  {stage.applications.map((application) => (
-                    <Paper
-                      key={application.id}
-                      withBorder
-                      radius="md"
-                      p="md"
-                      bg="var(--mantine-color-body)"
-                      className="hover-card candidate-card"
-                      draggable={canManage}
-                      data-draggable={canManage || undefined}
-                      data-dragging={dragging?.id === application.id || undefined}
-                      onDragStart={(event) => {
-                        event.dataTransfer.setData('text/plain', application.id);
-                        event.dataTransfer.effectAllowed = 'move';
-                        setDragging({ id: application.id, from: stage.id });
-                      }}
-                      onDragEnd={() => {
-                        setDragging(null);
-                        setDropStage(null);
-                      }}
-                    >
-                      <Group justify="space-between" align="flex-start" wrap="nowrap">
-                        <UnstyledButton
-                          style={{ flex: 1, minWidth: 0 }}
-                          onClick={() => router.push(`/applications/${application.id}`)}
-                        >
-                          <Group wrap="nowrap" align="flex-start" gap="sm">
-                            <Avatar size={36} color={stage.color} variant="light">
-                              {initials(application.candidateName)}
-                            </Avatar>
-                            <div style={{ minWidth: 0 }}>
-                              <Text fw={650} size="sm" truncate>
-                                {application.candidateName}
-                              </Text>
-                              <Text size="xs" c="dimmed" truncate>
-                                {application.currentTitle ?? 'Candidate'}
-                              </Text>
-                            </div>
-                          </Group>
-                        </UnstyledButton>
-                        {canManage && (
-                          <Menu position="bottom-end" withArrow>
-                            <Menu.Target>
-                              <ActionIcon
-                                variant="subtle"
-                                color="gray"
-                                size="sm"
-                                aria-label={`Move ${application.candidateName}`}
-                              >
-                                <IconDots size={16} />
-                              </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                              <Menu.Label>Move to</Menu.Label>
-                              {board.data.stages
-                                .filter((target) => target.id !== stage.id)
-                                .map((target) => (
-                                  <Menu.Item
-                                    key={target.id}
-                                    onClick={() =>
-                                      moveMutation.mutate({
-                                        applicationId: application.id,
-                                        stageId: target.id,
-                                      })
-                                    }
-                                  >
-                                    {target.name}
-                                  </Menu.Item>
-                                ))}
-                            </Menu.Dropdown>
-                          </Menu>
-                        )}
-                      </Group>
+                <span className="pipeline-column-name">{stage.name}</span>
+                <span className="pipeline-column-count">{stage.applications.length}</span>
+              </div>
+              <Stack gap="sm">
+                {stage.applications.map((application) => (
+                  <div
+                    key={application.id}
+                    className="candidate-card"
+                    draggable={canManage}
+                    data-draggable={canManage || undefined}
+                    data-dragging={dragging?.id === application.id || undefined}
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData('text/plain', application.id);
+                      event.dataTransfer.effectAllowed = 'move';
+                      setDragging({ id: application.id, from: stage.id });
+                    }}
+                    onDragEnd={() => {
+                      setDragging(null);
+                      setDropStage(null);
+                    }}
+                  >
+                    <div className="candidate-card-head">
+                      <UnstyledButton
+                        className="candidate-card-who"
+                        onClick={() => router.push(`/applications/${application.id}`)}
+                      >
+                        <span className="candidate-card-name">{application.candidateName}</span>
+                        <span className="candidate-card-role">
+                          {application.currentTitle ?? 'Candidate'}
+                        </span>
+                      </UnstyledButton>
+                      <span className="candidate-card-score" title="Average rating">
+                        {application.rating ? application.rating.toFixed(1) : '–'}
+                        <small>rating</small>
+                      </span>
+                      {canManage && (
+                        <Menu position="bottom-end" withArrow>
+                          <Menu.Target>
+                            <ActionIcon
+                              variant="subtle"
+                              color="gray"
+                              size="sm"
+                              aria-label={`Move ${application.candidateName}`}
+                            >
+                              <IconDots size={16} />
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Label>Move to</Menu.Label>
+                            {board.data.stages
+                              .filter((target) => target.id !== stage.id)
+                              .map((target) => (
+                                <Menu.Item
+                                  key={target.id}
+                                  onClick={() =>
+                                    moveMutation.mutate({
+                                      applicationId: application.id,
+                                      stageId: target.id,
+                                    })
+                                  }
+                                >
+                                  {target.name}
+                                </Menu.Item>
+                              ))}
+                          </Menu.Dropdown>
+                        </Menu>
+                      )}
+                    </div>
+                    <dl className="candidate-card-rows">
+                      {application.nextInterviewAt && (
+                        <div className="candidate-card-key">
+                          <dt>Interview</dt>
+                          <dd>{formatDateTime(application.nextInterviewAt)}</dd>
+                        </div>
+                      )}
+                      {application.yearsExperience != null && (
+                        <div>
+                          <dt>Experience</dt>
+                          <dd>{Math.round(application.yearsExperience)} yrs</dd>
+                        </div>
+                      )}
+                      {application.skills.length > 0 && (
+                        <div>
+                          <dt>Skills</dt>
+                          <dd title={application.skills.join(', ')}>
+                            {application.skills.slice(0, 3).join(', ')}
+                          </dd>
+                        </div>
+                      )}
                       {application.location && (
-                        <Group gap={5} mt="sm" wrap="nowrap">
-                          <IconMapPin size={13} color="var(--mantine-color-dimmed)" />
-                          <Text size="xs" c="dimmed" truncate>
-                            {application.location}
-                          </Text>
-                        </Group>
+                        <div>
+                          <dt>Location</dt>
+                          <dd>{application.location}</dd>
+                        </div>
                       )}
-                      {application.rating ? (
-                        <Group gap={6} mt={6} wrap="nowrap">
-                          <Rating value={application.rating} readOnly size="xs" />
-                          <Text size="xs" c="dimmed">
-                            {application.rating.toFixed(1)}
-                          </Text>
-                        </Group>
-                      ) : (
-                        <Text size="xs" c="dimmed" mt={6}>
-                          Not rated yet
-                        </Text>
-                      )}
-                      <Divider my="sm" />
-                      <Group justify="space-between" gap="xs" wrap="nowrap">
-                        <Badge size="xs" variant="default">
-                          {application.source}
-                        </Badge>
-                        <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap' }}>
-                          {formatDateTime(application.lastActivityAt)}
-                        </Text>
-                      </Group>
-                    </Paper>
-                  ))}
-                  {stage.applications.length === 0 && (
-                    <Paper withBorder radius="md" p="lg" className="empty-stage">
-                      <Text size="xs" c="dimmed" ta="center">
-                        No candidates
-                      </Text>
-                    </Paper>
-                  )}
-                </Stack>
-              </section>
-            ))}
-          </div>
-        </Box>
-      </Paper>
+                      <div>
+                        <dt>Applied</dt>
+                        <dd>{formatRelative(application.appliedAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>Source</dt>
+                        <dd>{application.source}</dd>
+                      </div>
+                    </dl>
+                  </div>
+                ))}
+                {stage.applications.length === 0 && (
+                  <Paper withBorder radius="md" p="lg" className="empty-stage">
+                    <Text size="xs" c="dimmed" ta="center">
+                      No candidates
+                    </Text>
+                  </Paper>
+                )}
+              </Stack>
+            </section>
+          ))}
+        </div>
+      </Box>
     </>
   );
 }

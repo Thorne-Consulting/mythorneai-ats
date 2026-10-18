@@ -18,7 +18,7 @@ export function PageTabs({ items }: { items: PageTab[] }) {
       .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? items[0]?.href;
 
   return (
-    <Tabs value={active} mb="xl">
+    <Tabs value={active} mb={32}>
       <Tabs.List style={{ flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {items.map((item) => (
           <Tabs.Tab
@@ -27,7 +27,7 @@ export function PageTabs({ items }: { items: PageTab[] }) {
             // These tabs are links to other pages, so there is no panel for aria-controls to point at.
             renderRoot={(props) => <Link href={item.href} {...props} aria-controls={undefined} />}
             rightSection={
-              item.count === undefined ? undefined : (
+              !item.count ? undefined : (
                 <Badge size="xs" variant="default" circle>
                   {item.count}
                 </Badge>

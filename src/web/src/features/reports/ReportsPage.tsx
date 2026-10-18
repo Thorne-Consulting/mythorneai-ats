@@ -16,13 +16,13 @@ import {
   TextInput,
   UnstyledButton,
 } from '@mantine/core';
-import { BarChart } from '@mantine/charts';
 import { notifications } from '@mantine/notifications';
 import {
   IconChartBar,
   IconChevronDown,
   IconChevronUp,
   IconDownload,
+  IconFileTypePdf,
   IconInfoCircle,
   IconLock,
   IconTrash,
@@ -35,6 +35,7 @@ import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { PageHeader } from '@/components/ui/PageHeaders';
 import { formatDate } from '@/lib/format';
 import type { RequisitionSummary } from '@/types';
+import { type ReportChart, ReportChartView } from './ReportChartView';
 
 interface ReportInfo {
   key: string;
@@ -48,8 +49,8 @@ interface ReportTable {
   columns: string[];
   rows: Cell[][];
   note?: string | null;
-  chartLabel?: number | null;
-  chartValues?: number[] | null;
+  stats?: { label: string; value: string }[] | null;
+  charts?: ReportChart[] | null;
 }
 interface SavedView {
   id: string;
@@ -192,43 +193,30 @@ export function ReportsPage() {
     return (
       <>
         <PageHeader title="Reports" />
-        <EmptyState
-          icon={IconLock}
-          title="You don’t have access to reports"
-          description="Ask an administrator to turn on reports for your role under Settings, Roles and permissions."
-        />
+        <EmptyState icon={IconLock} title="You don’t have access to reports" />
       </>
     );
 
-  const chart =
-    data && data.chartLabel != null && data.chartValues?.length && data.rows.length > 0
-      ? {
-          label: data.columns[data.chartLabel],
-          series: data.chartValues.map((index) => ({
-            name: data.columns[index],
-            color: index === data.chartValues![0] ? 'indigo.6' : 'gray.6',
-          })),
-          items: data.rows.map((row) => ({
-            [data.columns[data.chartLabel!]]: String(row[data.chartLabel!] ?? '—'),
-            ...Object.fromEntries(
-              data.chartValues!.map((index) => [data.columns[index], Number(row[index] ?? 0)]),
-            ),
-          })),
-        }
-      : null;
   const isHires = key === 'hires';
   const csvHref = `/api/reports/${key}?${queryString(filters, { format: 'csv' })}`;
   const hasFilters = Object.values(filters).some(Boolean);
+  // Printed at the top of the PDF so the reader knows what the numbers cover.
+  const filterSummary = [
+    filters.requisitionId &&
+      (jobs.data?.find((job) => job.id === filters.requisitionId)?.title ?? 'One job'),
+    filters.source && `Source: ${filters.source}`,
+    (filters.from || filters.to) &&
+      `Applied ${filters.from ? `from ${formatDate(filters.from)}` : ''} ${filters.to ? `to ${formatDate(filters.to)}` : ''}`.trim(),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <>
-      <PageHeader
-        title="Reports"
-        description="How hiring is going: where people drop out, how long it takes, and which sources work."
-      />
-      <Group align="flex-start" gap="xl" wrap="wrap">
-        <Stack gap="lg" style={{ flex: '0 0 250px', minWidth: 220 }}>
-          <Box component="nav" aria-label="Reports">
+      <PageHeader title="Reports" />
+      <Group className="reports" align="flex-start" gap="xl" wrap="wrap">
+        <Stack className="reports-side" gap="lg">
+          <Box component="nav" className="reports-nav" aria-label="Reports">
             {(reports.data ?? []).map((report) => (
               <NavLink
                 key={report.key}
@@ -240,7 +228,7 @@ export function ReportsPage() {
               />
             ))}
           </Box>
-          <div>
+          <div className="reports-views">
             <Text fw={650} size="sm" mb={6}>
               Saved views
             </Text>
@@ -301,8 +289,8 @@ export function ReportsPage() {
           </div>
         </Stack>
 
-        <Stack gap="lg" style={{ flex: '1 1 380px', minWidth: 0 }}>
-          <Paper withBorder radius="lg" p="sm">
+        <Stack className="reports-main" gap="lg">
+          <Paper className="reports-filters" withBorder radius="lg" p="sm">
             <Group gap="sm" wrap="wrap" align="flex-end">
               <Select
                 label="Job"
@@ -356,12 +344,18 @@ export function ReportsPage() {
             </Alert>
           ) : data ? (
             <>
-              <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+              <Group
+                className="reports-head"
+                justify="space-between"
+                align="flex-start"
+                wrap="wrap"
+                gap="md"
+              >
                 <div style={{ flex: '1 1 320px' }}>
-                  <Text fw={650} fz="lg">
+                  <Text className="reports-title" fw={650} fz="lg">
                     {data.title}
                   </Text>
-                  <Text c="dimmed" size="sm" maw={640}>
+                  <Text className="reports-desc" c="dimmed" size="sm" maw={640}>
                     {data.description}
                   </Text>
                   {isHires && (
@@ -371,15 +365,39 @@ export function ReportsPage() {
                     </Text>
                   )}
                 </div>
-                <Button
-                  component="a"
-                  href={csvHref}
-                  variant={isHires ? 'filled' : 'default'}
-                  leftSection={<IconDownload size={16} />}
-                >
-                  Export CSV
-                </Button>
+                <Group className="reports-actions" gap="xs">
+                  <Button
+                    variant="default"
+                    leftSection={<IconFileTypePdf size={16} />}
+                    onClick={() => window.print()}
+                  >
+                    Download PDF
+                  </Button>
+                  <Button
+                    component="a"
+                    href={csvHref}
+                    variant={isHires ? 'filled' : 'default'}
+                    leftSection={<IconDownload size={16} />}
+                  >
+                    Export CSV
+                  </Button>
+                </Group>
+                <p className="reports-print-meta">
+                  {filterSummary || 'All jobs and sources'} · Printed{' '}
+                  {formatDate(new Date().toISOString())}
+                </p>
               </Group>
+
+              {(data.stats?.length ?? 0) > 0 && (
+                <dl className="reports-stats">
+                  {data.stats!.map((stat) => (
+                    <div key={stat.label}>
+                      <dt>{stat.label}</dt>
+                      <dd>{stat.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
 
               {data.note && (
                 <Alert variant="light" color="gray" icon={<IconInfoCircle size={18} />}>
@@ -391,33 +409,19 @@ export function ReportsPage() {
                 <EmptyState
                   icon={IconChartBar}
                   title="Nothing to report yet"
-                  description={
-                    hasFilters
-                      ? 'No applications match these filters. Widen the dates or clear the job and source.'
-                      : 'Reports fill in as people apply and move through your jobs. Add candidates to a job to get started.'
-                  }
                   actionLabel={hasFilters ? 'Clear filters' : undefined}
                   onAction={() => go({ requisitionId: '', source: '', from: '', to: '' })}
                 />
               ) : (
                 <>
-                  {chart && (
-                    <Paper withBorder radius="lg" p="lg">
-                      <BarChart
-                        h={Math.max(160, chart.items.length * 34 + 40)}
-                        data={chart.items}
-                        dataKey={chart.label}
-                        orientation="vertical"
-                        series={chart.series}
-                        withLegend={chart.series.length > 1}
-                        gridAxis="x"
-                        yAxisProps={{ width: 140 }}
-                        aria-label={`${data.title} chart. The same figures are in the table below.`}
-                        role="img"
-                      />
-                    </Paper>
+                  {(data.charts?.length ?? 0) > 0 && (
+                    <div className="reports-charts">
+                      {data.charts!.map((item) => (
+                        <ReportChartView key={item.title} chart={item} />
+                      ))}
+                    </div>
                   )}
-                  <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
+                  <Paper className="reports-table" withBorder radius="lg">
                     <Table.ScrollContainer minWidth={560}>
                       <Table>
                         <Table.Thead>

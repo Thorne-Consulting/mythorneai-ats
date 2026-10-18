@@ -60,7 +60,7 @@ public sealed partial class ApiFlowTests
             "/api/candidates",
             cancellationToken
         );
-        var candidateId = candidates[0].GetProperty("id").GetGuid();
+        var candidateId = candidates.GetProperty("items")[0].GetProperty("id").GetGuid();
         var candidate = await interviewer.GetFromJsonAsync<JsonElement>(
             $"/api/candidates/{candidateId}",
             cancellationToken

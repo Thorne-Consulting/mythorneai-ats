@@ -12,12 +12,12 @@ namespace MyThorneAI.Ats.Api.Tests;
 public sealed partial class ApiFlowTests
 {
     [Fact]
-    public async Task Talent_search_respects_candidate_scope_and_skill_filters()
+    public async Task Candidate_list_respects_candidate_scope_and_skill_filters()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         using var interviewer = await LoginAsync("interviewer@example.test", cancellationToken);
         var scoped = await interviewer.GetFromJsonAsync<JsonElement>(
-            "/api/talent/search?skills=react&skillMode=all&page=1&pageSize=25",
+            "/api/candidates?skills=react&skillMode=all&page=1&pageSize=25",
             cancellationToken
         );
 
@@ -27,7 +27,7 @@ public sealed partial class ApiFlowTests
 
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var anySkill = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/talent/search?skills=react,postgresql&skillMode=any&page=1&pageSize=25",
+            "/api/candidates?skills=react,postgresql&skillMode=any&page=1&pageSize=25",
             cancellationToken
         );
         anySkill.GetProperty("total").GetInt32().ShouldBeGreaterThan(1);
@@ -63,11 +63,11 @@ public sealed partial class ApiFlowTests
             .ShouldBe("Parsed");
 
         var search = await recruiter.GetFromJsonAsync<JsonElement>(
-            "/api/talent/search?q=kubernetes&page=1&pageSize=25",
+            "/api/candidates?search=kubernetes&page=1&pageSize=25",
             cancellationToken
         );
         search.GetProperty("items").EnumerateArray()
-            .Select(value => value.GetProperty("candidateId").GetGuid())
+            .Select(value => value.GetProperty("id").GetGuid())
             .ShouldContain(candidateId);
     }
 
@@ -78,23 +78,31 @@ public sealed partial class ApiFlowTests
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var expected = new[]
         {
-            new { Query = "maya", File = "maya-fernandez-resume.pdf", Skill = "react" },
-            new { Query = "elliot", File = "elliot-shaw-resume.docx", Skill = "kubernetes" },
-            new { Query = "ada", File = "ada-whitfield-resume.pdf", Skill = "figma" },
+            new { Query = "viglionese", File = "Health-Sample-Resume.pdf", Skill = "data analysis" },
+            new { Query = "nguyen", File = "E-Huy-Nguyen.docx.pdf", Skill = "tableau" },
+            new { Query = "upeg", File = "MITCAPD-PhDI.pdf", Skill = "research" },
         };
 
         foreach (var resume in expected)
         {
             var search = await recruiter.GetFromJsonAsync<JsonElement>(
-                $"/api/talent/search?q={resume.Query}&page=1&pageSize=25",
+                $"/api/candidates?search={resume.Query}&page=1&pageSize=25",
                 cancellationToken
             );
             search.GetProperty("total").GetInt32().ShouldBe(1);
-            var candidateId = search.GetProperty("items")[0].GetProperty("candidateId").GetGuid();
-            var candidate = await recruiter.GetFromJsonAsync<JsonElement>(
-                $"/api/candidates/{candidateId}",
-                cancellationToken
-            );
+            var candidateId = search.GetProperty("items")[0].GetProperty("id").GetGuid();
+            // Seed resumes are queued for ResumeParseWorker, so wait for it to get to this one.
+            JsonElement candidate = default;
+            for (var attempt = 0; attempt < 60; attempt++)
+            {
+                candidate = await recruiter.GetFromJsonAsync<JsonElement>(
+                    $"/api/candidates/{candidateId}",
+                    cancellationToken
+                );
+                if (candidate.GetProperty("attachments")[0].GetProperty("parseStatus").GetString() != "Pending")
+                    break;
+                await Task.Delay(500, cancellationToken);
+            }
 
             candidate.GetProperty("resumeParsedAt").ValueKind.ShouldNotBe(JsonValueKind.Null);
             candidate.GetProperty("resumeSkills").EnumerateArray()

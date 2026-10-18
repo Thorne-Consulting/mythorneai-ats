@@ -1,9 +1,8 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Badge, Paper, Text, Timeline } from '@mantine/core';
+import { useState, type ReactNode } from 'react';
+import { Badge, Box, Button, Text, Timeline } from '@mantine/core';
 import { IconClock, IconMail, IconMessage } from '@tabler/icons-react';
-import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatDateTime, humanize } from '@/lib/format';
 import { LoadError } from './application-data';
@@ -50,6 +49,7 @@ type Item = { key: string; at: string; icon: ReactNode; title: ReactNode; body: 
 
 export function ApplicationHistory({ id }: { id: string }) {
   const { query, emails, messages } = useApplicationExtras(id);
+  const [showAll, setShowAll] = useState(false);
   if (query.isError) return <LoadError error={query.error} onRetry={query.refetch} />;
   if (!query.data) return <LoadingBlock rows={3} />;
 
@@ -104,24 +104,41 @@ export function ApplicationHistory({ id }: { id: string }) {
 
   if (items.length === 0)
     return (
-      <EmptyState
-        icon={IconClock}
-        title="No recorded history yet"
-        description="Stage changes, notes, emails, messages and interview decisions appear here as they happen."
-      />
+      <div className="panel">
+        <div className="panel-head">
+          <h2 className="panel-title">Activity</h2>
+        </div>
+        <Text size="sm" c="dimmed" px={24} pb="lg">
+          Stage changes, emails, messages and decisions appear here as they happen.
+        </Text>
+      </div>
     );
+  const shown = showAll ? items : items.slice(0, 6);
   return (
-    <Paper withBorder radius="lg" p="xl">
-      <Timeline bulletSize={26} lineWidth={2}>
-        {items.map((item) => (
-          <Timeline.Item key={item.key} bullet={item.icon} title={item.title}>
-            {item.body}
-            <Text size="xs" mt={4}>
-              {formatDateTime(item.at)}
-            </Text>
-          </Timeline.Item>
-        ))}
-      </Timeline>
-    </Paper>
+    <div className="panel">
+      <div className="panel-head">
+        <h2 className="panel-title">Activity</h2>
+        <Text size="sm" c="dimmed" className="tnum">
+          {items.length} {items.length === 1 ? 'event' : 'events'}
+        </Text>
+      </div>
+      <Box px={24} pb="lg" pt={6}>
+        <Timeline bulletSize={24} lineWidth={1}>
+          {shown.map((item) => (
+            <Timeline.Item key={item.key} bullet={item.icon} title={item.title}>
+              {item.body}
+              <Text size="xs" mt={4}>
+                {formatDateTime(item.at)}
+              </Text>
+            </Timeline.Item>
+          ))}
+        </Timeline>
+        {items.length > shown.length && (
+          <Button variant="subtle" size="xs" mt="sm" onClick={() => setShowAll(true)}>
+            Show all {items.length} events
+          </Button>
+        )}
+      </Box>
+    </div>
   );
 }

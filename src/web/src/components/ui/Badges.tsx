@@ -1,7 +1,7 @@
 import { Badge, Box } from '@mantine/core';
 import { humanize } from '@/lib/format';
 
-const statusColors: Record<string, string> = {
+export const statusColors: Record<string, string> = {
   Open: 'teal',
   Active: 'teal',
   Accepted: 'teal',
@@ -34,6 +34,7 @@ export function StatusBadge({ status, size }: { status: string; size?: string })
     <Badge
       variant="default"
       size={size}
+      className="nowrap"
       leftSection={<Box className="status-dot" bg={`${color}.6`} />}
     >
       {humanize(status)}

@@ -11,12 +11,9 @@ import type { DashboardData } from '@/types';
 /** Feedback this person owes, newest-first would hide the oldest, so the longest overdue comes first. */
 export function ScorecardsDueCard({ items }: { items: DashboardData['scorecardsDue'] }) {
   return (
-    <SectionCard
-      title="Scorecards waiting on you"
-      description="Write it while it's fresh. Other people's feedback stays hidden until you submit yours."
-    >
+    <SectionCard title="Scorecards waiting on you">
       {items.length === 0 ? (
-        <Text c="dimmed" size="sm" p="lg">
+        <Text c="dimmed" size="sm" p={24}>
           You're all caught up. After an interview, the feedback you owe shows up here.
         </Text>
       ) : (
@@ -63,15 +60,12 @@ export function InterviewerHome({
 }) {
   return (
     <>
-      <PageHeader
-        title={`${greeting}, ${firstName}`}
-        description="Your interviews and the feedback you owe."
-      />
+      <PageHeader title={`${greeting}, ${firstName}`} />
       <Stack gap="xl">
         <ScorecardsDueCard items={data.scorecardsDue} />
-        <SectionCard title="Your upcoming interviews" description="Next seven days">
+        <SectionCard title="Your upcoming interviews">
           {data.upcomingInterviews.length === 0 ? (
-            <Text c="dimmed" size="sm" p="lg">
+            <Text c="dimmed" size="sm" p={24}>
               Nothing scheduled this week. When someone books you, it appears here with a link to
               prepare.
             </Text>

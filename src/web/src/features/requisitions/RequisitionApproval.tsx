@@ -65,14 +65,7 @@ export function RequisitionApproval({
     const waiting = approvals.filter((item) => item.decision === 'Pending');
     return (
       <Box mb="xl">
-        <SectionCard
-          title="Waiting for approval"
-          description={
-            waiting.length
-              ? `Still needed from ${waiting.map((item) => item.approverName).join(', ')}. The job opens as soon as everyone agrees.`
-              : 'Everyone has answered. The job should open shortly.'
-          }
-        >
+        <SectionCard title="Waiting for approval">
           <ApprovalTimeline approvals={approvals} />
           {mine && (
             <Group p="lg">
@@ -103,11 +96,7 @@ export function RequisitionApproval({
         </Alert>
       ))}
       {required && (
-        <SectionCard
-          title="This job needs approval before it opens"
-          description="Pick who signs off. Candidates cannot apply until they do."
-          padded
-        >
+        <SectionCard title="This job needs approval before it opens" padded>
           <ApproverPicker
             defaultApprovers={query.data.defaultApprovers}
             defaultSequential={query.data.sequential}

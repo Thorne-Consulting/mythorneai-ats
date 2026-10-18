@@ -1,7 +1,5 @@
 'use client';
 
-import { useEffect } from 'react';
-
 import {
   Alert,
   Anchor,
@@ -18,14 +16,11 @@ import {
   TextInput,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCircleCheck, IconCircleDashed, IconInfoCircle } from '@tabler/icons-react';
+import { IconInfoCircle } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { api } from '@/api';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { CustomFieldsSection } from './CustomFieldsSection';
-import { PipelineTemplatesSection } from './PipelineTemplatesSection';
-import { RolePermissionsSection } from './RolePermissionsSection';
 import { SettingsSection, useDraft } from './settings-shared';
 
 export interface Organization {
@@ -105,107 +100,46 @@ function useOrganization() {
   return { org: query.data, saveSection, saving: save.isPending };
 }
 
-const SECTIONS = [
-  { id: 'approvals', label: 'Approvals' },
-  { id: 'reminders', label: 'Reminders' },
-  { id: 'notifications', label: 'Team notifications' },
-  { id: 'portal-address', label: 'Candidate portal' },
-  { id: 'ai', label: 'AI' },
-  { id: 'email', label: 'Email' },
-  { id: 'pipelines', label: 'Pipelines' },
-  { id: 'candidate-fields', label: 'Candidate fields' },
-  { id: 'roles', label: 'Roles' },
-];
+export type OrganizationSection =
+  'approvals' | 'reminders' | 'notifications' | 'portal' | 'ai' | 'email';
 
-export function AdminSettings() {
+const SECTIONS = {
+  approvals: ApprovalsSection,
+  reminders: RemindersSection,
+  notifications: NotificationsSection,
+  portal: PortalAddressSection,
+  ai: AiSection,
+  email: EmailSection,
+};
+
+/** One organization-wide setting group, on its own settings page. */
+export function OrganizationSettings({ section }: { section: OrganizationSection }) {
   const { org, saveSection, saving } = useOrganization();
+  if (!org) return <LoadingBlock rows={4} />;
+  const Section = SECTIONS[section];
+  return <Section org={org} saveSection={saveSection} saving={saving} />;
+}
+
+function EmailSection(_: SectionProps) {
   const checklist = useQuery({
     queryKey: ['setup-checklist'],
     queryFn: () => api.get<ChecklistItem[]>('/api/admin/setup-checklist'),
   });
-  // Links from the checklist land on "#approvals" and the like, but the sections only exist once
-  // the organization has loaded, so the browser's own anchor scroll has already missed.
-  const loaded = Boolean(org);
-  useEffect(() => {
-    if (!loaded || !window.location.hash) return;
-    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' });
-  }, [loaded]);
-  if (!org) return <LoadingBlock rows={4} />;
   const emailItem = checklist.data?.find((item) => item.key === 'email');
-  const pending = (checklist.data ?? []).filter((item) => !item.done);
-
   return (
-    <Stack gap="lg">
-      <Group gap="xs" component="nav" aria-label="Settings sections">
-        {SECTIONS.map((section) => (
-          <Anchor key={section.id} href={`#${section.id}`} size="sm" className="section-pill">
-            {section.label}
-          </Anchor>
-        ))}
-      </Group>
-      {pending.length > 0 && checklist.data && (
-        <Paper withBorder radius="lg" p="lg">
-          <Text fw={650}>Get set up</Text>
-          <Text size="sm" c="dimmed" mb="sm">
-            {checklist.data.length - pending.length} of {checklist.data.length} done. Each of these
-            makes the tool work better for your team.
+    <SettingsSection id="email" title="Candidate email">
+      <Group gap="sm">
+        <Badge color={emailItem?.done ? 'teal' : 'red'} variant="light">
+          Candidate email is {emailItem?.done ? 'on' : 'off'}
+        </Badge>
+        {emailItem && !emailItem.done && (
+          <Text size="sm">
+            Candidates won’t receive anything until this is fixed. Add the Resend API key and sender
+            address to the server settings, then restart the API.
           </Text>
-          <Stack gap="xs">
-            {checklist.data.map((item) => (
-              <Group key={item.key} gap="sm" wrap="nowrap" align="flex-start">
-                {item.done ? (
-                  <IconCircleCheck size={18} color="var(--mantine-color-teal-6)" aria-hidden />
-                ) : (
-                  <IconCircleDashed size={18} color="var(--mantine-color-gray-6)" aria-hidden />
-                )}
-                <div>
-                  <Text size="sm" fw={600}>
-                    {item.done ? (
-                      item.title
-                    ) : (
-                      <Anchor component={Link} href={item.href} fw={600}>
-                        {item.title}
-                      </Anchor>
-                    )}
-                    <Text span size="xs" c="dimmed" ml={6}>
-                      {item.done ? 'Done' : 'To do'}
-                    </Text>
-                  </Text>
-                  <Text size="sm" c="dimmed">
-                    {item.detail}
-                  </Text>
-                </div>
-              </Group>
-            ))}
-          </Stack>
-        </Paper>
-      )}
-      <ApprovalsSection org={org} saveSection={saveSection} saving={saving} />
-      <RemindersSection org={org} saveSection={saveSection} saving={saving} />
-      <NotificationsSection org={org} saveSection={saveSection} saving={saving} />
-      <PortalAddressSection org={org} saveSection={saveSection} saving={saving} />
-      <AiSection org={org} saveSection={saveSection} saving={saving} />
-      <SettingsSection
-        id="email"
-        title="Candidate email"
-        description="Acceptance, status and interview emails to candidates go out through your email provider."
-      >
-        <Group gap="sm">
-          <Badge color={emailItem?.done ? 'teal' : 'red'} variant="light">
-            Candidate email is {emailItem?.done ? 'on' : 'off'}
-          </Badge>
-          {emailItem && !emailItem.done && (
-            <Text size="sm">
-              Candidates won’t receive anything until this is fixed. Add the Resend API key and
-              sender address to the server settings, then restart the API.
-            </Text>
-          )}
-        </Group>
-      </SettingsSection>
-      <PipelineTemplatesSection />
-      <CustomFieldsSection />
-      <RolePermissionsSection />
-    </Stack>
+        )}
+      </Group>
+    </SettingsSection>
   );
 }
 
@@ -238,7 +172,6 @@ function ApprovalsSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="approvals"
       title="Approvals"
-      description="Decide when a second person has to agree before something goes ahead."
       dirty={dirty}
       saving={saving}
       onSave={() => saveSection(draft, 'Approval settings saved')}
@@ -292,7 +225,6 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="reminders"
       title="Reminders"
-      description="Gentle nudges so nobody waits on a decision, a booking or feedback."
       dirty={dirty}
       saving={saving}
       onSave={() => saveSection(draft, 'Reminder settings saved')}
@@ -385,7 +317,6 @@ function PortalAddressSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="portal-address"
       title="Candidate portal address"
-      description="Candidate emails link to the portal at this address, where they follow their application, book interviews and message you."
       dirty={dirty && !invalid}
       saving={saving}
       onSave={() =>
@@ -423,7 +354,6 @@ function NotificationsSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="notifications"
       title="Team notifications"
-      description="Post hiring news into a Slack or Microsoft Teams channel."
       dirty={dirty && !invalid}
       saving={saving}
       onSave={() =>
@@ -476,7 +406,6 @@ function AiSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="ai"
       title="AI assistance"
-      description="Resume reading, fit scores and drafting help. People make every decision."
       dirty={dirty}
       saving={saving}
       onSave={() => saveSection(draft, 'AI settings saved')}

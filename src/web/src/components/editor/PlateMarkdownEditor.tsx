@@ -4,6 +4,13 @@ import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import type { Value } from 'platejs';
 import {
+  BlockquoteRules,
+  BoldRules,
+  HeadingRules,
+  ItalicRules,
+  UnderlineRules,
+} from '@platejs/basic-nodes';
+import {
   BlockquotePlugin,
   BoldPlugin,
   H1Plugin,
@@ -12,7 +19,14 @@ import {
   ItalicPlugin,
   UnderlinePlugin,
 } from '@platejs/basic-nodes/react';
-import { deserializeMd, serializeMd } from '@platejs/markdown';
+import { deserializeMd, MarkdownPlugin, serializeMd } from '@platejs/markdown';
+import {
+  TableCellHeaderPlugin,
+  TableCellPlugin,
+  TablePlugin,
+  TableRowPlugin,
+} from '@platejs/table/react';
+import remarkGfm from 'remark-gfm';
 import {
   Plate,
   PlateContent,
@@ -37,6 +51,18 @@ function Heading({ as, ...props }: PlateElementProps & { as: 'h1' | 'h2' | 'h3' 
   return <PlateElement as={as} {...props} />;
 }
 
+function TableElement({ children, ...props }: PlateElementProps) {
+  return (
+    <PlateElement as="table" className="doc-table" {...props}>
+      <tbody>{children}</tbody>
+    </PlateElement>
+  );
+}
+
+const TableRow = (props: PlateElementProps) => <PlateElement as="tr" {...props} />;
+const TableCell = (props: PlateElementProps) => <PlateElement as="td" {...props} />;
+const TableHeaderCell = (props: PlateElementProps) => <PlateElement as="th" {...props} />;
+
 function Quote(props: PlateElementProps) {
   return (
     <PlateElement
@@ -47,6 +73,10 @@ function Quote(props: PlateElementProps) {
   );
 }
 
+/**
+ * Markdown in, markdown out: a bordered field with a toolbar and markdown shortcuts as you type
+ * ("# ", "> ", "**bold**"). Long documents use the Plate UI DocumentEditor instead.
+ */
 export function PlateMarkdownEditor({
   value,
   onChange,
@@ -60,13 +90,26 @@ export function PlateMarkdownEditor({
 }) {
   const editor = usePlateEditor({
     plugins: [
-      BoldPlugin,
-      ItalicPlugin,
-      UnderlinePlugin,
-      H1Plugin.withComponent((props) => <Heading as="h1" {...props} />),
-      H2Plugin.withComponent((props) => <Heading as="h2" {...props} />),
-      H3Plugin.withComponent((props) => <Heading as="h3" {...props} />),
-      BlockquotePlugin.withComponent(Quote),
+      BoldPlugin.configure({ inputRules: [BoldRules.markdown({ variant: '*' })] }),
+      ItalicPlugin.configure({ inputRules: [ItalicRules.markdown({ variant: '_' })] }),
+      UnderlinePlugin.configure({ inputRules: [UnderlineRules.markdown()] }),
+      H1Plugin.withComponent((props) => <Heading as="h1" {...props} />).configure({
+        inputRules: [HeadingRules.markdown()],
+      }),
+      H2Plugin.withComponent((props) => <Heading as="h2" {...props} />).configure({
+        inputRules: [HeadingRules.markdown()],
+      }),
+      H3Plugin.withComponent((props) => <Heading as="h3" {...props} />).configure({
+        inputRules: [HeadingRules.markdown()],
+      }),
+      BlockquotePlugin.withComponent(Quote).configure({
+        inputRules: [BlockquoteRules.markdown()],
+      }),
+      TablePlugin.withComponent(TableElement),
+      TableRowPlugin.withComponent(TableRow),
+      TableCellPlugin.withComponent(TableCell),
+      TableCellHeaderPlugin.withComponent(TableHeaderCell),
+      MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
     ],
     value: (instance) => (value.trim() ? deserializeMd(instance, value) : emptyValue()),
   });
@@ -84,6 +127,8 @@ export function PlateMarkdownEditor({
       ] as const,
     [editor],
   );
+
+  const save = (nextValue: Value) => onChange(serializeMd(editor, { value: nextValue }));
 
   return (
     <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
@@ -109,10 +154,7 @@ export function PlateMarkdownEditor({
         </Group>
         {header}
       </Group>
-      <Plate
-        editor={editor}
-        onChange={({ value: nextValue }) => onChange(serializeMd(editor, { value: nextValue }))}
-      >
+      <Plate editor={editor} onChange={({ value: nextValue }) => save(nextValue)}>
         <PlateContent
           placeholder={placeholder}
           style={{ minHeight: 240, padding: '18px 20px', outline: 'none' }}

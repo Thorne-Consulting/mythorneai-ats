@@ -18,8 +18,8 @@ public sealed partial class ApiFlowTests
 {
     private async Task<Guid> JordanApplicationAsync(HttpClient client, CancellationToken ct)
     {
-        var candidates = await client.GetFromJsonAsync<JsonElement>("/api/candidates", ct);
-        var id = candidates.EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Jordan Lee").GetProperty("id").GetGuid();
+        var candidates = await client.GetFromJsonAsync<JsonElement>("/api/candidates?search=Jordan%20Lee", ct);
+        var id = candidates.GetProperty("items").EnumerateArray().Single(x => x.GetProperty("name").GetString() == "Jordan Lee").GetProperty("id").GetGuid();
         var candidate = await client.GetFromJsonAsync<JsonElement>($"/api/candidates/{id}", ct);
         return candidate.GetProperty("applications")[0].GetProperty("id").GetGuid();
     }
@@ -137,7 +137,9 @@ public sealed partial class ApiFlowTests
         foreach (var report in catalog.EnumerateArray())
         {
             var key = report.GetProperty("key").GetString();
-            (await recruiter.GetAsync($"/api/reports/{key}", ct)).StatusCode.ShouldBe(HttpStatusCode.OK, key);
+            var body = await recruiter.GetFromJsonAsync<JsonElement>($"/api/reports/{key}", ct);
+            body.GetProperty("stats").GetArrayLength().ShouldBeGreaterThan(0, key);
+            body.GetProperty("charts").GetArrayLength().ShouldBeGreaterThan(0, key);
             var csv = await recruiter.GetAsync($"/api/reports/{key}?format=csv", ct);
             csv.StatusCode.ShouldBe(HttpStatusCode.OK, key);
             csv.Content.Headers.ContentType!.MediaType.ShouldBe("text/csv");

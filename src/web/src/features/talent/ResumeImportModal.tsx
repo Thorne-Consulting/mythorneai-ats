@@ -199,13 +199,13 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
               {(preview.education.length > 0 || preview.certifications.length > 0) && (
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
                   <div>
-                    <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={6}>
+                    <Text size="sm" fw={650} c="dimmed" mb={6}>
                       Education found
                     </Text>
                     <Text size="sm">{preview.education.join(' · ') || 'Not found'}</Text>
                   </div>
                   <div>
-                    <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={6}>
+                    <Text size="sm" fw={650} c="dimmed" mb={6}>
                       Certifications found
                     </Text>
                     <Text size="sm">{preview.certifications.join(' · ') || 'Not found'}</Text>

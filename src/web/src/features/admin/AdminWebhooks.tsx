@@ -148,7 +148,6 @@ export function AdminWebhooks() {
         <EmptyState
           icon={IconWebhook}
           title="No webhooks yet"
-          description="Add the address of your payroll or HR system and choose what to send, like “Someone is hired”."
           actionLabel="Add webhook"
           onAction={() => open({ url: '', events: [], isActive: true })}
         />

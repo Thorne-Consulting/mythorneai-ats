@@ -59,10 +59,8 @@ const theme = createTheme({
       defaultProps: { verticalSpacing: 'md', horizontalSpacing: 'lg', highlightOnHover: true },
       styles: {
         th: {
-          fontSize: 'var(--mantine-font-size-xs)',
-          fontWeight: 600,
-          letterSpacing: '0.03em',
-          textTransform: 'uppercase',
+          fontSize: 'var(--mantine-font-size-sm)',
+          fontWeight: 650,
           color: 'var(--mantine-color-dimmed)',
         },
         td: { fontVariantNumeric: 'tabular-nums' },

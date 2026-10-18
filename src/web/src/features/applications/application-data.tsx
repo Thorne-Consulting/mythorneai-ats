@@ -11,7 +11,6 @@ export function OfflineNotice({ onRetry }: { onRetry: () => void }) {
     <EmptyState
       icon={IconWifiOff}
       title="You appear to be offline"
-      description="This page could not reach the server. It will load once the connection is back."
       actionLabel="Try again"
       onAction={onRetry}
     />
@@ -26,11 +25,6 @@ export function LoadError({ error, onRetry }: { error: unknown; onRetry: () => v
       icon={IconAlertTriangle}
       title={
         missing ? 'This application is no longer available' : 'Could not load this application'
-      }
-      description={
-        missing
-          ? 'It may have been withdrawn, or the link you followed is out of date. Ask the recruiter for a current link.'
-          : 'The server did not return this record. This is usually temporary.'
       }
       actionLabel="Try again"
       onAction={onRetry}

@@ -11,7 +11,6 @@ public static partial class SeedData
         IHostEnvironment environment,
         IConfiguration configuration,
         LocalFileStore files,
-        ResumeParser parser,
         CancellationToken cancellationToken = default
     )
     {
@@ -63,7 +62,7 @@ public static partial class SeedData
             db.ChangeTracker.Clear();
         }
 
-        await EnsureDevelopmentResumesAsync(db, files, parser, cancellationToken);
+        await EnsureDevelopmentResumesAsync(db, files, cancellationToken);
     }
 
     private static readonly string[] StageColors =

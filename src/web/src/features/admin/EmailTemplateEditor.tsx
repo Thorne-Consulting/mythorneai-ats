@@ -56,14 +56,7 @@ export function EmailTemplateEditor({ requisitionId }: { requisitionId?: string 
       ),
   });
   if (!templates.data) return <LoadingBlock rows={4} />;
-  if (templates.data.length === 0)
-    return (
-      <EmptyState
-        icon={IconMail}
-        title="No emails to edit"
-        description="Emails to candidates and your team will appear here once they exist."
-      />
-    );
+  if (templates.data.length === 0) return <EmptyState icon={IconMail} title="No emails to edit" />;
   const current = templates.data.find((x) => x.key === selected) ?? templates.data[0];
 
   return (
@@ -73,7 +66,6 @@ export function EmailTemplateEditor({ requisitionId }: { requisitionId?: string 
           <NavLink
             key={template.key}
             label={template.label}
-            description={template.source === 'default' ? undefined : SOURCE_LABEL[template.source]}
             active={template.key === current.key}
             aria-current={template.key === current.key ? 'true' : undefined}
             onClick={() => setSelected(template.key)}

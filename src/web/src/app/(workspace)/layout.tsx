@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { AuthProvider } from '@/auth';
 import { AppFrame } from '@/components/layout/AppFrame';
 import { LoginPage } from '@/features/auth/LoginPage';
@@ -13,9 +14,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     return <LoginPage unavailable />;
   }
 
+  const navCollapsed = (await cookies()).get('ats-nav-collapsed')?.value === '1';
   return (
     <AuthProvider user={user}>
-      <AppFrame>{children}</AppFrame>
+      <AppFrame navCollapsed={navCollapsed}>{children}</AppFrame>
     </AuthProvider>
   );
 }

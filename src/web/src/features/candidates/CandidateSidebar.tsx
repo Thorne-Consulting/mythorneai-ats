@@ -35,6 +35,7 @@ import type { CandidateDetail } from '@/types';
 import { CandidateCustomFields, type CandidateExtras } from './CandidateCustomFields';
 import { PotentialDuplicates } from './PotentialDuplicates';
 import { ResumeProfileReviewModal } from './ResumeProfileReviewModal';
+import { safeWebUrl } from '@/lib/safe-url';
 
 export function CandidateSidebar({
   candidate,
@@ -85,9 +86,14 @@ export function CandidateSidebar({
             <Contact icon={IconMapPin}>
               <Text size="sm">{candidate.location ?? 'Not provided'}</Text>
             </Contact>
-            {candidate.linkedInUrl && (
+            {safeWebUrl(candidate.linkedInUrl) && (
               <Contact icon={IconExternalLink}>
-                <Anchor href={candidate.linkedInUrl} target="_blank" size="sm">
+                <Anchor
+                  href={safeWebUrl(candidate.linkedInUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="sm"
+                >
                   LinkedIn profile
                 </Anchor>
               </Contact>
@@ -212,7 +218,7 @@ export function CandidateSidebar({
               )}
               {candidate.resumeSkills.length > 0 && (
                 <div>
-                  <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={7}>
+                  <Text size="sm" fw={650} c="dimmed" mb={7}>
                     Skills
                   </Text>
                   <Group gap={5}>
@@ -226,7 +232,7 @@ export function CandidateSidebar({
               )}
               {candidate.resumeEducation.length > 0 && (
                 <div>
-                  <Text size="xs" fw={650} tt="uppercase" c="dimmed" mb={5}>
+                  <Text size="sm" fw={650} c="dimmed" mb={5}>
                     Education
                   </Text>
                   <Stack gap={4}>

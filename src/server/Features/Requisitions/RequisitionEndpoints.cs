@@ -236,6 +236,150 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
 
+        api.MapPut(
+                "/requisitions/{id:guid}/interview-kits/{kitId:guid}",
+                async (
+                    Guid id,
+                    Guid kitId,
+                    UpdateInterviewKitRequest request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    var requestedCriteria = request.Criteria ?? [];
+                    var criterionNames = requestedCriteria
+                        .Select(x => x.Name?.Trim() ?? "")
+                        .Where(x => x.Length > 0)
+                        .ToArray();
+                    if (
+                        string.IsNullOrWhiteSpace(request.Name)
+                        || request.DurationMinutes is < 15 or > 480
+                        || criterionNames.Length == 0
+                        || requestedCriteria.Any(x =>
+                            string.IsNullOrWhiteSpace(x.Name)
+                            || string.IsNullOrWhiteSpace(x.Question)
+                            || x.Weight is < 1 or > 5
+                        )
+                        || criterionNames.Distinct(StringComparer.OrdinalIgnoreCase).Count()
+                            != criterionNames.Length
+                    )
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["interviewKit"] =
+                                [
+                                    "A name, a 15–480 minute duration, and unique criteria with a question and 1–5 weight are required.",
+                                ],
+                            }
+                        );
+
+                    var requisition = await db.Requisitions.SingleOrDefaultAsync(
+                        x => x.Id == id,
+                        ct
+                    );
+                    if (requisition is null || !CanManage(requisition, principal))
+                        return Results.NotFound();
+                    var kit = await db
+                        .InterviewKits.Include(x => x.Criteria)
+                        .SingleOrDefaultAsync(x => x.Id == kitId && x.RequisitionId == id, ct);
+                    if (kit is null)
+                        return Results.NotFound();
+
+                    var existingIds = kit.Criteria.Select(x => x.Id).ToHashSet();
+                    var keptIds = requestedCriteria
+                        .Where(x => x.Id is not null)
+                        .Select(x => x.Id!.Value)
+                        .ToHashSet();
+                    if (keptIds.Any(x => !existingIds.Contains(x)))
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["interviewKit"] = ["A criterion does not belong to this kit."],
+                            }
+                        );
+
+                    // A competency that interviewers have already scored cannot be removed
+                    // without losing those scores, so keep it or leave it as is.
+                    var removed = kit.Criteria.Where(x => !keptIds.Contains(x.Id)).ToList();
+                    var removedIds = removed.Select(x => x.Id).ToArray();
+                    var scored = await db
+                        .ScorecardCriterionRatings.Where(x =>
+                            removedIds.Contains(x.InterviewCriterionId)
+                        )
+                        .Select(x => x.InterviewCriterionId)
+                        .Distinct()
+                        .ToListAsync(ct);
+                    if (scored.Count > 0)
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "A competency that already has scores can't be removed: "
+                                    + string.Join(
+                                        ", ",
+                                        removed.Where(x => scored.Contains(x.Id)).Select(x => x.Name)
+                                    )
+                                    + ".",
+                            }
+                        );
+
+                    await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                    kit.Name = request.Name.Trim();
+                    kit.Instructions = request.Instructions?.Trim() ?? "";
+                    if (request.CandidateMessage?.Trim() is { Length: > 0 } candidateMessage)
+                        kit.CandidateMessage = candidateMessage;
+                    if (request.InterviewerMessage?.Trim() is { Length: > 0 } interviewerMessage)
+                        kit.InterviewerMessage = interviewerMessage;
+                    kit.DurationMinutes = request.DurationMinutes;
+
+                    db.InterviewCriteria.RemoveRange(removed);
+                    // (KitId, SortOrder) is unique, so park the survivors out of the way first.
+                    foreach (var criterion in kit.Criteria.Where(x => keptIds.Contains(x.Id)))
+                        criterion.SortOrder += 1000;
+                    await db.SaveChangesAsync(ct);
+
+                    for (var index = 0; index < requestedCriteria.Length; index++)
+                    {
+                        var item = requestedCriteria[index];
+                        var criterion = item.Id is { } criterionId
+                            ? kit.Criteria.Single(x => x.Id == criterionId)
+                            : null;
+                        if (criterion is null)
+                        {
+                            criterion = new InterviewCriterion
+                            {
+                                InterviewKitId = kit.Id,
+                                Name = item.Name.Trim(),
+                                Question = item.Question.Trim(),
+                            };
+                            db.InterviewCriteria.Add(criterion);
+                        }
+                        criterion.Name = item.Name.Trim();
+                        criterion.Question = item.Question.Trim();
+                        criterion.Description = item.Description?.Trim() ?? "";
+                        criterion.Weight = item.Weight;
+                        criterion.SortOrder = index;
+                    }
+                    Audit.Add(
+                        db,
+                        principal,
+                        "Requisition",
+                        id,
+                        "InterviewKitUpdated",
+                        new
+                        {
+                            kit.Id,
+                            kit.Name,
+                            Criteria = requestedCriteria.Length,
+                        }
+                    );
+                    await db.SaveChangesAsync(ct);
+                    await transaction.CommitAsync(ct);
+                    return Results.NoContent();
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageHiring);
+
         api.MapPost(
                 "/requisitions",
                 async (
@@ -460,6 +604,15 @@ public static partial class AtsEndpoints
                                         a.Source,
                                         a.Rating,
                                         a.LastActivityAt,
+                                        a.AppliedAt,
+                                        YearsExperience = a.Candidate.ResumeYearsExperience,
+                                        Skills = a.Candidate.ResumeSkills,
+                                        NextInterviewAt = a
+                                            .Interviews.Where(i =>
+                                                i.Status == InterviewStatus.Scheduled
+                                                && i.StartsAt > DateTimeOffset.UtcNow
+                                            )
+                                            .Min(i => (DateTimeOffset?)i.StartsAt),
                                     }),
                             }),
                     })

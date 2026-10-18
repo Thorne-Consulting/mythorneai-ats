@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -14,56 +15,243 @@ public static partial class AtsEndpoints
 {
     private static void MapCandidates(RouteGroupBuilder api)
     {
+        // Everyone you can see, one row per person, with the applications you can see on each. Filters
+        // cover the person (search, skills, title, location, source, experience, resume) and their
+        // applications (job, stage, status, rating); application filters must all hold on one application.
         api.MapGet(
             "/candidates",
-            async (
-                string? search,
-                ClaimsPrincipal principal,
-                AtsDbContext db,
-                CancellationToken ct
-            ) =>
+            async (HttpRequest request, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
             {
-                var allowedCandidateIds = ScopeApplications(
-                        db.Applications.AsNoTracking(),
-                        principal
-                    )
-                    .Select(x => x.CandidateId);
-                var canSeeAllCandidates = principal.IsHiringStaff();
-                var query = db
-                    .Candidates.AsNoTracking()
-                    .Where(x => canSeeAllCandidates || allowedCandidateIds.Contains(x.Id));
-                if (!string.IsNullOrWhiteSpace(search))
+                var query = request.Query;
+                var search = query["search"].ToString().Trim();
+                var skills = query["skills"].ToString()
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(value => value.ToLowerInvariant())
+                    .Distinct()
+                    .ToArray();
+                var allSkills = query["skillMode"].ToString() == "all";
+                var title = query["title"].ToString().Trim();
+                var location = query["location"].ToString().Trim();
+                var source = query["source"].ToString().Trim();
+                var hasResume = bool.TryParse(query["hasResume"], out var resumeValue) ? resumeValue : (bool?)null;
+                var includeDnc = bool.TryParse(query["includeDnc"], out var dncValue) && dncValue;
+                var minYears = decimal.TryParse(query["minYears"], NumberStyles.Number, CultureInfo.InvariantCulture, out var years)
+                    ? years
+                    : (decimal?)null;
+                var requisitionId = Guid.TryParse(query["requisitionId"], out var jobValue) ? jobValue : (Guid?)null;
+                var stageId = Guid.TryParse(query["stageId"], out var stageValue) ? stageValue : (Guid?)null;
+                var status = Enum.TryParse<ApplicationStatus>(query["status"], true, out var statusValue)
+                    ? statusValue
+                    : (ApplicationStatus?)null;
+                var minRating = int.TryParse(query["minRating"], out var ratingValue) ? ratingValue : (int?)null;
+                var sort = query["sort"].ToString();
+                var page = int.TryParse(query["page"], out var pageValue) ? Math.Max(pageValue, 1) : 1;
+                var pageSize = int.TryParse(query["pageSize"], out var sizeValue) ? Math.Clamp(sizeValue, 10, 100) : 25;
+
+                var scopedApplications = ScopeApplications(db.Applications.AsNoTracking(), principal);
+                var canSeeEveryone = principal.IsHiringStaff();
+                var candidates = db.Candidates.AsNoTracking()
+                    .Where(candidate =>
+                        canSeeEveryone || scopedApplications.Select(x => x.CandidateId).Contains(candidate.Id)
+                    );
+
+                if (requisitionId is not null || stageId is not null || status is not null || minRating is not null)
                 {
-                    var term = search.Trim().ToLower();
-                    query = query.Where(x =>
-                        x.FirstName.ToLower().Contains(term)
-                        || x.LastName.ToLower().Contains(term)
-                        || x.Email.ToLower().Contains(term)
-                        || (x.CurrentTitle != null && x.CurrentTitle.ToLower().Contains(term))
+                    var matching = scopedApplications;
+                    if (requisitionId is not null)
+                        matching = matching.Where(x => x.RequisitionId == requisitionId);
+                    if (stageId is not null)
+                        matching = matching.Where(x => x.PipelineStageId == stageId);
+                    if (status is not null)
+                        matching = matching.Where(x => x.Status == status);
+                    if (minRating is not null)
+                        matching = matching.Where(x => x.Rating >= minRating);
+                    var matchingIds = matching.Select(x => x.CandidateId);
+                    candidates = candidates.Where(candidate => matchingIds.Contains(candidate.Id));
+                }
+                if (!includeDnc)
+                    candidates = candidates.Where(candidate => !candidate.DoNotContact);
+                if (location.Length > 0)
+                    candidates = candidates.Where(candidate =>
+                        candidate.Location != null && EF.Functions.ILike(candidate.Location, $"%{location}%")
+                    );
+                if (title.Length > 0)
+                    candidates = candidates.Where(candidate =>
+                        (candidate.CurrentTitle != null && EF.Functions.ILike(candidate.CurrentTitle, $"%{title}%"))
+                        || candidate.ResumeJobTitles.Any(value => EF.Functions.ILike(value, $"%{title}%"))
+                    );
+                if (source.Length > 0)
+                    candidates = candidates.Where(candidate => candidate.Source == source);
+                if (hasResume is not null)
+                    candidates = hasResume.Value
+                        ? candidates.Where(candidate => candidate.ResumeParsedAt != null)
+                        : candidates.Where(candidate => candidate.ResumeParsedAt == null);
+                if (minYears is not null)
+                    candidates = candidates.Where(candidate => candidate.ResumeYearsExperience >= minYears.Value);
+                if (skills.Length > 0)
+                {
+                    if (allSkills)
+                        foreach (var skill in skills)
+                            candidates = candidates.Where(candidate =>
+                                candidate.Tags.Contains(skill) || candidate.ResumeSkills.Contains(skill)
+                            );
+                    else
+                        candidates = candidates.Where(candidate =>
+                            candidate.Tags.Any(value => skills.Contains(value))
+                            || candidate.ResumeSkills.Any(value => skills.Contains(value))
+                        );
+                }
+                // Every word must match the resume text or one of the person's fields.
+                var terms = SearchTerms(search);
+                var textQuery = string.Join(' ', terms);
+                foreach (var term in terms)
+                {
+                    var pattern = $"%{term}%";
+                    candidates = candidates.Where(candidate =>
+                        (candidate.ResumeText != null
+                            && EF.Functions.ToTsVector("simple", candidate.ResumeText)
+                                .Matches(EF.Functions.PlainToTsQuery("simple", textQuery)))
+                        || EF.Functions.ILike(candidate.FirstName, pattern)
+                        || EF.Functions.ILike(candidate.LastName, pattern)
+                        || EF.Functions.ILike(candidate.Email, pattern)
+                        || (candidate.CurrentTitle != null && EF.Functions.ILike(candidate.CurrentTitle, pattern))
+                        || (candidate.Location != null && EF.Functions.ILike(candidate.Location, pattern))
+                        || candidate.Tags.Any(value => EF.Functions.ILike(value, pattern))
+                        || candidate.ResumeSkills.Any(value => EF.Functions.ILike(value, pattern))
                     );
                 }
 
-                return Results.Ok(
-                    await query
-                        .OrderByDescending(x => x.UpdatedAt)
-                        .Select(x => new
-                        {
-                            x.Id,
-                            Name = x.FirstName + " " + x.LastName,
-                            x.Email,
-                            x.Phone,
-                            x.Location,
-                            x.CurrentTitle,
-                            x.Source,
-                            x.Tags,
-                            x.DoNotContact,
-                            ActiveApplications = x.Applications.Count(a =>
-                                a.Status == ApplicationStatus.Active
-                            ),
-                            x.UpdatedAt,
-                        })
-                        .ToListAsync(ct)
-                );
+                var total = await candidates.CountAsync(ct);
+                var ordered = sort switch
+                {
+                    "name" => candidates.OrderBy(x => x.LastName).ThenBy(x => x.FirstName),
+                    "experience" => candidates.OrderByDescending(x => x.ResumeYearsExperience ?? 0),
+                    "rating" => candidates
+                        .OrderByDescending(x => scopedApplications
+                            .Where(a => a.CandidateId == x.Id)
+                            .Max(a => a.Rating) ?? 0)
+                        .ThenByDescending(x => x.UpdatedAt),
+                    _ when terms.Length > 0 => candidates
+                        .OrderByDescending(x => x.ResumeText == null
+                            ? 0f
+                            : EF.Functions.ToTsVector("simple", x.ResumeText)
+                                .Rank(EF.Functions.PlainToTsQuery("simple", textQuery)))
+                        .ThenByDescending(x => x.UpdatedAt),
+                    // Most recent activity first: the latest application movement, or the record itself.
+                    _ => candidates.OrderByDescending(x =>
+                        scopedApplications
+                            .Where(a => a.CandidateId == x.Id)
+                            .Max(a => (DateTimeOffset?)a.LastActivityAt) ?? x.UpdatedAt
+                    ),
+                };
+                var people = await ordered
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(x => new
+                    {
+                        x.Id,
+                        Name = x.FirstName + " " + x.LastName,
+                        x.Email,
+                        x.Location,
+                        x.CurrentTitle,
+                        x.Source,
+                        x.Tags,
+                        x.ResumeSkills,
+                        x.ResumeYearsExperience,
+                        x.ResumeParsedAt,
+                        x.DoNotContact,
+                        x.UpdatedAt,
+                    })
+                    .ToListAsync(ct);
+
+                var ids = people.Select(x => x.Id).ToArray();
+                var staleDays = await db.Organizations.Select(x => (int?)x.StaleReminderDays).SingleOrDefaultAsync(ct) ?? 3;
+                var staleCutoff = DateTimeOffset.UtcNow.AddDays(-Math.Clamp(staleDays, 1, 30));
+                var applications = await scopedApplications
+                    .Where(x => ids.Contains(x.CandidateId))
+                    .OrderByDescending(x => x.LastActivityAt)
+                    .Select(x => new
+                    {
+                        x.CandidateId,
+                        x.Id,
+                        x.RequisitionId,
+                        RequisitionCode = x.Requisition!.Code,
+                        RequisitionTitle = x.Requisition.Title,
+                        StageId = x.PipelineStageId,
+                        Stage = x.PipelineStage!.Name,
+                        Status = x.Status.ToString(),
+                        x.Rating,
+                        x.AppliedAt,
+                        x.LastActivityAt,
+                        // What needs a recruiter's eye: unread candidate messages, and no movement for a while.
+                        UnreadMessages = x.Messages.Count(m => m.FromCandidate && m.ReadAt == null),
+                        Stalled = x.Status == ApplicationStatus.Active
+                            && !x.PipelineStage.IsTerminal
+                            && x.LastActivityAt < staleCutoff,
+                        FitScore = db.JobFits
+                            .Where(f => f.RequisitionId == x.RequisitionId && f.CandidateId == x.CandidateId)
+                            .Select(f => (int?)f.Score)
+                            .FirstOrDefault(),
+                    })
+                    .ToListAsync(ct);
+                var applicationsByPerson = applications.ToLookup(x => x.CandidateId);
+                var canSeeContact =
+                    canSeeEveryone || principal.IsInRole(nameof(UserRole.HiringManager));
+
+                var items = people.Select(x =>
+                {
+                    var personSkills = x.Tags
+                        .Concat(x.ResumeSkills)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .Order(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+                    return new
+                    {
+                        x.Id,
+                        x.Name,
+                        Email = canSeeContact ? x.Email : "Restricted",
+                        x.Location,
+                        x.CurrentTitle,
+                        x.Source,
+                        Skills = personSkills.Take(10).ToArray(),
+                        ExperienceYears = x.ResumeYearsExperience,
+                        HasParsedResume = x.ResumeParsedAt != null,
+                        x.DoNotContact,
+                        x.UpdatedAt,
+                        MatchedTerms = skills
+                            .Where(skill => personSkills.Contains(skill, StringComparer.OrdinalIgnoreCase))
+                            .Concat(terms.Where(term =>
+                                personSkills.Any(value => value.Contains(term, StringComparison.OrdinalIgnoreCase))))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToArray(),
+                        Applications = applicationsByPerson[x.Id]
+                            .Select(a => new
+                            {
+                                a.Id,
+                                a.RequisitionId,
+                                a.RequisitionCode,
+                                a.RequisitionTitle,
+                                a.StageId,
+                                a.Stage,
+                                a.Status,
+                                a.Rating,
+                                a.AppliedAt,
+                                a.LastActivityAt,
+                                a.UnreadMessages,
+                                a.Stalled,
+                                a.FitScore,
+                            })
+                            .ToArray(),
+                    };
+                });
+                return Results.Ok(new
+                {
+                    Items = items,
+                    Total = total,
+                    Page = page,
+                    PageSize = pageSize,
+                    StaleDays = staleDays,
+                });
             }
         );
 

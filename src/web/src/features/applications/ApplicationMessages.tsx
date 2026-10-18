@@ -6,9 +6,10 @@ import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
 import { SectionCard } from '@/components/ui/Cards';
+import { useCurrentUser } from '@/auth';
 import { formatDateTime } from '@/lib/format';
 import { useApplicationExtras } from './application-extras';
-import { useInvalidateApplication } from './application-data';
+import { canManageRole, useInvalidateApplication } from './application-data';
 
 /** Thread between the hiring team and the candidate. Separate from private review notes. */
 export function ApplicationMessages({ id, canManage }: { id: string; canManage: boolean }) {
@@ -49,7 +50,6 @@ export function ApplicationMessages({ id, canManage }: { id: string; canManage: 
   return (
     <SectionCard
       title="Messages with the candidate"
-      description="The candidate sees these in their portal. Review notes stay private to the team."
       action={
         unread > 0 && (
           <Badge color="blue" variant="filled">
@@ -107,4 +107,9 @@ export function ApplicationMessages({ id, canManage }: { id: string; canManage: 
       )}
     </SectionCard>
   );
+}
+
+export function ApplicationMessagesTab({ id }: { id: string }) {
+  const user = useCurrentUser();
+  return <ApplicationMessages id={id} canManage={canManageRole(user.role)} />;
 }

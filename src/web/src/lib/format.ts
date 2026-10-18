@@ -1,5 +1,7 @@
+/** Enum values to sentence case: `PendingApproval` reads as "Pending approval". */
 export function humanize(value: string) {
-  return value.replace(/([a-z])([A-Z])/g, '$1 $2');
+  const spaced = value.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 export function formatDate(value?: string) {

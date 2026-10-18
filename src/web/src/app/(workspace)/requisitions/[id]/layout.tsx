@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { RequisitionShell } from '@/features/requisitions/RequisitionShell';
 import { ServerApiError, serverApiGet } from '@/lib/server-api';
-import type { BoardData, RequisitionDetail } from '@/types';
+import type { RequisitionDetail } from '@/types';
 
 export default async function Layout({
   children,
@@ -12,12 +12,9 @@ export default async function Layout({
 }) {
   const { id } = await params;
   try {
-    const [data, board] = await Promise.all([
-      serverApiGet<RequisitionDetail>(`/api/requisitions/${id}`),
-      serverApiGet<BoardData>(`/api/requisitions/${id}/board`),
-    ]);
+    const data = await serverApiGet<RequisitionDetail>(`/api/requisitions/${id}`);
     return (
-      <RequisitionShell id={id} initialData={data} initialBoard={board}>
+      <RequisitionShell id={id} initialData={data}>
         {children}
       </RequisitionShell>
     );

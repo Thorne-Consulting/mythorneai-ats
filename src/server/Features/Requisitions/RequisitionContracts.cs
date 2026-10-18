@@ -56,3 +56,21 @@ public sealed record InterviewCriterionRequest(
     string Description,
     int Weight
 );
+
+/// <summary>Replaces a kit's content. A criterion with an Id keeps its scorecard history.</summary>
+public sealed record UpdateInterviewKitRequest(
+    string Name,
+    string Instructions,
+    int DurationMinutes,
+    InterviewCriterionUpdate[]? Criteria,
+    string? CandidateMessage = null,
+    string? InterviewerMessage = null
+);
+
+public sealed record InterviewCriterionUpdate(
+    Guid? Id,
+    string Name,
+    string Question,
+    string Description,
+    int Weight
+);

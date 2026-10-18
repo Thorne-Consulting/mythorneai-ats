@@ -127,9 +127,8 @@ await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
     var files = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
-    var parser = scope.ServiceProvider.GetRequiredService<ResumeParser>();
     await db.Database.MigrateAsync();
-    await SeedData.InitializeAsync(db, app.Environment, app.Configuration, files, parser);
+    await SeedData.InitializeAsync(db, app.Environment, app.Configuration, files);
 }
 
 await app.RunAsync();
