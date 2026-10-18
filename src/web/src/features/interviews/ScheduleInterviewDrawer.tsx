@@ -6,7 +6,7 @@ import { DateTimePicker } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import type { ApplicantPage, ApplicationDetailResponse } from '@/types';
+import type { ApplicationDetailResponse, CandidateListPage } from '@/types';
 
 type Props = { opened: boolean; onClose: () => void; selectedDate: Date };
 
@@ -38,7 +38,7 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
   const candidates = useQuery({
     queryKey: ['schedule-candidates'],
     queryFn: () =>
-      api.get<ApplicantPage>('/api/applications?page=1&pageSize=100&sort=name&status=Active'),
+      api.get<CandidateListPage>('/api/candidates?page=1&pageSize=100&sort=name&status=Active'),
     enabled: opened,
   });
   const application = useQuery({
@@ -127,10 +127,12 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
             setApplicationId(value);
             setKitId(null);
           }}
-          data={(candidates.data?.items ?? []).map((item) => ({
-            value: item.id,
-            label: `${item.candidateName} · ${item.requisitionTitle}`,
-          }))}
+          // Each active application is its own choice: a person in two jobs appears twice.
+          data={(candidates.data?.items ?? []).flatMap((person) =>
+            person.applications
+              .filter((app) => app.status === 'Active')
+              .map((app) => ({ value: app.id, label: `${person.name} · ${app.requisitionTitle}` })),
+          )}
           nothingFoundMessage="No active candidates found"
         />
         {selectedApplication && (

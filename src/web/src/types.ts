@@ -128,20 +128,6 @@ export interface InterviewKit {
   criteria: InterviewCriterion[];
 }
 
-export interface CandidateSummary {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  location?: string;
-  currentTitle?: string;
-  source: string;
-  tags: string[];
-  doNotContact: boolean;
-  activeApplications: number;
-  updatedAt: string;
-}
-
 export interface CandidateDetail {
   id: string;
   firstName: string;
@@ -206,28 +192,6 @@ export interface ResumeParsePreview {
   warnings: string[];
 }
 
-export interface TalentSearchPage {
-  items: Array<{
-    candidateId: string;
-    name: string;
-    email: string;
-    location?: string;
-    currentTitle?: string;
-    source: string;
-    skills: string[];
-    experienceYears?: number | null;
-    hasParsedResume: boolean;
-    doNotContact: boolean;
-    updatedAt: string;
-    activeApplications: number;
-    matchScore?: number;
-    matchedTerms: string[];
-  }>;
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
 export interface BoardData {
   id: string;
   code: string;
@@ -250,38 +214,6 @@ export interface BoardData {
       }>;
     }
   >;
-}
-
-export interface ApplicantPage {
-  items: Array<{
-    id: string;
-    candidateId: string;
-    candidateName: string;
-    email: string;
-    location?: string;
-    currentTitle?: string;
-    tags: string[];
-    hasResume: boolean;
-    resumeCount: number;
-    requisitionId: string;
-    requisitionCode: string;
-    requisitionTitle: string;
-    team: string;
-    stageId: string;
-    stage: string;
-    status: string;
-    source: string;
-    rating?: number;
-    appliedAt: string;
-    lastActivityAt: string;
-    unreadMessages: number;
-    stalled: boolean;
-    fitScore?: number | null;
-  }>;
-  total: number;
-  page: number;
-  pageSize: number;
-  staleDays: number;
 }
 
 export interface ApplicationDetailResponse {
@@ -376,4 +308,45 @@ export interface ApplicationDetailResponse {
 export interface AdminUser extends User {
   isActive: boolean;
   updatedAt: string;
+}
+
+/** GET /api/candidates: one row per person, with the applications you can see on each. */
+export interface CandidateListPage {
+  items: CandidateListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+  staleDays: number;
+}
+
+export interface CandidateListItem {
+  id: string;
+  name: string;
+  email: string;
+  location?: string;
+  currentTitle?: string;
+  source: string;
+  skills: string[];
+  experienceYears?: number | null;
+  hasParsedResume: boolean;
+  doNotContact: boolean;
+  updatedAt: string;
+  matchedTerms: string[];
+  applications: CandidateListApplication[];
+}
+
+export interface CandidateListApplication {
+  id: string;
+  requisitionId: string;
+  requisitionCode: string;
+  requisitionTitle: string;
+  stageId: string;
+  stage: string;
+  status: string;
+  rating?: number | null;
+  appliedAt: string;
+  lastActivityAt: string;
+  unreadMessages: number;
+  stalled: boolean;
+  fitScore?: number | null;
 }

@@ -99,7 +99,7 @@ export function RequisitionPipeline({ id, initialData }: { id: string; initialDa
             {canManage && totalActive > 0 && ' · drag a card to move it'}
           </Text>
           {canManage && (
-            <Anchor component={Link} href={`/candidates/find?job=${id}`} size="sm">
+            <Anchor component={Link} href={`/candidates?job=${id}`} size="sm">
               Find candidates
             </Anchor>
           )}
