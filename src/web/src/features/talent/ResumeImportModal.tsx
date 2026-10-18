@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import {
-  Alert,
   Badge,
   Button,
   FileInput,
@@ -11,14 +10,12 @@ import {
   Paper,
   SimpleGrid,
   Stack,
-  TagsInput,
   Text,
-  Textarea,
   TextInput,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
-import { IconAlertCircle, IconFileText, IconSparkles, IconUpload } from '@tabler/icons-react';
+import { IconFileText, IconSparkles, IconUpload } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
@@ -28,28 +25,18 @@ interface ImportForm {
   firstName: string;
   lastName: string;
   email: string;
-  phone: string;
-  location: string;
-  currentTitle: string;
-  linkedInUrl: string;
   source: string;
-  summary: string;
-  skills: string[];
 }
 
 const initialValues: ImportForm = {
   firstName: '',
   lastName: '',
   email: '',
-  phone: '',
-  location: '',
-  currentTitle: '',
-  linkedInUrl: '',
   source: 'Resume import',
-  summary: '',
-  skills: [],
 };
 
+// Only identity can be typed over here. Everything the resume says is parsed and stays read-only,
+// so nobody can make a candidate look stronger than their resume.
 export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ResumeParsePreview | null>(null);
@@ -73,16 +60,10 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
     onSuccess: (result) => {
       setPreview(result);
       form.setValues({
-        firstName: result.firstName,
-        lastName: result.lastName,
-        email: result.email,
-        phone: result.phone ?? '',
-        location: result.location ?? '',
-        currentTitle: result.currentTitle ?? '',
-        linkedInUrl: result.linkedInUrl ?? '',
+        firstName: result.form.basics.firstName ?? '',
+        lastName: result.form.basics.lastName ?? '',
+        email: result.form.basics.email ?? '',
         source: 'Resume import',
-        summary: result.summary,
-        skills: result.skills,
       });
     },
     onError: (error: Error) =>
@@ -93,9 +74,7 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
       if (!file) throw new Error('Choose a resume first.');
       const data = new FormData();
       data.append('file', file);
-      Object.entries(values).forEach(([key, value]) =>
-        data.append(key, Array.isArray(value) ? value.join(',') : value),
-      );
+      Object.entries(values).forEach(([key, value]) => data.append(key, value));
       return api.form<{ candidateId: string; candidateName: string }>('/api/resumes/import', data);
     },
     onSuccess: (result) => {
@@ -128,14 +107,15 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
     importResume.reset();
     onClose();
   };
+  const basics = preview?.form.basics;
 
   return (
-    <Modal opened={opened} onClose={resetAndClose} title="Import a resume" size="xl">
+    <Modal opened={opened} onClose={resetAndClose} title="Import a resume" size="lg">
       <form onSubmit={form.onSubmit((values) => importResume.mutate(values))}>
         <Stack gap="lg">
           <Text size="sm" c="dimmed">
-            Upload a PDF or DOCX. The parser suggests profile data; you review it before the
-            candidate is added.
+            Upload a PDF or DOCX. The resume is parsed into the candidate&apos;s profile; you only
+            confirm who they are.
           </Text>
           <FileInput
             label="Resume"
@@ -156,61 +136,41 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
                     Reading the resume
                   </Text>
                   <Text size="xs" c="dimmed">
-                    Extracting contact details, skills, experience, and education.
+                    Contact details, experience, education and skills.
                   </Text>
                 </div>
               </Group>
             </Paper>
           )}
-          {preview && (
+          {preview && basics && (
             <>
               <Group justify="space-between" align="flex-start">
                 <div>
-                  <Text fw={650}>Review parsed profile</Text>
+                  <Text fw={650}>Confirm the candidate</Text>
                   <Text size="sm" c="dimmed">
-                    Correct anything that was formatted unusually in the source file.
+                    {[basics.city, basics.region].filter(Boolean).join(', ') || 'No location found'}
+                    {basics.phone ? ` · ${basics.phone}` : ''}
                   </Text>
                 </div>
-                <Badge variant="light" color={preview.confidence >= 75 ? 'teal' : 'yellow'}>
-                  {preview.confidence}% extraction confidence
+                <Badge variant="light" color="gray">
+                  {preview.form.work.length} jobs · {preview.form.education.length} schools ·{' '}
+                  {preview.form.skills.length} skills
                 </Badge>
               </Group>
-              {preview.warnings.length > 0 && (
-                <Alert icon={<IconAlertCircle size={17} />} color="yellow" title="Needs review">
-                  {preview.warnings.join(' ')}
-                </Alert>
-              )}
               <SimpleGrid cols={{ base: 1, sm: 2 }}>
                 <TextInput label="First name" required {...form.getInputProps('firstName')} />
                 <TextInput label="Last name" required {...form.getInputProps('lastName')} />
                 <TextInput label="Email" type="email" required {...form.getInputProps('email')} />
-                <TextInput label="Phone" {...form.getInputProps('phone')} />
-                <TextInput label="Current title" {...form.getInputProps('currentTitle')} />
-                <TextInput label="Location" {...form.getInputProps('location')} />
                 <TextInput label="Source" required {...form.getInputProps('source')} />
-                <TextInput label="LinkedIn URL" {...form.getInputProps('linkedInUrl')} />
               </SimpleGrid>
-              <TagsInput
-                label="Skills"
-                description="Press Enter after each skill"
-                {...form.getInputProps('skills')}
-              />
-              <Textarea label="Profile summary" minRows={3} {...form.getInputProps('summary')} />
-              {(preview.education.length > 0 || preview.certifications.length > 0) && (
-                <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <div>
-                    <Text size="sm" fw={650} c="dimmed" mb={6}>
-                      Education found
-                    </Text>
-                    <Text size="sm">{preview.education.join(' · ') || 'Not found'}</Text>
-                  </div>
-                  <div>
-                    <Text size="sm" fw={650} c="dimmed" mb={6}>
-                      Certifications found
-                    </Text>
-                    <Text size="sm">{preview.certifications.join(' · ') || 'Not found'}</Text>
-                  </div>
-                </SimpleGrid>
+              {preview.form.work.length > 0 && (
+                <Text size="sm">
+                  <b>Experience found:</b>{' '}
+                  {preview.form.work
+                    .slice(0, 4)
+                    .map((job) => `${job.title} at ${job.company}`)
+                    .join('; ')}
+                </Text>
               )}
             </>
           )}

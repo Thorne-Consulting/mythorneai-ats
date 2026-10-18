@@ -27,13 +27,3 @@ public sealed record UpdateCandidateRequest(
     bool DoNotContact
 );
 
-public sealed record UpdateResumeProfileRequest(
-    string? Summary,
-    string? CurrentTitle,
-    string[]? Skills,
-    string[]? JobTitles,
-    string[]? Education,
-    string[]? Certifications,
-    string[]? Languages,
-    decimal? YearsExperience
-);

@@ -87,12 +87,12 @@ public sealed class OpenAiAssistant(
                 prompt = usage.GetProperty("prompt_tokens").GetInt32();
                 completion = usage.GetProperty("completion_tokens").GetInt32();
             }
-            await LogAsync(context, model, instruction + "\n\n" + input, output, prompt, completion, clock, null);
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, instruction + "\n\n" + input, output, prompt, completion, clock, null);
             return output;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await LogAsync(context, model, instruction + "\n\n" + input, output, prompt, completion, clock, exception.Message);
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, instruction + "\n\n" + input, output, prompt, completion, clock, exception.Message);
             throw;
         }
     }
@@ -117,12 +117,12 @@ public sealed class OpenAiAssistant(
                 .Select(x => x.GetSingle())
                 .ToArray();
             var tokens = root.TryGetProperty("usage", out var usage) ? usage.GetProperty("prompt_tokens").GetInt32() : 0;
-            await LogAsync(context, model, $"[{text.Length} characters]", $"[{vector.Length} dimensions]", tokens, 0, clock, null);
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[{text.Length} characters]", $"[{vector.Length} dimensions]", tokens, 0, clock, null);
             return vector;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await LogAsync(context, model, $"[{text.Length} characters]", "", 0, 0, clock, exception.Message);
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[{text.Length} characters]", "", 0, 0, clock, exception.Message);
             throw;
         }
     }
@@ -149,12 +149,12 @@ public sealed class OpenAiAssistant(
             response.EnsureSuccessStatusCode();
             using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(ct));
             var text = document.RootElement.GetProperty("text").GetString() ?? "";
-            await LogAsync(context, model, $"[audio {fileName}]", text, 0, 0, clock, null);
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[audio {fileName}]", text, 0, 0, clock, null);
             return text;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await LogAsync(context, model, $"[audio {fileName}]", "", 0, 0, clock, exception.Message);
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[audio {fileName}]", "", 0, 0, clock, exception.Message);
             throw;
         }
     }
@@ -182,46 +182,6 @@ public sealed class OpenAiAssistant(
         return string.IsNullOrWhiteSpace(organization?.AiModel)
             ? configuration["OpenAI:Model"] ?? "gpt-4o-mini"
             : organization.AiModel;
-    }
-
-    // Logged on its own context so a failure here can't touch the caller's unsaved changes.
-    private async Task LogAsync(
-        AiContext? context,
-        string model,
-        string input,
-        string output,
-        int promptTokens,
-        int completionTokens,
-        Stopwatch clock,
-        string? error
-    )
-    {
-        try
-        {
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
-            db.AiCallLogs.Add(
-                new AiCallLog
-                {
-                    Purpose = context?.Purpose ?? "unspecified",
-                    Model = model,
-                    UserEmail = context?.UserEmail,
-                    SubjectType = context?.SubjectType,
-                    SubjectId = context?.SubjectId,
-                    Input = Truncate(input, 6000),
-                    Output = Truncate(output, 6000),
-                    PromptTokens = promptTokens,
-                    CompletionTokens = completionTokens,
-                    LatencyMs = (int)clock.ElapsedMilliseconds,
-                    Error = error is null ? null : Truncate(error, 1000),
-                }
-            );
-            await db.SaveChangesAsync();
-        }
-        catch (Exception exception)
-        {
-            logger.LogWarning(exception, "Could not write the AI call log.");
-        }
     }
 
     private static string Truncate(string value, int length) => value.Length <= length ? value : value[..length];

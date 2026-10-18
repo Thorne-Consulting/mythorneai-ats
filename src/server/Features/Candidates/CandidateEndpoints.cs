@@ -34,6 +34,14 @@ public static partial class AtsEndpoints
                 var location = query["location"].ToString().Trim();
                 var source = query["source"].ToString().Trim();
                 var hasResume = bool.TryParse(query["hasResume"], out var resumeValue) ? resumeValue : (bool?)null;
+                var seniority = Enum.TryParse<Seniority>(query["seniority"], true, out var seniorityValue) && seniorityValue != Seniority.Unknown
+                    ? seniorityValue
+                    : (Seniority?)null;
+                var minDegree = Enum.TryParse<DegreeLevel>(query["minDegree"], true, out var degreeValue) && degreeValue != DegreeLevel.Unknown
+                    ? degreeValue
+                    : (DegreeLevel?)null;
+                var company = query["company"].ToString().Trim();
+                var school = query["school"].ToString().Trim();
                 var includeDnc = bool.TryParse(query["includeDnc"], out var dncValue) && dncValue;
                 var minYears = decimal.TryParse(query["minYears"], NumberStyles.Number, CultureInfo.InvariantCulture, out var years)
                     ? years
@@ -78,8 +86,28 @@ public static partial class AtsEndpoints
                 if (title.Length > 0)
                     candidates = candidates.Where(candidate =>
                         (candidate.CurrentTitle != null && EF.Functions.ILike(candidate.CurrentTitle, $"%{title}%"))
-                        || candidate.ResumeJobTitles.Any(value => EF.Functions.ILike(value, $"%{title}%"))
+                        || candidate.WorkExperiences.Any(role => EF.Functions.ILike(role.Title, $"%{title}%"))
                     );
+                if (company.Length > 0)
+                    candidates = candidates.Where(candidate =>
+                        candidate.WorkExperiences.Any(role => EF.Functions.ILike(role.CompanyNameRaw, $"%{company}%"))
+                    );
+                if (school.Length > 0)
+                    candidates = candidates.Where(candidate =>
+                        candidate.Educations.Any(entry => EF.Functions.ILike(entry.SchoolNameRaw, $"%{school}%"))
+                    );
+                // "Senior and up", "at least a bachelor's": the enums are stored as strings, so compare against the set.
+                if (seniority is not null)
+                {
+                    var levels = Enum.GetValues<Seniority>().Where(level => level >= seniority).ToArray();
+                    candidates = candidates.Where(candidate => levels.Contains(candidate.Seniority));
+                }
+                if (minDegree is not null)
+                {
+                    var floor = ResumeDerived.DegreeRank(minDegree.Value);
+                    var levels = Enum.GetValues<DegreeLevel>().Where(level => ResumeDerived.DegreeRank(level) >= floor).ToArray();
+                    candidates = candidates.Where(candidate => levels.Contains(candidate.HighestDegreeLevel));
+                }
                 if (source.Length > 0)
                     candidates = candidates.Where(candidate => candidate.Source == source);
                 if (hasResume is not null)
@@ -450,43 +478,6 @@ public static partial class AtsEndpoints
                     candidate.DoNotContact = request.DoNotContact;
                     candidate.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(db, principal, "Candidate", id, "Updated");
-                    await db.SaveChangesAsync(ct);
-                    return Results.NoContent();
-                }
-            )
-            .RequireAuthorization(AtsPolicies.ManageCandidates);
-
-        api.MapPut(
-                "/candidates/{id:guid}/resume-profile",
-                async (
-                    Guid id,
-                    UpdateResumeProfileRequest request,
-                    ClaimsPrincipal principal,
-                    AtsDbContext db,
-                    CancellationToken ct
-                ) =>
-                {
-                    var candidate = await db.Candidates.SingleOrDefaultAsync(x => x.Id == id, ct);
-                    if (candidate is null)
-                        return Results.NotFound();
-                    if (request.YearsExperience is < 0 or > 60)
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]>
-                            {
-                                ["yearsExperience"] = ["Experience must be between 0 and 60 years."],
-                            }
-                        );
-
-                    candidate.ResumeSummary = Clean(request.Summary);
-                    candidate.CurrentTitle = Clean(request.CurrentTitle);
-                    candidate.ResumeSkills = NormalizeSkills(request.Skills);
-                    candidate.ResumeJobTitles = NormalizeTerms(request.JobTitles, 20);
-                    candidate.ResumeEducation = NormalizeTerms(request.Education, 20);
-                    candidate.ResumeCertifications = NormalizeTerms(request.Certifications, 20);
-                    candidate.ResumeLanguages = NormalizeTerms(request.Languages, 20);
-                    candidate.ResumeYearsExperience = request.YearsExperience;
-                    candidate.UpdatedAt = DateTimeOffset.UtcNow;
-                    Audit.Add(db, principal, "Candidate", id, "ResumeProfileReviewed");
                     await db.SaveChangesAsync(ct);
                     return Results.NoContent();
                 }

@@ -54,6 +54,22 @@ import { BLANK, candidateParams, DEFAULT_LIST_QUERY, type Filters } from './cand
 import { CandidatePreview, type PreviewPerson, SkillText } from './CandidatePreview';
 
 const STATUS_OPTIONS = ['Active', 'Hired', 'Rejected', 'Withdrawn'];
+const SENIORITY_OPTIONS = [
+  'Junior',
+  'Mid',
+  'Senior',
+  'Lead',
+  'Manager',
+  'Director',
+  'Executive',
+].map((value) => ({ value, label: `${value} and up` }));
+const DEGREE_OPTIONS = [
+  { value: 'HighSchool', label: 'High school or above' },
+  { value: 'Associate', label: 'Associate or above' },
+  { value: 'Bachelor', label: "Bachelor's or above" },
+  { value: 'Master', label: "Master's or above" },
+  { value: 'Doctorate', label: 'Doctorate' },
+];
 const SOURCE_OPTIONS = [
   'Direct applicant',
   'Referral',
@@ -204,6 +220,10 @@ export function CandidatesList({
         title?: string;
         location?: string;
         minYears?: number;
+        seniority?: string;
+        minDegree?: string;
+        company?: string;
+        school?: string;
       }>('/api/ai/search-filters', { query: describe }),
     onSuccess: (result) => {
       setFilters((current) => ({
@@ -214,6 +234,10 @@ export function CandidatesList({
         title: result.title ?? '',
         location: result.location ?? '',
         minYears: result.minYears ?? '',
+        seniority: result.seniority ?? null,
+        minDegree: result.minDegree ?? null,
+        company: result.company ?? '',
+        school: result.school ?? '',
       }));
       setPage(1);
     },
@@ -525,6 +549,38 @@ export function CandidatesList({
             max={50}
             value={filters.minYears}
             onChange={(value) => set('minYears', value)}
+          />
+          <Select
+            size="xs"
+            clearable
+            placeholder="Any seniority"
+            aria-label="Minimum seniority"
+            data={SENIORITY_OPTIONS}
+            value={filters.seniority}
+            onChange={(value) => set('seniority', value)}
+          />
+          <Select
+            size="xs"
+            clearable
+            placeholder="Any degree"
+            aria-label="Minimum degree"
+            data={DEGREE_OPTIONS}
+            value={filters.minDegree}
+            onChange={(value) => set('minDegree', value)}
+          />
+          <TextInput
+            size="xs"
+            placeholder="Worked at"
+            aria-label="Company"
+            value={filters.company}
+            onChange={(event) => set('company', event.currentTarget.value)}
+          />
+          <TextInput
+            size="xs"
+            placeholder="Studied at"
+            aria-label="School"
+            value={filters.school}
+            onChange={(event) => set('school', event.currentTarget.value)}
           />
           <Select
             size="xs"

@@ -173,23 +173,136 @@ export interface CandidateDetail {
   }>;
 }
 
+/** The form the model fills in from a resume (server: ResumeForm). */
+export interface ResumeForm {
+  basics: {
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    city?: string | null;
+    region?: string | null;
+    country?: string | null;
+    summary?: string | null;
+    links: Array<{ kind: string; url: string }>;
+  };
+  work: Array<{ company: string; title: string }>;
+  education: Array<{ school: string; degree?: string | null }>;
+  skills: Array<{ name: string; category: string }>;
+}
+
 export interface ResumeParsePreview {
-  firstName: string;
-  lastName: string;
-  email: string;
-  phone?: string;
-  location?: string;
-  currentTitle?: string;
-  linkedInUrl?: string;
-  summary: string;
-  skills: string[];
-  jobTitles: string[];
-  education: string[];
-  certifications: string[];
-  languages: string[];
-  yearsExperience?: number;
-  confidence: number;
-  warnings: string[];
+  form: ResumeForm;
+  model: string;
+  textLength: number;
+}
+
+/** GET /api/candidates/{id}/resume: the parsed profile, read-only. */
+export interface ResumeProfile {
+  id: string;
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  city?: string | null;
+  region?: string | null;
+  country?: string | null;
+  location?: string | null;
+  willingToRelocate?: boolean | null;
+  openToRemote?: boolean | null;
+  linkedInUrl?: string | null;
+  gitHubUrl?: string | null;
+  portfolioUrl?: string | null;
+  otherUrls: string[];
+  summary?: string | null;
+  currentTitle?: string | null;
+  currentEmployer?: string | null;
+  seniority: string;
+  yearsExperience?: number | null;
+  yearsManagement?: number | null;
+  highestDegreeLevel: string;
+  work: Array<{
+    id: string;
+    company: string;
+    title: string;
+    seniority: string;
+    employmentType: string;
+    city?: string | null;
+    region?: string | null;
+    country?: string | null;
+    isRemote: boolean;
+    startYear?: number | null;
+    startMonth?: number | null;
+    endYear?: number | null;
+    endMonth?: number | null;
+    isCurrent: boolean;
+    durationMonths?: number | null;
+    managedPeople?: number | null;
+    bullets: string[];
+    skills: string[];
+    verified: boolean;
+  }>;
+  education: Array<{
+    id: string;
+    school: string;
+    degree?: string | null;
+    degreeLevel: string;
+    field?: string | null;
+    fieldNormalized: string;
+    startYear?: number | null;
+    endYear?: number | null;
+    isInProgress: boolean;
+    gpa?: number | null;
+    gpaScale?: number | null;
+    honors?: string | null;
+    verified: boolean;
+  }>;
+  skills: Array<{
+    name: string;
+    category: string;
+    source: string;
+    yearsUsed?: number | null;
+    lastUsedYear?: number | null;
+    verified: boolean;
+  }>;
+  certifications: Array<{
+    id: string;
+    name: string;
+    issuer?: string | null;
+    year?: number | null;
+    expiresYear?: number | null;
+    url?: string | null;
+    verified: boolean;
+  }>;
+  languages: Array<{ language: string; proficiency: string }>;
+  projects: Array<{
+    id: string;
+    name: string;
+    description: string;
+    url?: string | null;
+    year?: number | null;
+    skills: string[];
+  }>;
+  publications: Array<{
+    id: string;
+    title: string;
+    venue?: string | null;
+    year?: number | null;
+    url?: string | null;
+  }>;
+  awards: Array<{ id: string; name: string; issuer?: string | null; year?: number | null }>;
+  unassignedText: string[];
+  resumeText?: string | null;
+  parsedAt?: string | null;
+  model?: string | null;
+  promptVersion?: string | null;
+  attachment?: {
+    id: string;
+    originalFileName: string;
+    contentType: string;
+    parseStatus: string;
+    parseError?: string | null;
+    parsedAt?: string | null;
+  } | null;
 }
 
 export interface BoardData {

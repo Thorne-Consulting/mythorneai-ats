@@ -101,44 +101,5 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
 
-        api.MapPost(
-                "/candidates/{id:guid}/resume-profile/ai",
-                async (Guid id, ClaimsPrincipal principal, AtsDbContext db, IAiAssistant ai, CancellationToken ct) =>
-                {
-                    var candidate = await db.Candidates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct);
-                    if (candidate is null)
-                        return Results.NotFound();
-                    if (string.IsNullOrWhiteSpace(candidate.ResumeText))
-                        return Results.Conflict(new { message = "There is no resume text to read yet." });
-                    return await AiCallAsync(async () =>
-                    {
-                        var output = await ai.CompleteAsync(
-                            "Read the resume and extract a profile. Respond with JSON only, with exactly these keys: currentTitle (string), summary (two or three sentences, plain), skills (array of short lowercase skill names), jobTitles (array of titles held), education (array of short strings), certifications (array), languages (array), yearsExperience (number of years of professional experience, or null). Only include what the resume supports.",
-                            candidate.ResumeText[..Math.Min(candidate.ResumeText.Length, 14000)],
-                            ct,
-                            new AiContext("resume-profile", principal.Email(), "Candidate", id.ToString()),
-                            json: true
-                        );
-                        using var document = JsonDocument.Parse(output);
-                        var root = document.RootElement;
-                        string? Text(string name) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()?.Trim() : null;
-                        string[] List(string name, int max) => root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Array
-                            ? v.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()!.Trim()).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(max).ToArray()
-                            : [];
-                        return Results.Ok(new
-                        {
-                            currentTitle = Text("currentTitle"),
-                            summary = Text("summary"),
-                            skills = List("skills", 40),
-                            jobTitles = List("jobTitles", 20),
-                            education = List("education", 20),
-                            certifications = List("certifications", 20),
-                            languages = List("languages", 20),
-                            yearsExperience = root.TryGetProperty("yearsExperience", out var years) && years.ValueKind == JsonValueKind.Number ? Math.Clamp(years.GetDecimal(), 0, 60) : (decimal?)null,
-                        });
-                    });
-                }
-            )
-            .RequireAuthorization(AtsPolicies.ManageCandidates);
     }
 }
