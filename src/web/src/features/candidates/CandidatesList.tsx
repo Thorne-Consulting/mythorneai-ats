@@ -42,7 +42,6 @@ import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { RejectManyModal } from '@/features/applicants/RejectManyModal';
 import { FitDrawer } from '@/features/talent/FitDrawer';
-import { formatRelative } from '@/lib/format';
 import type {
   CandidateListApplication,
   CandidateListItem,
@@ -637,7 +636,8 @@ export function CandidatesList({
     </div>
   );
 
-  const listTable = !list.data ? (
+  // Only the name in the list; the rest is in the preview beside it.
+  const nameList = !list.data ? (
     <LoadingBlock rows={6} />
   ) : items.length === 0 ? (
     <EmptyState
@@ -648,160 +648,100 @@ export function CandidatesList({
     />
   ) : (
     <div className="panel">
-      <Table.ScrollContainer minWidth={760}>
-        <Table className="inbox-table applicants-table candidates-table" verticalSpacing={0}>
+      <Table className="inbox-table candidates-table names-table" verticalSpacing={0}>
+        {canBulk && (
           <Table.Thead>
             <Table.Tr>
-              {canBulk && (
-                <Table.Th w={40}>
-                  <Checkbox
-                    aria-label="Select everyone on this page"
-                    checked={allSelected}
-                    indeterminate={selected.length > 0 && !allSelected}
-                    onChange={(event) =>
-                      setSelected(
-                        event.currentTarget.checked ? items.map((person) => person.id) : [],
-                      )
-                    }
-                  />
-                </Table.Th>
-              )}
-              <Table.Th>Candidate</Table.Th>
-              <Table.Th>Job</Table.Th>
-              <Table.Th w={130}>Stage</Table.Th>
-              <Table.Th w={56} ta="right">
-                Fit
+              <Table.Th w={40}>
+                <Checkbox
+                  aria-label="Select everyone on this page"
+                  checked={allSelected}
+                  indeterminate={selected.length > 0 && !allSelected}
+                  onChange={(event) =>
+                    setSelected(event.currentTarget.checked ? items.map((person) => person.id) : [])
+                  }
+                />
               </Table.Th>
-              <Table.Th w={64} ta="right">
-                Rating
-              </Table.Th>
-              <Table.Th w={110} ta="right">
-                Last activity
-              </Table.Th>
+              <Table.Th>Select all on this page</Table.Th>
               <Table.Th w={44} />
             </Table.Tr>
           </Table.Thead>
-          <Table.Tbody>
-            {items.map((person) => {
-              const app = shownApp(person);
-              const others = person.applications.length - (app ? 1 : 0);
-              return (
-                <Table.Tr
-                  key={person.id}
-                  data-selected={selected.includes(person.id) || undefined}
-                  {...selectRow(person.id)}
-                >
-                  {canBulk && (
-                    <Table.Td onClick={stop}>
-                      <Checkbox
-                        aria-label={`Select ${person.name}`}
-                        checked={selected.includes(person.id)}
-                        disabled={!app}
-                        onChange={(event) => {
-                          const { checked } = event.currentTarget;
-                          setSelected((current) =>
-                            checked
-                              ? [...current, person.id]
-                              : current.filter((id) => id !== person.id),
-                          );
-                        }}
-                      />
-                    </Table.Td>
-                  )}
-                  <Table.Td>
-                    <span className="applicants-name">{person.name}</span>
-                    {person.currentTitle && (
-                      <span className="applicants-title">{person.currentTitle}</span>
-                    )}
-                    {person.doNotContact && <span className="candidates-flag">Do not contact</span>}
+        )}
+        <Table.Tbody>
+          {items.map((person) => {
+            const app = shownApp(person);
+            return (
+              <Table.Tr
+                key={person.id}
+                data-selected={selected.includes(person.id) || undefined}
+                {...selectRow(person.id)}
+              >
+                {canBulk && (
+                  <Table.Td w={40} onClick={stop}>
+                    <Checkbox
+                      aria-label={`Select ${person.name}`}
+                      checked={selected.includes(person.id)}
+                      disabled={!app}
+                      onChange={(event) => {
+                        const { checked } = event.currentTarget;
+                        setSelected((current) =>
+                          checked
+                            ? [...current, person.id]
+                            : current.filter((id) => id !== person.id),
+                        );
+                      }}
+                    />
                   </Table.Td>
-                  <Table.Td>
-                    {app ? (
-                      <>
-                        {app.requisitionTitle}
-                        <span className="applicants-code">{app.requisitionCode}</span>
-                        {others > 0 && <span className="applicants-title">+{others} more</span>}
-                      </>
-                    ) : (
-                      <span className="applicants-dim">Not applied</span>
-                    )}
-                  </Table.Td>
-                  <Table.Td>
-                    {app ? (
-                      <>
-                        {app.stage}
-                        {app.status !== 'Active' &&
-                          app.status.toLowerCase() !== app.stage.toLowerCase() && (
-                            <span className="applicants-title">{app.status.toLowerCase()}</span>
-                          )}
-                      </>
-                    ) : (
-                      <span className="applicants-dim">–</span>
-                    )}
-                  </Table.Td>
-                  <Table.Td className="applicants-num">
-                    {app?.fitScore ?? <span className="applicants-dim">–</span>}
-                  </Table.Td>
-                  <Table.Td className="applicants-num">
-                    {app?.rating ? (
-                      app.rating.toFixed(1)
-                    ) : (
-                      <span className="applicants-dim">–</span>
-                    )}
-                  </Table.Td>
-                  <Table.Td
-                    className={app?.stalled ? 'applicants-num' : 'applicants-num applicants-dim'}
-                    title={app?.stalled ? 'Quiet for a while' : undefined}
-                  >
-                    {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
-                  </Table.Td>
-                  <Table.Td onClick={stop}>
-                    <Menu position="bottom-end" withArrow shadow="md">
-                      <Menu.Target>
-                        <ActionIcon
-                          variant="subtle"
-                          color="gray"
-                          size="sm"
-                          aria-label={`Actions for ${person.name}`}
+                )}
+                <Table.Td>
+                  <span className="names-name">{person.name}</span>
+                </Table.Td>
+                <Table.Td w={44} onClick={stop}>
+                  <Menu position="bottom-end" withArrow shadow="md">
+                    <Menu.Target>
+                      <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        size="sm"
+                        aria-label={`Actions for ${person.name}`}
+                      >
+                        <IconDots size={16} />
+                      </ActionIcon>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      <Menu.Item onClick={() => router.push(`/candidates/${person.id}`)}>
+                        Open profile
+                      </Menu.Item>
+                      {person.applications.map((item) => (
+                        <Menu.Item
+                          key={item.id}
+                          onClick={() => router.push(`/applications/${item.id}`)}
                         >
-                          <IconDots size={16} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item onClick={() => router.push(`/candidates/${person.id}`)}>
-                          Open profile
+                          Open {item.requisitionTitle}
                         </Menu.Item>
-                        {person.applications.map((item) => (
+                      ))}
+                      {person.email !== 'Restricted' && (
+                        <Menu.Item onClick={() => copyEmail(person.email)}>Copy email</Menu.Item>
+                      )}
+                      {canManage && app?.status === 'Active' && (
+                        <>
+                          <Menu.Divider />
                           <Menu.Item
-                            key={item.id}
-                            onClick={() => router.push(`/applications/${item.id}`)}
+                            color="red"
+                            onClick={() => setRejecting({ name: person.name, app })}
                           >
-                            Open {item.requisitionTitle}
+                            Reject from {app.requisitionTitle}…
                           </Menu.Item>
-                        ))}
-                        {person.email !== 'Restricted' && (
-                          <Menu.Item onClick={() => copyEmail(person.email)}>Copy email</Menu.Item>
-                        )}
-                        {canManage && app?.status === 'Active' && (
-                          <>
-                            <Menu.Divider />
-                            <Menu.Item
-                              color="red"
-                              onClick={() => setRejecting({ name: person.name, app })}
-                            >
-                              Reject from {app.requisitionTitle}…
-                            </Menu.Item>
-                          </>
-                        )}
-                      </Menu.Dropdown>
-                    </Menu>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
-      </Table.ScrollContainer>
+                        </>
+                      )}
+                    </Menu.Dropdown>
+                  </Menu>
+                </Table.Td>
+              </Table.Tr>
+            );
+          })}
+        </Table.Tbody>
+      </Table>
     </div>
   );
 
@@ -975,7 +915,7 @@ export function CandidatesList({
               />
             )}
           </div>
-          {ranking ? rankTable : listTable}
+          {ranking ? rankTable : nameList}
           {pages > 1 && (
             <Group justify="flex-end" mt="md">
               <Pagination

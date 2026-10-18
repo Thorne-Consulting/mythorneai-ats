@@ -2208,12 +2208,6 @@ a.crumb-link:focus-visible {
   font-size: 13px;
 }
 
-.applicants-code {
-  margin-left: 8px;
-  color: var(--mantine-color-dimmed);
-  font-family: var(--mantine-font-family-monospace);
-  font-size: 12px;
-}
 
 .applicants-num {
   text-align: right;
@@ -2416,12 +2410,6 @@ a.crumb-link:focus-visible {
   outline-offset: -2px;
 }
 
-.candidates-flag {
-  margin-left: 8px;
-  color: var(--mantine-color-red-7);
-  font-size: 12px;
-  font-weight: 600;
-}
 
 .candidates-score {
   font-size: 18px;
@@ -2452,4 +2440,20 @@ a.crumb-link:focus-visible {
   .candidates > .people-panel {
     grid-column: auto;
   }
+}
+
+/* The list holds only names; everything else is in the preview beside it. */
+.names-table td {
+  padding-block: 12px;
+}
+
+.names-table thead th {
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.names-name {
+  font-size: 15px;
+  font-weight: 600;
 }

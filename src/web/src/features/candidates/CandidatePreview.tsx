@@ -20,6 +20,8 @@ export type PreviewPerson = {
   skills: string[];
   matchedTerms: string[];
   doNotContact?: boolean;
+  /** Rating and fit per application, when the list has them. */
+  applications?: { id: string; rating?: number | null; fitScore?: number | null }[];
 };
 
 /** Skills that matched the search come first, in bold. */
@@ -32,6 +34,15 @@ export function SkillText({ person, limit }: { person: PreviewPerson; limit: num
       {matched.includes(skill) ? <b>{skill}</b> : skill}
     </span>
   ));
+}
+
+/** "Rated 4.0 · fit 72" for an application, or nothing when neither is known. */
+function scoreLine(app?: { rating?: number | null; fitScore?: number | null }) {
+  const parts = [
+    app?.rating ? `Rated ${app.rating.toFixed(1)}` : null,
+    app?.fitScore != null ? `fit ${app.fitScore}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 && <span className="people-sub">{parts.join(' · ')}</span>;
 }
 
 /** Everything about one person: their numbers, where they are, what they bring, how to reach them. */
@@ -88,6 +99,7 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
                     Applied {formatDate(app.appliedAt)} · active{' '}
                     {formatRelative(app.lastActivityAt)}
                   </span>
+                  {scoreLine(person.applications?.find((item) => item.id === app.id))}
                 </li>
               ))}
             </ul>
