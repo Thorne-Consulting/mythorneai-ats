@@ -34,7 +34,7 @@ import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatRelative } from '@/lib/format';
+import { formatDate, formatRelative } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail, TalentSearchPage as TalentSearchResponse } from '@/types';
 
@@ -581,8 +581,11 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
                           <li key={app.id} data-closed={app.status !== 'Active' || undefined}>
                             <a href={`/applications/${app.id}`}>{app.requisitionTitle}</a>
                             <span className="people-sub">
-                              {app.stage}
-                              {app.status !== 'Active' ? ` · ${app.status}` : ''} · active{' '}
+                              {app.requisitionCode} · {app.stage}
+                              {app.status !== 'Active' ? ` · ${app.status}` : ''}
+                            </span>
+                            <span className="people-sub">
+                              Applied {formatDate(app.appliedAt)} · active{' '}
                               {formatRelative(app.lastActivityAt)}
                             </span>
                           </li>
@@ -594,14 +597,61 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
                       {detail.resumeSummary ?? 'No resume summary yet.'}
                     </p>
                     {preview.skills.length > 0 && (
-                      <p className="people-text people-text-more">{skillText(preview, 20)}</p>
+                      <p className="people-text people-text-more">{skillText(preview, 30)}</p>
                     )}
-                    {(detail.resumeEducation.length > 0 || detail.resumeJobTitles.length > 0) && (
-                      <p className="people-text people-text-more">
-                        {[detail.resumeJobTitles.slice(0, 3).join(', '), detail.resumeEducation[0]]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      </p>
+                    {(detail.resumeJobTitles.length > 0 ||
+                      detail.resumeEducation.length > 0 ||
+                      detail.resumeCertifications.length > 0 ||
+                      detail.resumeLanguages.length > 0) && (
+                      <>
+                        <h4 className="people-h">Background</h4>
+                        <div className="people-lines">
+                          {detail.resumeJobTitles.length > 0 && (
+                            <p className="people-text">
+                              <span className="people-label">Past roles</span>
+                              {detail.resumeJobTitles.slice(0, 5).join('; ')}
+                            </p>
+                          )}
+                          {detail.resumeEducation.length > 0 && (
+                            <p className="people-text">
+                              <span className="people-label">Education</span>
+                              {detail.resumeEducation.join('; ')}
+                            </p>
+                          )}
+                          {detail.resumeCertifications.length > 0 && (
+                            <p className="people-text">
+                              <span className="people-label">Certifications</span>
+                              {detail.resumeCertifications.join(', ')}
+                            </p>
+                          )}
+                          {detail.resumeLanguages.length > 0 && (
+                            <p className="people-text">
+                              <span className="people-label">Languages</span>
+                              {detail.resumeLanguages.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                    {detail.attachments.length > 0 && (
+                      <>
+                        <h4 className="people-h">Files</h4>
+                        <ul className="people-files">
+                          {detail.attachments.map((file) => (
+                            <li key={file.id}>
+                              {file.originalFileName}
+                              <span className="people-sub">
+                                Uploaded {formatRelative(file.uploadedAt)} ·{' '}
+                                {file.parseStatus === 'Parsed' || file.parsedAt
+                                  ? 'read'
+                                  : file.parseError
+                                    ? 'could not be read'
+                                    : 'not read yet'}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
                     )}
                     <div className="people-contact">
                       <a href={`mailto:${preview.email}`}>{preview.email}</a>
@@ -619,6 +669,13 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
                         From {detail.source}
                         {detail.tags.length ? ` · ${detail.tags.join(', ')}` : ''}
                         {preview.doNotContact ? ' · Do not contact' : ''}
+                      </span>
+                      <span className="people-sub">
+                        Added {formatDate(detail.createdAt)} · updated{' '}
+                        {formatRelative(detail.updatedAt)}
+                        {detail.resumeParsedAt
+                          ? ` · resume read ${formatRelative(detail.resumeParsedAt)}`
+                          : ''}
                       </span>
                     </div>
                   </>
