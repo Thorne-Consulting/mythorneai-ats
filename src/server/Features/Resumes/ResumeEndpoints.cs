@@ -303,8 +303,9 @@ public static partial class AtsEndpoints
                         }),
                         Publications = candidate.Publications.Select(x => new { x.Id, x.Title, x.Venue, x.Year, x.Url }),
                         Awards = candidate.Awards.Select(x => new { x.Id, x.Name, x.Issuer, x.Year }),
-                        UnassignedText = unassigned,
-                        ResumeText = candidate.ResumeText,
+                        // The raw text carries the contact details, so it follows the same rule as they do.
+                        UnassignedText = canSeeContact ? unassigned : [],
+                        ResumeText = canSeeContact ? candidate.ResumeText : null,
                         ParsedAt = candidate.ResumeParsedAt,
                         Model = candidate.ResumeModel,
                         PromptVersion = candidate.ResumePromptVersion,
