@@ -2457,3 +2457,51 @@ a.crumb-link:focus-visible {
   font-size: 15px;
   font-weight: 600;
 }
+
+/* When all three columns fit, the page is exactly the window and each column scrolls on its own. */
+.candidates-main {
+  min-width: 0;
+}
+
+@media (min-width: 90.0625em) {
+  .page-container:has(.candidates-hub) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding-bottom: 24px;
+  }
+
+  .candidates-hub {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .candidates {
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  .candidates > .applicants-rail,
+  .candidates > .people-panel {
+    position: static;
+    max-height: none;
+    height: 100%;
+    overflow-y: auto;
+  }
+
+  .candidates-main {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+  }
+
+  .candidates-main > .panel {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+  }
+}

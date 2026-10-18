@@ -879,7 +879,7 @@ export function CandidatesList({
       {describeBar}
       <div className="candidates">
         {rail}
-        <div style={{ minWidth: 0 }}>
+        <div className="candidates-main">
           <div className="applicants-head">
             <span className="applicants-count" aria-live="polite">
               {ranking
