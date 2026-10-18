@@ -12,6 +12,10 @@ export type Filters = {
   location: string;
   source: string | null;
   minYears: number | string;
+  seniority: string | null;
+  minDegree: string | null;
+  company: string;
+  school: string;
   includeDnc: boolean;
   sort: string;
 };
@@ -28,6 +32,10 @@ export const BLANK: Filters = {
   location: '',
   source: null,
   minYears: '',
+  seniority: null,
+  minDegree: null,
+  company: '',
+  school: '',
   includeDnc: false,
   sort: 'recent',
 };
@@ -49,6 +57,10 @@ export function candidateParams(filters: Filters, page: number) {
   if (filters.location) params.set('location', filters.location);
   if (filters.source) params.set('source', filters.source);
   if (filters.minYears !== '') params.set('minYears', String(filters.minYears));
+  if (filters.seniority) params.set('seniority', filters.seniority);
+  if (filters.minDegree) params.set('minDegree', filters.minDegree);
+  if (filters.company) params.set('company', filters.company);
+  if (filters.school) params.set('school', filters.school);
   if (filters.includeDnc) params.set('includeDnc', 'true');
   return params;
 }

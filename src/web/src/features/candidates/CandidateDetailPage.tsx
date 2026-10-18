@@ -1,6 +1,6 @@
 'use client';
 
-import { Avatar, Badge, Button, Grid, Group } from '@mantine/core';
+import { Avatar, Badge, Button, Grid, Group, Tabs } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { IconPlus } from '@tabler/icons-react';
 import { useQuery } from '@tanstack/react-query';
@@ -14,6 +14,7 @@ import { ApplyModal } from './ApplyModal';
 import { CandidateApplications } from './CandidateApplications';
 import { EmailBouncedAlert, type CandidateExtras } from './CandidateCustomFields';
 import { CandidateSidebar } from './CandidateSidebar';
+import { ResumeView } from './ResumeView';
 
 export function CandidateDetailPage({
   id,
@@ -93,7 +94,18 @@ export function CandidateDetailPage({
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, lg: 8 }}>
-          <CandidateApplications applications={candidate.applications} />
+          <Tabs defaultValue="applications" keepMounted={false}>
+            <Tabs.List mb="md">
+              <Tabs.Tab value="applications">Applications</Tabs.Tab>
+              <Tabs.Tab value="resume">Resume</Tabs.Tab>
+            </Tabs.List>
+            <Tabs.Panel value="applications">
+              <CandidateApplications applications={candidate.applications} />
+            </Tabs.Panel>
+            <Tabs.Panel value="resume">
+              <ResumeView candidateId={candidate.id} canReparse={canUpload} />
+            </Tabs.Panel>
+          </Tabs>
         </Grid.Col>
       </Grid>
       <ApplyModal candidateId={candidate.id} opened={opened} onClose={modal.close} />

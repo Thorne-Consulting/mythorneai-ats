@@ -1,6 +1,8 @@
 # Resume parsing
 
-Decided 2026-10-17. How a resume becomes a candidate profile, how that profile is stored, and how it is searched and shown.
+Decided 2026-10-17, built 2026-10-18. How a resume becomes a candidate profile, how that profile is stored, and how it is searched and shown.
+
+Where it lives: `Infrastructure/ResumeTextExtractor.cs` (file → text), `ResumeExtractor.cs` (text → form), `ResumeProfileWriter.cs` (form → rows), `ResumeDerived.cs` (computed columns), `ResumeParseWorker.cs` (the queue), `Features/Resumes/ResumeForm.cs` (the form), `Domain/ResumeProfile.cs` (the tables), `GET /api/candidates/{id}/resume` (the viewer's data), `web/features/candidates/ResumeView.tsx` (the viewer).
 
 ## Rules
 
@@ -129,7 +131,7 @@ Publication          Id, CandidateId, Title, Venue, Year?, Url?
 Award                Id, CandidateId, Name, Issuer, Year?
 ```
 
-The old `ResumeSkills`, `ResumeJobTitles`, `ResumeEducation`, `ResumeCertifications`, `ResumeLanguages`, `ResumeSummary` string-array columns go away once these exist.
+The flat `ResumeSkills`, `ResumeJobTitles`, `ResumeEducation`, `ResumeCertifications` and `ResumeLanguages` columns stay as copies filled from these rows on every parse: the list filters, the in-memory ranking and the candidate preview read them, and a copy is cheaper than a join everywhere. They are never written by anything else.
 
 ### Computed columns
 
@@ -165,7 +167,7 @@ Built customer portal used by 40k users; cut response time 38%.
 
 A **Resume** tab on the candidate page, two panes.
 
-**Left: the original.** PDF via the attachment endpoint (`inline=true`) in an iframe or pdf.js. DOCX is converted to PDF on upload (LibreOffice headless) and both are stored, so the left pane is always a PDF.
+**Left: the original.** PDF via the attachment endpoint (`inline=true`) in an iframe. A DOCX shows a download link and a pointer to the Text tab; converting DOCX to PDF on upload (LibreOffice headless) is a follow-up, since it adds a binary to the container.
 
 **Right: the parsed profile, laid out like a resume.** Header (name, contact, links, location), then Summary, Experience as a timeline (company, title, dates, duration, seniority and type badges, bullets, skill chips), Education, Skills by category, Certifications, Languages, Projects, Publications, Awards. Empty sections hidden. Read-only.
 
@@ -180,7 +182,7 @@ Later: click a parsed value and highlight it on the PDF. PdfPig gives word coord
 
 ## Quality
 
-`tests/server/ResumeParsingQualityTests.cs` keeps its baseline-ratchet: scores for every seed resume, and the build fails if any field drops below the recorded baseline. It extends from four scalar fields to the full form:
+`tests/server/ResumeParsingQualityTests.cs` keeps its baseline-ratchet: scores for every seed resume, and the build fails if any field drops below the recorded baseline. It calls the real model, so it needs `OPENAI_API_KEY` in the environment and skips without it (and when the key is rejected). The API tests stub the model with `FakeResumeChat` and check the pipeline around it. The quality test scores the full form:
 
 - Gold answers for the 24 seed resumes: work entries, education entries, skills, certifications, languages.
 - Multi-entry fields are aligned to gold with the Hungarian algorithm on company+title (or school+degree) similarity, then scored per field: dates on (year, month), names by normalised substring, bullets by edit-distance similarity, everything else exact after normalisation.
@@ -195,9 +197,14 @@ Run it whenever the prompt, the schema or the model version changes.
 2. **The parse.** `Microsoft.Extensions.AI` with the OpenAI provider, the prompt, the verifier, writing rows, caching by text hash. Swap into `ResumeParseWorker`. Remove `ResumeProfileReviewModal` and the regex parser's field guessing (keep its text extraction).
 3. **Quality test.** Gold answers for the 24 seed resumes, the aligner, raise the baseline.
 4. **Filters.** Candidate list filters on the new columns and tables; trigram indexes.
-5. **Viewer.** Two panes, Text tab, marks, Unassigned, Re-parse. DOCX→PDF on upload.
+5. **Viewer.** Two panes, Text tab, marks, Unassigned, Re-parse.
 6. **Ranking and sentence → filter** on top of the existing endpoints, with the structured embedding text.
+
+Steps 1 to 6 are built. Still to do, when needed:
+
 7. **OCR** for `NeedsOcr` attachments (an `ocrmypdf --force-ocr` sidecar, or a vision model reading page images). Only when the rate of such uploads justifies it.
+8. **DOCX → PDF on upload**, so the left pane is always the original.
+9. **Gold answers** for the jobs and degrees of the seed resumes that only score basics today (see the quality test), and the first real run to set the baseline.
 
 ## Not doing, and why
 
