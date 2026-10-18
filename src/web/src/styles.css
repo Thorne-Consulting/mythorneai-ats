@@ -2414,3 +2414,94 @@ a.crumb-link:focus-visible {
     position: static;
   }
 }
+
+/* The person's numbers first, then where they are, what they bring, and how to reach them. */
+.people-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 18px 0;
+  padding: 14px 0;
+  border-block: 1px solid var(--mantine-color-gray-2);
+}
+
+.people-stats b {
+  display: block;
+  font-size: 24px;
+  font-weight: 300;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.people-stats span {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.people-h {
+  margin: 18px 0 8px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.people-where {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.people-where li {
+  position: relative;
+  padding: 0 0 12px 16px;
+  font-size: 13px;
+}
+
+.people-where li::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mantine-primary-color-filled);
+}
+
+.people-where li[data-closed]::before {
+  background: var(--mantine-color-gray-4);
+}
+
+.people-where a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.people-where a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.people-text {
+  margin: 0;
+  color: var(--mantine-color-gray-8);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.people-text-more {
+  margin-top: 8px;
+}
+
+.people-contact {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--mantine-color-gray-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.people-contact a {
+  color: var(--mantine-primary-color-filled);
+  text-decoration: none;
+}

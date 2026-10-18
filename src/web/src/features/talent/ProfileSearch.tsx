@@ -35,7 +35,7 @@ import { api } from '@/api';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatRelative } from '@/lib/format';
-import type { TalentSearchPage as TalentSearchResponse } from '@/types';
+import type { CandidateDetail, TalentSearchPage as TalentSearchResponse } from '@/types';
 
 const SOURCE_OPTIONS = [
   'Direct applicant',
@@ -217,6 +217,36 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
   const [previewId, setPreviewId] = useState<string | null>(null);
   const items = results.data?.items ?? [];
   const preview = items.find((item) => item.candidateId === previewId) ?? items[0];
+  // The search row is a summary; the panel loads the whole record for the selected person.
+  const detailQuery = useQuery({
+    queryKey: ['candidate', preview?.candidateId],
+    queryFn: () => api.get<CandidateDetail>(`/api/candidates/${preview!.candidateId}`),
+    enabled: Boolean(preview),
+  });
+  const detail = detailQuery.data?.id === preview?.candidateId ? detailQuery.data : undefined;
+  const detailState = detailQuery.isError ? (
+    <Text size="sm" c="red" mt="md">
+      Could not load the full record.
+    </Text>
+  ) : !detail ? (
+    <LoadingBlock rows={3} />
+  ) : null;
+  const panelActions = preview && (
+    <>
+      <Button onClick={() => router.push(`/candidates/${preview.candidateId}`)}>
+        Open profile
+      </Button>
+      <Button
+        variant="default"
+        onClick={() => {
+          navigator.clipboard.writeText(preview.email);
+          notifications.show({ message: `Copied ${preview.email}` });
+        }}
+      >
+        Copy email
+      </Button>
+    </>
+  );
   const total = results.data?.total ?? 0;
   const countLabel = `${total} ${total === 1 ? 'candidate' : 'candidates'}`;
   // Skills that matched the search come first, in bold.
@@ -518,63 +548,83 @@ export function ProfileSearch({ initialData }: { initialData: TalentSearchRespon
             {preview && (
               <aside className="people-panel" aria-label={`About ${preview.name}`}>
                 <h3 className="people-pname">{preview.name}</h3>
-                <p className="people-prole">{preview.currentTitle ?? 'No title on file'}</p>
-                <dl className="people-facts">
-                  <dt>Email</dt>
-                  <dd>{preview.email}</dd>
-                  <dt>Location</dt>
-                  <dd>{preview.location ?? '—'}</dd>
-                  <dt>Experience</dt>
-                  <dd>
-                    {preview.experienceYears != null ? `${preview.experienceYears} years` : '—'}
-                  </dd>
-                  <dt>Active applications</dt>
-                  <dd>{preview.activeApplications}</dd>
-                  <dt>Source</dt>
-                  <dd>{preview.source}</dd>
-                  <dt>Updated</dt>
-                  <dd>{formatRelative(preview.updatedAt)}</dd>
-                  {preview.matchScore ? (
-                    <>
-                      <dt>Match</dt>
-                      <dd>{preview.matchScore}%</dd>
-                    </>
-                  ) : null}
-                  {(preview.doNotContact || !preview.hasParsedResume) && (
-                    <>
-                      <dt>Notes</dt>
-                      <dd>
-                        {[
-                          preview.doNotContact && 'Do not contact',
-                          !preview.hasParsedResume && 'Resume not read yet',
-                        ]
+                <p className="people-prole">
+                  {[preview.currentTitle ?? 'No title on file', preview.location]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+                {detailState}
+                {detail && (
+                  <>
+                    <div className="people-stats">
+                      <span>
+                        <b>{detail.resumeYearsExperience ?? '–'}</b>
+                        <span>years</span>
+                      </span>
+                      <span>
+                        <b>{detail.applications.filter((app) => app.status === 'Active').length}</b>
+                        <span>active</span>
+                      </span>
+                      <span>
+                        <b>{detail.attachments.length}</b>
+                        <span>{detail.attachments.length === 1 ? 'file' : 'files'}</span>
+                      </span>
+                    </div>
+                    <h4 className="people-h">Where they are</h4>
+                    {detail.applications.length === 0 ? (
+                      <p className="people-text">Not applied to any job yet.</p>
+                    ) : (
+                      <ul className="people-where">
+                        {detail.applications.map((app) => (
+                          <li key={app.id} data-closed={app.status !== 'Active' || undefined}>
+                            <a href={`/applications/${app.id}`}>{app.requisitionTitle}</a>
+                            <span className="people-sub">
+                              {app.stage}
+                              {app.status !== 'Active' ? ` · ${app.status}` : ''} · active{' '}
+                              {formatRelative(app.lastActivityAt)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <h4 className="people-h">Highlights</h4>
+                    <p className="people-text">
+                      {detail.resumeSummary ?? 'No resume summary yet.'}
+                    </p>
+                    {preview.skills.length > 0 && (
+                      <p className="people-text people-text-more">
+                        {skillText(preview, 20)}
+                      </p>
+                    )}
+                    {(detail.resumeEducation.length > 0 || detail.resumeJobTitles.length > 0) && (
+                      <p className="people-text people-text-more">
+                        {[detail.resumeJobTitles.slice(0, 3).join(', '), detail.resumeEducation[0]]
                           .filter(Boolean)
                           .join(' · ')}
-                      </dd>
-                    </>
-                  )}
-                </dl>
-                <p className="people-skills-title">Skills</p>
-                <p className="people-skills">
-                  {preview.skills.length ? (
-                    skillText(preview, 40)
-                  ) : (
-                    <span className="people-empty">None recorded</span>
-                  )}
-                </p>
-                <Group gap="sm">
-                  <Button onClick={() => router.push(`/candidates/${preview.candidateId}`)}>
-                    Open profile
-                  </Button>
-                  <Button
-                    variant="default"
-                    onClick={() => {
-                      navigator.clipboard.writeText(preview.email);
-                      notifications.show({ message: `Copied ${preview.email}` });
-                    }}
-                  >
-                    Copy email
-                  </Button>
+                      </p>
+                    )}
+                    <div className="people-contact">
+                      <a href={`mailto:${preview.email}`}>{preview.email}</a>
+                      {detail.phone && <> · {detail.phone}</>}
+                      {detail.linkedInUrl && (
+                        <>
+                          {' · '}
+                          <a href={detail.linkedInUrl} target="_blank" rel="noreferrer">
+                            LinkedIn
+                          </a>
+                        </>
+                      )}
+                      <br />
+                      <span className="people-sub">
+                        From {detail.source}
+                        {detail.tags.length ? ` · ${detail.tags.join(', ')}` : ''}
+                        {preview.doNotContact ? ' · Do not contact' : ''}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <Group gap="sm" mt="md">
+                  {panelActions}
                 </Group>
               </aside>
             )}
