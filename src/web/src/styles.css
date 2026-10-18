@@ -2208,7 +2208,6 @@ a.crumb-link:focus-visible {
   font-size: 13px;
 }
 
-
 .applicants-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -2219,19 +2218,9 @@ a.crumb-link:focus-visible {
 }
 
 @media (max-width: 62em) {
-
   .applicants-rail {
     position: static;
   }
-}
-
-.people-sub {
-  display: block;
-  overflow: hidden;
-  color: var(--mantine-color-dimmed);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .people-panel {
@@ -2259,18 +2248,17 @@ a.crumb-link:focus-visible {
 }
 
 @media (max-width: 75em) {
-
   .people-panel {
     position: static;
   }
 }
 
-/* The person's numbers first, then where they are, what they bring, and how to reach them. */
+/* The person's numbers first, then where they are, then the fact sheet. */
 .people-stats {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin: 18px 0;
+  margin: 18px 0 4px;
   padding: 14px 0;
   border-block: 1px solid var(--mantine-color-gray-2);
 }
@@ -2283,13 +2271,18 @@ a.crumb-link:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
-.people-stats span {
+.people-stats span,
+.people-sub {
   color: var(--mantine-color-dimmed);
   font-size: 12px;
 }
 
+.people-sub {
+  display: block;
+}
+
 .people-h {
-  margin: 18px 0 8px;
+  margin: 20px 0 10px;
   font-size: 14px;
   font-weight: 650;
 }
@@ -2332,48 +2325,51 @@ a.crumb-link:focus-visible {
   text-underline-offset: 3px;
 }
 
-.people-text {
+.people-none {
   margin: 0;
-  color: var(--mantine-color-gray-8);
+  color: var(--mantine-color-dimmed);
   font-size: 13px;
-  line-height: 1.6;
 }
 
-.people-text-more {
-  margin-top: 8px;
-}
-
-.people-contact {
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--mantine-color-gray-2);
+/* One label, one short answer per row. The full record lives on the profile. */
+.people-sheet {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 12px 14px;
+  margin: 0;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.5;
 }
 
-.people-contact a {
-  color: var(--mantine-primary-color-filled);
-  text-decoration: none;
-}
-
-.people-label {
-  margin-right: 6px;
+.people-sheet dt,
+.people-dim {
   color: var(--mantine-color-dimmed);
 }
 
-.people-lines .people-text + .people-text {
-  margin-top: 6px;
-}
-
-.people-files {
+.people-sheet dd {
+  min-width: 0;
   margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
-.people-files li {
-  padding: 0 0 8px;
-  font-size: 13px;
+.people-sheet dd > span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.people-sheet a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.people-sheet a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.people-sheet .people-link {
+  color: var(--mantine-primary-color-filled);
 }
 
 /* ---------- candidates: filters, the list, and the selected person, side by side ---------- */
@@ -2410,7 +2406,6 @@ a.crumb-link:focus-visible {
   outline-offset: -2px;
 }
 
-
 .candidates-score {
   font-size: 18px;
   font-weight: 300;
@@ -2442,20 +2437,50 @@ a.crumb-link:focus-visible {
   }
 }
 
-/* The list holds only names; everything else is in the preview beside it. */
-.names-table td {
-  padding-block: 12px;
+/* Two lines per row: who they are under the name, where they are under the job. */
+.person-table td {
+  padding-block: 10px;
 }
 
-.names-table thead th {
+.person-table thead th {
   color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.person-name {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.person-job,
+.person-sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-job {
   font-size: 13px;
   font-weight: 500;
 }
 
-.names-name {
-  font-size: 15px;
-  font-weight: 600;
+.person-sub,
+.person-dim {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.person-num {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.person-dim {
+  white-space: nowrap;
 }
 
 /* When all three columns fit, the page is exactly the window and each column scrolls on its own. */
@@ -2529,5 +2554,337 @@ a.crumb-link:focus-visible {
 @supports not selector(::-webkit-scrollbar) {
   .candidates-main > .panel {
     scrollbar-color: var(--mantine-color-gray-4) var(--mantine-color-gray-0);
+  }
+}
+
+/* ---------- reports ---------- */
+
+/* The page is the window; the report list and the report scroll on their own.
+   A report reads top to bottom: headline numbers, then its charts, then the full table. */
+.reports-main {
+  flex: 1 1 380px;
+  min-width: 0;
+}
+
+.reports-table {
+  overflow: hidden;
+}
+
+.page-container:has(.reports) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: none;
+  padding: 0 32px 24px;
+}
+
+/* The title stays the same size as on every other page. */
+.page-container:has(.reports) > .mantine-Group-root:first-child {
+  flex: none;
+  margin: 0 !important;
+  padding: 40px 0 20px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.reports {
+  flex: 1;
+  flex-wrap: nowrap !important;
+  align-items: stretch !important;
+  gap: 0 !important;
+  min-height: 0;
+}
+
+.reports-side {
+  flex: 0 0 210px;
+  gap: 20px !important;
+  padding: 10px 8px;
+  overflow-y: auto;
+  border-right: 1px solid var(--mantine-color-gray-2);
+  --input-height-sm: 28px;
+  --button-height-sm: 28px;
+}
+
+.reports-nav .mantine-NavLink-root {
+  min-height: 28px;
+  height: auto;
+  padding: 4px 8px;
+  border-radius: 5px !important;
+}
+
+.reports-nav .mantine-NavLink-label {
+  font-size: 13px;
+}
+
+.reports-nav .mantine-NavLink-root[data-active] {
+  background: var(--mantine-color-gray-1);
+  color: var(--mantine-color-text);
+  font-weight: 600;
+}
+
+.reports-views {
+  padding: 0 8px;
+}
+
+.reports-views > p:first-child {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.reports-main {
+  gap: 0 !important;
+  overflow-y: auto;
+}
+
+.reports-filters {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 6px 16px 8px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--mantine-color-gray-2) !important;
+  border-radius: 0 !important;
+  --input-height-sm: 28px;
+  --button-height-sm: 28px;
+}
+
+.reports-filters label {
+  color: var(--mantine-color-dimmed);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.reports-head {
+  align-items: center !important;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.reports-title {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+.reports-desc {
+  font-size: 12px !important;
+}
+
+.reports-main > .mantine-Alert-root {
+  margin: 12px 16px 0;
+}
+
+.reports-table {
+  border: 0 !important;
+  border-radius: 0 !important;
+}
+
+.reports-table th {
+  position: sticky;
+  top: 0;
+  height: 32px;
+  padding-block: 0;
+  background: var(--surface-sunken);
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.reports-table td {
+  padding-block: 6px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports-table th:first-child,
+.reports-table td:first-child {
+  padding-left: 16px;
+}
+
+.reports-print-meta {
+  display: none;
+}
+
+.reports-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 16px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+}
+
+.reports-stats dt {
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.reports-stats dd {
+  margin: 2px 0 0;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Charts tile two across, split by hairlines (the grid gap shows the line colour behind). */
+.reports-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 1px;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  background: var(--mantine-color-gray-2);
+}
+
+.reports-chart {
+  min-width: 0;
+  margin: 0;
+  padding: 16px 16px 20px;
+  background: var(--mantine-color-body);
+}
+
+.reports-chart figcaption {
+  margin-bottom: 14px;
+}
+
+.reports-chart-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reports-chart-caption,
+.reports-chart-empty {
+  display: block;
+  margin: 2px 0 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.reports-donut {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.reports-legend {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  list-style: none;
+}
+
+.reports-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reports-legend b {
+  margin-left: auto;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports-swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+/* Download PDF prints the report alone: no app chrome, no controls, charts and table on A4. */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  .app-main {
+    padding: 0 !important;
+  }
+
+  .mantine-AppShell-navbar,
+  .reports-side,
+  .reports-filters,
+  .reports-actions,
+  .page-container:has(.reports) > .mantine-Group-root:first-child,
+  .mantine-Notifications-root {
+    display: none !important;
+  }
+
+  .page-container:has(.reports),
+  .reports,
+  .reports-main {
+    display: block !important;
+    height: auto !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  .reports-head {
+    display: block !important;
+    padding: 0 0 12px !important;
+  }
+
+  .reports-title {
+    font-size: 20px !important;
+  }
+
+  .reports-desc {
+    font-size: 12px !important;
+  }
+
+  .reports-print-meta {
+    display: block;
+    margin: 6px 0 0;
+    color: var(--mantine-color-gray-7);
+    font-size: 11px;
+  }
+
+  .reports-stats {
+    padding: 12px 0;
+  }
+
+  .reports-charts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .reports-chart,
+  .reports-table tr {
+    break-inside: avoid;
+  }
+
+  .reports-table th {
+    position: static;
+  }
+
+  .reports-table th:first-child,
+  .reports-table td:first-child {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 48em) {
+  .page-container:has(.reports) {
+    height: auto;
+    padding-inline: 16px;
+  }
+
+  .reports {
+    flex-direction: column;
+  }
+
+  .reports-side {
+    flex: none;
+    border-right: 0;
+    border-bottom: 1px solid var(--mantine-color-gray-2);
   }
 }

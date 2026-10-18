@@ -40,6 +40,7 @@ import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
 import { EmptyState } from '@/components/ui/Cards';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { formatRelative } from '@/lib/format';
 import { RejectManyModal } from '@/features/applicants/RejectManyModal';
 import { FitDrawer } from '@/features/talent/FitDrawer';
 import type {
@@ -636,115 +637,6 @@ export function CandidatesList({
     </div>
   );
 
-  // Only the name in the list; the rest is in the preview beside it.
-  const nameList = !list.data ? (
-    <LoadingBlock rows={6} />
-  ) : items.length === 0 ? (
-    <EmptyState
-      icon={IconUserSearch}
-      title="Nobody matches these filters"
-      actionLabel={anyFilter ? 'Clear filters' : undefined}
-      onAction={clearFilters}
-    />
-  ) : (
-    <div className="panel">
-      <Table className="inbox-table candidates-table names-table" verticalSpacing={0}>
-        {canBulk && (
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th w={40}>
-                <Checkbox
-                  aria-label="Select everyone on this page"
-                  checked={allSelected}
-                  indeterminate={selected.length > 0 && !allSelected}
-                  onChange={(event) =>
-                    setSelected(event.currentTarget.checked ? items.map((person) => person.id) : [])
-                  }
-                />
-              </Table.Th>
-              <Table.Th>Select all on this page</Table.Th>
-              <Table.Th w={44} />
-            </Table.Tr>
-          </Table.Thead>
-        )}
-        <Table.Tbody>
-          {items.map((person) => {
-            const app = shownApp(person);
-            return (
-              <Table.Tr
-                key={person.id}
-                data-selected={selected.includes(person.id) || undefined}
-                {...selectRow(person.id)}
-              >
-                {canBulk && (
-                  <Table.Td w={40} onClick={stop}>
-                    <Checkbox
-                      aria-label={`Select ${person.name}`}
-                      checked={selected.includes(person.id)}
-                      disabled={!app}
-                      onChange={(event) => {
-                        const { checked } = event.currentTarget;
-                        setSelected((current) =>
-                          checked
-                            ? [...current, person.id]
-                            : current.filter((id) => id !== person.id),
-                        );
-                      }}
-                    />
-                  </Table.Td>
-                )}
-                <Table.Td>
-                  <span className="names-name">{person.name}</span>
-                </Table.Td>
-                <Table.Td w={44} onClick={stop}>
-                  <Menu position="bottom-end" withArrow shadow="md">
-                    <Menu.Target>
-                      <ActionIcon
-                        variant="subtle"
-                        color="gray"
-                        size="sm"
-                        aria-label={`Actions for ${person.name}`}
-                      >
-                        <IconDots size={16} />
-                      </ActionIcon>
-                    </Menu.Target>
-                    <Menu.Dropdown>
-                      <Menu.Item onClick={() => router.push(`/candidates/${person.id}`)}>
-                        Open profile
-                      </Menu.Item>
-                      {person.applications.map((item) => (
-                        <Menu.Item
-                          key={item.id}
-                          onClick={() => router.push(`/applications/${item.id}`)}
-                        >
-                          Open {item.requisitionTitle}
-                        </Menu.Item>
-                      ))}
-                      {person.email !== 'Restricted' && (
-                        <Menu.Item onClick={() => copyEmail(person.email)}>Copy email</Menu.Item>
-                      )}
-                      {canManage && app?.status === 'Active' && (
-                        <>
-                          <Menu.Divider />
-                          <Menu.Item
-                            color="red"
-                            onClick={() => setRejecting({ name: person.name, app })}
-                          >
-                            Reject from {app.requisitionTitle}…
-                          </Menu.Item>
-                        </>
-                      )}
-                    </Menu.Dropdown>
-                  </Menu>
-                </Table.Td>
-              </Table.Tr>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
-    </div>
-  );
-
   const rankTable = !rank.data ? (
     <LoadingBlock rows={6} />
   ) : (
@@ -874,58 +766,212 @@ export function CandidatesList({
   const pageSize = ranking ? (rank.data?.pageSize ?? 25) : (list.data?.pageSize ?? 25);
   const pages = Math.ceil(total / pageSize);
 
+  // Shared pieces for the list layouts below.
+  const stageOf = (app?: CandidateListApplication) =>
+    app ? (app.status === 'Active' ? app.stage : app.status) : null;
+  const listState = !list.data ? (
+    <LoadingBlock rows={6} />
+  ) : items.length === 0 ? (
+    <EmptyState
+      icon={IconUserSearch}
+      title="Nobody matches these filters"
+      actionLabel={anyFilter ? 'Clear filters' : undefined}
+      onAction={clearFilters}
+    />
+  ) : null;
+  const headCheck = canBulk && (
+    <Table.Th w={40}>
+      <Checkbox
+        aria-label="Select everyone on this page"
+        checked={allSelected}
+        indeterminate={selected.length > 0 && !allSelected}
+        onChange={(event) =>
+          setSelected(event.currentTarget.checked ? items.map((person) => person.id) : [])
+        }
+      />
+    </Table.Th>
+  );
+  const rowCheck = (person: CandidateListItem, app?: CandidateListApplication) =>
+    canBulk && (
+      <Table.Td w={40} onClick={stop}>
+        <Checkbox
+          aria-label={`Select ${person.name}`}
+          checked={selected.includes(person.id)}
+          disabled={!app}
+          onChange={(event) => {
+            const { checked } = event.currentTarget;
+            setSelected((current) =>
+              checked ? [...current, person.id] : current.filter((id) => id !== person.id),
+            );
+          }}
+        />
+      </Table.Td>
+    );
+  const rowMenu = (person: CandidateListItem, app?: CandidateListApplication) => (
+    <Table.Td w={44} onClick={stop}>
+      <Menu position="bottom-end" withArrow shadow="md">
+        <Menu.Target>
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="sm"
+            aria-label={`Actions for ${person.name}`}
+          >
+            <IconDots size={16} />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Item onClick={() => router.push(`/candidates/${person.id}`)}>
+            Open profile
+          </Menu.Item>
+          {person.applications.map((item) => (
+            <Menu.Item key={item.id} onClick={() => router.push(`/applications/${item.id}`)}>
+              Open {item.requisitionTitle}
+            </Menu.Item>
+          ))}
+          {person.email !== 'Restricted' && (
+            <Menu.Item onClick={() => copyEmail(person.email)}>Copy email</Menu.Item>
+          )}
+          {canManage && app?.status === 'Active' && (
+            <>
+              <Menu.Divider />
+              <Menu.Item color="red" onClick={() => setRejecting({ name: person.name, app })}>
+                Reject from {app.requisitionTitle}…
+              </Menu.Item>
+            </>
+          )}
+        </Menu.Dropdown>
+      </Menu>
+    </Table.Td>
+  );
+  const listHead = (
+    <div className="applicants-head">
+      <span className="applicants-count" aria-live="polite">
+        {ranking
+          ? `Ranked for ${rankJobTitle ?? 'this job'}`
+          : `${total} ${total === 1 ? 'person' : 'people'}`}
+      </span>
+      {ranking ? (
+        <Group gap="sm">
+          <Checkbox
+            size="xs"
+            label={`Show dismissed${rank.data?.dismissed ? ` (${rank.data.dismissed})` : ''}`}
+            checked={includeDismissed}
+            onChange={(event) => setIncludeDismissed(event.currentTarget.checked)}
+          />
+          <Button
+            size="xs"
+            variant="default"
+            leftSection={<IconX size={14} />}
+            onClick={() => setRanking(null)}
+          >
+            Back to the list
+          </Button>
+        </Group>
+      ) : (
+        <Select
+          size="xs"
+          w={160}
+          aria-label="Sort"
+          value={filters.sort}
+          allowDeselect={false}
+          onChange={(value) => value && set('sort', value)}
+          data={SORT_OPTIONS}
+        />
+      )}
+    </div>
+  );
+  const pager = pages > 1 && (
+    <Group justify="flex-end" mt="md">
+      <Pagination
+        size="sm"
+        total={pages}
+        value={ranking ? rankPage : page}
+        onChange={ranking ? setRankPage : setPage}
+      />
+    </Group>
+  );
+
   return (
     <>
       {describeBar}
       <div className="candidates">
         {rail}
         <div className="candidates-main">
-          <div className="applicants-head">
-            <span className="applicants-count" aria-live="polite">
-              {ranking
-                ? `Ranked for ${rankJobTitle ?? 'this job'}`
-                : `${total} ${total === 1 ? 'person' : 'people'}`}
-            </span>
-            {ranking ? (
-              <Group gap="sm">
-                <Checkbox
-                  size="xs"
-                  label={`Show dismissed${rank.data?.dismissed ? ` (${rank.data.dismissed})` : ''}`}
-                  checked={includeDismissed}
-                  onChange={(event) => setIncludeDismissed(event.currentTarget.checked)}
-                />
-                <Button
-                  size="xs"
-                  variant="default"
-                  leftSection={<IconX size={14} />}
-                  onClick={() => setRanking(null)}
-                >
-                  Back to the list
-                </Button>
-              </Group>
-            ) : (
-              <Select
-                size="xs"
-                w={160}
-                aria-label="Sort"
-                value={filters.sort}
-                allowDeselect={false}
-                onChange={(value) => value && set('sort', value)}
-                data={SORT_OPTIONS}
-              />
-            )}
-          </div>
-          {ranking ? rankTable : nameList}
-          {pages > 1 && (
-            <Group justify="flex-end" mt="md">
-              <Pagination
-                size="sm"
-                total={pages}
-                value={ranking ? rankPage : page}
-                onChange={ranking ? setRankPage : setPage}
-              />
-            </Group>
-          )}
+          {listHead}
+          {ranking
+            ? rankTable
+            : (listState ?? (
+                <div className="panel">
+                  <Table.ScrollContainer minWidth={560}>
+                    <Table
+                      className="inbox-table candidates-table person-table"
+                      verticalSpacing={0}
+                    >
+                      <Table.Thead>
+                        <Table.Tr>
+                          {headCheck}
+                          <Table.Th>Person</Table.Th>
+                          <Table.Th>Job</Table.Th>
+                          <Table.Th w={70} ta="right">
+                            Exp.
+                          </Table.Th>
+                          <Table.Th w={100}>Last activity</Table.Th>
+                          <Table.Th w={44} />
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {items.map((person) => {
+                          const app = shownApp(person);
+                          return (
+                            <Table.Tr
+                              key={person.id}
+                              data-selected={selected.includes(person.id) || undefined}
+                              {...selectRow(person.id)}
+                            >
+                              {rowCheck(person, app)}
+                              <Table.Td>
+                                <span className="person-name">{person.name}</span>
+                                <span className="person-sub">
+                                  {[person.currentTitle ?? 'No title', person.location]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </span>
+                              </Table.Td>
+                              <Table.Td maw={0}>
+                                {app ? (
+                                  <>
+                                    <span className="person-job">{app.requisitionTitle}</span>
+                                    <span className="person-sub">
+                                      {stageOf(app)}
+                                      {app.rating ? ` · rated ${app.rating.toFixed(1)}` : ''}
+                                      {person.applications.length > 1
+                                        ? ` · +${person.applications.length - 1} more`
+                                        : ''}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="person-dim">No job yet</span>
+                                )}
+                              </Table.Td>
+                              <Table.Td ta="right" className="person-num">
+                                {person.experienceYears != null
+                                  ? `${person.experienceYears} yrs`
+                                  : '–'}
+                              </Table.Td>
+                              <Table.Td className="person-dim">
+                                {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
+                              </Table.Td>
+                              {rowMenu(person, app)}
+                            </Table.Tr>
+                          );
+                        })}
+                      </Table.Tbody>
+                    </Table>
+                  </Table.ScrollContainer>
+                </div>
+              ))}
+          {pager}
         </div>
         {preview && <CandidatePreview key={preview.id} person={preview} />}
       </div>

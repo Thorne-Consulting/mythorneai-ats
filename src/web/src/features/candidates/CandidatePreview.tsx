@@ -24,6 +24,22 @@ export type PreviewPerson = {
   applications?: { id: string; rating?: number | null; fitScore?: number | null }[];
 };
 
+type Scores = { rating?: number | null; fitScore?: number | null } | undefined;
+
+function scoresFor(person: PreviewPerson, applicationId: string): Scores {
+  return person.applications?.find((app) => app.id === applicationId);
+}
+
+/** "Rated 4.0 · fit 72", or empty when neither is known. */
+function scoreText(scores: Scores) {
+  return [
+    scores?.rating ? `Rated ${scores.rating.toFixed(1)}` : null,
+    scores?.fitScore != null ? `fit ${scores.fitScore}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** Skills that matched the search come first, in bold. */
 export function SkillText({ person, limit }: { person: PreviewPerson; limit: number }) {
   const matched = person.matchedTerms.filter((term) => person.skills.includes(term));
@@ -36,16 +52,7 @@ export function SkillText({ person, limit }: { person: PreviewPerson; limit: num
   ));
 }
 
-/** "Rated 4.0 · fit 72" for an application, or nothing when neither is known. */
-function scoreLine(app?: { rating?: number | null; fitScore?: number | null }) {
-  const parts = [
-    app?.rating ? `Rated ${app.rating.toFixed(1)}` : null,
-    app?.fitScore != null ? `fit ${app.fitScore}` : null,
-  ].filter(Boolean);
-  return parts.length > 0 && <span className="people-sub">{parts.join(' · ')}</span>;
-}
-
-/** Everything about one person: their numbers, where they are, what they bring, how to reach them. */
+/** A short fact sheet about one person; the profile has the rest. */
 export function CandidatePreview({ person }: { person: PreviewPerson }) {
   const router = useRouter();
   const query = useQuery({
@@ -76,7 +83,7 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
             </span>
             <span>
               <b>{detail.applications.filter((app) => app.status === 'Active').length}</b>
-              <span>active</span>
+              <span>active jobs</span>
             </span>
             <span>
               <b>{detail.attachments.length}</b>
@@ -85,113 +92,92 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
           </div>
           <h4 className="people-h">Where they are</h4>
           {detail.applications.length === 0 ? (
-            <p className="people-text">Not applied to any job yet.</p>
+            <p className="people-none">Not applied to any job yet.</p>
           ) : (
             <ul className="people-where">
               {detail.applications.map((app) => (
                 <li key={app.id} data-closed={app.status !== 'Active' || undefined}>
                   <a href={`/applications/${app.id}`}>{app.requisitionTitle}</a>
                   <span className="people-sub">
-                    {app.requisitionCode} · {app.stage}
-                    {app.status !== 'Active' ? ` · ${app.status}` : ''}
+                    {app.status === 'Active' ? app.stage : app.status} · applied{' '}
+                    {formatDate(app.appliedAt)}
                   </span>
-                  <span className="people-sub">
-                    Applied {formatDate(app.appliedAt)} · active{' '}
-                    {formatRelative(app.lastActivityAt)}
-                  </span>
-                  {scoreLine(person.applications?.find((item) => item.id === app.id))}
+                  {scoreText(scoresFor(person, app.id)) && (
+                    <span className="people-sub">{scoreText(scoresFor(person, app.id))}</span>
+                  )}
                 </li>
               ))}
             </ul>
           )}
-          <h4 className="people-h">Highlights</h4>
-          <p className="people-text">{detail.resumeSummary ?? 'No resume summary yet.'}</p>
-          {person.skills.length > 0 && (
-            <p className="people-text people-text-more">
-              <SkillText person={person} limit={30} />
-            </p>
-          )}
-          {(detail.resumeJobTitles.length > 0 ||
-            detail.resumeEducation.length > 0 ||
-            detail.resumeCertifications.length > 0 ||
-            detail.resumeLanguages.length > 0) && (
-            <>
-              <h4 className="people-h">Background</h4>
-              <div className="people-lines">
-                {detail.resumeJobTitles.length > 0 && (
-                  <p className="people-text">
-                    <span className="people-label">Past roles</span>
-                    {detail.resumeJobTitles.slice(0, 5).join('; ')}
-                  </p>
-                )}
-                {detail.resumeEducation.length > 0 && (
-                  <p className="people-text">
-                    <span className="people-label">Education</span>
-                    {detail.resumeEducation.join('; ')}
-                  </p>
-                )}
-                {detail.resumeCertifications.length > 0 && (
-                  <p className="people-text">
-                    <span className="people-label">Certifications</span>
-                    {detail.resumeCertifications.join(', ')}
-                  </p>
-                )}
-                {detail.resumeLanguages.length > 0 && (
-                  <p className="people-text">
-                    <span className="people-label">Languages</span>
-                    {detail.resumeLanguages.join(', ')}
-                  </p>
-                )}
-              </div>
-            </>
-          )}
-          {detail.attachments.length > 0 && (
-            <>
-              <h4 className="people-h">Files</h4>
-              <ul className="people-files">
-                {detail.attachments.map((file) => (
-                  <li key={file.id}>
-                    {file.originalFileName}
-                    <span className="people-sub">
-                      Uploaded {formatRelative(file.uploadedAt)} ·{' '}
-                      {file.parseStatus === 'Parsed' || file.parsedAt
-                        ? 'read'
-                        : file.parseError
-                          ? 'could not be read'
-                          : 'not read yet'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          <div className="people-contact">
-            <a href={`mailto:${person.email}`}>{person.email}</a>
-            {detail.phone && <> · {detail.phone}</>}
-            {linkedIn && (
+          <h4 className="people-h">About</h4>
+          <dl className="people-sheet">
+            {detail.resumeJobTitles.length > 0 && (
               <>
-                {' · '}
-                <a href={linkedIn} target="_blank" rel="noopener noreferrer">
-                  LinkedIn
-                </a>
+                <dt>Roles</dt>
+                <dd>
+                  {detail.resumeJobTitles.slice(0, 3).map((title) => (
+                    <span key={title}>{title}</span>
+                  ))}
+                </dd>
               </>
             )}
-            <br />
-            <span className="people-sub">
-              From {detail.source}
-              {detail.tags.length ? ` · ${detail.tags.join(', ')}` : ''}
-              {detail.doNotContact ? ' · Do not contact' : ''}
-            </span>
-            <span className="people-sub">
-              Added {formatDate(detail.createdAt)} · updated {formatRelative(detail.updatedAt)}
-              {detail.resumeParsedAt
-                ? ` · resume read ${formatRelative(detail.resumeParsedAt)}`
-                : ''}
-            </span>
-          </div>
+            {detail.resumeEducation.length > 0 && (
+              <>
+                <dt>Education</dt>
+                <dd>
+                  <span>{detail.resumeEducation[0]}</span>
+                </dd>
+              </>
+            )}
+            {person.skills.length > 0 && (
+              <>
+                <dt>Skills</dt>
+                <dd>
+                  <div>
+                    <SkillText person={person} limit={10} />
+                  </div>
+                </dd>
+              </>
+            )}
+            <dt>Email</dt>
+            <dd>
+              <span>
+                <a className="people-link" href={`mailto:${person.email}`}>
+                  {person.email}
+                </a>
+              </span>
+            </dd>
+            {detail.phone && (
+              <>
+                <dt>Phone</dt>
+                <dd>{detail.phone}</dd>
+              </>
+            )}
+            {linkedIn && (
+              <>
+                <dt>LinkedIn</dt>
+                <dd>
+                  <a
+                    className="people-link"
+                    href={linkedIn}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open
+                  </a>
+                </dd>
+              </>
+            )}
+            <dt>Source</dt>
+            <dd>{detail.source}</dd>
+            <dt>Added</dt>
+            <dd>
+              {formatDate(detail.createdAt)} · updated {formatRelative(detail.updatedAt)}
+            </dd>
+          </dl>
         </>
       )}
-      <Group gap="sm" mt="md">
+      <Group gap="sm" mt="lg">
         <Button onClick={() => router.push(`/candidates/${person.id}`)}>Open profile</Button>
         <Button
           variant="default"
