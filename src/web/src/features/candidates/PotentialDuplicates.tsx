@@ -1,9 +1,9 @@
 'use client';
 
-import { Anchor, Badge, Group, Paper, Stack, Text } from '@mantine/core';
-import { IconCopy } from '@tabler/icons-react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
+import { RailGroup } from './Rail';
 
 type Duplicate = {
   id: string;
@@ -21,34 +21,20 @@ export function PotentialDuplicates({ candidateId }: { candidateId: string }) {
   if (duplicates.isLoading || duplicates.isError || !duplicates.data?.length) return null;
 
   return (
-    <Paper withBorder radius="lg" p="lg">
-      <Group gap="sm" mb="xs">
-        <IconCopy size={17} />
-        <Text fw={700}>Possible duplicates</Text>
-      </Group>
-      <Text size="sm" c="dimmed" mb="md">
-        Review these records before creating another candidate. Records are never merged
-        automatically.
-      </Text>
-      <Stack gap="sm">
+    <RailGroup title="Possible duplicates">
+      <p className="rail-note">
+        Check these before creating another record. Nothing is merged on its own.
+      </p>
+      <ul className="rail-list">
         {duplicates.data.map((duplicate) => (
-          <div key={duplicate.id}>
-            <Anchor href={`/candidates/${duplicate.id}`} fw={600} size="sm">
-              {duplicate.name}
-            </Anchor>
-            <Text size="xs" c="dimmed">
-              {duplicate.currentTitle ?? duplicate.email}
-            </Text>
-            <Group gap={5} mt={5}>
-              {duplicate.reasons.map((reason) => (
-                <Badge key={reason} size="xs" variant="outline" color="gray">
-                  {reason}
-                </Badge>
-              ))}
-            </Group>
-          </div>
+          <li key={duplicate.id}>
+            <Link href={`/candidates/${duplicate.id}`}>{duplicate.name}</Link>
+            <span className="rail-file-meta">
+              {[duplicate.currentTitle ?? duplicate.email, ...duplicate.reasons].join(' · ')}
+            </span>
+          </li>
         ))}
-      </Stack>
-    </Paper>
+      </ul>
+    </RailGroup>
   );
 }

@@ -1,40 +1,37 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import {
-  Anchor,
-  Badge,
-  Button,
-  FileButton,
-  Group,
-  Modal,
-  Paper,
-  Stack,
-  Text,
-  ThemeIcon,
-} from '@mantine/core';
+import { useState } from 'react';
+import { FileButton, Modal } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import {
-  IconDownload,
-  IconExternalLink,
-  IconEye,
-  IconFileText,
-  IconMail,
-  IconMapPin,
-  IconPhone,
-  IconRefresh,
-  IconUpload,
-  type Icon,
-} from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatRelative } from '@/lib/format';
+import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail } from '@/types';
 import { CandidateCustomFields, type CandidateExtras } from './CandidateCustomFields';
 import { PotentialDuplicates } from './PotentialDuplicates';
-import { safeWebUrl } from '@/lib/safe-url';
+import { Fact, Missing, RailGroup } from './Rail';
 
-export function CandidateSidebar({
+type Attachment = CandidateDetail['attachments'][number];
+
+function parseLabel(attachment: Attachment) {
+  switch (attachment.parseStatus) {
+    case 'Parsed':
+      return 'read';
+    case 'Pending':
+    case 'Processing':
+      return 'being read';
+    case 'NeedsOcr':
+      return 'needs OCR';
+    case 'Failed':
+      return 'could not be read';
+    default:
+      return attachment.scanStatus === 'ValidationOnly' ? 'type checked' : attachment.scanStatus;
+  }
+}
+
+/** The facts a recruiter looks up while reading the record: how to reach them, the files, the dates. */
+export function CandidateRail({
   candidate,
   canUpload,
 }: {
@@ -56,201 +53,111 @@ export function CandidateSidebar({
       api.post(`/api/candidates/${candidate.id}/attachments/${attachmentId}/parse`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
-      queryClient.invalidateQueries({ queryKey: ['talent-search'] });
+      queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidate.id] });
       notifications.show({ color: 'teal', message: 'Resume parsing queued' });
     },
     onError: (error: Error) =>
       notifications.show({ color: 'red', title: 'Could not parse resume', message: error.message }),
   });
+  const linkedIn = safeWebUrl(candidate.linkedInUrl);
 
   return (
-    <>
-      <Stack gap="lg">
-        <Paper withBorder radius="lg" p="lg">
-          <Text fw={700} mb="md">
-            Contact
-          </Text>
-          <Stack gap="md">
-            <Contact icon={IconMail}>
-              <Anchor href={`mailto:${candidate.email}`} size="sm">
-                {candidate.email}
-              </Anchor>
-            </Contact>
-            <Contact icon={IconPhone}>
-              <Text size="sm">{candidate.phone ?? 'Not provided'}</Text>
-            </Contact>
-            <Contact icon={IconMapPin}>
-              <Text size="sm">{candidate.location ?? 'Not provided'}</Text>
-            </Contact>
-            {safeWebUrl(candidate.linkedInUrl) && (
-              <Contact icon={IconExternalLink}>
-                <Anchor
-                  href={safeWebUrl(candidate.linkedInUrl)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="sm"
+    <aside className="record-rail candidate-rail" aria-label="Candidate details">
+      <RailGroup title="Contact">
+        <dl className="facts-grid rail-facts">
+          <Fact label="Email">
+            <a href={`mailto:${candidate.email}`}>{candidate.email}</a>
+          </Fact>
+          <Fact label="Phone">{candidate.phone ?? <Missing />}</Fact>
+          <Fact label="Location">{candidate.location ?? <Missing />}</Fact>
+          {linkedIn && (
+            <Fact label="LinkedIn">
+              <a href={linkedIn} target="_blank" rel="noopener noreferrer">
+                Open profile
+              </a>
+            </Fact>
+          )}
+        </dl>
+      </RailGroup>
+
+      <CandidateCustomFields candidate={candidate} canEdit={canUpload} />
+
+      <RailGroup
+        title="Documents"
+        action={
+          canUpload && (
+            <FileButton onChange={(file) => file && upload.mutate(file)} accept=".pdf,.doc,.docx">
+              {(props) => (
+                <button
+                  type="button"
+                  className="text-action"
+                  {...props}
+                  disabled={upload.isPending}
                 >
-                  LinkedIn profile
-                </Anchor>
-              </Contact>
-            )}
-          </Stack>
-        </Paper>
-        <CandidateCustomFields candidate={candidate} canEdit={canUpload} />
-        <Paper withBorder radius="lg" p="lg">
-          <Group justify="space-between" mb="md">
-            <Text fw={700}>Documents</Text>
-            {canUpload && (
-              <FileButton onChange={(file) => file && upload.mutate(file)} accept=".pdf,.doc,.docx">
-                {(props) => (
-                  <Button
-                    {...props}
-                    size="xs"
-                    variant="light"
-                    leftSection={<IconUpload size={14} />}
-                    loading={upload.isPending}
-                  >
-                    Upload
-                  </Button>
-                )}
-              </FileButton>
-            )}
-          </Group>
-          <Stack gap="sm">
+                  {upload.isPending ? 'Uploading…' : 'Upload'}
+                </button>
+              )}
+            </FileButton>
+          )
+        }
+      >
+        {candidate.attachments.length === 0 ? (
+          <p className="rail-empty">No resume or documents yet.</p>
+        ) : (
+          <ul className="rail-files">
             {candidate.attachments.map((attachment) => (
-              <Group key={attachment.id} justify="space-between" wrap="nowrap">
-                <Group gap="sm" wrap="nowrap">
-                  <ThemeIcon color="gray" variant="light">
-                    <IconFileText size={16} />
-                  </ThemeIcon>
-                  <div style={{ minWidth: 0 }}>
-                    <Text size="sm" fw={600} truncate>
-                      {attachment.originalFileName}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {Math.ceil(attachment.length / 1024)} KB ·{' '}
-                      {attachment.parseStatus === 'Parsed'
-                        ? 'Resume parsed'
-                        : attachment.parseStatus === 'Pending' ||
-                            attachment.parseStatus === 'Processing'
-                          ? 'Queued for parsing'
-                          : attachment.parseStatus === 'NeedsOcr'
-                            ? 'Needs OCR'
-                            : attachment.parseStatus === 'Failed'
-                              ? 'Not parsed'
-                              : attachment.scanStatus === 'ValidationOnly'
-                                ? 'Type checked'
-                                : attachment.scanStatus}
-                    </Text>
-                  </div>
-                </Group>
-                <Group gap={2} wrap="nowrap">
-                  {canUpload &&
-                    (attachment.parseStatus === 'Failed' ||
-                      attachment.parseStatus === 'NeedsOcr') && (
-                      <Button
-                        variant="subtle"
-                        color="gray"
-                        size="compact-sm"
-                        aria-label={`Parse ${attachment.originalFileName}`}
-                        loading={parseResume.isPending && parseResume.variables === attachment.id}
-                        leftSection={<IconRefresh size={15} />}
-                        onClick={() => parseResume.mutate(attachment.id)}
-                      >
-                        Retry
-                      </Button>
-                    )}
+              <li key={attachment.id}>
+                <span className="rail-file-name">{attachment.originalFileName}</span>
+                <span className="rail-file-meta">
+                  {Math.ceil(attachment.length / 1024)} KB · {parseLabel(attachment)}
+                </span>
+                <span className="text-actions">
                   {attachment.contentType === 'application/pdf' && (
-                    <Button
-                      variant="subtle"
-                      color="gray"
-                      size="compact-sm"
-                      aria-label="Preview document"
+                    <button
+                      type="button"
+                      className="text-action"
                       onClick={() =>
                         setPreview({ id: attachment.id, name: attachment.originalFileName })
                       }
                     >
-                      <IconEye size={16} />
-                    </Button>
+                      Preview
+                    </button>
                   )}
-                  <ActionDownload id={attachment.id} />
-                </Group>
-              </Group>
+                  <a className="text-action" href={`/api/attachments/${attachment.id}`}>
+                    Download
+                  </a>
+                  {canUpload &&
+                    (attachment.parseStatus === 'Failed' ||
+                      attachment.parseStatus === 'NeedsOcr') && (
+                      <button
+                        type="button"
+                        className="text-action"
+                        disabled={parseResume.isPending}
+                        onClick={() => parseResume.mutate(attachment.id)}
+                      >
+                        Retry reading
+                      </button>
+                    )}
+                </span>
+              </li>
             ))}
-            {candidate.attachments.length === 0 && (
-              <Text size="sm" c="dimmed">
-                No resumes or documents.
-              </Text>
-            )}
-          </Stack>
-        </Paper>
-        {candidate.resumeParsedAt && (
-          <Paper withBorder radius="lg" p="lg">
-            <Group justify="space-between" mb="md">
-              <Text fw={700}>Resume profile</Text>
-              <Badge variant="light" color="teal">
-                Parsed
-              </Badge>
-            </Group>
-            <Stack gap="md">
-              {candidate.resumeSummary && (
-                <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                  {candidate.resumeSummary}
-                </Text>
-              )}
-              {candidate.resumeYearsExperience !== undefined && (
-                <Pair
-                  label="Estimated experience"
-                  value={`${candidate.resumeYearsExperience} years`}
-                />
-              )}
-              {candidate.resumeSkills.length > 0 && (
-                <div>
-                  <Text size="sm" fw={650} c="dimmed" mb={7}>
-                    Skills
-                  </Text>
-                  <Group gap={5}>
-                    {candidate.resumeSkills.slice(0, 12).map((skill) => (
-                      <Badge key={skill} size="xs" variant="light" color="gray">
-                        {skill}
-                      </Badge>
-                    ))}
-                  </Group>
-                </div>
-              )}
-              {candidate.resumeEducation.length > 0 && (
-                <div>
-                  <Text size="sm" fw={650} c="dimmed" mb={5}>
-                    Education
-                  </Text>
-                  <Stack gap={4}>
-                    {candidate.resumeEducation.map((item) => (
-                      <Text key={item} size="sm">
-                        {item}
-                      </Text>
-                    ))}
-                  </Stack>
-                </div>
-              )}
-              <Text size="xs" c="dimmed">
-                Parsed {formatDate(candidate.resumeParsedAt)} · Read-only; the Resume tab shows it
-                next to the original.
-              </Text>
-            </Stack>
-          </Paper>
+          </ul>
         )}
-        {canUpload && <PotentialDuplicates candidateId={candidate.id} />}
-        <Paper withBorder radius="lg" p="lg">
-          <Text fw={700} mb="sm">
-            Profile
-          </Text>
-          <Stack gap="sm">
-            <Pair label="Source" value={candidate.source} />
-            <Pair label="Added" value={formatDate(candidate.createdAt)} />
-            <Pair label="Last updated" value={formatDate(candidate.updatedAt)} />
-          </Stack>
-        </Paper>
-      </Stack>
+      </RailGroup>
+
+      {canUpload && <PotentialDuplicates candidateId={candidate.id} />}
+
+      <RailGroup title="Record">
+        <dl className="facts-grid rail-facts">
+          <Fact label="Source">{candidate.source}</Fact>
+          <Fact label="Added">{formatDate(candidate.createdAt)}</Fact>
+          <Fact label="Updated">{formatRelative(candidate.updatedAt)}</Fact>
+          {candidate.resumeParsedAt && (
+            <Fact label="Resume read">{formatRelative(candidate.resumeParsedAt)}</Fact>
+          )}
+        </dl>
+      </RailGroup>
+
       <Modal
         opened={preview !== null}
         onClose={() => setPreview(null)}
@@ -266,45 +173,6 @@ export function CandidateSidebar({
           />
         )}
       </Modal>
-    </>
-  );
-}
-
-function Contact({ icon: IconComponent, children }: { icon: Icon; children: ReactNode }) {
-  return (
-    <Group wrap="nowrap" align="flex-start">
-      <ThemeIcon variant="light" color="gray" size={30}>
-        <IconComponent size={15} />
-      </ThemeIcon>
-      {children}
-    </Group>
-  );
-}
-
-function Pair({ label, value }: { label: string; value: string }) {
-  return (
-    <Group justify="space-between" gap="xl">
-      <Text size="sm" c="dimmed">
-        {label}
-      </Text>
-      <Text size="sm" fw={600}>
-        {value}
-      </Text>
-    </Group>
-  );
-}
-
-function ActionDownload({ id }: { id: string }) {
-  return (
-    <Button
-      component="a"
-      href={`/api/attachments/${id}`}
-      variant="subtle"
-      color="gray"
-      size="compact-sm"
-      aria-label="Download document"
-    >
-      <IconDownload size={16} />
-    </Button>
+    </aside>
   );
 }

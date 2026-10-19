@@ -1,24 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Alert,
-  Button,
-  Group,
-  Modal,
-  NumberInput,
-  Paper,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from '@mantine/core';
+import { Alert, Button, Group, Modal, NumberInput, Select, Stack, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconMailOff, IconPencil } from '@tabler/icons-react';
+import { IconMailOff } from '@tabler/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import { formatDate } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
+import { Fact, Missing, RailGroup } from './Rail';
 
 /** Fields the API returns that the shared CandidateDetail type doesn't list yet. */
 export type CandidateExtras = { customFieldsJson?: string | null; emailBounced?: boolean };
@@ -76,7 +66,7 @@ export function CandidateCustomFields({
   if (fields.length === 0) return null;
   const show = (field: Definition) => {
     const value = values[field.key];
-    if (!value) return 'Not provided';
+    if (!value) return <Missing />;
     return field.type === 'date' ? formatDate(value) : value;
   };
   const edit = () => {
@@ -87,44 +77,24 @@ export function CandidateCustomFields({
 
   return (
     <>
-      <Paper withBorder radius="lg" p="lg">
-        <Group justify="space-between" mb="md">
-          <Text fw={700}>More details</Text>
-          {canEdit && (
-            <Button
-              size="compact-sm"
-              variant="subtle"
-              leftSection={<IconPencil size={14} />}
-              onClick={edit}
-            >
+      <RailGroup
+        title="Details"
+        action={
+          canEdit && (
+            <button type="button" className="text-action" onClick={edit}>
               Edit
-            </Button>
-          )}
-        </Group>
-        <Stack gap="sm">
+            </button>
+          )
+        }
+      >
+        <dl className="facts-grid rail-facts">
           {fields.map((field) => (
-            <Group
-              key={field.key}
-              justify="space-between"
-              gap="xl"
-              wrap="nowrap"
-              align="flex-start"
-            >
-              <Text size="sm" c="dimmed">
-                {field.label}
-              </Text>
-              <Text
-                size="sm"
-                fw={values[field.key] ? 600 : 400}
-                c={values[field.key] ? undefined : 'dimmed'}
-                ta="right"
-              >
-                {show(field)}
-              </Text>
-            </Group>
+            <Fact key={field.key} label={field.label}>
+              {show(field)}
+            </Fact>
           ))}
-        </Stack>
-      </Paper>
+        </dl>
+      </RailGroup>
       <Modal opened={opened} onClose={() => setOpened(false)} title="Edit details" centered>
         <Stack gap="md">
           {fields.map((field) =>

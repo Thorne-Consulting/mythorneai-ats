@@ -2939,3 +2939,417 @@ a.crumb-link:focus-visible {
     border-bottom: 1px solid var(--mantine-color-gray-2);
   }
 }
+
+/* ---------- candidate record: header, applications, the resume as a document, and the rail ---------- */
+
+.record-tags {
+  margin: 6px 0 0;
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+}
+
+.record-notice {
+  margin-bottom: 20px;
+}
+
+.record-empty {
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 14px;
+}
+
+.record-main > .record-section + .record-section {
+  margin-top: 48px;
+}
+
+.section-count {
+  color: var(--mantine-color-dimmed);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A status is a coloured dot and the word. The colour is the data; the word reads it. */
+.status-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Applications: one line per job, the whole line a link. */
+.apps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--mantine-color-gray-2);
+}
+
+.apps-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 24px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--mantine-color-gray-2);
+  color: inherit;
+  text-decoration: none;
+}
+
+.apps-row:hover .apps-title {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.apps-row:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+.apps-job {
+  display: grid;
+  min-width: 0;
+}
+
+.apps-title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apps-sub {
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.apps-stage {
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+}
+
+/* The resume reads like the document it came from: a measure, dated entries, plain lists. */
+.resume-doc {
+  max-width: 72ch;
+}
+
+.resume-who {
+  margin: 0;
+  color: var(--mantine-color-gray-8);
+  font-size: 15px;
+}
+
+.resume-facts {
+  margin: 4px 0 0;
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+}
+
+.resume-facts a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--mantine-color-gray-4);
+  text-underline-offset: 3px;
+}
+
+.resume-facts a:hover,
+.resume-item-title a:hover {
+  text-decoration-color: currentColor;
+}
+
+.resume-warning {
+  margin: 0 0 16px;
+  color: var(--mantine-color-orange-light-color);
+  font-size: 13px;
+}
+
+.resume-h {
+  margin: 36px 0 12px;
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.resume-prose {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.resume-item + .resume-item {
+  margin-top: 22px;
+}
+
+.resume-item-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: baseline;
+}
+
+.resume-item-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.resume-item-title a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--mantine-color-gray-4);
+  text-underline-offset: 3px;
+}
+
+.resume-item-sub {
+  display: block;
+  color: var(--mantine-color-gray-8);
+  font-size: 14px;
+}
+
+.resume-dates {
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.resume-meta {
+  margin: 4px 0 0;
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+}
+
+.resume-bullets {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.resume-bullets li + li {
+  margin-top: 4px;
+}
+
+.resume-skills {
+  display: grid;
+  grid-template-columns: 110px minmax(0, 1fr);
+  gap: 8px 16px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.resume-skills > div {
+  display: contents;
+}
+
+.resume-skills dt {
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.resume-skills dd {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.resume-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.resume-lines li + li {
+  margin-top: 4px;
+}
+
+.unverified {
+  text-decoration: underline dotted var(--mantine-color-yellow-7);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+.inferred {
+  color: var(--mantine-color-gray-7);
+  font-style: italic;
+  cursor: help;
+}
+
+.resume-details {
+  margin-top: 28px;
+  font-size: 13px;
+}
+
+.resume-details summary {
+  color: var(--mantine-color-dimmed);
+  cursor: pointer;
+}
+
+.resume-details summary:hover {
+  color: var(--mantine-color-text);
+}
+
+.resume-details > * + * {
+  margin-top: 10px;
+}
+
+.resume-note {
+  margin: 32px 0 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+/* Compare: the original beside the reading, the original pinned while the reading scrolls. */
+.resume-compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+
+.resume-compare iframe,
+.resume-original {
+  position: sticky;
+  top: 24px;
+  width: 100%;
+  height: 80vh;
+  border: 1px solid var(--mantine-color-gray-3);
+  border-radius: 8px;
+}
+
+.resume-original {
+  padding: 20px;
+}
+
+.resume-compare .resume-doc {
+  max-width: none;
+}
+
+@media (max-width: 62em) {
+  .resume-compare {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .resume-compare iframe {
+    position: static;
+    height: 60vh;
+  }
+}
+
+/* The rail: small titles, label / value rows, text actions. Nothing boxed. */
+.candidate-rail {
+  position: static;
+}
+
+.candidate-rail .rail-group + .rail-group {
+  margin-top: 32px;
+}
+
+.rail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.rail-title {
+  margin: 0;
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rail-facts .fact {
+  grid-template-columns: 96px minmax(0, 1fr);
+  padding: 6px 0;
+  font-size: 14px;
+}
+
+.rail-facts .fact dt {
+  color: var(--mantine-color-gray-7);
+  font-size: 13px;
+}
+
+.rail-facts a,
+.rail-list a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--mantine-color-gray-4);
+  text-underline-offset: 3px;
+}
+
+.rail-facts a:hover,
+.rail-list a:hover {
+  text-decoration-color: currentColor;
+}
+
+.rail-missing,
+.rail-empty,
+.rail-note {
+  color: var(--mantine-color-dimmed);
+}
+
+.rail-empty,
+.rail-note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.rail-note {
+  margin-bottom: 10px;
+}
+
+.rail-files,
+.rail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rail-files li + li,
+.rail-list li + li {
+  margin-top: 12px;
+}
+
+.rail-file-name {
+  display: block;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rail-file-meta {
+  display: block;
+  color: var(--mantine-color-dimmed);
+  font-size: 13px;
+}
+
+.rail-files .text-actions {
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.rail-list a {
+  font-weight: 500;
+}
+
+/* On a narrow screen the record comes first and the facts follow it; the job page does the reverse. */
+@media (max-width: 75em) {
+  .candidate-rail {
+    order: 0;
+    margin-top: 48px;
+    padding-top: 32px;
+    border-top: 1px solid var(--mantine-color-gray-2);
+  }
+}
