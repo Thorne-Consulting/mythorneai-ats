@@ -8,8 +8,7 @@ public static partial class SeedData
     // applied in the first stage, then spread through the stages up to the current one.
     private static void AddDevelopmentStageHistory(AtsDbContext db, DevelopmentJobs jobs, DevelopmentApplications applications)
     {
-        var requisitions = new[] { jobs.Engineering, jobs.Platform, jobs.Designer, jobs.Analyst, jobs.Operations, jobs.EngineeringManager, jobs.ContractWriter }
-            .ToDictionary(x => x.Id);
+        var requisitions = jobs.All.ToDictionary(x => x.Id);
         foreach (var application in applications.Items)
         {
             var stages = requisitions[application.RequisitionId].Stages.OrderBy(x => x.SortOrder).ToList();

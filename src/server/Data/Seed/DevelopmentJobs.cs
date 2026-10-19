@@ -140,6 +140,78 @@ public static partial class SeedData
             "Document the internal platform so new engineers can ship in their first week."
         );
 
+        // Early-career jobs, where the career-center sample resumes apply.
+        var nurse = Job(
+            "NUR-210",
+            "Registered nurse, new graduate",
+            "Health services",
+            "Tuscaloosa, AL",
+            "On-site",
+            "Full time",
+            3,
+            "priya.manager@example.test",
+            "dana.recruiter@example.test",
+            RequisitionStatus.Open,
+            50,
+            "Join the clinic nursing team straight out of school. A twelve-week preceptorship pairs you with a senior nurse before you take your own patients."
+        );
+        var marketing = Job(
+            "MKT-030",
+            "Marketing coordinator",
+            "Marketing",
+            "Seattle, WA",
+            "Hybrid",
+            "Full time",
+            1,
+            "priya.manager@example.test",
+            "dana.recruiter@example.test",
+            RequisitionStatus.Open,
+            40,
+            "Plan and run our newsletters, events and social channels, and report on what worked."
+        );
+        var mechanical = Job(
+            "ENG-130",
+            "Junior mechanical engineer",
+            "Engineering",
+            "Boston, MA",
+            "Hybrid",
+            "Full time",
+            2,
+            "manager@example.test",
+            "recruiter@example.test",
+            RequisitionStatus.Open,
+            60,
+            "Design and test parts for our lab equipment with a senior engineer, from CAD through prototype and test reports."
+        );
+        var research = Job(
+            "RES-014",
+            "Research assistant",
+            "Research",
+            "Seattle, WA",
+            "On-site",
+            "Full time",
+            2,
+            "manager@example.test",
+            "dana.recruiter@example.test",
+            RequisitionStatus.Open,
+            35,
+            "Run experiments, keep careful lab records and help analyse results for the applied research group."
+        );
+        var programs = Job(
+            "PRG-008",
+            "Community programs coordinator",
+            "Community programs",
+            "Tuscaloosa, AL",
+            "Hybrid",
+            "Full time",
+            1,
+            "priya.manager@example.test",
+            "recruiter@example.test",
+            RequisitionStatus.Open,
+            45,
+            "Coordinate our youth mentoring and outreach programs: recruit volunteers, run sessions and keep partners informed."
+        );
+
         var technicalKit = new InterviewKit
         {
             RequisitionId = engineering.Id,
@@ -245,6 +317,11 @@ public static partial class SeedData
             operations,
             engManager,
             contractWriter,
+            nurse,
+            marketing,
+            mechanical,
+            research,
+            programs,
             technicalKit,
             valuesKit
         );

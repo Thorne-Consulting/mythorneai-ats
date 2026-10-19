@@ -51,10 +51,11 @@ public static partial class SeedData
                 new CustomFieldDefinition { Key = "notice-period", Label = "Notice period", Type = "select", Options = ["Immediate", "2 weeks", "1 month", "2 months or more"], SortOrder = 0 },
                 new CustomFieldDefinition { Key = "work-authorization", Label = "Work authorization", Type = "text", SortOrder = 1 }
             );
-            foreach (var job in new[] { jobs.Engineering, jobs.Platform, jobs.Designer, jobs.Analyst, jobs.Operations, jobs.EngineeringManager, jobs.ContractWriter })
+            foreach (var job in jobs.All)
                 if (job.Status != RequisitionStatus.Draft)
                     job.OpenedAt = job.CreatedAt;
-            db.Requisitions.Add(jobs.ContractWriter);
+            db.Requisitions.AddRange(jobs.All);
+            db.Candidates.AddRange(candidates);
             db.Applications.AddRange(applications.Items);
             AddDevelopmentAuditEvents(db, now, jobs, applications);
             AddDevelopmentStageHistory(db, jobs, applications);
@@ -139,9 +140,18 @@ public static partial class SeedData
         Requisition Operations,
         Requisition EngineeringManager,
         Requisition ContractWriter,
+        Requisition Nurse,
+        Requisition Marketing,
+        Requisition Mechanical,
+        Requisition Research,
+        Requisition Programs,
         InterviewKit TechnicalKit,
         InterviewKit ValuesKit
-    );
+    )
+    {
+        public Requisition[] All =>
+            [Engineering, Platform, Designer, Analyst, Operations, EngineeringManager, ContractWriter, Nurse, Marketing, Mechanical, Research, Programs];
+    }
 
     private sealed record DevelopmentApplications(
         List<Application> Items,
