@@ -8,7 +8,8 @@ import { api } from '@/api';
 import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { formatDate, formatRelative } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
-import type { CandidateDetail } from '@/types';
+import type { CandidateDetail, ResumeProfile } from '@/types';
+import type { Filters } from './candidate-filters';
 
 /** What the list knows about a person; the panel loads the rest. */
 export type PreviewPerson = {
@@ -52,8 +53,59 @@ export function SkillText({ person, limit }: { person: PreviewPerson; limit: num
   ));
 }
 
+type OnFilter = (patch: Partial<Filters>) => void;
+
+/** A parsed value that narrows the list to people like this one, when the list allows it. */
+function FilterLink({
+  patch,
+  onFilter,
+  children,
+}: {
+  patch: Partial<Filters>;
+  onFilter?: OnFilter;
+  children: React.ReactNode;
+}) {
+  if (!onFilter) return <>{children}</>;
+  return (
+    <button
+      type="button"
+      className="people-filter"
+      title="Show people like this"
+      onClick={() => onFilter(patch)}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** "2021 – now · 4 yrs" for a job on the parsed resume. */
+function span(role: ResumeProfile['work'][number]) {
+  const years = role.durationMonths ? Math.round(role.durationMonths / 1.2) / 10 : null;
+  return [
+    [role.startYear, role.isCurrent ? 'now' : role.endYear].filter(Boolean).join(' – '),
+    years ? `${years} yrs` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+const SENIORITY_FILTERS = ['Junior', 'Mid', 'Senior', 'Lead', 'Manager', 'Director', 'Executive'];
+const DEGREE_LABELS: Record<string, string> = {
+  HighSchool: 'High school',
+  Associate: 'Associate',
+  Bachelor: "Bachelor's",
+  Master: "Master's",
+  Doctorate: 'Doctorate',
+};
+
 /** A short fact sheet about one person; the profile has the rest. */
-export function CandidatePreview({ person }: { person: PreviewPerson }) {
+export function CandidatePreview({
+  person,
+  onFilter,
+}: {
+  person: PreviewPerson;
+  onFilter?: OnFilter;
+}) {
   const router = useRouter();
   const query = useQuery({
     queryKey: ['candidate', person.id],
@@ -61,6 +113,18 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
   });
   const detail = query.data?.id === person.id ? query.data : undefined;
   const linkedIn = safeWebUrl(detail?.linkedInUrl);
+  // The parsed resume; null while it loads or when there is none to show.
+  const resumeQuery = useQuery({
+    queryKey: ['candidate-resume', person.id],
+    queryFn: () => api.get<ResumeProfile>(`/api/candidates/${person.id}/resume`),
+    retry: false,
+  });
+  const resume =
+    resumeQuery.data?.id === person.id && resumeQuery.data.parsedAt ? resumeQuery.data : null;
+  const seniorityLink =
+    resume && SENIORITY_FILTERS.includes(resume.seniority) ? resume.seniority : null;
+  const degreeLink =
+    resume && DEGREE_LABELS[resume.highestDegreeLevel] ? resume.highestDegreeLevel : null;
 
   return (
     <aside className="people-panel" aria-label={`About ${person.name}`}>
@@ -78,16 +142,16 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
         <>
           <div className="people-stats">
             <span>
-              <b>{detail.resumeYearsExperience ?? '–'}</b>
+              <b>{resume?.yearsExperience ?? detail.resumeYearsExperience ?? '–'}</b>
               <span>years</span>
             </span>
             <span>
-              <b>{detail.applications.filter((app) => app.status === 'Active').length}</b>
-              <span>active jobs</span>
+              <b>{seniorityLink ?? '–'}</b>
+              <span>level</span>
             </span>
             <span>
-              <b>{detail.attachments.length}</b>
-              <span>{detail.attachments.length === 1 ? 'file' : 'files'}</span>
+              <b>{degreeLink ? DEGREE_LABELS[degreeLink] : '–'}</b>
+              <span>degree</span>
             </span>
           </div>
           <h4 className="people-h">Where they are</h4>
@@ -109,34 +173,84 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
               ))}
             </ul>
           )}
+          {resume && resume.work.length > 0 && (
+            <>
+              <h4 className="people-h">Experience</h4>
+              <ul className="people-roles">
+                {resume.work.slice(0, 4).map((role) => (
+                  <li key={role.id}>
+                    <b>{role.title}</b>
+                    <span>
+                      <FilterLink patch={{ company: role.company }} onFilter={onFilter}>
+                        {role.company}
+                      </FilterLink>
+                      {span(role) ? ` · ${span(role)}` : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {resume && resume.education.length > 0 && (
+            <>
+              <h4 className="people-h">Education</h4>
+              <ul className="people-roles">
+                {resume.education.slice(0, 2).map((entry) => (
+                  <li key={entry.id}>
+                    <b>{entry.degree ?? entry.field ?? 'Studied'}</b>
+                    <span>
+                      <FilterLink patch={{ school: entry.school }} onFilter={onFilter}>
+                        {entry.school}
+                      </FilterLink>
+                      {entry.isInProgress
+                        ? ' · in progress'
+                        : entry.endYear
+                          ? ` · ${entry.endYear}`
+                          : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <h4 className="people-h">About</h4>
           <dl className="people-sheet">
-            {detail.resumeJobTitles.length > 0 && (
-              <>
-                <dt>Roles</dt>
-                <dd>
-                  {detail.resumeJobTitles.slice(0, 3).map((title) => (
-                    <span key={title}>{title}</span>
-                  ))}
-                </dd>
-              </>
-            )}
-            {detail.resumeEducation.length > 0 && (
-              <>
-                <dt>Education</dt>
-                <dd>
-                  <span>{detail.resumeEducation[0]}</span>
-                </dd>
-              </>
-            )}
             {person.skills.length > 0 && (
               <>
                 <dt>Skills</dt>
                 <dd>
-                  <div>
-                    <SkillText person={person} limit={10} />
-                  </div>
+                  <span className="people-wrap">
+                    {person.skills.slice(0, 10).map((skill, index) => (
+                      <span key={skill}>
+                        {index > 0 && ', '}
+                        <FilterLink
+                          patch={{ skills: [skill], skillMode: 'any' }}
+                          onFilter={onFilter}
+                        >
+                          {person.matchedTerms.includes(skill) ? <b>{skill}</b> : skill}
+                        </FilterLink>
+                      </span>
+                    ))}
+                  </span>
                 </dd>
+              </>
+            )}
+            {resume && resume.certifications.length > 0 && (
+              <>
+                <dt>Certificates</dt>
+                <dd>
+                  {resume.certifications.slice(0, 3).map((cert) => (
+                    <span key={cert.id} className="people-wrap">
+                      {cert.name}
+                    </span>
+                  ))}
+                </dd>
+              </>
+            )}
+            {resume && resume.languages.length > 0 && (
+              <>
+                <dt>Languages</dt>
+                <dd>{resume.languages.map((item) => item.language).join(', ')}</dd>
               </>
             )}
             <dt>Email</dt>
@@ -170,10 +284,6 @@ export function CandidatePreview({ person }: { person: PreviewPerson }) {
             )}
             <dt>Source</dt>
             <dd>{detail.source}</dd>
-            <dt>Added</dt>
-            <dd>
-              {formatDate(detail.createdAt)} · updated {formatRelative(detail.updatedAt)}
-            </dd>
           </dl>
         </>
       )}

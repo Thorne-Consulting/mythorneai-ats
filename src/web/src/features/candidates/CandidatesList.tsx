@@ -77,8 +77,9 @@ const SOURCE_OPTIONS = [
   'Job board',
   'Portfolio site',
   'University fair',
+  'Career fair',
+  'Career site',
   'Resume import',
-  'Career center sample',
 ];
 const SORT_OPTIONS = [
   { value: 'recent', label: 'Latest activity' },
@@ -959,7 +960,7 @@ export function CandidatesList({
             ? rankTable
             : (listState ?? (
                 <div className="panel">
-                  <Table.ScrollContainer minWidth={560}>
+                  <Table.ScrollContainer minWidth={640}>
                     <Table
                       className="inbox-table candidates-table person-table"
                       verticalSpacing={0}
@@ -969,10 +970,11 @@ export function CandidatesList({
                           {headCheck}
                           <Table.Th>Person</Table.Th>
                           <Table.Th>Job</Table.Th>
-                          <Table.Th w={70} ta="right">
+                          <Table.Th w={130}>Stage</Table.Th>
+                          <Table.Th w={64} ta="right">
                             Exp.
                           </Table.Th>
-                          <Table.Th w={100}>Last activity</Table.Th>
+                          <Table.Th w={110}>Last activity</Table.Th>
                           <Table.Th w={44} />
                         </Table.Tr>
                       </Table.Thead>
@@ -987,36 +989,44 @@ export function CandidatesList({
                             >
                               {rowCheck(person, app)}
                               <Table.Td>
-                                <span className="person-name">{person.name}</span>
-                                <span className="person-sub">
-                                  {[person.currentTitle ?? 'No title', person.location]
-                                    .filter(Boolean)
-                                    .join(' · ')}
+                                <span className="person-cut person-name">{person.name}</span>
+                                <span className="person-cut person-sub">
+                                  {person.currentTitle ?? 'No title'}
                                 </span>
                               </Table.Td>
-                              <Table.Td maw={0}>
-                                {app ? (
-                                  <>
-                                    <span className="person-job">{app.requisitionTitle}</span>
-                                    <span className="person-sub">
-                                      {stageOf(app)}
-                                      {app.rating ? ` · rated ${app.rating.toFixed(1)}` : ''}
-                                      {person.applications.length > 1
-                                        ? ` · +${person.applications.length - 1} more`
-                                        : ''}
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="person-dim">No job yet</span>
-                                )}
+                              <Table.Td>
+                                <span className="person-cut person-main">
+                                  {app ? (
+                                    app.requisitionTitle
+                                  ) : (
+                                    <span className="person-sub">No job yet</span>
+                                  )}
+                                </span>
+                                <span className="person-cut person-sub">
+                                  {app
+                                    ? `${app.requisitionCode}${person.applications.length > 1 ? ` · +${person.applications.length - 1} more` : ''}`
+                                    : person.source}
+                                </span>
                               </Table.Td>
-                              <Table.Td ta="right" className="person-num">
+                              <Table.Td>
+                                <span className="person-cut person-main">
+                                  {stageOf(app) ?? '–'}
+                                </span>
+                                {app?.rating ? (
+                                  <span className="person-cut person-sub">
+                                    Rated {app.rating.toFixed(1)}
+                                  </span>
+                                ) : null}
+                              </Table.Td>
+                              <Table.Td className="person-num">
                                 {person.experienceYears != null
                                   ? `${person.experienceYears} yrs`
                                   : '–'}
                               </Table.Td>
-                              <Table.Td className="person-dim">
-                                {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
+                              <Table.Td>
+                                <span className="person-cut person-sub">
+                                  {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
+                                </span>
                               </Table.Td>
                               {rowMenu(person, app)}
                             </Table.Tr>
@@ -1029,7 +1039,16 @@ export function CandidatesList({
               ))}
           {pager}
         </div>
-        {preview && <CandidatePreview key={preview.id} person={preview} />}
+        {preview && (
+          <CandidatePreview
+            key={preview.id}
+            person={preview}
+            onFilter={(patch) => {
+              setFilters((current) => ({ ...current, ...patch }));
+              setPage(1);
+            }}
+          />
+        )}
       </div>
 
       {canBulk && selected.length > 0 && (
