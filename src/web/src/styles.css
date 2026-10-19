@@ -2331,6 +2331,58 @@ a.crumb-link:focus-visible {
   font-size: 13px;
 }
 
+/* Parsed values a recruiter can filter on read as quiet links; clicking one narrows the list. */
+.people-filter {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--mantine-color-gray-4);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.people-filter:hover {
+  color: var(--mantine-primary-color-filled);
+  text-decoration-color: currentColor;
+}
+
+.people-filter:focus-visible {
+  border-radius: 2px;
+  outline: 2px solid var(--mantine-primary-color-filled);
+  outline-offset: 2px;
+}
+
+/* The career as a short dated list: title, then employer and years. */
+.people-roles {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.people-roles li {
+  padding: 0 0 10px;
+  font-size: 13px;
+}
+
+.people-roles li > b {
+  display: block;
+  font-weight: 600;
+}
+
+.people-roles li > span {
+  display: block;
+  color: var(--mantine-color-dimmed);
+  font-size: 12px;
+}
+
+.people-sheet dd > .people-wrap {
+  display: block;
+  white-space: normal;
+}
+
 /* One label, one short answer per row. The full record lives on the profile. */
 .people-sheet {
   display: grid;
@@ -2437,7 +2489,13 @@ a.crumb-link:focus-visible {
   }
 }
 
-/* Two lines per row: who they are under the name, where they are under the job. */
+/* Two lines per row in fixed columns: person, job, stage, experience, last activity.
+   Long text is cut with an ellipsis so no column can squeeze the others. */
+.person-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
 .person-table td {
   padding-block: 10px;
 }
@@ -2448,27 +2506,23 @@ a.crumb-link:focus-visible {
   font-weight: 500;
 }
 
-.person-name {
-  display: block;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.person-job,
-.person-sub {
+.person-cut {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.person-job {
-  font-size: 13px;
-  font-weight: 500;
+.person-name {
+  font-size: 14px;
+  font-weight: 600;
 }
 
-.person-sub,
-.person-dim {
+.person-main {
+  font-size: 13px;
+}
+
+.person-sub {
   color: var(--mantine-color-dimmed);
   font-size: 12px;
 }
@@ -2476,10 +2530,7 @@ a.crumb-link:focus-visible {
 .person-num {
   font-size: 13px;
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.person-dim {
+  text-align: right;
   white-space: nowrap;
 }
 
