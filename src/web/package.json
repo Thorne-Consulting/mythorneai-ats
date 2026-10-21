@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@ariakit/react": "0.4.42",
-    "@mantine/charts": "8.3.18",
+    "@mantine/charts": "9.7.3",
     "@mantine/core": "^8.3.2",
     "@mantine/dates": "8.3.18",
     "@mantine/form": "^8.3.2",
