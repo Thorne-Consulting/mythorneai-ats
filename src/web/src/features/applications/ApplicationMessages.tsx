@@ -66,7 +66,7 @@ export function ApplicationMessages({ id, canManage }: { id: string; canManage: 
       invalidate();
       toast.success(
         'Message sent',
-        'The candidate has been emailed and can reply from their portal.',
+        'We emailed the candidate. They can reply from their candidate portal.',
       );
     },
     onError: (error: Error) => toast.error('Could not send the message', error.message),
@@ -83,9 +83,6 @@ export function ApplicationMessages({ id, canManage }: { id: string; canManage: 
               ? `Messages with ${application.candidateName}`
               : 'Messages with the candidate'}
           </h2>
-          {application && (
-            <p className="truncate text-xs text-fg-subtle">{application.candidateEmail}</p>
-          )}
         </div>
         {unread > 0 && (
           <Badge tone="blue" dot>
@@ -99,7 +96,7 @@ export function ApplicationMessages({ id, canManage }: { id: string; canManage: 
           compact
           icon={MessageSquare}
           title="No messages yet"
-          description="Write one below and the candidate gets it by email."
+          description="Write the first one below."
         />
       ) : (
         <div
@@ -136,7 +133,7 @@ export function ApplicationMessages({ id, canManage }: { id: string; canManage: 
             if (body.trim()) send.mutate();
           }}
         >
-          <p className="text-xs text-fg-muted">Reply via email</p>
+          <p className="text-xs text-fg-muted">They get this by email.</p>
           <Textarea
             aria-label="Message to the candidate"
             placeholder={`Write your message to ${firstName}…`}

@@ -21,7 +21,13 @@ import {
 } from '@/components/ui';
 import { templateCategories, type MessageTemplate } from '../sample-messages';
 import { useMessages } from './MessagesShell';
-import { candidateValues, fillTemplate, templateVariables, variablesIn } from './template-vars';
+import {
+  candidateValues,
+  fillTemplate,
+  templateVariables,
+  variableLabel,
+  variablesIn,
+} from './template-vars';
 
 /** /messages/templates/new (no id) and /messages/templates/[id]. */
 export function TemplateEditor({ id }: { id?: string }) {
@@ -143,7 +149,6 @@ function Form({ initial }: { initial?: MessageTemplate }) {
     <>
       <SectionTitle
         title={initial ? 'Edit template' : 'New template'}
-        description="Click a variable to insert it where your cursor is."
         className="mb-4"
         action={
           initial && (
@@ -199,8 +204,8 @@ function Form({ initial }: { initial?: MessageTemplate }) {
               />
               {unknown.length > 0 && (
                 <p className="text-xs text-tone-amber-fg sm:col-span-2" role="status">
-                  Not a known variable: {unknown.map((u) => `{{${u}}}`).join(', ')}. It will be sent
-                  as written.
+                  We don’t recognize {unknown.map((u) => `{{${u}}}`).join(', ')}. It will be sent
+                  exactly as typed.
                 </p>
               )}
               <div className="flex justify-end gap-2 sm:col-span-2">
@@ -238,8 +243,8 @@ function Form({ initial }: { initial?: MessageTemplate }) {
               </div>
               {missing.length > 0 && (
                 <p className="mt-3 text-xs text-tone-amber-fg">
-                  No value for {candidate?.name ?? 'this candidate'}:{' '}
-                  {missing.map((m) => `{{${m}}}`).join(', ')}. The sender fills it in by hand.
+                  No {missing.map((m) => variableLabel(m).toLowerCase()).join(', ')} for{' '}
+                  {candidate?.name ?? 'this candidate'} yet. The sender fills it in by hand.
                 </p>
               )}
             </div>
@@ -248,8 +253,8 @@ function Form({ initial }: { initial?: MessageTemplate }) {
 
         <Card className="self-start xl:sticky xl:top-[101px]">
           <CardHeader
-            title="Variables"
-            description="Filled from the candidate when you insert the template."
+            title="Placeholders"
+            description="Click one to add it where your cursor is. It fills in with each candidate’s details."
           />
           <ul className="flex flex-col gap-1 px-3 pb-4">
             {templateVariables.map((v) => (
@@ -262,7 +267,7 @@ function Form({ initial }: { initial?: MessageTemplate }) {
                   <span className="min-w-0">
                     <span className="block font-mono text-xs text-fg">{`{{${v.key}}}`}</span>
                     <span className="block truncate text-2xs text-fg-subtle">
-                      {v.label} · e.g. {v.example}
+                      {v.label}, like {v.example}
                     </span>
                   </span>
                   {used.includes(v.key) && (

@@ -201,7 +201,7 @@ export function ApproverPicker({
     <div className="flex flex-col gap-3">
       <MultiSelect
         label="Who needs to approve"
-        description={required ? 'At least one person.' : 'Optional. Leave empty to skip approval.'}
+        description={required ? 'Pick at least one person.' : 'Leave this empty to skip approval.'}
         placeholder="Search by name"
         data={data}
         value={approvers}
@@ -210,7 +210,7 @@ export function ApproverPicker({
       />
       {approvers.length > 1 && (
         <Switch
-          label="One after another"
+          label="Ask one at a time"
           description="Each person is asked only after the one before has approved."
           checked={sequential}
           onCheckedChange={setSequential}

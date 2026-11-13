@@ -56,8 +56,8 @@ export function AccessRequestsPage() {
         {requests.length === 0 ? (
           <EmptyState
             icon={Inbox}
-            title="No pending access requests"
-            description="When someone asks to join, their request shows up here. You can also invite people directly."
+            title="No one is waiting to join"
+            description="You can also invite people yourself."
             action={
               <Button leftIcon={<UserPlus />} onClick={() => setInviting(true)}>
                 Invite members
@@ -94,10 +94,10 @@ export function AccessRequestsPage() {
                       onCheckedChange={sel.toggleAll}
                     />
                   </TH>
-                  <TH>Member</TH>
+                  <TH>Person</TH>
                   <TH>Requested role</TH>
                   <TH>Team</TH>
-                  <TH>Requested</TH>
+                  <TH>Asked</TH>
                   <TH align="right">
                     <span className="sr-only">Actions</span>
                   </TH>
@@ -179,8 +179,8 @@ export function AccessRequestsPage() {
         onClose={() => setInviting(false)}
         onInvite={(emails, role) =>
           toast.success(
-            `${plural(emails.length, 'invite')} sent`,
-            `As ${role}. Track them under Invitations.`,
+            `${plural(emails.length, 'invitation')} sent`,
+            `They will join as ${role}. Follow them under Invitations.`,
           )
         }
       />

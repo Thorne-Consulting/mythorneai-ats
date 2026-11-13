@@ -15,7 +15,7 @@ export function PreviewAlert({ children }: { children?: ReactNode }) {
   return (
     <Alert tone="info" className="mb-5">
       {children ??
-        'This screen runs on sample data until the backend exists. Changes last until you leave the page.'}
+        'This page uses sample data for now. Your changes are lost when you leave the page.'}
     </Alert>
   );
 }

@@ -104,10 +104,10 @@ export function PreferencesPage() {
           { label: 'Preferences' },
         ]}
         title="Preferences"
-        description="How MyThorneAI looks and behaves for you. Saved in this browser only."
+        description="How MyThorneAI looks and works for you. We save these in this browser only."
       />
       <div className="flex max-w-3xl flex-col gap-5">
-        <SettingsSection id="theme" title="Theme" description="Light, dark, or follow your device.">
+        <SettingsSection id="theme" title="Theme">
           <SegmentedControl
             aria-label="Theme"
             value={theme}
@@ -123,7 +123,7 @@ export function PreferencesPage() {
         <SettingsSection
           id="density"
           title="Table density"
-          description="Compact fits more rows on screen. Applies to every table you have opened; you can still change one table from its menu."
+          description="Compact fits more rows on screen. This changes every table you have opened. You can still change one table from its own menu."
         >
           <SegmentedControl
             aria-label="Table density"
@@ -161,7 +161,7 @@ export function PreferencesPage() {
         <SettingsSection
           id="table-views"
           title="Table views"
-          description="Columns you hid, sort orders and the views you saved on lists like Jobs and Candidates."
+          description="Hidden columns, sort orders and saved views on lists such as Jobs and Candidates."
           action={
             <Button variant="secondary" onClick={() => setResetting(true)}>
               Reset table views
@@ -169,8 +169,7 @@ export function PreferencesPage() {
           }
         >
           <p className="text-sm text-fg-muted">
-            Resetting puts every table back to its standard columns and removes your saved views in
-            this browser. Your data is not touched.
+            Resetting only changes this browser. Your jobs, candidates and other data stay the same.
           </p>
         </SettingsSection>
       </div>

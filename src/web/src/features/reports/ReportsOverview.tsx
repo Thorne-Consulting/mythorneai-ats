@@ -34,10 +34,7 @@ function Headline({ index }: { index: number }) {
 export function ReportsOverview() {
   return (
     <>
-      <PageHeader
-        title="Reports"
-        description="Turn recruiting activity into insights that help you hire better."
-      />
+      <PageHeader title="Reports" />
       <div className="flex flex-col gap-4">
         <StatGrid>
           {headlines.map((item, index) => (
@@ -82,7 +79,7 @@ export function ReportsOverview() {
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-medium text-fg">Report builder</span>
                 <span className="block text-xs text-fg-subtle">
-                  Chart any measure from the reports above, split the way you need it.
+                  Make a chart from any number in the reports above, grouped your way.
                 </span>
               </span>
               <ArrowRight className="size-4 shrink-0 text-fg-subtle" aria-hidden />

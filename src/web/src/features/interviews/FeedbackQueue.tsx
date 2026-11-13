@@ -7,7 +7,6 @@ import { CheckCircle2 } from 'lucide-react';
 import { api } from '@/api';
 import { Button, Card, CellStack, EmptyState, PageHeader } from '@/components/ui';
 import { DataTable, type Column } from '@/components/data-table/DataTable';
-import { formatDateTime, formatRelative } from '@/lib/format';
 import type { DashboardData } from '@/types';
 import { prepHref } from './interview-links';
 
@@ -30,13 +29,6 @@ const columns: Column<Due>[] = [
   },
   { id: 'title', header: 'Interview', cell: (row) => row.title, sortValue: (row) => row.title },
   {
-    id: 'ended',
-    header: 'Ended',
-    cell: (row) => <span title={formatDateTime(row.endsAt)}>{formatRelative(row.endsAt)}</span>,
-    sortValue: (row) => new Date(row.endsAt),
-    csv: (row) => row.endsAt,
-  },
-  {
     id: 'waiting',
     header: 'Waiting',
     align: 'right',
@@ -58,7 +50,7 @@ const columns: Column<Due>[] = [
     hideable: false,
     cell: (row) => (
       <Button asChild size="sm" variant="secondary" onClick={(event) => event.stopPropagation()}>
-        <Link href={scorecardHref(row)}>Write feedback</Link>
+        <Link href={scorecardHref(row)}>Write scorecard</Link>
       </Button>
     ),
   },
@@ -77,7 +69,7 @@ export function FeedbackQueue() {
       <PageHeader
         breadcrumbs={[{ label: 'Interviews', href: '/interviews' }, { label: 'My feedback' }]}
         title="My feedback"
-        description="Interviews you were on that still need your scorecard. The oldest are first; feedback is sharpest while it is fresh."
+        description="Interviews you were on that still need your scorecard, oldest first."
       />
       <Card className="px-4 pb-2">
         <DataTable
@@ -93,7 +85,7 @@ export function FeedbackQueue() {
             query.isError ? (
               <EmptyState
                 compact
-                title="Could not load your feedback queue"
+                title="Could not load your scorecards"
                 action={
                   <Button variant="secondary" size="sm" onClick={() => query.refetch()}>
                     Try again
@@ -105,7 +97,7 @@ export function FeedbackQueue() {
                 compact
                 icon={CheckCircle2}
                 title="You are all caught up"
-                description="Every interview you were on has your scorecard. New ones show up here after they start."
+                description="New interviews show up here after they start."
                 action={
                   <Button asChild variant="secondary" size="sm">
                     <Link href="/interviews">See upcoming interviews</Link>

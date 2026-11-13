@@ -21,7 +21,7 @@ import {
 import { DataTable, type Column } from '@/components/data-table/DataTable';
 import { templateCategories, type MessageTemplate } from '../sample-messages';
 import { useMessages } from './MessagesShell';
-import { variablesIn } from './template-vars';
+import { variableLabel, variablesIn } from './template-vars';
 
 const formatWhen = (v: string) =>
   new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(
@@ -69,10 +69,10 @@ export function TemplatesPage() {
     },
     {
       id: 'variables',
-      header: 'Variables',
-      csv: (t) => variablesIn(`${t.subject} ${t.body}`).join(' '),
+      header: 'Placeholders',
+      csv: (t) => variablesIn(`${t.subject} ${t.body}`).map(variableLabel).join(', '),
       cell: (t) => {
-        const vars = variablesIn(`${t.subject} ${t.body}`);
+        const vars = variablesIn(`${t.subject} ${t.body}`).map(variableLabel);
         return (
           <span className="text-fg-muted">
             {vars.length
@@ -114,7 +114,7 @@ export function TemplatesPage() {
       />
       <SectionTitle
         title="Templates"
-        description="Reusable messages. Variables like {{first_name}} fill in from the candidate."
+        description="Messages you send often. Placeholders like {{first_name}} fill in with each candidate’s details."
         action={
           <Button leftIcon={<Plus />} onClick={() => router.push('/messages/templates/new')}>
             New template

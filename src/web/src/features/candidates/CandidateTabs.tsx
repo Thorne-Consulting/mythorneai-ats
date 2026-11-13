@@ -75,9 +75,7 @@ export function CandidateOverview({ id }: { id: string }) {
               icon={FileText}
               title="No resume read yet"
               description={
-                canUpload
-                  ? 'Upload a resume and it is read into a profile you can search.'
-                  : undefined
+                canUpload ? 'Upload a resume and we fill in the profile from it.' : undefined
               }
               action={
                 canUpload && (
@@ -168,7 +166,10 @@ export function CandidateApplicationsTab({ id }: { id: string }) {
           <EmptyState
             icon={Briefcase}
             title="Not in any job yet"
-            description={canApply ? 'Add them to a job to start their pipeline.' : undefined}
+            description={
+              canApply ? 'Add them to a job to start tracking their progress.' : undefined
+            }
+
             action={
               canApply && (
                 <Button leftIcon={<Plus />} onClick={() => setOpened(true)}>
@@ -198,7 +199,7 @@ export function CandidateFilesTab({ id }: { id: string }) {
       onFile={(file) => upload.mutate(file)}
       loading={upload.isPending}
     >
-      Upload
+      Upload file
     </FileButton>
   );
   return (
@@ -206,7 +207,7 @@ export function CandidateFilesTab({ id }: { id: string }) {
       <CardHeader
         className="px-0"
         title="Files"
-        description="Resumes are read into the profile after upload. PDF, DOC or DOCX."
+        description="We read each resume into the profile. Upload a PDF or Word document."
       />
       <DataTable
         viewKey="candidate-files"
@@ -282,7 +283,7 @@ export function CandidateFilesTab({ id }: { id: string }) {
                       disabled={parseResume.isPending}
                       onClick={() => parseResume.mutate(file.id)}
                     >
-                      Retry reading
+                      Try reading again
                     </Button>
                   )}
               </span>

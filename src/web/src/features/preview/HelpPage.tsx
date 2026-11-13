@@ -63,7 +63,7 @@ const guides: {
     steps: [
       'My work shows only what is assigned to you or waiting on you.',
       'On Team, click Customize to show, hide and reorder the cards.',
-      'Your layout is kept in this browser; Reset to default brings back your role’s layout.',
+      'Only this browser remembers your layout. Click Reset to default to start over.',
     ],
     href: '/',
     link: 'Open the dashboard',
@@ -73,8 +73,8 @@ const guides: {
     icon: Bell,
     title: 'Keep on top of notifications',
     steps: [
-      'Notifications lists approvals, feedback you owe, candidate replies and stalled applications.',
-      'Filter by type, open an item to act on it, or mark it done.',
+      'Notifications lists approvals, feedback you owe, candidate replies and applications with no recent activity.',
+      'Filter by type, open an item to act on it, or mark it as done.',
       'Done items move to the Done list and come back if something new happens.',
     ],
     href: '/notifications',
@@ -87,7 +87,7 @@ const guides: {
     steps: [
       'Click Post a Job in the header.',
       'Fill in the title, department, location and description.',
-      'Submit it. If your workspace uses approvals, it opens once approved.',
+      'Submit it. If your company needs approval first, the job opens once it’s approved.',
     ],
     href: '/jobs/new',
     link: 'Post a job',
@@ -98,8 +98,8 @@ const guides: {
     title: 'Approve a job or an offer',
     steps: [
       'Requests waiting on you show in Waiting on you and in Notifications.',
-      'Open the request, read the details and the note from the requester.',
-      'Approve or reject it. Your decision is recorded on the job or the offer.',
+      'Open the request. Read the details and the note from the person who asked.',
+      'Approve or reject it. We save your decision on the job or the offer.',
     ],
     href: '/approvals',
     link: 'Open approvals',
@@ -109,7 +109,7 @@ const guides: {
     icon: UserPlus,
     title: 'Add a candidate',
     steps: [
-      'Open Candidates and click Add candidate, or import from a resume or a CSV file.',
+      'Open Candidates and click Add candidate. You can also add people from a resume or a spreadsheet (CSV).',
       'Fill in their details and save. Their profile opens under Candidates.',
     ],
     href: '/candidates',
@@ -145,8 +145,8 @@ const guides: {
     title: 'Submit a scorecard',
     steps: [
       'Open Interviews and find the interview you ran.',
-      'Rate each criterion, add notes and give your recommendation.',
-      'Submit scorecard. It locks after submitting, so the panel compares fair, independent views.',
+      'Rate each area, add notes and say whether you would hire.',
+      'Click Submit scorecard. You can’t change it after that, so every interviewer’s view stays independent.',
     ],
     href: '/interviews',
     link: 'Open interviews',
@@ -158,7 +158,7 @@ const guides: {
     steps: [
       'Open Reports and pick one from the sidebar: pipeline, speed, sources or team.',
       'Filter by job, source and dates. Save the filters you use often as a saved view.',
-      'Export the table as CSV, or Download PDF to print or share it.',
+      'Click Download spreadsheet (CSV) for the table, or Download PDF to print or share it.',
     ],
     href: '/reports',
     link: 'Open reports',
@@ -168,9 +168,9 @@ const guides: {
     icon: Wand2,
     title: 'Build a custom report',
     steps: [
-      'Open Reports → Report builder.',
-      'Choose the data, what to split it by and what to measure, then a chart type.',
-      'Save view keeps it in this browser so you can reopen it in one click.',
+      'Open Reports, then Report builder.',
+      'Choose the data, what to measure and how to group it. Then pick a chart type.',
+      'Save it as a view to open it again in one click. Only this browser keeps it.',
     ],
     href: '/reports/builder',
     link: 'Open the builder',
@@ -195,7 +195,7 @@ export function HelpPage() {
         <div className="flex flex-col gap-3">
           <SearchInput
             aria-label="Search help"
-            placeholder="Search help, e.g. “scorecard” or “export”"
+            placeholder="Search help, for example “scorecard” or “download”"
             className="max-w-md"
             value={query}
             onValueChange={setQuery}

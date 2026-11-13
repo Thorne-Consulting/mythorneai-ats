@@ -67,8 +67,8 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
         <Card>
           <EmptyState
             icon={FileText}
-            title="Nothing to review here"
-            description="The candidate has not submitted, or the invitation was revoked."
+            title="Nothing to review yet"
+            description="The candidate hasn’t submitted, or their invitation was revoked. Go back to pick another result."
             action={
               <Link
                 href={a ? `/assessments/${a.id}?tab=results` : '/assessments'}
@@ -115,10 +115,9 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
         title={
           <PreviewTitle>
             {inv.candidate}
-            <StatusBadge status={inv.decision ?? 'Review'} />
+            <StatusBadge status={inv.decision ?? 'InReview'} />
           </PreviewTitle>
         }
-        description={`${a.name} · submitted ${formatWhen(inv.submittedOn)}`}
         actions={
           nextToReview && (
             <Button
@@ -183,7 +182,7 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
                 </span>
                 <Badge size="sm">{questionTypeLabels[q.type]}</Badge>
                 <Badge size="sm" tone="blue">
-                  {q.points} pts
+                  {q.points} {q.points === 1 ? 'point' : 'points'}
                 </Badge>
               </div>
               <p className="mt-2 text-md text-fg">{q.prompt}</p>
@@ -220,7 +219,9 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
                 <p className="inline-flex items-center gap-2 rounded-md border border-border-subtle px-3 py-2 text-sm text-fg">
                   <FileText className="size-4 text-fg-subtle" aria-hidden />
                   {answer.file}
-                  <span className="text-2xs text-fg-subtle">(sample file, not downloadable)</span>
+                  <span className="text-2xs text-fg-subtle">
+                    (sample file, can’t be downloaded)
+                  </span>
                 </p>
               ) : (
                 <p className="rounded-md bg-muted p-3 text-base whitespace-pre-wrap text-fg">
@@ -244,9 +245,9 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
                 </p>
               ) : (
                 <div className="mt-5 rounded-lg border border-border-subtle p-4">
-                  <h3 className="text-sm font-semibold text-fg">Rubric</h3>
+                  <h3 className="text-sm font-semibold text-fg">How to score</h3>
                   <p className="mt-1 text-sm text-fg-muted">
-                    {q.rubric || 'No rubric was written for this question.'}
+                    {q.rubric || 'No scoring guide was written for this question.'}
                   </p>
                   {locked ? (
                     <p className="mt-3 text-sm font-medium text-fg tnum">
@@ -255,7 +256,7 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
                   ) : (
                     <div className="mt-4 flex flex-wrap items-end gap-3">
                       <SegmentedControl
-                        aria-label="Rubric level"
+                        aria-label="Quick score"
                         value={String(inv.reviews[q.id] ?? '')}
                         onValueChange={(v) => setReview(q.id, Number(v))}
                         items={[
@@ -334,9 +335,9 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
             <div className="flex flex-col gap-4 px-5 pb-5">
               {locked ? (
                 <>
-                  <Alert tone="neutral" icon={Lock} title={`${inv.decision} · locked`}>
-                    Recorded by {inv.reviewer ?? 'a reviewer'}. Decisions stay locked so results
-                    remain comparable.
+                  <Alert tone="neutral" icon={Lock} title="Locked">
+                    Recorded by {inv.reviewer ?? 'a reviewer'}. Decisions can’t be changed, so every
+                    candidate is judged the same way.
                   </Alert>
                   {inv.comment && (
                     <div>
@@ -349,7 +350,7 @@ export function ResultReview({ id, resultId }: { id: string; resultId: string })
                 <>
                   <Textarea
                     label="Reviewer comment"
-                    description="Why this result. Required."
+                    description="Explain your decision."
                     value={inv.comment}
                     onChange={(e) => updateInvite(inv.id, { comment: e.currentTarget.value })}
                   />

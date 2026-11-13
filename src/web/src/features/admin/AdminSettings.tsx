@@ -133,27 +133,17 @@ function EmailSection(_: SectionProps) {
   });
   const emailItem = checklist.data?.find((item) => item.key === 'email');
   return (
-    <SettingsSection
-      id="email"
-      title="Candidate email"
-      action={
-        emailItem && (
-          <Badge dot tone={emailItem.done ? 'green' : 'red'}>
-            {emailItem.done ? 'On' : 'Off'}
-          </Badge>
-        )
-      }
-    >
+    <SettingsSection id="email" title="Candidate email">
       {!emailItem ? (
         <p className="text-sm text-fg-subtle">Checking…</p>
       ) : emailItem.done ? (
         <Alert tone="success" title="Candidate email is on">
-          Confirmations, interview invitations and updates reach candidates.
+          Candidates get their confirmations, interview invitations and updates.
         </Alert>
       ) : (
         <Alert tone="danger" title="Candidate email is off">
-          Candidates won’t receive anything until this is fixed. Add the Resend API key and sender
-          address to the server settings, then restart the API.
+          Candidates get no emails until this is fixed. Ask whoever runs your server to add the
+          Resend email key and the sender address, then restart the server.
         </Alert>
       )}
     </SettingsSection>
@@ -189,7 +179,7 @@ function ApprovalsSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="approvals"
       title="Approval rules"
-      description="Applies to every job and acceptance unless someone picks different approvers."
+      description="These rules apply to every job and offer unless someone picks other approvers."
       dirty={dirty}
       saving={saving}
       onSave={() => saveSection(draft, 'Approval settings saved')}
@@ -198,7 +188,7 @@ function ApprovalsSection({ org, saveSection, saving }: SectionProps) {
       <SwitchList>
         <Switch
           labelPosition="left"
-          label="Approve acceptances before they are sent"
+          label="Approve offers before they are sent"
           description="Someone other than the requester signs off before a candidate is told they are accepted."
           checked={draft.requireOfferApproval}
           onCheckedChange={(v) => set({ requireOfferApproval: v })}
@@ -212,14 +202,14 @@ function ApprovalsSection({ org, saveSection, saving }: SectionProps) {
         />
         <Switch
           labelPosition="left"
-          label="Approvers go one after another"
+          label="Ask approvers one at a time"
           description="Off means everyone is asked at once. On means each person is asked only after the one before them agrees."
           checked={draft.approvalsSequential}
           onCheckedChange={(v) => set({ approvalsSequential: v })}
         />
         <MultiSelect
           label="Default approvers"
-          description="Asked whenever an approval is needed, in the order shown."
+          description="We ask these people, in this order, whenever approval is needed."
           placeholder="Pick people"
           data={options}
           value={draft.defaultApproverEmails}
@@ -247,7 +237,6 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
       <SettingsSection
         id="reminders"
         title="Reminders"
-        description="If something sits too long, we remind the person who can move it."
         dirty={dirty}
         saving={saving}
         onSave={() => saveSection(draft, 'Reminder settings saved')}
@@ -257,7 +246,7 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
           <NumberInput
             inset
             label="Remind about stuck applications after (days)"
-            description="If an application sits in one stage this long, the job owner is reminded."
+            description="We remind the job owner when an application stays in one stage this long."
             min={1}
             max={60}
             step={1}
@@ -267,7 +256,7 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
           <NumberInput
             inset
             label="Remind candidates to book after (days)"
-            description="Sent when a candidate was invited to pick an interview time and hasn’t."
+            description="For candidates who were asked to pick an interview time and have not."
             min={1}
             max={30}
             step={1}
@@ -277,7 +266,7 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
           <NumberInput
             inset
             label="Remind interviewers about feedback after (days)"
-            description="Sent when an interview is done and the scorecard is still empty."
+            description="For interviews that are over but have no scorecard yet."
             min={1}
             max={30}
             step={1}
@@ -286,7 +275,7 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
           />
           <NumberInput
             inset
-            label="Most reminders per item"
+            label="Most reminders for one thing"
             description="After this many, we stop asking."
             min={0}
             max={10}
@@ -298,10 +287,10 @@ function RemindersSection({ org, saveSection, saving }: SectionProps) {
         <div className="mt-6 border-t border-border-subtle pt-5">
           <h3 className="text-base font-medium text-fg">Quiet hours</h3>
           <p className="mt-1 max-w-3xl text-sm text-fg-subtle">
-            Reminder emails are held back during these hours, in your organization’s time zone
-            {org.timeZone ? ` (${org.timeZone})` : ''}, and sent when they end. Hours are 0 to 23.
-            The window can cross midnight: 20 to 8 means 8 pm until 8 am. Use the same number for
-            both to turn quiet hours off.
+            We hold reminder emails during these hours and send them when quiet hours end. Times use
+            your workspace time zone{org.timeZone ? ` (${org.timeZone})` : ''}. Use hours 0 to 23.
+            For example, 20 to 8 means 8 pm to 8 am. Set both to the same hour to turn quiet hours
+            off.
           </p>
           <div className="mt-3 flex flex-wrap items-end gap-4">
             <NumberInput
@@ -360,7 +349,6 @@ function GeneralSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="general"
       title="Workspace"
-      description="Shown in emails to candidates and on the candidate portal."
       dirty={dirty && !noName && !noLogin}
       saving={saving}
       onSave={() =>
@@ -375,21 +363,22 @@ function GeneralSection({ org, saveSection, saving }: SectionProps) {
         <Input
           inset
           label="Workspace name"
+          description="Candidates see this in emails and on the candidate portal."
           value={draft.name}
           onChange={(event) => set({ name: event.currentTarget.value })}
           error={noName ? 'Give the workspace a name.' : undefined}
         />
         <SearchSelect
           label="Time zone"
-          description="Quiet hours and reminder times follow this zone."
+          description="Reminders and quiet hours use this time zone."
           placeholder="Search time zones"
           data={zones}
           value={draft.timeZone || null}
           onChange={(value) => set({ timeZone: value ?? '' })}
         />
         <TagsInput
-          label="Allowed company email domains"
-          description="Only people with these addresses can sign in. Press Enter after each, for example acme.com."
+          label="Company email domains"
+          description="Only people with an email address at one of these domains can sign in. Press Enter after each one, for example acme.com."
           value={draft.allowedEmailDomains}
           onChange={(value) => set({ allowedEmailDomains: value })}
         />
@@ -425,7 +414,6 @@ function PortalAddressSection({ org, saveSection, saving }: SectionProps) {
     <SettingsSection
       id="portal-address"
       title="Candidate portal address"
-      description="Emails link candidates here so they can follow their applications."
       dirty={dirty && !invalid}
       saving={saving}
       onSave={() =>
@@ -435,8 +423,8 @@ function PortalAddressSection({ org, saveSection, saving }: SectionProps) {
     >
       <Input
         inset
-        label="Where this app is reachable"
-        description="For example https://ats.yourcompany.com. Without it, emails tell candidates to use the portal but can’t link to it."
+        label="Web address of this app"
+        description="Without it, emails mention the portal but cannot link to it."
         placeholder="https://ats.yourcompany.com"
         className="max-w-xl"
         value={draft.publicUrl}
@@ -456,14 +444,14 @@ function NotificationsSection({ org, saveSection, saving }: SectionProps) {
   const test = useMutation({
     mutationFn: () => api.post('/api/admin/notifications/test'),
     onSuccess: () =>
-      toast.success('Test queued', 'It should appear in the channel within a few seconds.'),
-    onError: (error: Error) => toast.error('Could not send the test', error.message),
+      toast.success('Test message sent', 'It should show up in the channel in a few seconds.'),
+    onError: (error: Error) => toast.error('Could not send the test message', error.message),
   });
   return (
     <SettingsSection
       id="notifications"
       title="Slack or Teams channel"
-      description="Short one-line messages go to the channel when an approval is waiting, a candidate messages you or withdraws, an interview needs attention, or an email to a candidate bounces. They never include resumes or scorecard notes."
+      description="We post a one-line message when an approval is waiting, a candidate messages you or withdraws, an interview needs attention, or a candidate email bounces. Messages never include resumes or scorecard notes."
       action={
         <Button
           variant="secondary"
@@ -471,9 +459,6 @@ function NotificationsSection({ org, saveSection, saving }: SectionProps) {
           disabled={!org.notificationWebhookUrl || dirty}
           loading={test.isPending}
           onClick={() => test.mutate()}
-          title={
-            !org.notificationWebhookUrl ? 'Save an address first, then send a test.' : undefined
-          }
         >
           Send a test message
         </Button>
@@ -490,16 +475,20 @@ function NotificationsSection({ org, saveSection, saving }: SectionProps) {
     >
       <Input
         inset
-        label="Incoming webhook URL"
-        description="Create an incoming webhook in Slack or Teams and paste its https address here. Leave empty to turn this off."
+        label="Channel address (incoming webhook)"
+        description="In Slack or Teams, add an incoming webhook to the channel and paste its address here. Leave it empty to turn this off."
         placeholder="https://hooks.slack.com/services/…"
         className="max-w-2xl"
         value={draft.notificationWebhookUrl}
         onChange={(event) => set({ notificationWebhookUrl: event.currentTarget.value })}
-        error={invalid ? 'Use the https address Slack or Teams gave you.' : undefined}
+        error={
+          invalid ? 'Use the address Slack or Teams gave you. It starts with https://.' : undefined
+        }
       />
       {!org.notificationWebhookUrl && (
-        <p className="mt-3 text-xs text-fg-subtle">Save an address first, then send a test.</p>
+        <p className="mt-3 text-xs text-fg-subtle">
+          Save an address first, then send a test message.
+        </p>
       )}
     </SettingsSection>
   );
@@ -520,7 +509,7 @@ function AiSection({ org, saveSection, saving }: SectionProps) {
       <SettingsSection
         id="ai"
         title="AI assistance"
-        description="Resume reading, job fit, interview summaries and message drafts."
+        description="AI reads resumes, checks job fit, sums up interviews and drafts messages."
         dirty={dirty}
         saving={saving}
         onSave={() => saveSection(draft, 'AI settings saved')}
@@ -530,21 +519,21 @@ function AiSection({ org, saveSection, saving }: SectionProps) {
           <Switch
             labelPosition="left"
             label="Turn on AI assistance"
-            description="When off, nothing is sent to the AI provider and AI features are hidden."
+            description="When this is off, we send nothing to the AI service and hide AI features."
             checked={draft.aiEnabled}
             onCheckedChange={(v) => set({ aiEnabled: v })}
           />
           <Input
             inset
             label="Model"
-            description="Leave blank to use the server default."
+            description="Leave this empty to use the model set on the server."
             placeholder={s?.model ?? 'Server default'}
             className="max-w-md"
             value={draft.aiModel}
             onChange={(event) => set({ aiModel: event.currentTarget.value })}
           />
           <Alert tone="neutral" icon={Info}>
-            The AI API key lives in the server settings and is never shown or stored here.
+            The AI key is kept on the server. It is never shown or saved here.
           </Alert>
         </SwitchList>
       </SettingsSection>
@@ -552,20 +541,23 @@ function AiSection({ org, saveSection, saving }: SectionProps) {
         <Card aria-label="AI status" className="p-5">
           <div className="flex flex-wrap items-center gap-3">
             <Badge dot tone={s.configured && s.enabled ? 'green' : 'gray'}>
-              {!s.configured ? 'No API key on the server' : s.enabled ? 'Working' : 'Turned off'}
+              {!s.configured ? 'No AI key on the server' : s.enabled ? 'Working' : 'Turned off'}
             </Badge>
             <p className="text-sm text-fg-subtle">
-              Model {s.model} · embeddings {s.embeddingModel}
+              Model {s.model} · Matching model {s.embeddingModel}
             </p>
             <span className="ml-auto">
               <CardLink href="/admin/ai">See everything the AI was asked</CardLink>
             </span>
           </div>
           <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Stat label="AI calls, 30 days" value={s.calls30Days} />
+            <Stat label="AI requests, last 30 days" value={s.calls30Days} />
             <Stat label="Failed" value={s.failed30Days} />
-            <Stat label="Tokens used" value={s.promptTokens30Days + s.completionTokens30Days} />
-            <Stat label="Resumes waiting" value={s.pendingResumes} />
+            <Stat
+              label="Text processed (tokens)"
+              value={s.promptTokens30Days + s.completionTokens30Days}
+            />
+            <Stat label="Resumes waiting to be read" value={s.pendingResumes} />
           </dl>
         </Card>
       )}

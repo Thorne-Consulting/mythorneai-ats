@@ -38,7 +38,7 @@ type Section = {
   icon?: LucideIcon;
   /** Page title when it differs from the nav label. */
   title?: string;
-  description: string;
+  description?: string;
   preview?: boolean;
   exact?: boolean;
   /** Not a nav item of its own: lights this nav href and adds it to the breadcrumbs. */
@@ -63,13 +63,13 @@ const GROUPS: Group[] = [
         href: '/admin/portal',
         label: 'Candidate portal',
         icon: Globe,
-        description: 'The address candidates use to follow their applications.',
+        description: 'The web address candidates use to follow their applications.',
       },
       {
         href: '/admin/reminders',
         label: 'Reminders',
         icon: BellRing,
-        description: 'When your team and candidates get nudged about work that is waiting.',
+        description: 'Choose when we remind your team and candidates about work that is waiting.',
       },
       {
         href: '/admin/notifications',
@@ -87,7 +87,7 @@ const GROUPS: Group[] = [
     ],
   },
   {
-    label: 'People & access',
+    label: 'People and access',
     sections: [
       {
         href: '/admin',
@@ -95,13 +95,13 @@ const GROUPS: Group[] = [
         label: 'Members',
         title: 'Workspace members',
         icon: Users,
-        description: 'Manage who can sign in, the role each person has and the team they see.',
+        description: 'Choose who can sign in, their role and the team they see.',
       },
       {
         href: '/admin/roles',
-        label: 'Roles & permissions',
+        label: 'Roles and permissions',
         icon: ShieldCheck,
-        description: 'Give every teammate the right access, from first interview to final offer.',
+        description: 'Choose what each role can do. Open a role to see who has it.',
       },
       {
         href: '/admin/invitations',
@@ -115,7 +115,7 @@ const GROUPS: Group[] = [
         label: 'Access requests',
         icon: UserPlus,
         preview: true,
-        description: 'People asking to join this workspace, waiting for an admin to decide.',
+        description: 'People who asked to join this workspace. Approve or decline each one.',
       },
       {
         href: '/admin/team-access',
@@ -147,14 +147,14 @@ const GROUPS: Group[] = [
         href: '/admin/templates',
         label: 'Posting templates',
         icon: FileText,
-        description: 'Company-ready content you can reuse on every new job.',
+        description:
+          'Text you write once and reuse on new jobs, such as your company intro and benefits.',
       },
       {
         href: '/admin/templates/new',
         label: 'New template',
         title: 'New posting template',
         parent: '/admin/templates',
-        description: 'Write reusable Markdown for job listings.',
       },
       {
         href: '/admin/email-templates',
@@ -166,7 +166,7 @@ const GROUPS: Group[] = [
         href: '/admin/approvals',
         label: 'Approvals',
         icon: CheckCheck,
-        description: 'Decide who signs off on new jobs and acceptances, and in what order.',
+        description: 'Decide who signs off on new jobs and offers, and in what order.',
       },
     ],
   },
@@ -176,15 +176,15 @@ const GROUPS: Group[] = [
       {
         href: '/admin/integrations',
         label: 'Calendar',
-        title: 'Calendar delivery',
         icon: CalendarDays,
-        description: 'How interview invitations reach Microsoft 365 or Google Workspace.',
+        description: 'Check that interview invitations reach your team’s calendars.',
       },
       {
         href: '/admin/webhooks',
         label: 'Webhooks',
         icon: Webhook,
-        description: 'Tell other systems the moment something happens here.',
+        description:
+          'A webhook tells another system, for example payroll, when something happens here. We send a short message to a web address you choose.',
       },
       {
         href: '/admin/ai-settings',
@@ -199,7 +199,8 @@ const GROUPS: Group[] = [
         label: 'AI activity',
         parent: '/admin/ai-settings',
         tab: 'Activity',
-        description: 'Everything the AI was asked and what it answered, kept for accountability.',
+        description:
+          'Everything the AI was asked, who asked and what it answered. Long entries are shortened.',
       },
     ],
   },
@@ -224,13 +225,14 @@ const GROUPS: Group[] = [
         label: 'Single sign-on',
         icon: KeyRound,
         preview: true,
-        description: 'Let people sign in with your identity provider and keep accounts in sync.',
+        description:
+          'With single sign-on (SSO), people sign in with their company account, for example from Okta or Microsoft.',
       },
       {
         href: '/admin/audit',
-        label: 'Audit log',
+        label: 'Activity history',
         icon: ScrollText,
-        description: 'Recent security and business events, newest first.',
+        description: 'Who did what in this workspace, newest first.',
       },
     ],
   },
@@ -256,8 +258,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <Card className="mx-auto mt-8 max-w-lg">
         <EmptyState
           icon={ShieldAlert}
-          title="Administrator access required"
-          description="Your account cannot view workspace settings, users or security audit data."
+          title="Only admins can open workspace settings"
+          description="Ask an admin if you need something changed here."
         />
       </Card>
     );

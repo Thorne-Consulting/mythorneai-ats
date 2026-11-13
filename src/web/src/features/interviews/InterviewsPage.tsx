@@ -275,7 +275,6 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
       : view === 'agenda'
         ? 'Agenda'
         : rangeLabel(days);
-  const owed = dashboard.data?.scorecardsDue.length ?? 0;
   const openSchedule = (date = selectedDate) => {
     setScheduleAt(date);
     setOpened(true);
@@ -285,13 +284,12 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
     <>
       <PageHeader
         title="Interviews"
-        description="Plan your week, connect with candidates, and keep your team in sync."
         actions={
           <>
             <Button asChild variant="secondary">
               <Link href="/interviews/feedback">
                 <ClipboardList />
-                My feedback{owed > 0 ? ` (${owed})` : ''}
+                My feedback
               </Link>
             </Button>
             {canSchedule && (
@@ -324,13 +322,6 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
                     ).length
                   : all.length
             }
-            hint={
-              view === 'month'
-                ? title
-                : view === 'agenda'
-                  ? `${agendaFrom} to ${agendaTo}`
-                  : rangeLabel(week)
-            }
           />
           <StatCard
             icon={Video}
@@ -344,14 +335,12 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
             tone="green"
             label="Next 7 days"
             value={dashboard.data?.interviewsThisWeek ?? '–'}
-            hint="Scheduled from now"
           />
           <StatCard
             icon={PencilLine}
             tone="amber"
-            label="Your feedback due"
+            label="Your scorecards due"
             value={dashboard.data?.scorecardsDue.length ?? '–'}
-            hint="Scorecards to write"
           />
         </StatGrid>
 
@@ -445,13 +434,11 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
                   <EmptyState
                     compact
                     icon={CalendarDays}
-                    title={
-                      validRange ? 'Nothing scheduled in this range' : 'Pick a valid date range'
-                    }
+                    title={validRange ? 'Nothing scheduled in this range' : 'Check the dates'}
                     description={
                       validRange
-                        ? 'Widen the dates, or schedule an interview.'
-                        : 'The end date must come after the start.'
+                        ? 'Try a wider date range.'
+                        : 'The end date must be after the start date.'
                     }
                     action={
                       canSchedule &&
@@ -504,12 +491,7 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
 
           <div className="flex min-w-0 flex-col gap-4">
             <Card>
-              <CardHeader
-                title="Today’s interviews"
-                action={
-                  <span className="text-sm text-accent-foreground tnum">{today.length} total</span>
-                }
-              />
+              <CardHeader title="Today’s interviews" />
               {todayQuery.isLoading ? (
                 <SkeletonRows rows={3} />
               ) : today.length === 0 ? (
@@ -565,7 +547,9 @@ export function InterviewsPage({ initialView = 'week' }: { initialView?: Intervi
               <CardHeader
                 title={connection.data?.connected ? 'Calendar connected' : 'Connect your calendar'}
                 description={
-                  connection.data?.connected ? undefined : 'Booking checks your real availability.'
+                  connection.data?.connected
+                    ? undefined
+                    : 'We check your calendar so no one books you when you are busy.'
                 }
               />
               <div className="flex flex-col gap-3 px-5 pb-5">

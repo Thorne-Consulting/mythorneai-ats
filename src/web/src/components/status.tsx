@@ -55,10 +55,19 @@ export function stageTone(stage: string): Tone {
   return 'gray';
 }
 
+/** Words for statuses where splitting the code name is not plain enough. */
+const statusLabels: Record<string, string> = {
+  NoShow: 'Did not attend',
+  PendingApproval: 'Waiting for approval',
+  InReview: 'In review',
+  OnHold: 'On hold',
+};
+export const statusLabel = (status: string) => statusLabels[status] ?? humanize(status);
+
 export function StatusBadge({ status, size }: { status: string; size?: 'sm' | 'md' }) {
   return (
     <Badge tone={statusTones[status] ?? 'gray'} dot size={size}>
-      {humanize(status)}
+      {statusLabel(status)}
     </Badge>
   );
 }

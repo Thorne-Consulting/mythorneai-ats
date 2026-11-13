@@ -72,7 +72,7 @@ export function ImportCandidatesModal({
       toast.success(`${done.created} ${done.created === 1 ? 'candidate' : 'candidates'} imported`);
       close();
     },
-    onError: (error: Error) => toast.error('Import failed', error.message),
+    onError: (error: Error) => toast.error('Could not import candidates', error.message),
   });
   const templateHref = `data:text/csv;charset=utf-8,${encodeURIComponent(TEMPLATE)}`;
 
@@ -81,7 +81,7 @@ export function ImportCandidatesModal({
       opened={opened}
       onClose={close}
       title="Import candidates"
-      description="Add many people at once from a CSV file. We check it first and show you what would happen. Nothing is added until you confirm. People whose email is already here are skipped."
+      description="Add many people at once from a spreadsheet (CSV). We check the file and show you what will happen. Nothing is added until you confirm. People whose email is already here are skipped."
       size="xl"
       footer={
         <>
@@ -95,15 +95,15 @@ export function ImportCandidatesModal({
           >
             {result
               ? `Import ${result.wouldCreate} ${result.wouldCreate === 1 ? 'candidate' : 'candidates'}`
-              : 'Import'}
+              : 'Import candidates'}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-fg">
-          Columns: firstName, lastName, email, phone, location, currentTitle, linkedInUrl, source,
-          tags (separate tags with ;).{' '}
+          Your file needs these columns: firstName, lastName, email, phone, location, currentTitle,
+          linkedInUrl, source, tags. Separate tags with a semicolon (;).{' '}
           <a
             href={templateHref}
             download="candidates-template.csv"
@@ -116,7 +116,8 @@ export function ImportCandidatesModal({
           file={file}
           accept=".csv,text/csv"
           label="Drop a CSV file here or browse"
-          hint="CSV with a header row"
+          hint="The first row must hold the column names."
+
           onFile={(selected) => {
             setFile(selected);
             setResult(null);

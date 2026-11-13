@@ -57,7 +57,7 @@ export function ApplicationInterviews({ id }: { id: string }) {
           <EmptyState
             icon={CalendarPlus}
             title="No interviews yet"
-            description="Scheduling the first one starts structured feedback."
+            description="Schedule the first one so interviewers can send their scorecards."
             action={
               canManage && (
                 <Button leftIcon={<CalendarPlus />} onClick={() => setInterviewOpened(true)}>

@@ -219,13 +219,13 @@ export function DataTable<T>({
                   setPersisted((p) => ({ ...p, density: on ? 'compact' : 'comfortable' }))
                 }
               >
-                Compact rows
+                Smaller rows
               </MenuCheckboxItem>
             </MenuContent>
           </Menu>
-          <Tooltip label={compact ? 'Comfortable rows' : 'Compact rows'}>
+          <Tooltip label={compact ? 'Bigger rows' : 'Smaller rows'}>
             <IconButton
-              label={compact ? 'Comfortable rows' : 'Compact rows'}
+              label={compact ? 'Bigger rows' : 'Smaller rows'}
               onClick={() =>
                 setPersisted((p) => ({ ...p, density: compact ? 'comfortable' : 'compact' }))
               }
@@ -253,7 +253,7 @@ export function DataTable<T>({
       {loading ? (
         <SkeletonRows rows={6} className="px-0" />
       ) : rows.length === 0 ? (
-        (empty ?? <p className="py-10 text-center text-sm text-fg-subtle">Nothing to show.</p>)
+        (empty ?? <p className="py-10 text-center text-sm text-fg-subtle">Nothing here yet.</p>)
       ) : (
         <Table className={cn(compact && '[&_td]:h-9 [&_td]:py-1')}>
           <THead className="sticky top-0 z-[1]">

@@ -105,10 +105,10 @@ export function TeamAccessPage() {
                         : t,
                     ),
                   );
-                  toast.success('Full access granted', `${team.name} can now work on every job.`);
+                  toast.success('Full access given', `${team.name} can now work on every job.`);
                 }}
               >
-                Grant all
+                Give access to all jobs
               </Button>
             }
           />

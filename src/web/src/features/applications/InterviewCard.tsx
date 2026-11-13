@@ -33,6 +33,17 @@ import { MeetingNotesModal } from './MeetingNotesModal';
 import { RecordingTranscripts } from './RecordingTranscripts';
 import { ScorecardModal } from './ScorecardModal';
 
+const CALENDAR: Record<string, string> = {
+  Created: 'On calendar',
+  Queued: 'Adding to calendar',
+  RetryScheduled: 'Retrying calendar',
+  Failed: 'Calendar invite failed',
+  CancellationQueued: 'Removing from calendar',
+  Cancelled: 'Removed from calendar',
+  ExternalCancelled: 'Cancelled in calendar',
+  ExternalUpdated: 'Changed in calendar',
+};
+
 function ScoreValue({ value, label }: { value: number; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
@@ -96,7 +107,7 @@ export function InterviewCard({
     mutationFn: () =>
       api.post<{ summary: string }>('/api/ai/summarize-interview', { interviewId: interview.id }),
     onSuccess: (result) => setSummary(result.summary),
-    onError: (error: Error) => toast.error('Could not summarize', error.message),
+    onError: (error: Error) => toast.error('Could not summarize the notes', error.message),
   });
   const calendarTone =
     interview.calendarStatus === 'Created'
@@ -116,7 +127,8 @@ export function InterviewCard({
               <StatusBadge status={interview.status} />
               {canManage && (
                 <Badge tone={calendarTone} size="sm">
-                  Calendar {humanize(interview.calendarStatus).toLowerCase()}
+                  {CALENDAR[interview.calendarStatus] ??
+                    `Calendar ${humanize(interview.calendarStatus).toLowerCase()}`}
                 </Badge>
               )}
             </div>
@@ -155,7 +167,7 @@ export function InterviewCard({
           )}
           {isAssigned && !mine && interview.status !== 'Cancelled' && (
             <Button size="sm" onClick={() => setScoreOpened(true)}>
-              Submit scorecard
+              Write scorecard
             </Button>
           )}
           {canManage && (
@@ -193,7 +205,7 @@ export function InterviewCard({
             <li key={criterion.id} className="rounded-lg border border-border-subtle p-3">
               <div className="flex items-baseline justify-between gap-3">
                 <p className="text-sm font-semibold text-fg">{criterion.name}</p>
-                <span className="text-xs text-fg-subtle tnum">weight {criterion.weight}</span>
+                <span className="text-xs text-fg-subtle tnum">Weight {criterion.weight}</span>
               </div>
               <p className="mt-1 text-sm text-fg">{criterion.question}</p>
               {criterion.description && (
@@ -212,10 +224,11 @@ export function InterviewCard({
             <IconDisc icon={NotebookPen} tone="blue" size="sm" />
             <div>
               <p className="text-sm font-semibold text-fg">Meeting notes</p>
-              <p className="text-xs text-fg-subtle">
-                Notes from a meeting assistant, or your own. Summarize makes an AI draft for you to
-                check.
-              </p>
+              {canManage && (
+                <p className="text-xs text-fg-subtle">
+                  Summarize writes an AI draft for you to check.
+                </p>
+              )}
             </div>
           </div>
           <div className="flex gap-2">
@@ -251,7 +264,7 @@ export function InterviewCard({
           </>
         ) : (
           <p className="mt-4 text-sm text-fg-subtle">
-            No meeting notes yet. Paste notes now, or let a meeting assistant add them later.
+            No meeting notes yet. Add your own, or a meeting assistant can add them later.
           </p>
         )}
         {summary && <AiSummary text={summary} />}
@@ -267,7 +280,7 @@ export function InterviewCard({
 
       {isAssigned && !mine && interview.submittedScorecards > 0 && (
         <p className="mt-4 text-xs text-fg-subtle">
-          Other feedback stays hidden until you submit yours.
+          You can see other scorecards after you submit yours.
         </p>
       )}
       {interview.scorecards.length > 0 && (

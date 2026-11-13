@@ -42,8 +42,8 @@ export function FileDrop({
   file,
   onFile,
   accept,
-  hint = 'PDF or DOCX, up to 10 MB',
-  label = 'Drop a file here or browse',
+  hint = 'PDF or Word document, up to 10 MB',
+  label = 'Drag a file here, or click to choose one',
   className,
 }: {
   file: File | null;

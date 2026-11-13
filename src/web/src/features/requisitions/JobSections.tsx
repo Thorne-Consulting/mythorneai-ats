@@ -20,7 +20,6 @@ import {
   TableToolbar,
 } from '@/components/ui';
 import { JobPostingView } from '@/components/careers/JobPostingView';
-import { humanize } from '@/lib/format';
 import { ApplicantsTable } from '@/features/pipeline/ApplicantsTable';
 import { nameFromEmail, useBoard, useCanManage, useRequisition } from './requisition-data';
 import { RequisitionRequirements } from './RequisitionRequirements';
@@ -68,7 +67,7 @@ export function JobCandidates({ id }: { id: string }) {
           compact
           icon={Users}
           title="No active candidates yet"
-          description="Applicants show up here as they apply or are added to this job."
+          description="People show up here when they apply or when you add them to this job."
           action={canManage ? <FindCandidates id={id} /> : undefined}
         />
       ) : (
@@ -139,7 +138,7 @@ export function HiringTeam({ id }: { id: string }) {
       .map((email) => ({
         email,
         role: 'Can view',
-        note: 'Named on this job; sees it even when confidential.',
+        note: 'Can see this job, even when it is confidential.',
       })),
   ];
 
@@ -148,7 +147,6 @@ export function HiringTeam({ id }: { id: string }) {
       <Card className="overflow-hidden">
         <CardHeader
           title="Hiring team"
-          description="The people responsible for this job."
           action={
             canManage && (
               <Button asChild variant="secondary" size="sm">
@@ -187,8 +185,8 @@ export function HiringTeam({ id }: { id: string }) {
         </ul>
       </Card>
       <Alert tone="neutral" title="Interviewers">
-        Interviewers are picked for each interview when you schedule it, and see only the candidates
-        they interview.
+        You choose interviewers when you schedule each interview. They see only the candidates they
+        interview.
       </Alert>
     </div>
   );
@@ -229,9 +227,8 @@ export function JobPosting({ id }: { id: string }) {
           </div>
           {!isPublic && (
             <Alert tone="warning" title="Not public yet">
-              Only open jobs appear on the careers site. This job is{' '}
-              {humanize(job.status).toLowerCase()}, so the link shows &ldquo;not found&rdquo; until
-              it opens.
+              Only open jobs show on your careers site. Until this job opens, the link shows a
+              &ldquo;not found&rdquo; page.
             </Alert>
           )}
         </CardBody>
@@ -239,7 +236,7 @@ export function JobPosting({ id }: { id: string }) {
       <Card>
         <CardHeader
           title="Preview"
-          description="Exactly what applicants see. Change the text under Settings."
+          description="This is exactly what applicants see."
           action={
             canManage && (
               <Button asChild variant="secondary" size="sm">
@@ -263,7 +260,7 @@ export function JobPosting({ id }: { id: string }) {
               }
             />
             <p id="apply-preview-note" className="sr-only">
-              Preview only; applying is turned off here.
+              This is a preview, so you can’t apply here.
             </p>
           </div>
         </CardBody>

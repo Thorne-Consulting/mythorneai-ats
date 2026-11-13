@@ -149,8 +149,7 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
     <>
       <PageHeader
         eyebrow={`${greeting()}, ${firstName} 👋`}
-        title="Welcome back to MyThorneAI ATS"
-        description="Here’s what’s happening with your hiring today."
+        title="Welcome back to MyThorneAI"
         actions={
           <>
             <p className="text-sm text-fg-subtle max-sm:hidden">
@@ -199,7 +198,7 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
         opened={customizing}
         onClose={() => setCustomizing(false)}
         title="Customize dashboard"
-        description="Choose which cards the Team view shows and in what order. Saved in this browser."
+        description="Pick which cards show on the Team tab, and in what order. Only this browser remembers your choice."
         size="sm"
         footer={
           <>
@@ -313,7 +312,7 @@ function MyWork({ data, needs }: { data: DashboardData; needs: NotificationItem[
           tone="violet"
           label="My open jobs"
           value={jobs.isLoading ? '…' : myJobs.length}
-          hint="You own or recruit for"
+          hint="Jobs you own or recruit for"
         />
       </StatGrid>
 
@@ -330,7 +329,7 @@ function MyWork({ data, needs }: { data: DashboardData; needs: NotificationItem[
             ) : (
               <InterviewList
                 items={myInterviews}
-                empty="You’re not on any interview panel in the next seven days."
+                empty="You have no interviews in the next 7 days."
               />
             )}
           </Card>
@@ -340,7 +339,7 @@ function MyWork({ data, needs }: { data: DashboardData; needs: NotificationItem[
               <SkeletonRows rows={3} />
             ) : myJobs.length === 0 ? (
               <p className="px-5 pb-5 text-sm text-fg-subtle">
-                No open jobs list you as owner or recruiter.
+                You don’t own or recruit for any open jobs.
               </p>
             ) : (
               <ul className="divide-y divide-border-subtle border-t border-border-subtle">
@@ -403,7 +402,7 @@ function Widget({
           <CardHeader title="Coming up" action={<CardLink href="/interviews">View all</CardLink>} />
           <InterviewList
             items={data.upcomingInterviews}
-            empty="No interviews in the next seven days."
+            empty="No interviews in the next 7 days."
           />
         </Card>
       );
@@ -555,7 +554,7 @@ function SourcesWidget({ className }: { className: string }) {
       <CardHeader
         title="Candidate sources"
         description="All applications"
-        action={<CardLink href="/reports/sources">Report</CardLink>}
+        action={<CardLink href="/reports/sources">View report</CardLink>}
       />
       <div className="px-5 pb-5">
         <DonutChart
@@ -633,7 +632,7 @@ function JobsWidget({ data, className }: { data: DashboardData; className: strin
           compact
           icon={Briefcase}
           title="No open jobs"
-          description="Open one to start receiving applications."
+          description="Create a job to start getting applications."
           action={
             <Button asChild size="sm">
               <Link href="/jobs/new">Create a job</Link>
@@ -658,14 +657,14 @@ function JobsWidget({ data, className }: { data: DashboardData; className: strin
                       {job.code}
                       {job.status === 'PendingApproval' && ' · waiting for approval'}
                       {' · '}
-                      {job.hired}/{job.openings} hired
+                      {job.hired} of {job.openings} hired
                     </span>
                   </span>
                   <StageBar stages={job.stages} total={active} />
                   <span className="col-start-2 row-start-1 text-right sm:col-start-3">
                     <span className="block text-md font-semibold text-fg tnum">{active}</span>
                     <span className="block text-2xs text-fg-subtle">
-                      {job.newToday > 0 ? `+${job.newToday} today` : 'active'}
+                      {job.newToday > 0 ? `${job.newToday} new today` : 'active'}
                     </span>
                   </span>
                 </Link>
@@ -731,8 +730,8 @@ function WaitingCard({
       />
       {needs.length === 0 ? (
         <p className="px-5 pb-5 text-sm text-fg-subtle">
-          You’re clear. Approvals, feedback you owe, candidate replies and stalled applications show
-          up here.
+          You’re all caught up. Approvals, feedback you owe, candidate replies and applications with
+          no recent activity show up here.
         </p>
       ) : (
         <ul className="divide-y divide-border-subtle border-t border-border-subtle">
@@ -761,7 +760,7 @@ function WaitingCard({
               >
                 {hidden > 0
                   ? `${hidden} more waiting on you`
-                  : `${more} more ${more === 1 ? 'has' : 'have'} been quiet a while`}
+                  : `${more} more with no activity for a while`}
               </Link>
             </li>
           )}
@@ -794,7 +793,7 @@ function StageBar({
     <span
       className="col-span-2 flex h-2 gap-0.5 overflow-hidden rounded-full bg-secondary sm:col-span-1"
       role="img"
-      aria-label={`Pipeline: ${label}`}
+      aria-label={`Candidates by stage: ${label}`}
     >
       {total > 0 &&
         stages.map((stage, index) =>

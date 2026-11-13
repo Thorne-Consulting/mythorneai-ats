@@ -66,7 +66,7 @@ export function PostingTemplateEditor() {
       <Card>
         <CardHeader
           title="Template content"
-          description="Keep the section headings. They place each part of this document in the right part of a job."
+          description="Keep the headings. They tell us where each part goes in the job post."
         />
         <div className="flex flex-col gap-4 border-t border-border-subtle px-5 py-5">
           <Input

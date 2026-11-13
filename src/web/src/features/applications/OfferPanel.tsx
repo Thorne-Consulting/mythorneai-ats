@@ -53,7 +53,8 @@ const descriptions: Record<OfferStatus, string> = {
   Draft: 'Write a note, choose who approves, then submit.',
   PendingApproval: 'Waiting for approval. Nothing has been sent to the candidate.',
   Approved: 'Everyone approved. You can send the acceptance email.',
-  Sent: 'The candidate has been told they are accepted.',
+  // The card body says when it was sent.
+  Sent: '',
   Withdrawn: '',
 };
 
@@ -83,8 +84,8 @@ export function OfferPanel({
 
   const create = useMutation({
     mutationFn: () => api.post(`/api/applications/${applicationId}/offer`, { note: '' }),
-    onSuccess: done('Acceptance started. Add a note and choose who approves it.'),
-    onError: fail('Could not start the acceptance'),
+    onSuccess: done('Offer started. Add a note and choose who approves it.'),
+    onError: fail('Could not start the offer'),
   });
   const submit = useMutation({
     mutationFn: async (input: { id: string; approvers: string[]; sequential: boolean }) => {
@@ -102,7 +103,7 @@ export function OfferPanel({
           : 'Ready to send. No approval was needed.',
       )();
     },
-    onError: fail('Could not submit the acceptance'),
+    onError: fail('Could not submit the offer'),
   });
   const act = useMutation({
     mutationFn: (input: { id: string; action: Action }) =>
@@ -111,13 +112,13 @@ export function OfferPanel({
       done(
         {
           send: `Acceptance email sent. ${candidateName} is now Hired.`,
-          reverse: 'Acceptance reversed. The application is back where it was.',
-          withdraw: 'Acceptance withdrawn.',
+          reverse: 'Hire undone. The application is back in its earlier stage.',
+          withdraw: 'Offer withdrawn.',
         }[input.action],
       )(),
     onError: (error: Error) => {
       setConfirm(null);
-      fail('That did not go through')(error);
+      fail('That did not work')(error);
     },
   });
 
@@ -126,7 +127,7 @@ export function OfferPanel({
     if (query.error instanceof ApiError && query.error.status === 404) return null;
     return (
       <Card>
-        <CardHeader title="Acceptance" description="Could not load the acceptance." />
+        <CardHeader title="Offer" description="Could not load the offer." />
         <CardBody>
           <Button variant="soft" onClick={() => query.refetch()}>
             Try again
@@ -156,18 +157,18 @@ export function OfferPanel({
     <>
       <Card>
         <CardHeader
-          title="Acceptance"
+          title="Offer"
           description={
             live
               ? descriptions[live.status]
-              : `Start when you are ready to accept ${candidateName}.`
+              : `Start when you are ready to make ${candidateName} an offer.`
           }
           action={live && <StatusBadge status={live.status} />}
         />
         <CardBody className="space-y-4">
           {!live && (
             <Button variant="secondary" loading={create.isPending} onClick={() => create.mutate()}>
-              Start acceptance
+              Start offer
             </Button>
           )}
 
@@ -211,7 +212,7 @@ export function OfferPanel({
               {live.note && <NoteBlock note={live.note} by={live.createdBy} />}
               <ApprovalTimeline approvals={approvals} />
               {live.status === 'PendingApproval' && mine && (
-                <DecideControls approvalId={mine.id} subject={`Accept ${candidateName}`} />
+                <DecideControls approvalId={mine.id} subject={`the offer for ${candidateName}`} />
               )}
               {live.status === 'Approved' && canManage && (
                 <Button onClick={() => setConfirm('send')}>Send acceptance email</Button>
@@ -227,7 +228,7 @@ export function OfferPanel({
               </p>
               {canManage && (
                 <Button variant="quiet" size="xs" onClick={() => setConfirm('reverse')}>
-                  Reverse
+                  Undo hire
                 </Button>
               )}
             </>
@@ -235,7 +236,7 @@ export function OfferPanel({
           {canManage && live && live.status !== 'Sent' && (
             <div>
               <Button variant="quiet" size="xs" onClick={() => setConfirm('withdraw')}>
-                Withdraw acceptance
+                Withdraw offer
               </Button>
             </div>
           )}
@@ -268,18 +269,18 @@ export function OfferPanel({
           <ConfirmDialog
             opened={confirm === 'reverse'}
             onClose={() => setConfirm(null)}
-            title="Reverse this acceptance?"
-            confirmLabel="Reverse acceptance"
+            title="Undo this hire?"
+            confirmLabel="Undo hire"
             onConfirm={run('reverse')}
-            message={`Use this if ${candidateName} falls through. The application goes back to the stage it was in before. This does not unsend the email they already got, so you may want to message them yourself.`}
+            message={`Use this if the hire falls through. The application goes back to its earlier stage. The email cannot be unsent, so you may want to message ${candidateName} yourself.`}
           />
           <ConfirmDialog
             opened={confirm === 'withdraw'}
             onClose={() => setConfirm(null)}
-            title="Withdraw this acceptance?"
-            confirmLabel="Withdraw"
+            title="Withdraw this offer?"
+            confirmLabel="Withdraw offer"
             onConfirm={run('withdraw')}
-            message="Nothing has been sent to the candidate. Any approvals so far are dropped, and you can start a new acceptance later."
+            message="Nothing has been sent to the candidate. Any approvals so far are dropped, and you can start a new offer later."
           />
         </>
       )}

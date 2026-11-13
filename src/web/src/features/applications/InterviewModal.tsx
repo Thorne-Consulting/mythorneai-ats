@@ -66,7 +66,7 @@ export function InterviewModal({
             loading={mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            {interview ? 'Save and sync' : 'Schedule'}
+            {interview ? 'Save changes' : 'Schedule interview'}
           </Button>
         </>
       }
@@ -74,7 +74,7 @@ export function InterviewModal({
       <div className="space-y-4">
         <Select
           label="Interview kit"
-          placeholder="Choose a structured kit"
+          placeholder="Choose a kit"
           clearable
           value={kitId}
           onChange={selectKit}
@@ -104,13 +104,13 @@ export function InterviewModal({
         </div>
         <Input
           label="Interviewers"
-          description="Comma-separated work emails"
+          description="Work emails, separated by commas"
           value={interviewers}
           onChange={(event) => setInterviewers(event.currentTarget.value)}
         />
         <Input
           label="Meeting link"
-          description="Leave blank to create Teams or Google Meet when configured."
+          description="Leave blank to add a Teams or Google Meet link, if your workspace has one set up."
           value={meetingLink}
           onChange={(event) => setMeetingLink(event.currentTarget.value)}
         />

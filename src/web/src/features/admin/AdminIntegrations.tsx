@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, CalendarDays, Clock, PlugZap, RotateCw } from 'lucide-react';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
-import { Badge, Button, Card, IconDisc, StatCard, StatGrid, toast } from '@/components/ui';
+import { Button, Card, IconDisc, StatCard, StatGrid, toast } from '@/components/ui';
 import { type IntegrationStatus, isAdmin } from './admin-data';
 import { SettingsLoading } from './settings-shared';
 
@@ -26,9 +26,13 @@ export function AdminIntegrations() {
     mutationFn: () => api.post<{ count: number }>('/api/admin/integrations/retry-failed'),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['admin-integrations'] });
-      toast.success(`${result.count} failed deliveries queued`);
+      toast.success(
+        result.count === 1
+          ? '1 invitation will be sent again'
+          : `${result.count} invitations will be sent again`,
+      );
     },
-    onError: (error: Error) => toast.error('Could not retry', error.message),
+    onError: (error: Error) => toast.error('Could not resend invitations', error.message),
   });
 
   if (!integration.data) return <SettingsLoading rows={2} />;
@@ -41,17 +45,14 @@ export function AdminIntegrations() {
         <IconDisc icon={PlugZap} tone={status.enabled ? 'blue' : 'gray'} size="md" />
         <div className="min-w-0 flex-1 basis-64">
           <h2 className="text-lg font-semibold text-fg">
-            {status.enabled ? provider : 'Internal-only mode'}
+            {status.enabled ? provider : 'No calendar connected'}
           </h2>
           <p className="mt-0.5 text-sm text-fg-subtle">
             {status.enabled
-              ? `Interview invitations use ${provider}.`
-              : 'No external calendar provider is active. Interviews stay visible inside the ATS.'}
+              ? `Interview invitations are added to ${provider} calendars.`
+              : 'Interviews show only in MyThorneAI.'}
           </p>
         </div>
-        <Badge dot tone={status.enabled ? 'green' : 'gray'}>
-          {status.enabled ? 'Configured' : 'Not configured'}
-        </Badge>
       </Card>
 
       <StatGrid className="xl:grid-cols-3">
@@ -63,16 +64,15 @@ export function AdminIntegrations() {
         <StatCard
           icon={Clock}
           tone="amber"
-          label="Queued deliveries"
+          label="Invitations waiting to send"
           value={status.pending}
-          hint="Waiting to send"
         />
         <StatCard
           icon={AlertTriangle}
           tone={status.failed > 0 ? 'red' : 'green'}
-          label="Failed deliveries"
+          label="Invitations that failed"
           value={status.failed}
-          hint={status.failed ? 'Needs a retry' : 'Nothing to retry'}
+          hint={status.failed ? 'Send them again below' : 'Nothing to resend'}
         />
       </StatGrid>
 
@@ -84,7 +84,9 @@ export function AdminIntegrations() {
             loading={retryFailed.isPending}
             onClick={() => retryFailed.mutate()}
           >
-            Retry {status.failed} failed
+            {status.failed === 1
+              ? 'Resend 1 failed invitation'
+              : `Resend ${status.failed} failed invitations`}
           </Button>
         </div>
       )}

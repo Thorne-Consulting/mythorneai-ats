@@ -128,7 +128,7 @@ export function AdminUsers() {
         <StatCard
           icon={ShieldCheck}
           tone="violet"
-          label="Workspace roles"
+          label="Roles in use"
           value={roles}
           hint={`${admins} active ${admins === 1 ? 'admin' : 'admins'}`}
         />
@@ -144,7 +144,7 @@ export function AdminUsers() {
           tone="amber"
           label="Teams"
           value={teams.length}
-          hint={teams.length ? 'Members scoped to a team' : 'Everyone sees all teams'}
+          hint={teams.length ? 'Members limited to one team' : 'Everyone sees all teams'}
         />
       </StatGrid>
 
@@ -289,7 +289,7 @@ export function AdminUsers() {
                     />
                   </TH>
                   <TH>Member</TH>
-                  <TH>Workspace role</TH>
+                  <TH>Role</TH>
                   <TH>Team</TH>
                   <TH>Status</TH>
                   <TH>Last updated</TH>
@@ -386,8 +386,8 @@ export function AdminUsers() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-fg-subtle">
-        <p>Role changes apply immediately and are recorded in the audit log.</p>
-        <CardLink href="/admin/audit">View audit log</CardLink>
+        <p>Role changes take effect right away and are saved in the activity history.</p>
+        <CardLink href="/admin/audit">View activity history</CardLink>
       </div>
 
       <UserModal

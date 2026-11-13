@@ -20,7 +20,7 @@ import { DecideControls } from './ApprovalParts';
 import { ApprovalDetailDrawer } from './ApprovalDetail';
 
 const TYPE_LABEL: Record<PendingApproval['type'], string> = {
-  Offer: 'Acceptance',
+  Offer: 'Offer',
   Requisition: 'New job',
 };
 
@@ -39,7 +39,7 @@ export function ApprovalsPage() {
     <>
       <PageHeader
         title="Approvals"
-        description="Jobs and acceptances waiting for your sign-off. Approve, or reject with a reason the requester can act on."
+        description="Jobs and offers that need your approval. If you reject one, say why so the requester knows what to fix."
       />
       <Card className="px-5">
         <Tabs
@@ -48,7 +48,7 @@ export function ApprovalsPage() {
           onValueChange={setTab}
           items={[
             { value: 'all', label: 'Waiting on me', count: items.length },
-            { value: 'Offer', label: 'Acceptances', count: count('Offer') },
+            { value: 'Offer', label: 'Offers', count: count('Offer') },
             { value: 'Requisition', label: 'New jobs', count: count('Requisition') },
           ]}
           className="pt-2"
@@ -72,7 +72,7 @@ export function ApprovalsPage() {
             compact
             icon={CheckCheck}
             title="Nothing is waiting on you"
-            description="When someone asks you to approve a job or an acceptance, it shows up here and in the bell."
+            description="When someone asks you to approve a job or an offer, it shows up here and in the bell."
           />
         ) : (
           <ul className="divide-y divide-border-subtle">
@@ -125,7 +125,7 @@ function ApprovalRow({ item, onDetails }: { item: PendingApproval; onDetails: ()
         </p>
         {item.note && (
           <blockquote className="mt-3 rounded-lg bg-muted px-3 py-2">
-            <p className="text-xs text-fg-subtle">Note from {item.requestedByName}</p>
+            <p className="text-xs text-fg-subtle">Note</p>
             <p className="mt-0.5 whitespace-pre-wrap text-sm text-fg">{item.note}</p>
           </blockquote>
         )}

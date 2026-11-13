@@ -113,14 +113,14 @@ const sections = [
   ['fields', 'Fields'],
   ['selection', 'Selection'],
   ['navigation', 'Navigation'],
-  ['menus', 'Menus & disclosure'],
+  ['menus', 'Menus and disclosure'],
   ['overlays', 'Overlays'],
   ['feedback', 'Feedback'],
   ['data', 'Data display'],
   ['tables', 'Tables'],
   ['charts', 'Charts'],
   ['patterns', 'Product patterns'],
-  ['layouts', 'Layouts & flows'],
+  ['layouts', 'Layouts and flows'],
   ['ux', 'UX concept'],
 ] as const;
 
@@ -638,7 +638,7 @@ export function Gallery() {
               variant="pills"
               items={[
                 { href: '/design', label: 'Members' },
-                { href: '/design/x', label: 'Roles & permissions' },
+                { href: '/design/x', label: 'Roles and permissions' },
                 { href: '/design/y', label: 'Invitations', count: 6 },
                 { href: '/design/z', label: 'Access requests', count: 3 },
               ]}
@@ -646,7 +646,7 @@ export function Gallery() {
             <Breadcrumbs
               items={[
                 { label: 'Settings', href: '#' },
-                { label: 'Roles & permissions', href: '#' },
+                { label: 'Roles and permissions', href: '#' },
                 { label: 'Workspace members' },
               ]}
             />
@@ -657,7 +657,7 @@ export function Gallery() {
           <Section
             id="menus"
             n={6}
-            title="Menus & disclosure"
+            title="Menus and disclosure"
             description="Context menus with icons, danger and disabled items. Accordions for details, settings groups and workflow config."
           >
             <Demo label="Menu (click)">
@@ -747,7 +747,7 @@ export function Gallery() {
               <Button variant="secondary" onClick={() => toast.warning('Calendar not connected')}>
                 Warning
               </Button>
-              <Button variant="secondary" onClick={() => toast('Sync started')}>
+              <Button variant="secondary" onClick={() => toast('Update started')}>
                 Info
               </Button>
             </Demo>
@@ -1280,7 +1280,7 @@ export function Gallery() {
           <Section
             id="layouts"
             n={13}
-            title="Layouts & flows"
+            title="Layouts and flows"
             description="Second sidebar, full data table with saved views, split view and wizard. See docs/ui-depth-plan.md for where each is used."
           >
             <LayoutDemos />

@@ -38,7 +38,7 @@ type Fit = {
 
 const STATUS: Record<string, { label: string; tone: Tone }> = {
   met: { label: 'Met', tone: 'green' },
-  partial: { label: 'Partly', tone: 'amber' },
+  partial: { label: 'Partly met', tone: 'amber' },
   missing: { label: 'Not found', tone: 'red' },
   unknown: { label: "Can't tell", tone: 'gray' },
 };
@@ -58,10 +58,10 @@ export function FitDrawer({
         `/api/requisitions/${requisitionId}/fit/${candidate?.id}${refresh ? '?refresh=true' : ''}`,
       ),
     onError: (error: Error, refresh) => {
-      if (refresh) toast.error('Could not re-run the assessment', error.message);
+      if (refresh) toast.error('Could not check again', error.message);
     },
     onSuccess: (_result, refresh) => {
-      if (refresh) toast.success('Assessment re-run');
+      if (refresh) toast.success('Checked again');
     },
   });
   const { mutate, reset } = run;
@@ -76,8 +76,8 @@ export function FitDrawer({
       opened={!!candidate}
       onClose={onClose}
       size="xl"
-      title={candidate ? `Assess fit: ${candidate.name}` : 'Assess fit'}
-      description="AI-generated assessment. It's a starting point; you decide."
+      title={candidate ? `How ${candidate.name} fits this job` : 'Job fit'}
+      description="Written by AI. Use it as a starting point. You make the decision."
     >
       <div className="flex flex-col gap-5">
         {run.isPending && (
@@ -94,13 +94,13 @@ export function FitDrawer({
           <>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-xs text-fg-subtle">Requirements met (draft)</p>
+                <p className="text-xs text-fg-subtle">AI match</p>
                 <p className="text-3xl leading-tight font-bold text-fg tnum">
                   {fit.score}
                   <span className="text-sm font-normal text-fg-subtle"> / 100</span>
                 </p>
                 <p className="text-xs text-fg-subtle">
-                  {fit.cached ? 'Saved result from ' : 'Just run, '}
+                  {fit.cached ? 'Last checked ' : 'Checked just now, '}
                   {formatDateTime(fit.createdAt)}
                 </p>
               </div>
@@ -111,7 +111,7 @@ export function FitDrawer({
                 loading={run.isPending}
                 onClick={() => run.mutate(true)}
               >
-                Re-run
+                Check again
               </Button>
             </div>
             {fit.result.summary && <p className="text-base text-fg">{fit.result.summary}</p>}
@@ -138,7 +138,7 @@ export function FitDrawer({
                         <Badge tone={status.tone}>{status.label}</Badge>
                       </TD>
                       <TD className={row.evidence ? 'align-top' : 'align-top text-fg-subtle'}>
-                        {row.evidence || 'Nothing quoted'}
+                        {row.evidence || 'No evidence found'}
                       </TD>
                     </TR>
                   );

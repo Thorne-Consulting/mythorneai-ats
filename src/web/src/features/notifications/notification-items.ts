@@ -30,7 +30,7 @@ export const kindLabels: Record<NotificationKind, string> = {
   approval: 'Approvals',
   feedback: 'Feedback due',
   message: 'Messages',
-  stalled: 'Stalled',
+  stalled: 'No activity',
 };
 
 /**

@@ -9,7 +9,7 @@ import { useCurrentUser } from '@/auth';
 import { Button, Card, EmptyState, PageHeader, Select } from '@/components/ui';
 import { StatusBadge } from '@/components/status';
 import type { RequisitionSummary } from '@/types';
-import { canManageJob, nameFromEmail, useBoard } from '@/features/requisitions/requisition-data';
+import { canManageJob, nameFromEmail } from '@/features/requisitions/requisition-data';
 import { PipelineView } from './PipelineView';
 
 /** One open job's board at a time; the chosen job is kept in the URL (?job=). */
@@ -42,7 +42,7 @@ export function PipelinePage({
     <>
       <PageHeader
         title="Pipeline"
-        description="Keep every candidate moving, from first application to a great hire."
+        description="Pick an open job to see its candidates by stage."
         actions={
           job &&
           canManage && (
@@ -60,7 +60,7 @@ export function PipelinePage({
           <EmptyState
             icon={Briefcase}
             title="No open jobs"
-            description="A job's pipeline shows here once it is open. Open a job, or create one."
+            description="Open a job, or create one, to see its candidates here."
             action={
               <Button asChild variant="secondary">
                 <Link href="/jobs">Go to jobs</Link>
@@ -99,12 +99,8 @@ export function PipelinePage({
 }
 
 function JobStats({ job }: { job: RequisitionSummary }) {
-  const board = useBoard(job.id);
-  const total =
-    board.data?.stages.reduce((sum, s) => sum + s.applications.length, 0) ?? job.activeApplications;
   return (
     <p className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-muted">
-      <span className="tnum">{total} active candidates</span>
       <span className="tnum">
         {job.openings} {job.openings === 1 ? 'opening' : 'openings'}
       </span>

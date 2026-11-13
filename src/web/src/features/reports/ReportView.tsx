@@ -237,7 +237,7 @@ export function ReportView({ reportKey }: { reportKey: string }) {
             <Button asChild className="print:hidden">
               <a href={csvHref}>
                 <Download />
-                Export report
+                Download spreadsheet (CSV)
               </a>
             </Button>
           </>
@@ -258,8 +258,8 @@ export function ReportView({ reportKey }: { reportKey: string }) {
         <div className="flex flex-col gap-4">
           {reportKey === 'hires' && (
             <p className="text-sm text-fg">
-              This list is for the HR and payroll hand-off. Export it as a CSV and send it on when
-              someone has been hired.
+              After each hire, download this list as a spreadsheet (CSV) and send it to HR and
+              payroll.
             </p>
           )}
           <p className="hidden text-xs text-fg-subtle print:block">
@@ -290,7 +290,7 @@ export function ReportView({ reportKey }: { reportKey: string }) {
                 title="Nothing to report yet"
                 description={
                   hasFilters
-                    ? 'No data matches these filters.'
+                    ? 'Nothing matches these filters. Clear them to see everything.'
                     : 'This report fills in as people apply and move through hiring.'
                 }
                 action={
@@ -343,7 +343,7 @@ export function ReportView({ reportKey }: { reportKey: string }) {
         opened={viewsOpen}
         onClose={() => setViewsOpen(false)}
         title="Saved views"
-        description="Save the report and filters you check often, then reopen them in one click."
+        description="Save a report with its filters, then open it again in one click."
         size="sm"
       >
         {savedViews.length > 0 && (
@@ -380,14 +380,14 @@ export function ReportView({ reportKey }: { reportKey: string }) {
           }}
         >
           <Input
-            label="Save the current report and filters"
-            placeholder="Name this view"
+            label="Name this view"
+            placeholder="For example, Sales hires this year"
             className="flex-1"
             value={viewName}
             onChange={(event) => setViewName(event.currentTarget.value)}
           />
           <Button type="submit" loading={saveView.isPending} disabled={!viewName.trim()}>
-            Save
+            Save view
           </Button>
         </form>
       </Modal>

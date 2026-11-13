@@ -23,7 +23,7 @@ export function PotentialDuplicates({ candidateId }: { candidateId: string }) {
   return (
     <RailGroup title="Possible duplicates">
       <p className="mb-3 text-sm text-fg-subtle">
-        Check these before creating another record. Nothing is merged on its own.
+        These may be the same person. We never merge records for you.
       </p>
       <ul className="space-y-2.5">
         {duplicates.data.map((duplicate) => (

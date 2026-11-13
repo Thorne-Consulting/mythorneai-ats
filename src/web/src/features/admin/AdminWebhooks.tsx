@@ -127,9 +127,9 @@ export function AdminWebhooks() {
     mutationFn: (id: string) => api.post(`/api/admin/webhooks/${id}/test`),
     onSuccess: () => {
       refresh();
-      toast.success('Test sent', 'Open “Deliveries” in a moment to see how it went.');
+      toast.success('Test message sent', 'Open “History” in a moment to see how it went.');
     },
-    onError: (e: Error) => toast.error('Could not send the test', e.message),
+    onError: (e: Error) => toast.error('Could not send the test message', e.message),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/admin/webhooks/${id}`),
@@ -137,7 +137,7 @@ export function AdminWebhooks() {
       refresh();
       toast.success('Webhook deleted');
     },
-    onError: (e: Error) => toast.error('Could not delete', e.message),
+    onError: (e: Error) => toast.error('Could not delete the webhook', e.message),
   });
 
   const open = (value: Draft) => {
@@ -154,12 +154,7 @@ export function AdminWebhooks() {
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-4 pb-3">
           <div className="min-w-0 max-w-2xl">
-            <h2 className="text-lg font-semibold text-fg">Endpoints</h2>
-            <p className="mt-0.5 text-sm text-fg-subtle">
-              A webhook tells another system the moment something happens here, for example telling
-              payroll or your HR system when someone is hired. We send a small message to the web
-              address you give us.
-            </p>
+            <h2 className="text-lg font-semibold text-fg">Your webhooks</h2>
           </div>
           <Button leftIcon={<Plus />} onClick={addNew}>
             Add webhook
@@ -229,7 +224,7 @@ export function AdminWebhooks() {
                       size="sm"
                       onClick={() => setDeliveriesFor(endpoint)}
                     >
-                      Deliveries
+                      History
                     </Button>
                     <RowActions label={`More actions for ${endpoint.url}`}>
                       <MenuItem
@@ -278,9 +273,10 @@ export function AdminWebhooks() {
       </Card>
       {endpoints.length > 0 && (
         <p className="max-w-3xl text-sm text-fg-subtle">
-          Every delivery is signed so the other system can tell it came from us. We send a header{' '}
-          <Code>X-ATS-Signature: sha256=…</Code>, which is the HMAC-SHA256 of the message body using
-          the signing secret. Check it before you trust a message.
+          Each message is signed with the signing secret, so the other system can check it came from
+          us. Give the secret to whoever sets up that system. For developers: the{' '}
+          <Code>X-ATS-Signature: sha256=…</Code> header is the HMAC-SHA256 of the message body, made
+          with the secret.
         </p>
       )}
 
@@ -308,11 +304,11 @@ export function AdminWebhooks() {
             <Input
               inset
               label="Web address"
-              description="Must be a public https address."
+              description="It must start with https:// and be reachable from the internet."
               placeholder="https://payroll.example.com/hooks/ats"
               value={draft.url}
               onChange={(event) => setDraft({ ...draft, url: event.currentTarget.value })}
-              error={urlLooksWrong ? 'Start with https://' : undefined}
+              error={urlLooksWrong ? 'The address must start with https://' : undefined}
               autoFocus
             />
             <MultiSelect
@@ -329,7 +325,7 @@ export function AdminWebhooks() {
             <Switch
               labelPosition="left"
               label="Send messages"
-              description="Turn off to pause without deleting."
+              description="Turn this off to pause the webhook without deleting it."
               checked={draft.isActive}
               onCheckedChange={(isActive) => setDraft({ ...draft, isActive })}
             />
@@ -346,7 +342,7 @@ export function AdminWebhooks() {
         opened={removing !== null}
         onClose={() => setRemoving(null)}
         title="Delete this webhook?"
-        message={`We’ll stop sending messages to ${removing?.url ?? ''}. Its delivery history goes with it.`}
+        message={`We’ll stop sending messages to ${removing?.url ?? ''}. Its message history is deleted too.`}
         confirmLabel="Delete webhook"
         onConfirm={async () => {
           if (removing) await remove.mutateAsync(removing.id).catch(() => undefined);
@@ -385,15 +381,15 @@ function DeliveriesModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['webhook-deliveries'] });
       onRetried();
-      toast.success('Queued to send again');
+      toast.success('We will send it again');
     },
-    onError: (e: Error) => toast.error('Could not retry', e.message),
+    onError: (e: Error) => toast.error('Could not send it again', e.message),
   });
   return (
     <Modal
       opened={endpoint !== null}
       onClose={onClose}
-      title="Recent deliveries"
+      title="Recent messages"
       description={endpoint?.url}
       size="lg"
     >
@@ -426,7 +422,7 @@ function DeliveriesModal({
                     </Badge>
                     {delivery.lastStatusCode ? (
                       <span className="text-xs text-fg-subtle tnum">
-                        HTTP {delivery.lastStatusCode}
+                        Response {delivery.lastStatusCode}
                       </span>
                     ) : null}
                   </div>
@@ -445,7 +441,7 @@ function DeliveriesModal({
                       loading={retry.isPending && retry.variables === delivery.id}
                       onClick={() => retry.mutate(delivery.id)}
                     >
-                      Retry
+                      Send again
                     </Button>
                   )}
                 </TD>

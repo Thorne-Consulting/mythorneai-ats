@@ -78,7 +78,7 @@ export function PipelineTemplatesSection() {
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/admin/pipeline-templates/${id}`),
     onSuccess: () => done('Pipeline deleted'),
-    onError: (error: Error) => toast.error('Could not delete', error.message),
+    onError: (error: Error) => toast.error('Could not delete the pipeline', error.message),
   });
 
   const moveTo = (from: number, to: number) => {
@@ -211,7 +211,7 @@ export function PipelineTemplatesSection() {
                     <span
                       draggable
                       aria-hidden
-                      title="Drag to reorder"
+                      title="Drag to change the order"
                       className="flex cursor-grab items-center text-fg-subtle hover:text-fg active:cursor-grabbing"
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = 'move';

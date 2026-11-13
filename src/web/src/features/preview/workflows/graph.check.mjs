@@ -35,19 +35,19 @@ const broken = validate(
   edges.filter((e) => e.sourceHandle !== 'no'),
 );
 const text = broken.map((p) => p.message).join('\n');
-assert.match(text, /exactly one trigger/);
-assert.match(text, /no “No” branch/);
-assert.match(text, /not connected to the trigger: Tag, Webhook/);
+assert.match(text, /only one starting step/);
+assert.match(text, /nothing connected to its “No” path/);
+assert.match(text, /not linked to the start: Tag, Webhook/);
 
 const loop = [...edges, { source: 'd', target: 'c' }];
 assert.deepEqual(findCycle(nodes, loop), ['c', 'a', 'd']);
-assert.ok(validate(nodes, loop).some((p) => /loop back/.test(p.message)));
+assert.ok(validate(nodes, loop).some((p) => /in a circle/.test(p.message)));
 assert.equal(layers(nodes, loop).flat().length, nodes.length, 'cyclic nodes still placed');
 assert.match(
   validate([], [])
     .map((p) => p.message)
     .join(),
-  /Add a trigger/,
+  /Start when list/,
 );
 
 // Simulated run follows the chosen branch and stops before repeating a step.

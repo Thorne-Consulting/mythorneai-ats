@@ -33,11 +33,11 @@ function scoresFor(person: PreviewPerson, applicationId: string): Scores {
   return person.applications?.find((app) => app.id === applicationId);
 }
 
-/** "Rated 4.0 · fit 72", or empty when neither is known. */
+/** "Rated 4.0 · AI match 72%", or empty when neither is known. */
 function scoreText(scores: Scores) {
   return [
     scores?.rating ? `Rated ${scores.rating.toFixed(1)}` : null,
-    scores?.fitScore != null ? `fit ${scores.fitScore}` : null,
+    scores?.fitScore != null ? `AI match ${scores.fitScore}%` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -80,12 +80,12 @@ function FilterLink({
   );
 }
 
-/** "2021 – now · 4 yrs" for a job on the parsed resume. */
+/** "2021 – now · 4 years" for a job on the parsed resume. */
 function span(role: ResumeProfile['work'][number]) {
   const years = role.durationMonths ? Math.round(role.durationMonths / 1.2) / 10 : null;
   return [
     [role.startYear, role.isCurrent ? 'now' : role.endYear].filter(Boolean).join(' – '),
-    years ? `${years} yrs` : null,
+    years ? `${years} ${years === 1 ? 'year' : 'years'}` : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -162,7 +162,9 @@ export function CandidatePreview({
         )}
       </div>
       {query.isError ? (
-        <p className="mt-4 text-sm text-destructive">Could not load the full record.</p>
+        <p className="mt-4 text-sm text-destructive">
+          Could not load this candidate. Try again soon.
+        </p>
       ) : !detail ? (
         <SkeletonRows rows={3} className="px-0" />
       ) : (
@@ -181,7 +183,7 @@ export function CandidatePreview({
           </dl>
           {heading('Where they are')}
           {detail.applications.length === 0 ? (
-            <p className="text-sm text-fg-subtle">Not applied to any job yet.</p>
+            <p className="text-sm text-fg-subtle">Not in any job yet.</p>
           ) : (
             <ul className="space-y-2.5">
               {detail.applications.map((app) => (
@@ -306,7 +308,7 @@ export function CandidatePreview({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Open
+                    View on LinkedIn
                   </a>
                 </dd>
               </>

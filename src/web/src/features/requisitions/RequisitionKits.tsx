@@ -36,8 +36,8 @@ export function RequisitionKits({ id }: { id: string }) {
         <EmptyState
           compact
           icon={ClipboardList}
-          title="No kits yet"
-          description="A kit gives every interviewer the same questions and scoring scale."
+          title="No interview kits yet"
+          description="Add a kit before you schedule interviews for this job."
           action={canManage ? newKit('Add a kit') : undefined}
         />
       ) : (
@@ -51,8 +51,8 @@ export function RequisitionKits({ id }: { id: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-base font-medium text-fg">{kit.name}</p>
                   <p className="mt-0.5 truncate text-xs text-fg-subtle">
-                    {kit.durationMinutes} min · {kit.criteria.length}{' '}
-                    {kit.criteria.length === 1 ? 'competency' : 'competencies'}
+                    {kit.durationMinutes} minutes · {kit.criteria.length}{' '}
+                    {kit.criteria.length === 1 ? 'question' : 'questions'}
                     {kit.criteria.length > 0 &&
                       ` · ${kit.criteria.map((criterion) => criterion.name).join(', ')}`}
                   </p>

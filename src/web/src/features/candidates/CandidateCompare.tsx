@@ -61,7 +61,6 @@ export function CandidateCompare({ ids }: { ids: string[] }) {
     <PageHeader
       breadcrumbs={[{ label: 'Candidates', href: '/candidates' }, { label: 'Compare' }]}
       title="Compare candidates"
-      description="The same facts for each person, side by side."
     />
   );
   if (ids.length < 2)
@@ -72,7 +71,7 @@ export function CandidateCompare({ ids }: { ids: string[] }) {
           <EmptyState
             icon={GitCompareArrows}
             title="Pick two or three people to compare"
-            description="Tick them in the candidates list, then choose Compare."
+            description="Check the boxes next to them in the list, then choose Compare."
             action={
               <Button variant="secondary" asChild>
                 <Link href="/candidates">Go to candidates</Link>
@@ -286,7 +285,7 @@ export function CandidateCompare({ ids }: { ids: string[] }) {
                     className="border-b border-border-subtle p-4 text-left align-top font-normal"
                   >
                     {p.error ? (
-                      <p className="text-destructive">Could not load this person.</p>
+                      <p className="text-destructive">Could not load this candidate.</p>
                     ) : !p.detail ? (
                       <SkeletonRows rows={1} className="px-0" />
                     ) : (
@@ -299,10 +298,8 @@ export function CandidateCompare({ ids }: { ids: string[] }) {
                           >
                             {name}
                           </Link>
-                          <p className="truncate text-sm text-fg-muted">
-                            {p.detail.currentTitle ?? 'No title on file'}
-                          </p>
                         </div>
+
                         {ids.length > 2 && (
                           <IconButton label={`Remove ${name}`} variant="quiet" size="sm" asChild>
                             <Link href={without(p.id)}>

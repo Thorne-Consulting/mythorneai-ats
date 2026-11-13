@@ -119,7 +119,7 @@ const deptIcons: Record<string, LucideIcon> = {
 export const iconFor = (a: Pick<Assessment, 'department'>) =>
   deptIcons[a.department] ?? ClipboardList;
 
-export const statusLabel = { active: 'Active', draft: 'Draft', archived: 'Closed' } as const;
+export const statusLabel = { active: 'Active', draft: 'Draft', archived: 'Archived' } as const;
 
 export const formatWhen = (value: string | null) =>
   value

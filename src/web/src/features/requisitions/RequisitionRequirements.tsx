@@ -99,7 +99,7 @@ export function RequisitionRequirements({
       />
       <CardBody className="space-y-5">
         {aiError && (
-          <Alert tone="danger" title="The AI draft didn’t run">
+          <Alert tone="danger" title="AI could not write a draft">
             {aiError}
           </Alert>
         )}
@@ -141,7 +141,7 @@ export function RequisitionRequirements({
               years of experience, based in
               <input
                 className={cn(inlineInput, 'w-48')}
-                aria-label="Location rule"
+                aria-label="Where candidates must be based"
                 placeholder="anywhere"
                 value={draft.location}
                 onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
@@ -149,7 +149,7 @@ export function RequisitionRequirements({
             </p>
             <div className="flex items-center gap-2">
               <Button type="submit" size="sm" loading={save.isPending}>
-                Done
+                Save requirements
               </Button>
               <Button
                 variant="quiet"
@@ -167,26 +167,28 @@ export function RequisitionRequirements({
             <ReadGroup label="Nice to have" items={confirmed.preferred} />
             <p className="text-base text-fg-muted">
               {[
-                confirmed.minYears != null ? `${confirmed.minYears}+ years of experience` : null,
+                confirmed.minYears != null
+                  ? `At least ${confirmed.minYears} years of experience`
+                  : null,
                 confirmed.location || null,
               ]
                 .filter(Boolean)
-                .join(' · ') || 'No experience or location rule'}
+                .join(' · ') || 'No minimum experience or location'}
             </p>
           </>
         ) : (
           <p className="text-base text-fg-subtle">
-            Nothing set yet, so candidates are ranked by keywords only. Let AI draft a list from the
-            role description
+            No requirements yet, so candidates are matched by keywords only.
             {canManage && (
               <>
-                , or{' '}
+                {' '}
+                Use Draft with AI to write them from the job description, or{' '}
                 <Button variant="link" onClick={edit}>
-                  write it yourself
+                  write them yourself
                 </Button>
+                .
               </>
             )}
-            .
           </p>
         )}
       </CardBody>

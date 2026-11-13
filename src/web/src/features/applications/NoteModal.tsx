@@ -27,8 +27,7 @@ export function NoteModal({
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Add review note"
-      description="Only the hiring team sees notes."
+      title="Add note"
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -45,7 +44,8 @@ export function NoteModal({
       }
     >
       <Textarea
-        label="Job-related note"
+        label="Note"
+        description="Keep it about the job."
         minRows={6}
         value={body}
         onChange={(event) => setBody(event.currentTarget.value)}

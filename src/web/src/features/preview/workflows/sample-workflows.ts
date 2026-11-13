@@ -72,7 +72,7 @@ function build(steps: StepSpec[], links: LinkSpec[]) {
 export const TEMPLATES = {
   'Interview acceptance': {
     description:
-      'Ask the hiring manager to confirm, then invite the candidate and set up scheduling.',
+      'Ask the hiring manager to confirm, then invite the candidate and add a task to schedule it.',
     build: () =>
       build(
         [
@@ -124,8 +124,7 @@ export const TEMPLATES = {
       ),
   },
   'Rejection follow-up': {
-    description:
-      'Send a considerate rejection after a short pause and keep strong runners-up warm.',
+    description: 'Wait two days, send a kind rejection, and tag strong runners-up for future jobs.',
     build: () =>
       build(
         [
@@ -164,7 +163,7 @@ export const TEMPLATES = {
       ),
   },
   'Offer approval': {
-    description: 'Route every offer through the hiring manager and finance before it goes out.',
+    description: 'Get the hiring manager and finance to approve each offer before it goes out.',
     build: () =>
       build(
         [
@@ -205,7 +204,7 @@ export const TEMPLATES = {
       ),
   },
   'New application triage': {
-    description: 'Acknowledge every applicant and send each one down the right path by department.',
+    description: 'Thank every applicant, then sort them by department.',
     build: () =>
       build(
         [
@@ -251,7 +250,7 @@ export const TEMPLATES = {
       ),
   },
   Blank: {
-    description: 'Start with a single trigger and build the rest yourself.',
+    description: 'Start with one step and add the rest yourself.',
     build: () => build([['t', 'trigger.stage_entered', { stage: 'Applied' }]], []),
   },
 } satisfies Record<

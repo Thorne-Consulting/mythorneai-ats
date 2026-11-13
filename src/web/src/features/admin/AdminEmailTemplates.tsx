@@ -21,7 +21,7 @@ export function AdminEmailTemplates() {
           label="Edit for"
           className="w-full sm:w-96"
           data={[
-            { value: '__all__', label: 'Everyone' },
+            { value: '__all__', label: 'All jobs' },
             ...(jobs.data ?? []).map((job) => ({
               value: job.id,
               label: `${job.title} (${job.code})`,
@@ -31,7 +31,7 @@ export function AdminEmailTemplates() {
           onChange={(value) => setJobId(value && value !== '__all__' ? value : null)}
         />
         <p className="min-w-0 flex-1 basis-64 text-sm text-fg-subtle">
-          Change the wording for everyone, or pick a job to give it its own version.
+          Change the wording for all jobs, or pick one job to give it its own version.
         </p>
       </Card>
       <EmailTemplateEditor requisitionId={jobId ?? undefined} />

@@ -17,6 +17,7 @@ import {
 } from '@/components/ui';
 import { ChatBubble } from '@/components/messages/Chat';
 import { formatDate, formatDateTime, formatRelative } from '@/lib/format';
+import { safeWebUrl } from '@/lib/safe-url';
 import { usePortal } from './PortalProvider';
 import { statusSteps, timeOnly, when, type PortalApplication, type Slot } from './portal';
 
@@ -45,10 +46,7 @@ export function StatusCard({ application }: { application: PortalApplication }) 
   }));
   return (
     <Card>
-      <CardHeader
-        title="Where things stand"
-        description="Each step of your application, in order."
-      />
+      <CardHeader title="Where things stand" />
       <CardBody>
         <Timeline items={items} />
       </CardBody>
@@ -58,10 +56,10 @@ export function StatusCard({ application }: { application: PortalApplication }) 
 
 export function Interviews({
   application,
-  title = 'Interviews',
+  title,
 }: {
   application: PortalApplication;
-  /** Card title; the portal-wide Interviews page passes the job title. */
+  /** Card title, used on the Interviews page to name the job. The application tab has none. */
   title?: React.ReactNode;
 }) {
   const { call, reload } = usePortal();
@@ -72,7 +70,7 @@ export function Interviews({
     const { ok, response } = await call(
       `/public/applications/${application.id}/interviews/${interviewId}/availability`,
       undefined,
-      'We could not load current availability.',
+      'We could not load other times. Please try again.',
     );
     if (!ok || !response) return;
     const result = await response.json();
@@ -97,11 +95,11 @@ export function Interviews({
   const none = application.proposedInterviews.length === 0 && application.interviews.length === 0;
   return (
     <Card id="interviews" className="scroll-mt-6">
-      <CardHeader title={title} />
-      <CardBody className="flex flex-col gap-3">
+      {title && <CardHeader title={title} />}
+      <CardBody className={title ? 'flex flex-col gap-3' : 'flex flex-col gap-3 pt-5'}>
         {none && (
           <p className="text-sm text-fg-subtle">
-            No interviews yet. When the team proposes times, you will pick one here.
+            No interviews yet. When the team suggests times, you can pick one here.
           </p>
         )}
 
@@ -143,45 +141,48 @@ export function Interviews({
           </section>
         ))}
 
-        {application.interviews.map((interview) => (
-          <section
-            key={interview.id}
-            className="flex flex-col gap-2 rounded-lg border border-border-subtle p-4"
-          >
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="flex-1 text-base text-fg">
-                <span className="font-medium">{interview.title}</span>
-                <span className="text-fg-muted">: {when(interview.startsAt)}</span>
-              </p>
-              <Badge tone="blue">Booked</Badge>
-              {interview.meetingLink && (
-                <Button asChild variant="secondary" size="sm">
-                  <a href={interview.meetingLink} target="_blank" rel="noreferrer">
-                    <Video /> Join meeting
-                  </a>
-                </Button>
-              )}
-            </div>
-            {application.canReschedule && (
-              <div className="flex flex-wrap gap-2">
-                <Button variant="quiet" size="sm" onClick={() => loadAvailability(interview.id)}>
-                  Change time
-                </Button>
-                <Button
-                  variant="danger-quiet"
-                  size="sm"
-                  onClick={() => setCancel({ id: interview.id, title: interview.title })}
-                >
-                  Cancel interview
-                </Button>
+        {application.interviews.map((interview) => {
+          const meetingUrl = safeWebUrl(interview.meetingLink);
+          return (
+            <section
+              key={interview.id}
+              className="flex flex-col gap-2 rounded-lg border border-border-subtle p-4"
+            >
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <p className="flex-1 text-base text-fg">
+                  <span className="font-medium">{interview.title}</span>
+                  <span className="text-fg-muted">: {when(interview.startsAt)}</span>
+                </p>
+                <Badge tone="blue">Booked</Badge>
+                {meetingUrl && (
+                  <Button asChild variant="secondary" size="sm">
+                    <a href={meetingUrl} target="_blank" rel="noreferrer">
+                      <Video /> Join meeting
+                    </a>
+                  </Button>
+                )}
               </div>
-            )}
-            <Slots
-              slots={availability[interview.id]}
-              onPick={(slot) => book(interview.id, slot, 'reschedule')}
-            />
-          </section>
-        ))}
+              {application.canReschedule && (
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="quiet" size="sm" onClick={() => loadAvailability(interview.id)}>
+                    Change time
+                  </Button>
+                  <Button
+                    variant="danger-quiet"
+                    size="sm"
+                    onClick={() => setCancel({ id: interview.id, title: interview.title })}
+                  >
+                    Cancel interview
+                  </Button>
+                </div>
+              )}
+              <Slots
+                slots={availability[interview.id]}
+                onPick={(slot) => book(interview.id, slot, 'reschedule')}
+              />
+            </section>
+          );
+        })}
       </CardBody>
 
       <ConfirmDialog
@@ -195,7 +196,7 @@ export function Interviews({
           const { ok } = await call(
             `/public/applications/${application.id}/interviews/${cancel.id}/cancel`,
             undefined,
-            'That interview could not be cancelled.',
+            'We could not cancel that interview. Please try again.',
           );
           if (ok) toast.success('Your interview was cancelled');
           await reload();
@@ -264,10 +265,6 @@ export function Thread({ application }: { application: PortalApplication }) {
 
   return (
     <section className="flex flex-col gap-3" aria-label={`Messages about ${application.jobTitle}`}>
-      <div className="flex items-center gap-2">
-        <h2 className="text-lg font-semibold text-fg">Messages with the hiring team</h2>
-        {unread > 0 && <Badge tone="blue">{unread} new</Badge>}
-      </div>
       {application.thread.length === 0 && (
         <p className="text-sm text-fg-subtle">
           No messages yet. Questions about this role? Write to the team below.
@@ -313,7 +310,7 @@ export function Withdraw({ application }: { application: PortalApplication }) {
     const { ok } = await call(
       `/public/portal/applications/${application.id}/withdraw`,
       { reason: reason.trim() || null },
-      'We could not withdraw your application.',
+      'We could not withdraw your application. Please try again.',
     );
     if (ok) toast.success('Your application was withdrawn', 'We have emailed you a confirmation.');
     setBusy(false);
@@ -324,10 +321,7 @@ export function Withdraw({ application }: { application: PortalApplication }) {
 
   return (
     <Card>
-      <CardHeader
-        title="Changed your mind?"
-        description="You can withdraw this application at any time."
-      />
+      <CardHeader title="Changed your mind?" />
       <CardBody>
         <Button variant="danger-quiet" size="sm" onClick={() => setOpen(true)}>
           Withdraw application
@@ -351,12 +345,13 @@ export function Withdraw({ application }: { application: PortalApplication }) {
       >
         <div className="flex flex-col gap-4">
           <p className="text-base text-fg-muted">
-            This ends your application for {application.jobTitle}. Any interviews you have booked
-            are cancelled, the team is told, and we email you a confirmation. You can apply again in
-            the future.
+            This ends your application for {application.jobTitle}. We cancel any interviews you have
+            booked and let the team know. We also email you a confirmation. You can apply again
+            later.
           </p>
           <Textarea
-            label="Anything you would like the team to know? (optional)"
+            label="Anything you want the team to know?"
+            description="You can leave this empty."
             minRows={3}
             maxLength={500}
             value={reason}
@@ -369,13 +364,7 @@ export function Withdraw({ application }: { application: PortalApplication }) {
 }
 
 /** Copies of the emails the team sent about this application. */
-export function EmailsList({
-  application,
-  showJob,
-}: {
-  application: PortalApplication;
-  showJob?: boolean;
-}) {
+export function EmailsList({ application }: { application: PortalApplication }) {
   if (application.messages.length === 0)
     return <p className="text-sm text-fg-subtle">No emails about this application yet.</p>;
   return (
@@ -389,7 +378,6 @@ export function EmailsList({
             <p className="text-base font-medium text-fg">{item.subject}</p>
             <p className="text-xs text-fg-subtle">{formatDateTime(item.createdAt)}</p>
           </div>
-          {showJob && <p className="text-xs text-fg-subtle">{application.jobTitle}</p>}
           <p className="mt-2 text-sm whitespace-pre-wrap text-fg-muted">{item.body}</p>
         </article>
       ))}

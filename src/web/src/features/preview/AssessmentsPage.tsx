@@ -15,7 +15,6 @@ import {
   UserPlus,
 } from 'lucide-react';
 import {
-  Badge,
   Button,
   Card,
   CardHeader,
@@ -94,7 +93,7 @@ export function AssessmentsPage() {
     <>
       <PageHeader
         title={<PreviewTitle>Assessments</PreviewTitle>}
-        description="Evaluate skills fairly and make confident, evidence-based hiring decisions."
+        description="Build skills tests, send them to candidates, and review their answers."
         actions={
           <>
             <Button variant="secondary" leftIcon={<UserPlus />} onClick={() => setInviting(null)}>
@@ -107,8 +106,7 @@ export function AssessmentsPage() {
         }
       />
       <PreviewAlert>
-        This screen runs on sample data until the backend exists. Your changes are kept in this
-        browser only.
+        This is a preview with sample data. Your changes are saved only in this browser.
       </PreviewAlert>
 
       {!ready ? (
@@ -136,14 +134,13 @@ export function AssessmentsPage() {
               tone="green"
               label="Completed"
               value={completion.completed}
-              hint={`${pct(completion.completed, invitedTotal)}% completion rate`}
+              hint={`${pct(completion.completed, invitedTotal)}% of those invited`}
             />
             <StatCard
               icon={ClipboardCheck}
               tone="amber"
-              label="Pending review"
+              label="Waiting for review"
               value={toReview.length}
-              hint="Waiting on a reviewer"
             />
           </StatGrid>
 
@@ -288,7 +285,7 @@ export function AssessmentsPage() {
                       compact
                       icon={ClipboardCheck}
                       title="No results yet"
-                      description="Submissions show up here once invited candidates finish."
+                      description="Results show up here when invited candidates finish."
                     />
                   ) : (
                     <Table>
@@ -317,7 +314,7 @@ export function AssessmentsPage() {
                               </TD>
                               <TD className="whitespace-nowrap">
                                 {score.percent === null ? (
-                                  <span className="text-fg-muted">In review</span>
+                                  <span className="text-fg-muted">Not scored yet</span>
                                 ) : (
                                   <span className="font-semibold tnum">{score.percent} / 100</span>
                                 )}
@@ -326,7 +323,7 @@ export function AssessmentsPage() {
                                 {formatWhen(r.submittedOn)}
                               </TD>
                               <TD>
-                                <StatusBadge status={r.decision ?? 'Review'} />
+                                <StatusBadge status={r.decision ?? 'InReview'} />
                               </TD>
                             </TR>
                           );
@@ -371,7 +368,7 @@ export function AssessmentsPage() {
                             <span className="text-xs text-fg-muted">
                               {review
                                 ? `Submitted ${formatWhen(item.submittedOn)}`
-                                : 'Started, not submitted'}
+                                : 'Started but not finished'}
                             </span>
                             {review ? (
                               <Link
@@ -475,14 +472,11 @@ function AssessmentCard({
       <p className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted">
         <span className="inline-flex items-center gap-1">
           <Clock className="size-3.5" aria-hidden />
-          {a.minutes} min
+          {a.minutes} minutes
         </span>
         <span>
           {items} {items === 1 ? 'question' : 'questions'}
         </span>
-        {a.status === 'active' && <span className="text-tone-green-fg">Active</span>}
-        {a.status === 'draft' && <Badge size="sm">Draft</Badge>}
-        {a.status === 'archived' && <Badge size="sm">Archived</Badge>}
       </p>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-fg-muted tnum">

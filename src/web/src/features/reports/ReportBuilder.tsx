@@ -141,7 +141,7 @@ export function ReportBuilder() {
             Report builder <Badge tone="amber">Preview</Badge>
           </span>
         }
-        description="Pick a report, what to measure and how to split it. Custom reports are saved in this browser."
+        description="Pick a report, a number to measure and how to group it. Only this browser keeps the reports you save."
       >
         <SavedViews<BuilderState>
           storageKey="report-builder"
@@ -165,7 +165,7 @@ export function ReportBuilder() {
               data={ALL_REPORTS.map((item) => ({ value: item.key, label: item.title }))}
             />
             <Select
-              label="Split by"
+              label="Group by"
               value={dimension === undefined ? null : columns[dimension]}
               onChange={(value) => value && set({ dimension: value })}
               data={dimensions.map((index) => columns[index])}
@@ -182,7 +182,7 @@ export function ReportBuilder() {
               ]}
             />
             <Select
-              label="Combine with"
+              label="Calculate"
               value={how}
               onChange={(value) => value && set({ how: value as Aggregate })}
               disabled={metric === null}
@@ -216,27 +216,24 @@ export function ReportBuilder() {
           </Card>
         ) : report.error ? (
           <Alert tone="danger" title="This data didn’t load">
-            {report.error.message}
+            {report.error.message} Try again, or pick another report.
           </Alert>
         ) : groups.length === 0 ? (
           <Card>
             <EmptyState
               icon={BarChart3}
               title="Nothing to chart yet"
-              description="This report has no rows for these filters. Try another report or clear the filters."
+              description="Try another report, or clear the filters."
             />
           </Card>
         ) : (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <Card
               role="figure"
-              aria-label={`${valueLabel} by ${dimLabel}. The figures are also in the table.`}
+              aria-label={`${valueLabel} by ${dimLabel}. The numbers are also in the table.`}
               className="min-w-0"
             >
-              <CardHeader
-                title={`${valueLabel} by ${dimLabel.toLowerCase()}`}
-                description={report.data?.title}
-              />
+              <CardHeader title={`${valueLabel} by ${dimLabel.toLowerCase()}`} />
               <div className="px-5 pb-5">{chart}</div>
             </Card>
             <Card className="min-w-0 px-4">

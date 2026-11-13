@@ -57,7 +57,7 @@ const SelectBox = forwardRef<
     value,
     onChange,
     data,
-    placeholder = 'Select…',
+    placeholder = 'Choose one',
     clearable,
     disabled,
     size = 'md',

@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
-import { Card, CardHeader, CountBadge } from '@/components/ui';
+import { Card, CardHeader } from '@/components/ui';
+
 import { StageBadge, StatusBadge } from '@/components/status';
 import { formatDate } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
@@ -15,14 +16,7 @@ export function CandidateApplications({
 }) {
   return (
     <Card>
-      <CardHeader
-        title={
-          <span className="flex items-center gap-2">
-            Applications
-            {applications.length > 0 && <CountBadge count={applications.length} tone="gray" />}
-          </span>
-        }
-      />
+      <CardHeader title="Applications" />
       {applications.length === 0 ? (
         <p className="px-5 pb-5 text-base text-fg-subtle">Not in any job yet.</p>
       ) : (

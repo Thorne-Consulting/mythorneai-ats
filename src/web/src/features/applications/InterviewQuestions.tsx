@@ -60,14 +60,14 @@ export function InterviewQuestions({
   return (
     <>
       <Button size="sm" variant="soft" leftIcon={<Sparkles />} onClick={open}>
-        Prepare with AI
+        Suggest questions
       </Button>
       <Drawer
         opened={opened}
         onClose={() => setOpened(false)}
         size="lg"
         title={`Question ideas for ${candidateName}`}
-        description="AI-written suggestions based on the resume and the job. Use the ones that help, ignore the rest. You run the interview."
+        description="AI suggestions based on the resume and the job. Use the ones that help."
         footer={
           questions &&
           questions.length > 0 && (
@@ -85,7 +85,7 @@ export function InterviewQuestions({
           {generate.isPending && (
             <div role="status" className="flex items-start gap-3 text-sm text-fg-muted">
               <Spinner className="mt-0.5 text-primary" />
-              Reading the resume and the job, then drafting questions. This takes about ten seconds.
+              Reading the resume and the job, then writing questions. This takes about 10 seconds.
             </div>
           )}
           {error && (

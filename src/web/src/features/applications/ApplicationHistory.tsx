@@ -18,24 +18,24 @@ import { LoadError } from './application-data';
 import { useApplicationExtras } from './application-extras';
 
 const ACTIONS: Record<string, string> = {
-  OfferDrafted: 'Acceptance started',
-  OfferSubmitted: 'Acceptance submitted for approval',
-  OfferWithdrawn: 'Acceptance withdrawn',
+  OfferDrafted: 'Offer started',
+  OfferSubmitted: 'Offer sent for approval',
+  OfferWithdrawn: 'Offer withdrawn',
   ApprovalGiven: 'Approval given',
   ApprovalRejected: 'Approval rejected',
   AcceptanceSent: 'Acceptance email sent',
-  AcceptanceReversed: 'Acceptance reversed',
+  AcceptanceReversed: 'Hire undone',
   MessageSent: 'Message sent to the candidate',
   WithdrawnByCandidate: 'Candidate withdrew their application',
   InterviewCancelledExternally: 'Interview cancelled from the calendar',
   StageChanged: 'Stage changed',
-  BulkStageChanged: 'Stage changed (several applicants at once)',
-  NoteAdded: 'Review note added',
+  BulkStageChanged: 'Stage changed for several applicants at once',
+  NoteAdded: 'Note added',
   InterviewScheduled: 'Interview scheduled',
   InterviewUpdated: 'Interview updated',
   ScorecardSubmitted: 'Scorecard submitted',
   MeetingNotesUpdated: 'Meeting notes updated',
-  FailedDeliveryRetried: 'Failed email retried',
+  FailedDeliveryRetried: 'Failed email sent again',
   CandidateDismissed: 'Candidate dismissed',
   Created: 'Application created',
 };
@@ -44,7 +44,7 @@ const DELIVERY: Record<string, { label: string; tone: Tone }> = {
   sent: { label: 'Sent', tone: 'gray' },
   delivered: { label: 'Delivered', tone: 'green' },
   opened: { label: 'Opened', tone: 'green' },
-  bounced: { label: 'Bounced', tone: 'red' },
+  bounced: { label: 'Not delivered', tone: 'red' },
   complained: { label: 'Marked as spam', tone: 'red' },
 };
 

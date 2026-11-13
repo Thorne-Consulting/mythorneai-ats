@@ -135,6 +135,44 @@ closed, neutral. Get stage/status colours from `components/status.tsx`; never pi
 - Dark mode: neutral greys, no blue tint; blue is reserved for actions, links and selection. Tokens only,
   and check `/design` in both themes after any visual change.
 
+## Writing in the interface
+
+Every word on screen is read by busy people, many of them here once a month. Write so a
+middle-school student (about US grade 6 to 8) understands it on the first read.
+
+- **Plain English.** Short sentences (aim for 15 words or fewer), common words, active voice, and
+  "you" for the reader. Say what happens, not how the system works inside.
+- **No shortcuts.** Write "for example", not "e.g."; "and", not "&"; "information", not "info";
+  "versus", not "vs"; "None" or "Not set", not "N/A". No "etc.", no "(s)" plurals: write
+  "1 candidate" and "3 candidates".
+- **No jargon.** Say what a technical word means instead of using it:
+  - parse → "read"; sync → "keep up to date" or "add to your calendar"
+  - payload → "the data we send"; endpoint → "web address"; inactive → "with no activity"
+  - audit log → "activity history"; disposition reason → "reason"; requisition → "job"
+  - DOCX → "Word document"; ATS → "MyThorneAI"
+- **Spell out names on first use.** For example "single sign-on (SSO)" or "spreadsheet (CSV)".
+  Feature names people must recognize, such as Webhooks, stay, but get one plain sentence that
+  explains them.
+- **Buttons** are a verb plus the thing: "Schedule interview", "Save changes". Sentence case.
+- **Errors** say what went wrong and what to do next, without blame and without codes.
+- **No slogans.** Descriptions explain what you can do on the page. "Discover, review, and move
+  great people forward" is marketing; "Search and filter everyone who has applied" is useful.
+
+## Say it once (DRY on screen)
+
+Show each piece of information in one place per screen.
+
+- A page description is optional. Use it only when it adds something the title does not already
+  say. Never restate the title, the breadcrumb or the section name.
+- A card's description must not repeat the page description or the card title.
+- Helper text must not restate the label ("Email" with "Enter your email" is noise). Keep it only
+  for rules or examples ("We send the sign-in code here").
+- A stat card's hint must add new information, not reword the label.
+- If a value is already in the header (status, job, dates, owner), the side rail and the body do
+  not show it again. Choose the place where it is most useful and remove the others.
+- A table column must not repeat what the row's main cell already shows on its second line.
+- An empty state's description must not repeat its title. It says what to do next.
+
 ## Preview screens (sample data)
 
 Assessments, the Messages inbox, Automated workflows, Single sign-on, Access requests,

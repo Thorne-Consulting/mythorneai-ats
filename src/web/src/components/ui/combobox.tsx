@@ -164,7 +164,7 @@ function ChipsBox({
   placeholder,
   disabled,
   creatable,
-  nothingFound = 'Nothing found',
+  nothingFound = 'No matches',
 }: Omit<MultiProps, keyof FieldProps> & { options: Option[]; creatable?: boolean }) {
   const field = useField();
   const [open, setOpen] = useState(false);
@@ -379,7 +379,7 @@ function AutocompleteBox({
             setActive={list.setActive}
             isSelected={(o) => o.value === value}
             onPick={pick}
-            empty="No suggestions"
+            empty="No matches"
           />
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
@@ -399,7 +399,7 @@ export function SearchSelect({
   placeholder = 'Search…',
   className,
   id,
-  nothingFound = 'Nothing found',
+  nothingFound = 'No matches',
   disabled,
 }: FieldProps & {
   value: string | null;

@@ -30,7 +30,7 @@ const notifications = [
   {
     key: 'scorecards',
     label: 'Scorecards due',
-    description: 'Nudge me when a scorecard is still open the next day.',
+    description: 'Remind me when my scorecard is still not done the next day.',
   },
   { key: 'mentions', label: 'Mentions', description: 'When a teammate mentions me in a note.' },
   {
@@ -49,10 +49,10 @@ export function ProfilePage() {
       <PageHeader
         breadcrumbs={[{ label: 'My settings', href: '/settings/profile' }, { label: 'Profile' }]}
         title="My profile"
-        description="Your account details. Your workspace admin manages them."
+        description="Your workspace admin manages these details."
       />
       <Card className="max-w-3xl">
-        <CardHeader title="Account" description="Managed by your workspace admin." />
+        <CardHeader title="Account" />
         <div className="px-5 pb-5">
           <div className="flex items-center gap-4">
             <Avatar name={user.displayName} size="xl" />
@@ -68,7 +68,6 @@ export function ProfilePage() {
               { label: 'Role', value: <Badge tone="blue">{humanize(user.role)}</Badge> },
               { label: 'Department', value: user.department || '—' },
               { label: 'Workspace', value: user.organizationName || '—' },
-              { label: 'Email', value: user.email },
             ]}
           />
           <p className="mt-4 text-sm text-fg-subtle">
@@ -102,10 +101,7 @@ export function NotificationPrefsPage() {
         title={<PreviewTitle>Notifications</PreviewTitle>}
         description="Choose what reaches your inbox."
       />
-      <PreviewAlert>
-        Notification preferences run on sample data until the backend exists. Changes last until you
-        leave the page.
-      </PreviewAlert>
+      <PreviewAlert />
       <Card className="max-w-3xl">
         <CardHeader title="Email me about" />
         <div className="divide-y divide-border-subtle px-5 pb-2">

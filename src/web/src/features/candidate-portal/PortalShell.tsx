@@ -22,7 +22,6 @@ import {
   LinkTabs,
   SkeletonRows,
 } from '@/components/ui';
-import { StatusBadge } from '@/components/status';
 import { cn } from '@/lib/cn';
 import { formatDate } from '@/lib/format';
 import { usePortal, useSignedInPortal } from './PortalProvider';
@@ -189,10 +188,7 @@ export function ApplicationCard({ application }: { application: PortalApplicatio
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-md font-semibold text-fg">{application.jobTitle}</h3>
-            <StatusBadge status={application.status} size="sm" />
-          </div>
+          <h3 className="text-md font-semibold text-fg">{application.jobTitle}</h3>
           <p className="mt-1 text-sm text-fg-muted">{whatHappensNext(application)}</p>
         </div>
         <ChevronRight
@@ -215,7 +211,7 @@ export function ApplicationCard({ application }: { application: PortalApplicatio
         )}
         {unread > 0 && (
           <Badge tone="blue" size="sm" icon={<MessageSquare />}>
-            {unread} new
+            {unread} new {unread === 1 ? 'message' : 'messages'}
           </Badge>
         )}
       </div>

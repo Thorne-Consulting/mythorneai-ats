@@ -29,7 +29,7 @@ export function InterviewRecorder({
       api.upload(`/api/interviews/${interview.id}/recordings?consentConfirmed=true`, file),
     onSuccess: () => {
       onUpdated();
-      toast.success('Recording saved to the interview record');
+      toast.success('Recording saved to this interview');
     },
     onError: (error: Error) => toast.error('Could not save the recording', error.message),
   });
@@ -46,7 +46,7 @@ export function InterviewRecorder({
       await navigator.clipboard.writeText(
         `${window.location.origin}/api/interview-recordings/${id}`,
       );
-      toast.success('Internal recording link copied');
+      toast.success('Recording link copied');
     } catch {
       toast.error('Could not copy the link');
     }
@@ -76,7 +76,10 @@ export function InterviewRecorder({
       media.start(1000);
       setRecording(true);
     } catch {
-      toast.error('Screen recording was not started');
+      toast.error(
+        'Could not start recording',
+        'Allow screen sharing in your browser, then try again.',
+      );
     }
   };
   return (
@@ -91,7 +94,9 @@ export function InterviewRecorder({
               </Badge>
             )}
           </p>
-          <p className="text-xs text-fg-subtle">Screen and shared audio stay inside this ATS.</p>
+          <p className="text-xs text-fg-subtle">
+            The screen and shared sound are saved in MyThorneAI only.
+          </p>
         </div>
         {canRecord &&
           (recording ? (
@@ -121,7 +126,7 @@ export function InterviewRecorder({
           className="mt-3"
           checked={consent}
           onCheckedChange={setConsent}
-          label="Every participant has explicitly agreed to this recording."
+          label="Everyone in the interview has agreed to be recorded."
         />
       )}
       {interview.recordings.map((item) => (
@@ -140,7 +145,7 @@ export function InterviewRecorder({
               <IconButton
                 variant="quiet"
                 size="sm"
-                label="Copy internal recording link"
+                label="Copy recording link"
                 onClick={() => copyLink(item.id)}
               >
                 <Link2 />

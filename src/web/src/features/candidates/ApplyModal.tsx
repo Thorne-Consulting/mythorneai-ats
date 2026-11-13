@@ -28,11 +28,11 @@ export function ApplyModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
       queryClient.invalidateQueries({ queryKey: ['board'] });
-      toast.success('Application created');
+      toast.success('Added to the job');
       setRequisitionId(null);
       onClose();
     },
-    onError: (error: Error) => toast.error('Could not create the application', error.message),
+    onError: (error: Error) => toast.error('Could not add them to the job', error.message),
   });
   return (
     <Modal
@@ -50,14 +50,15 @@ export function ApplyModal({
             loading={mutation.isPending}
             onClick={() => mutation.mutate()}
           >
-            Create application
+            Add to job
           </Button>
         </>
       }
     >
       <Select
         label="Open job"
-        placeholder="Choose a role"
+        placeholder="Choose a job"
+
         value={requisitionId}
         onChange={setRequisitionId}
         data={

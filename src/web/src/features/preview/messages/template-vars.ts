@@ -11,6 +11,10 @@ export const templateVariables = [
   { key: 'company', label: 'Company', example: 'MyThorneAI' },
 ] as const;
 
+/** "first_name" → "First name"; unknown keys stay as written. */
+export const variableLabel = (key: string) =>
+  templateVariables.find((v) => v.key === key)?.label ?? key;
+
 export type VariableValues = Partial<Record<string, string>>;
 
 const pattern = /\{\{\s*([a-z_]+)\s*\}\}/g;

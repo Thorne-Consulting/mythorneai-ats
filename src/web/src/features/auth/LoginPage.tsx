@@ -52,7 +52,9 @@ export function LoginPage({ unavailable = false }: { unavailable?: boolean }) {
             </div>
           ) : users.data ? (
             <div className="flex flex-col gap-1">
-              <p className="mb-1 text-xs font-medium text-fg-subtle">Development sign-in</p>
+              <p className="mb-1 text-xs font-medium text-fg-subtle">
+                Test accounts (development only)
+              </p>
               {users.data.map((user) => (
                 <button
                   key={user.email}
@@ -77,18 +79,20 @@ export function LoginPage({ unavailable = false }: { unavailable?: boolean }) {
                   )}
                 </button>
               ))}
-              <p className="mt-2 text-xs text-fg-subtle">Production uses company SSO.</p>
+              <p className="mt-2 text-xs text-fg-subtle">
+                On the live site, people sign in with their company account.
+              </p>
             </div>
           ) : (
             <div className="flex flex-col gap-4">
               {unavailable && (
                 <Alert tone="danger">
-                  Authentication is unavailable. Check the server configuration.
+                  Sign-in is not working right now. Try again later, or ask your admin.
                 </Alert>
               )}
               <Button asChild size="lg" fullWidth>
                 <a href="/auth/login?returnUrl=/">
-                  Continue with company SSO
+                  Sign in
                   <ArrowRight />
                 </a>
               </Button>

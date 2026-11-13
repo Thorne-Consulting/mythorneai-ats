@@ -79,7 +79,7 @@ export function questionProblems(q: Question): string[] {
     const filled = q.options.filter((o) => o.text.trim());
     const correct = q.options.filter((o) => o.correct).length;
     if (filled.length < 2 || filled.length !== q.options.length)
-      out.push('Fill in at least two options and remove empty ones');
+      out.push('Fill in at least two answers and remove empty ones');
     if (q.type === 'single' && correct !== 1) out.push('Mark exactly one correct answer');
     if (q.type === 'multi' && correct < 1) out.push('Mark at least one correct answer');
   }

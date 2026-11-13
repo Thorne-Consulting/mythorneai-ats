@@ -35,7 +35,7 @@ export function InviteModal({
       emails.length === 0
         ? 'Add at least one email'
         : bad.length
-          ? `Not an email: ${bad.join(', ')}`
+          ? `Check these email addresses: ${bad.join(', ')}`
           : dupes.length
             ? `Already invited: ${dupes.join(', ')}`
             : undefined,
@@ -51,7 +51,7 @@ export function InviteModal({
       opened={opened}
       onClose={close}
       title="Invite candidates"
-      description="Candidates get a link to take the assessment. Sample only: no email is sent."
+      description="Each candidate gets a link to take the assessment. This is a preview, so no email is sent."
       footer={
         <>
           <Button variant="secondary" onClick={close}>

@@ -29,11 +29,11 @@ export function CandidatePreview({ a }: { a: Omit<Assessment, 'id' | 'status' | 
         <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-muted">
           <span className="inline-flex items-center gap-1">
             <Clock className="size-4" aria-hidden />
-            {a.minutes} min{a.settings.timed && ', submits when time runs out'}
+            {a.minutes} minutes{a.settings.timed && ', submits when time runs out'}
           </span>
           <span className="inline-flex items-center gap-1">
             <ListChecks className="size-4" aria-hidden />
-            {count} questions
+            {count} {count === 1 ? 'question' : 'questions'}
           </span>
         </p>
         {a.instructions && (
@@ -46,11 +46,11 @@ export function CandidatePreview({ a }: { a: Omit<Assessment, 'id' | 'status' | 
           a.settings.tabSwitch ||
           a.settings.blockPaste) && (
           <p className="mt-3 text-xs text-fg-subtle">
-            This assessment is proctored:{' '}
+            While you work:{' '}
             {[
               a.settings.webcam && 'your webcam is recorded',
               a.settings.fullscreen && 'it runs in full screen',
-              a.settings.tabSwitch && 'leaving the tab is logged',
+              a.settings.tabSwitch && 'we note if you leave the tab',
               a.settings.blockPaste && 'pasting is turned off',
             ]
               .filter(Boolean)
@@ -134,7 +134,7 @@ export function CandidatePreview({ a }: { a: Omit<Assessment, 'id' | 'status' | 
                           file={files[q.id] ?? null}
                           onFile={(f) => setFiles((x) => ({ ...x, [q.id]: f }))}
                           accept={q.accept || undefined}
-                          hint={q.accept ? `Accepted: ${q.accept}` : 'Any file'}
+                          hint={q.accept ? `File types: ${q.accept}` : 'Any file type'}
                         />
                       )}
                     </div>

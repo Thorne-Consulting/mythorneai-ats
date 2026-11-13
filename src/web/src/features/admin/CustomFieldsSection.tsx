@@ -62,7 +62,7 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
   const keys = draft.map((x) => x.key);
   const errors = draft.map((field, index) =>
     !KEY.test(field.key)
-      ? 'Use lowercase letters, digits, - or _.'
+      ? 'Use only lowercase letters, numbers, dashes (-) and underscores (_).'
       : keys.indexOf(field.key) !== index
         ? 'Each key must be different.'
         : !field.label.trim()
@@ -89,7 +89,7 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
       <SettingsSection
         id="candidate-fields"
         title="Extra fields"
-        description="Shown on every candidate. The key is a fixed id used in imports and exports."
+        description="The key is a short name that never changes. We use it when you import or export candidates."
         action={
           <Button
             variant="secondary"
@@ -145,7 +145,7 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
                 {field.type === 'select' && (
                   <TagsInput
                     label="Options"
-                    description="Press Enter after each"
+                    description="Press Enter after each one."
                     value={field.options}
                     onChange={(value) => update(index, { options: value })}
                     className="min-w-52 flex-1"
@@ -183,7 +183,7 @@ function FieldPreview({ fields }: { fields: CustomFieldDefinition[] }) {
     <Card className="xl:sticky xl:top-[101px]">
       <CardHeader
         title="Preview"
-        description="How these fields look on a candidate. Try them; nothing here is saved."
+        description="How these fields look on a candidate. Try them out. Nothing here is saved."
       />
       <div className="flex flex-col gap-5 border-t border-border-subtle px-5 py-5">
         {shown.length === 0 ? (

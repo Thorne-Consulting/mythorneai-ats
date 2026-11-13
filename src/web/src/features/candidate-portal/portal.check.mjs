@@ -12,9 +12,9 @@ assert.equal(
   "We're reviewing your application",
 );
 assert.equal(whatHappensNext({ status: 'Active', stage: 'Booked' }), 'Interviews are in progress');
-assert.equal(whatHappensNext({ status: 'Active', stage: 'Offer' }), "We're finalising a decision");
+assert.equal(whatHappensNext({ status: 'Active', stage: 'Offer' }), "We're making a decision");
 assert.equal(whatHappensNext({ status: 'Active', stage: 'Take-home' }), 'Current step: Take-home');
-assert.equal(whatHappensNext({ status: 'Hired', stage: 'Offer' }), "You've been accepted");
+assert.equal(whatHappensNext({ status: 'Hired', stage: 'Offer' }), 'You got the job');
 assert.equal(
   whatHappensNext({ status: 'Withdrawn', stage: 'New' }),
   'You withdrew this application',
@@ -110,14 +110,14 @@ console.log('portal ok');
       app({ id: 'a4', status: 'Rejected' }),
     ],
   };
-  const todo = todoItems(portal, now);
+  const todo = todoItems(portal);
   assert.deepEqual(
     todo.map((t) => t.kind),
-    ['book', 'message', 'offer', 'interview'],
+    ['book', 'message', 'offer'], // an upcoming interview is the Next interview card, not a to-do
   );
   assert.equal(todo[0].href, '/candidate-portal/applications/a2/interviews');
   assert.equal(todo.filter((t) => t.kind === 'book').length, 1); // two slots, one interview
-  assert.equal(todo[0].detail, 'Analyst · 2 options');
+  assert.equal(todo[0].detail, 'Analyst · 2 times to choose from');
   assert.equal(todo[1].title, '1 new message from the hiring team');
   assert.deepEqual(
     upcomingInterviews(portal, now).map((i) => i.id),

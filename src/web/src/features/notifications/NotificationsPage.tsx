@@ -80,7 +80,7 @@ export function NotificationsPage() {
     <>
       <PageHeader
         title="Notifications"
-        description="Everything waiting on you: decisions, feedback you owe, candidate replies and applications that have gone quiet."
+        description="Everything waiting on you: approvals, feedback you owe, candidate replies and applications with no recent activity."
         actions={
           <SegmentedControl
             aria-label="Show"
@@ -121,7 +121,7 @@ export function NotificationsPage() {
           onSelectedChange={setSelected}
           bulkActions={
             <Button size="sm" variant="secondary" onClick={markSelected}>
-              {show === 'open' ? 'Mark done' : 'Move back to to do'}
+              {show === 'open' ? 'Mark as done' : 'Move back to To do'}
             </Button>
           }
           onRowOpen={(item) => router.push(item.href)}
@@ -132,8 +132,8 @@ export function NotificationsPage() {
               title={show === 'open' ? 'You’re all caught up' : 'Nothing marked done'}
               description={
                 show === 'open'
-                  ? 'New approvals, feedback you owe, replies and stalled applications show up here.'
-                  : 'Items you mark done move here, in this browser.'
+                  ? 'New items show up here as soon as they need you.'
+                  : 'Items you mark as done move here. Only this browser keeps this list.'
               }
               action={
                 <Button asChild variant="secondary">
@@ -197,8 +197,8 @@ export function NotificationsPage() {
                     variant="quiet"
                     label={
                       done.has(item.key)
-                        ? `Move ${item.title} back to to do`
-                        : `Mark ${item.title} done`
+                        ? `Move ${item.title} back to To do`
+                        : `Mark ${item.title} as done`
                     }
                     onClick={() => mark([item.key], !done.has(item.key))}
                   >
@@ -211,9 +211,9 @@ export function NotificationsPage() {
         />
         {stalledTotal > stalledShown && (kind === 'all' || kind === 'stalled') && (
           <p className="border-t border-border-subtle px-1 py-3 text-sm text-fg-subtle">
-            {stalledTotal - stalledShown} more applications have been quiet a while.{' '}
+            {stalledTotal - stalledShown} more applications have had no activity for a while.{' '}
             <Link href="/candidates" className="text-accent-foreground hover:underline">
-              See candidates
+              View candidates
             </Link>
           </p>
         )}

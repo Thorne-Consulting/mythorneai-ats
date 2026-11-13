@@ -36,7 +36,7 @@ export const sampleSso = {
   scimBaseUrl: 'https://ats.example.com/scim/v2',
 };
 
-export const sampleSsoStats = { members: 48, onSso: 44, scimUsers: 46, lastSync: '12 min ago' };
+export const sampleSsoStats = { members: 48, onSso: 44, scimUsers: 46, lastSync: '12 minutes ago' };
 
 // ── Access requests and invitations ──────────────────────────────────────────
 

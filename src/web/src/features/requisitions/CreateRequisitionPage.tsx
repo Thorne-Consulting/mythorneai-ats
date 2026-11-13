@@ -58,10 +58,10 @@ type Errors = Partial<Record<keyof RequisitionForm, string>>;
 
 function validate(values: RequisitionForm): Errors {
   const errors: Errors = {};
-  if (!values.title.trim()) errors.title = 'Required';
-  if (!values.department.trim()) errors.department = 'Required';
-  if (!values.location.trim()) errors.location = 'Required';
-  if (!(Number(values.openings) >= 1)) errors.openings = 'At least one opening';
+  if (!values.title.trim()) errors.title = 'Enter a job title';
+  if (!values.department.trim()) errors.department = 'Enter a team';
+  if (!values.location.trim()) errors.location = 'Enter a location';
+  if (!(Number(values.openings) >= 1)) errors.openings = 'Enter 1 or more openings';
   if (!values.ownerEmail.includes('@')) errors.ownerEmail = 'Enter an email or choose a person';
   if (!values.recruiterEmail.includes('@'))
     errors.recruiterEmail = 'Enter an email or choose a person';
@@ -224,7 +224,7 @@ export function CreateRequisitionPage() {
         <Input label="Job title" placeholder="Product designer" required {...field('title')} />
         <Input
           label="Team"
-          placeholder="Engineering, sales, operations…"
+          placeholder="For example, engineering"
           required
           {...field('department')}
         />
@@ -269,7 +269,7 @@ export function CreateRequisitionPage() {
             value={postingTemplateId}
             data={(templates.data ?? []).map((template) => ({
               value: template.id,
-              label: `${template.name} · v${template.version}`,
+              label: `${template.name} · version ${template.version}`,
             }))}
             onChange={(id) => {
               setPostingTemplateId(id);
@@ -283,20 +283,20 @@ export function CreateRequisitionPage() {
         }
       />
       <p className="mt-2 text-xs text-fg-subtle">
-        Use headings, lists, emphasis and quotes. The saved content stays Markdown.
+        You can use headings, lists, bold text and quotes.
       </p>
     </div>,
     <div key="requirements" className="flex flex-col gap-4">
       <TagsInput
         label="Must have"
-        description="Press Enter after each one. Used to match and screen candidates."
-        placeholder="e.g. Figma, 5+ years of B2B SaaS"
+        description="Press Enter after each one. We use these to match and screen candidates."
+        placeholder="For example, Figma"
         value={reqs.required}
         onChange={(required) => setReqs((r) => ({ ...r, required }))}
       />
       <TagsInput
         label="Nice to have"
-        placeholder="e.g. Design systems"
+        placeholder="For example, design systems"
         value={reqs.preferred}
         onChange={(preferred) => setReqs((r) => ({ ...r, preferred }))}
       />
@@ -309,7 +309,7 @@ export function CreateRequisitionPage() {
         onValueChange={(minYears) => setReqs((r) => ({ ...r, minYears }))}
       />
       <p className="text-xs text-fg-subtle">
-        Skip this if you are not sure yet. You can write or extract requirements on the job later.
+        Not sure yet? Skip this step. You can add requirements on the job later.
       </p>
     </div>,
     <div key="pipeline">
@@ -319,7 +319,7 @@ export function CreateRequisitionPage() {
         <div className="flex flex-col gap-2">
           {stageBadges(DEFAULT_STAGES)}
           <p className="text-xs text-fg-subtle">
-            The standard pipeline. An admin can add others under Settings › Pipelines.
+            This is the standard pipeline. An admin can add more in Settings, under Pipelines.
           </p>
         </div>
       ) : (
@@ -374,7 +374,7 @@ export function CreateRequisitionPage() {
             { label: 'Openings', value: values.openings },
             {
               label: 'Target start',
-              value: values.targetStartDate ? formatDate(values.targetStartDate) : '—',
+              value: values.targetStartDate ? formatDate(values.targetStartDate) : 'Not set',
             },
           ]}
         />
@@ -413,18 +413,18 @@ export function CreateRequisitionPage() {
           items={[
             {
               label: 'Hiring manager',
-              value: values.ownerEmail ? nameFromEmail(values.ownerEmail) : '—',
+              value: values.ownerEmail ? nameFromEmail(values.ownerEmail) : 'Not set',
             },
             {
               label: 'Recruiter',
-              value: values.recruiterEmail ? nameFromEmail(values.recruiterEmail) : '—',
+              value: values.recruiterEmail ? nameFromEmail(values.recruiterEmail) : 'Not set',
             },
           ]}
         />
       </ReviewBlock>
       <Alert tone="info">
-        The job is created as a draft. If your organization needs approval, you submit it for
-        approval on the job page; otherwise open it with Change status.
+        We save the job as a draft. To open it, use Change status on the job page. If your
+        organization needs approval, you send it for approval there instead.
       </Alert>
     </div>,
   ];
@@ -434,7 +434,6 @@ export function CreateRequisitionPage() {
       <PageHeader
         breadcrumbs={[{ label: 'Jobs', href: '/jobs' }, { label: 'New job' }]}
         title="Create job"
-        description="Set up the role, owners, and the candidate-facing summary."
         actions={
           <Button asChild variant="secondary">
             <Link href="/jobs">Cancel</Link>
@@ -450,7 +449,7 @@ export function CreateRequisitionPage() {
         busy={mutation.isPending}
         aside={
           <Card>
-            <CardHeader title="Posting preview" description="How the careers page will read." />
+            <CardHeader title="Posting preview" />
             <CardBody>
               <div className="max-h-[70vh] overflow-y-auto rounded-lg border border-border-subtle bg-background p-4">
                 <JobPostingView

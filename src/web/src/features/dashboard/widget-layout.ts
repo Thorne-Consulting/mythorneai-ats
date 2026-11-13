@@ -1,7 +1,7 @@
 // Dashboard widget order and visibility, per browser. Pure so widget-layout.check.mjs can run it.
 
 export const WIDGETS = {
-  stats: 'Headline numbers',
+  stats: 'Key numbers',
   setup: 'Finish setting up',
   waiting: 'Waiting on you',
   pipeline: 'Hiring pipeline',

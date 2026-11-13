@@ -110,10 +110,10 @@ export function LayoutDemos() {
                     ],
                   },
                   {
-                    label: 'People & access',
+                    label: 'People and access',
                     items: [
                       { href: '/design/members', label: 'Members', icon: Users, count: 10 },
-                      { href: '/design/roles', label: 'Roles & permissions', icon: Briefcase },
+                      { href: '/design/roles', label: 'Roles and permissions', icon: Briefcase },
                     ],
                   },
                   {

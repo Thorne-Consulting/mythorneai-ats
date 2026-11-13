@@ -7,7 +7,6 @@ import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
 import { StatusBadge } from '@/components/status';
 import {
-  Alert,
   Avatar,
   Badge,
   Button,
@@ -45,7 +44,7 @@ export function InterviewPrep({ id, applicationId }: { id: string; applicationId
           <EmptyState
             icon={CalendarX2}
             title="Open this interview from the calendar"
-            description="This link is missing the application it belongs to."
+            description="This link is missing some details."
             action={
               <Button asChild variant="secondary">
                 <Link href="/interviews">Go to interviews</Link>
@@ -91,7 +90,7 @@ function Prep({ id, applicationId }: { id: string; applicationId: string }) {
           <EmptyState
             icon={CalendarX2}
             title="This interview is no longer available"
-            description="It may have been removed, or you are no longer on the panel."
+            description="It may have been deleted, or you are no longer one of its interviewers."
             action={
               <Button asChild variant="secondary">
                 <Link href={`/applications/${applicationId}/interviews`}>See all interviews</Link>
@@ -121,7 +120,7 @@ function Prep({ id, applicationId }: { id: string; applicationId: string }) {
           { label: interview.title },
         ]}
         title={interview.title}
-        description={`${application.candidateName} for ${application.requisitionTitle}. Read the kit and the resume, run the interview, then submit your scorecard.`}
+        description={`For the ${application.requisitionTitle} job`}
         actions={
           <>
             {!resumeOpen && (
@@ -145,7 +144,7 @@ function Prep({ id, applicationId }: { id: string; applicationId: string }) {
             )}
             {owes ? (
               <Button asChild>
-                <Link href={scorecardHref}>Submit feedback</Link>
+                <Link href={scorecardHref}>Write scorecard</Link>
               </Button>
             ) : (
               <Button asChild variant="secondary">
@@ -159,12 +158,12 @@ function Prep({ id, applicationId }: { id: string; applicationId: string }) {
           <StatusBadge status={interview.status} />
           {assigned && submitted && (
             <Badge tone="green" dot>
-              Your scorecard is in
+              Scorecard submitted
             </Badge>
           )}
           {owes && new Date(interview.startsAt) < new Date() && (
             <Badge tone="amber" dot>
-              Your feedback is due
+              Scorecard due
             </Badge>
           )}
         </div>
@@ -232,7 +231,7 @@ function Prep({ id, applicationId }: { id: string; applicationId: string }) {
             <Card>
               <CardHeader
                 title="Private notes"
-                description="Saved in this browser only; nobody else sees them. Copy what matters into your scorecard."
+                description="Only you can see these. They are saved in this browser. Copy what matters into your scorecard."
               />
               <CardBody>
                 <Textarea
@@ -244,21 +243,6 @@ function Prep({ id, applicationId }: { id: string; applicationId: string }) {
                 />
               </CardBody>
             </Card>
-
-            {owes && (
-              <Alert
-                tone="info"
-                title="When the interview is over, submit your scorecard"
-                action={
-                  <Button asChild size="sm">
-                    <Link href={scorecardHref}>Write scorecard</Link>
-                  </Button>
-                }
-              >
-                It locks once submitted. The rest of the panel&rsquo;s feedback stays hidden until
-                yours is in.
-              </Alert>
-            )}
 
             <div className="lg:hidden">{resume()}</div>
           </div>
@@ -283,9 +267,7 @@ function KitCard({
       <CardHeader
         title="Questions to cover"
         description={
-          interview.criteria.length
-            ? 'From the interview kit. You score each of these on your scorecard.'
-            : undefined
+          interview.criteria.length ? 'You score each of these on your scorecard.' : undefined
         }
         action={
           interview.status !== 'Cancelled' && (
@@ -308,8 +290,8 @@ function KitCard({
         )}
         {interview.criteria.length === 0 ? (
           <p className="text-sm text-fg-subtle">
-            No interview kit on this interview. Use the AI question ideas, or ask the recruiter to
-            attach a kit so the panel scores the same things.
+            This interview has no kit. Use Suggest questions, or ask the recruiter to add a kit so
+            every interviewer scores the same things.
           </p>
         ) : (
           <ol className="space-y-2">
@@ -319,7 +301,7 @@ function KitCard({
                   <p className="text-sm font-semibold text-fg">
                     <span className="text-fg-subtle tnum">{index + 1}.</span> {criterion.name}
                   </p>
-                  <span className="text-xs text-fg-subtle tnum">weight {criterion.weight}</span>
+                  <span className="text-xs text-fg-subtle tnum">Weight {criterion.weight}</span>
                 </div>
                 <p className="mt-1 text-base text-fg">{criterion.question}</p>
                 {criterion.description && (
@@ -366,7 +348,7 @@ function ResumeSummary({ candidateId, onClose }: { candidateId: string; onClose?
             candidate.currentTitle,
             candidate.location,
             candidate.resumeYearsExperience != null &&
-              `${candidate.resumeYearsExperience} yrs experience`,
+              `${candidate.resumeYearsExperience} years of experience`,
           ]
             .filter(Boolean)
             .join(' · ')
@@ -388,8 +370,8 @@ function ResumeSummary({ candidateId, onClose }: { candidateId: string; onClose?
           <EmptyState
             compact
             icon={FileText}
-            title="No parsed resume yet"
-            description="The profile may still have the original file."
+            title="No resume details yet"
+            description="Open the full profile to see the original file."
           />
         ) : (
           <>

@@ -75,7 +75,7 @@ function phaseOf(stage: string): Phase {
 export function whatHappensNext(application: { status: string; stage: string }) {
   switch (application.status) {
     case 'Hired':
-      return "You've been accepted";
+      return 'You got the job';
     case 'Rejected':
       return 'This application is closed';
     case 'Withdrawn':
@@ -87,7 +87,7 @@ export function whatHappensNext(application: { status: string; stage: string }) 
     case 'interview':
       return 'Interviews are in progress';
     case 'decision':
-      return "We're finalising a decision";
+      return "We're making a decision";
     default:
       return `Current step: ${application.stage}`;
   }
@@ -154,7 +154,7 @@ export const unreadCount = (a: Pick<PortalApplication, 'thread'>) =>
 
 export type TodoItem = {
   id: string;
-  kind: 'book' | 'message' | 'offer' | 'interview';
+  kind: 'book' | 'message' | 'offer';
   title: string;
   detail: string;
   href: string;
@@ -163,7 +163,7 @@ export type TodoItem = {
 };
 
 /** What needs the candidate's attention, most urgent first. */
-export function todoItems(portal: Pick<Portal, 'applications'>, now = new Date()): TodoItem[] {
+export function todoItems(portal: Pick<Portal, 'applications'>): TodoItem[] {
   const items: TodoItem[] = [];
   for (const a of portal.applications) {
     const base = `/candidate-portal/applications/${a.id}`;
@@ -176,7 +176,7 @@ export function todoItems(portal: Pick<Portal, 'applications'>, now = new Date()
         id: `book-${a.id}-${title}`,
         kind: 'book',
         title: `Pick a time for your ${title.toLowerCase()}`,
-        detail: `${a.jobTitle} · ${starts.length} ${starts.length === 1 ? 'option' : 'options'}`,
+        detail: `${a.jobTitle} · ${starts.length} ${starts.length === 1 ? 'time' : 'times'} to choose from`,
         href: `${base}/interviews`,
         at: [...starts].sort()[0],
       });
@@ -197,26 +197,13 @@ export function todoItems(portal: Pick<Portal, 'applications'>, now = new Date()
       items.push({
         id: `offer-${a.id}`,
         kind: 'offer',
-        title: 'Your offer is being finalised',
+        title: 'Your offer is almost ready',
         detail: `${a.jobTitle} · check your email for details`,
         href: `${base}/emails`,
         at: a.lastActivityAt,
       });
-    for (const i of a.interviews)
-      if (
-        new Date(i.startsAt) > now &&
-        new Date(i.startsAt).getTime() - now.getTime() < 3 * 86_400_000
-      )
-        items.push({
-          id: `int-${i.id}`,
-          kind: 'interview',
-          title: `Get ready: ${i.title.toLowerCase()} coming up`,
-          detail: a.jobTitle,
-          href: `${base}/interviews`,
-          at: i.startsAt,
-        });
   }
-  const rank = { book: 0, message: 1, offer: 2, interview: 3 } as const;
+  const rank = { book: 0, message: 1, offer: 2 } as const;
   return items.sort((x, y) => rank[x.kind] - rank[y.kind] || x.at.localeCompare(y.at));
 }
 
@@ -243,14 +230,19 @@ export function activityFeed(portal: Pick<Portal, 'applications'>, limit = 8): A
   const out: ActivityItem[] = [];
   for (const a of portal.applications) {
     const base = `/candidate-portal/applications/${a.id}`;
-    out.push({
-      id: `applied-${a.id}`,
-      at: a.appliedAt,
-      title: `You applied for ${a.jobTitle}`,
-      detail: 'Application received',
-      href: base,
-      tone: 'green',
-    });
+    // The "we received your application" email already says this; show it only when there is none.
+    const receipt = a.messages.some(
+      (e) => Math.abs(Date.parse(e.createdAt) - Date.parse(a.appliedAt)) < 86_400_000,
+    );
+    if (!receipt)
+      out.push({
+        id: `applied-${a.id}`,
+        at: a.appliedAt,
+        title: 'You applied',
+        detail: a.jobTitle,
+        href: base,
+        tone: 'green',
+      });
     for (const m of a.thread)
       out.push({
         id: `m-${m.id}`,

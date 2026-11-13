@@ -57,7 +57,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
     },
-    onError: (error: Error) => toast.error('Could not save', error.message),
+    onError: (error: Error) => toast.error('Could not save your changes', error.message),
   });
 
   // Every change saves straight away; there is no Save button.
@@ -94,7 +94,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
     },
-    onError: (error: Error) => toast.error('Could not save', error.message),
+    onError: (error: Error) => toast.error('Could not save your changes', error.message),
   });
   const saveDetailsIfChanged = (next: Details) => {
     if (JSON.stringify(next) !== detailsKey) saveDetails.mutate(next);
@@ -132,7 +132,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
     <div className="flex flex-col gap-5">
       <Block
         title="The job"
-        copy="What candidates and your team see. Changes show on the job page and posting."
+        copy="Candidates and your team see these details. Changes save as you go."
         status={detailsStatus}
       >
         <div className="grid gap-4 sm:grid-cols-2">
@@ -153,7 +153,10 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
           <Input type="date" label="Target start" {...text('targetStartDate')} />
         </div>
       </Block>
-      <Block title="People" copy="Who owns the hire, and who runs the process.">
+      <Block
+        title="People"
+        copy="The hiring manager owns the hire. The recruiter runs the process."
+      >
         {/* Typed emails save when you leave the field (blur bubbles from the input). */}
         <div className="grid gap-4 sm:grid-cols-2" onBlur={() => saveDetailsIfChanged(details)}>
           <Autocomplete
@@ -168,12 +171,12 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
           />
         </div>
       </Block>
-      <Block title="About the role" copy="The summary shown on the Details tab.">
+      <Block title="About the role" copy="Shown on the job posting and the Details page.">
         <Textarea minRows={4} aria-label="About the role" {...text('description')} />
       </Block>
       <Block
         title="Who can see this job"
-        copy="A confidential job is hidden from everyone except the owner, the recruiter and the people you add here."
+        copy="Choose who can find this job and its applicants."
         status={status}
       >
         <div className="flex flex-col gap-5">
@@ -190,13 +193,13 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
               {
                 value: 'confidential',
                 label: 'Confidential',
-                description: 'The owner, the recruiter and the people below.',
+                description: 'Only the hiring manager, the recruiter and the people below.',
               },
             ]}
           />
           <MultiSelect
             label="Also give access to"
-            description="Read access to the job and its applications."
+            description="They can see the job and its applications, but can’t change them."
             placeholder={value.viewerEmails.length ? '' : 'Search by name or email'}
             data={options}
             value={value.viewerEmails}
@@ -206,7 +209,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
       </Block>
       <Block
         title="Candidate self-service"
-        copy="What candidates can do on their own, from the portal and the links in their emails."
+        copy="Things candidates can do themselves, from their portal or the links in our emails."
       >
         <div className="flex flex-col gap-3">
           <Checkbox

@@ -54,16 +54,16 @@ interface AiLogItem {
 const PAGE_SIZE = 50;
 const PURPOSES: Record<string, string> = {
   'draft-message': 'Drafting a message',
-  'embed-job': 'Indexing a job',
+  'embed-job': 'Preparing a job for search',
   'embed-query': 'Understanding a search',
-  'embed-resume': 'Indexing a resume',
+  'embed-resume': 'Preparing a resume for search',
   'extract-requirements': 'Reading job requirements',
   'interview-questions': 'Suggesting interview questions',
   'job-fit': 'Scoring fit for a job',
   'resume-profile': 'Reading a resume',
   'search-filters': 'Turning a search into filters',
   'summarize-interview': 'Summarizing an interview',
-  'transcribe-recording': 'Transcribing a recording',
+  'transcribe-recording': 'Turning a recording into text',
 };
 const purposeLabel = (value: string) => PURPOSES[value] ?? value.replace(/-/g, ' ');
 
@@ -95,7 +95,7 @@ export function AdminAi() {
         <StatGrid>
           <StatCard
             icon={Activity}
-            label="AI calls, last 30 days"
+            label="AI requests, last 30 days"
             value={s.calls30Days.toLocaleString()}
           />
           <StatCard
@@ -108,25 +108,21 @@ export function AdminAi() {
           <StatCard
             icon={Coins}
             tone="amber"
-            label="Tokens used"
+            label="Text processed (tokens)"
             value={(s.promptTokens30Days + s.completionTokens30Days).toLocaleString()}
-            hint={`${s.promptTokens30Days.toLocaleString()} in, ${s.completionTokens30Days.toLocaleString()} out`}
+            hint={`${s.promptTokens30Days.toLocaleString()} sent, ${s.completionTokens30Days.toLocaleString()} received`}
           />
           <StatCard
             icon={Cpu}
             tone="violet"
             label="Status"
-            value={!s.configured ? 'No API key' : s.enabled ? 'On' : 'Turned off'}
+            value={!s.configured ? 'No AI key' : s.enabled ? 'On' : 'Turned off'}
             hint={`Model ${s.model}${s.pendingResumes ? ` · ${s.pendingResumes} resumes waiting` : ''}`}
           />
         </StatGrid>
       )}
       <Card className="px-5 pb-2">
         <div className="flex flex-wrap items-center justify-between gap-3 py-4">
-          <p className="max-w-2xl text-sm text-fg-subtle">
-            Use this to check what was sent, who asked, and whether anything failed. Long entries
-            are shortened here.
-          </p>
           <FilterSelect
             allLabel="All activity"
             aria-label="Filter by purpose"
@@ -146,9 +142,7 @@ export function AdminAi() {
             icon={Sparkles}
             title="No AI activity yet"
             description={
-              purpose
-                ? 'Nothing of this kind has been asked yet.'
-                : 'Entries appear here as soon as someone uses an AI feature.'
+              purpose ? undefined : 'Entries show up here as soon as someone uses an AI feature.'
             }
             action={
               purpose ? (
@@ -167,7 +161,7 @@ export function AdminAi() {
                   <TH>What</TH>
                   <TH>Asked by</TH>
                   <TH align="right">Tokens</TH>
-                  <TH align="right">Time</TH>
+                  <TH align="right">Duration</TH>
                   <TH>Result</TH>
                   <TH>
                     <span className="sr-only">Details</span>
@@ -207,7 +201,7 @@ export function AdminAi() {
                           aria-controls={`ai-entry-${item.id}`}
                           onClick={() => setOpen(open === item.id ? null : item.id)}
                         >
-                          {open === item.id ? 'Hide' : 'Read'}
+                          {open === item.id ? 'Hide' : 'Details'}
                         </Button>
                       </TD>
                     </TR>

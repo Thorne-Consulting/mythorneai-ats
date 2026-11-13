@@ -58,12 +58,13 @@ export function DevCandidatesPanel({ onSignedIn }: { onSignedIn: () => Promise<v
           <div className="flex items-center gap-2">
             <h2 className="text-base font-semibold text-fg">Local test candidates</h2>
             <Badge tone="amber" size="sm">
-              Dev only
+              Development only
             </Badge>
           </div>
           <p className="mt-0.5 text-xs text-fg-subtle">
-            Code <span className="font-mono font-medium text-fg">{listing.code}</span> for every
-            @local.dev email. Reset puts them all back where they started.
+            Every @local.dev email signs in with code{' '}
+            <span className="font-mono font-medium text-fg">{listing.code}</span>. Reset puts them
+            all back where they started.
           </p>
         </div>
       </div>
@@ -107,15 +108,15 @@ export function DevCandidatesPanel({ onSignedIn }: { onSignedIn: () => Promise<v
         opened={confirm}
         onClose={() => setConfirm(false)}
         title="Reset the local test candidates?"
-        message="Every @local.dev candidate and everything done with them (bookings, messages, withdrawals, notes, scorecards) is deleted and seeded again from scratch."
+        message="This deletes every @local.dev candidate and everything done with them, such as bookings, messages and scorecards. Then it creates them again as new."
         confirmLabel="Reset"
         onConfirm={async () => {
           try {
-            await postJson('/public/dev/local-candidates/reset', {}, 'Reset failed.');
+            await postJson('/public/dev/local-candidates/reset', {}, 'The reset did not work.');
             toast.success('Test candidates reset');
             await load();
           } catch (error) {
-            toast.error('Reset failed', error instanceof Error ? error.message : OFFLINE);
+            toast.error('The reset did not work', error instanceof Error ? error.message : OFFLINE);
           }
         }}
       />

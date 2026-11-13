@@ -11,9 +11,9 @@ import { Thread } from './messages/Thread';
 
 const folderTitles: Record<Folder, { title: string; empty: string }> = {
   inbox: { title: 'Inbox', empty: 'New conversations with candidates show up here.' },
-  unread: { title: 'Unread', empty: 'You have read everything. Nice.' },
-  starred: { title: 'Starred', empty: 'Star a conversation to keep it close.' },
-  sent: { title: 'Sent', empty: 'Conversations where you wrote last, waiting on the candidate.' },
+  unread: { title: 'Unread', empty: 'You’re all caught up.' },
+  starred: { title: 'Starred', empty: 'Star a conversation to find it here quickly.' },
+  sent: { title: 'Sent', empty: 'Conversations waiting for the candidate to reply show up here.' },
   archived: { title: 'Archived', empty: 'Conversations you archive show up here.' },
 };
 
@@ -87,7 +87,7 @@ export function MessagesPage({ folder = 'inbox' }: { folder?: Folder }) {
             compact
             icon={Inbox}
             title={q ? 'No matches' : 'Nothing here'}
-            description={q ? 'Try another name.' : empty}
+            description={q ? 'Try another search.' : empty}
           />
         ) : (
           list.map((c) => (
@@ -106,7 +106,7 @@ export function MessagesPage({ folder = 'inbox' }: { folder?: Folder }) {
         )}
       </div>
       <p className="hidden border-t border-border-subtle px-4 py-2 text-2xs text-fg-subtle lg:block">
-        <Kbd>j</Kbd> <Kbd>k</Kbd> move · <Kbd>r</Kbd> reply · <Kbd>e</Kbd> archive
+        <Kbd>j</Kbd> <Kbd>k</Kbd> to move · <Kbd>r</Kbd> to reply · <Kbd>e</Kbd> to archive
       </p>
     </section>
   );

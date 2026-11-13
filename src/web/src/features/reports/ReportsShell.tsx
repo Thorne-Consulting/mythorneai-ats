@@ -52,15 +52,12 @@ export function ReportsShell({ children }: { children: ReactNode }) {
   if (catalog.error instanceof ApiError && catalog.error.status === 403)
     return (
       <>
-        <PageHeader
-          title="Reports"
-          description="Turn recruiting activity into insights that help you hire better."
-        />
+        <PageHeader title="Reports" />
         <Card>
           <EmptyState
             icon={Lock}
             title="You don’t have access to reports"
-            description="Ask an admin to give your role the reports permission."
+            description="Ask an admin to give your role access to reports."
           />
         </Card>
       </>

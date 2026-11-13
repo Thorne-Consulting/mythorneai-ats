@@ -73,7 +73,7 @@ export function UserModal({
         />
         <Input
           inset
-          label="Display name"
+          label="Name"
           value={displayName}
           onChange={(e) => setDisplayName(e.currentTarget.value)}
         />
@@ -87,7 +87,7 @@ export function UserModal({
           />
           <Input
             inset
-            label="Team scope"
+            label="Team"
             placeholder="All teams"
             value={department}
             onChange={(e) => setDepartment(e.currentTarget.value)}
@@ -95,8 +95,8 @@ export function UserModal({
         </div>
         <Switch
           labelPosition="left"
-          label="Account is active"
-          description="Turn off to stop this person signing in without losing their history."
+          label="Can sign in"
+          description="Turn this off to stop them signing in. Their history stays."
           checked={isActive}
           onCheckedChange={setIsActive}
         />

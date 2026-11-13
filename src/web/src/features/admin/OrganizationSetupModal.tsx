@@ -32,8 +32,8 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
       opened={opened}
       onClose={() => undefined}
       dismissable={false}
-      title="Set up your organization"
-      description="You are the first ATS user and organization owner. Give this workspace a name before inviting your team."
+      title="Set up your workspace"
+      description="You are the first person here, so you own this workspace. Give it a name before you invite your team."
       footer={
         <Button onClick={() => update.mutate()} loading={update.isPending} disabled={!name.trim()}>
           Save and continue
@@ -43,7 +43,7 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
       <div className="flex flex-col gap-4">
         <Input
           inset
-          label="Organization name"
+          label="Workspace name"
           placeholder="Acme Recruiting"
           value={name}
           onChange={(event) => setName(event.currentTarget.value)}
@@ -54,16 +54,16 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
         />
         <Input
           inset
-          label="Allowed company email domains"
-          description="Comma-separated, for example acme.com, acme.org"
+          label="Company email domains"
+          description="Only people with these email domains can sign in. Separate them with commas, for example acme.com, acme.org."
           placeholder="acme.com"
           value={domains}
           onChange={(event) => setDomains(event.currentTarget.value)}
         />
         <NumberInput
           inset
-          label="Remind about stale applications after (days)"
-          description="The recruiter and candidate receive a reminder after this many inactive days."
+          label="Remind about stuck applications after (days)"
+          description="The recruiter and candidate get a reminder after this many days with no activity."
           value={staleReminderDays}
           min={1}
           max={30}

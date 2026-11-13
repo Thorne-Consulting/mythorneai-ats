@@ -37,8 +37,8 @@ interface Preview {
 
 const SOURCE_LABEL = {
   default: 'Standard wording',
-  organization: 'Customized for everyone',
-  job: 'Customized for this job',
+  organization: 'Changed for all jobs',
+  job: 'Changed for this job',
 } as const;
 
 /** Lists the emails we send and edits one at a time. With requisitionId, edits the per-job override. */
@@ -86,7 +86,7 @@ export function EmailTemplateEditor({ requisitionId }: { requisitionId?: string 
                 <span className="truncate">{template.label}</span>
                 {template.source !== 'default' && (
                   <span
-                    aria-label="Customized"
+                    aria-label="Changed from the standard wording"
                     className="size-1.5 shrink-0 rounded-full bg-tone-blue-dot"
                   />
                 )}
@@ -157,11 +157,11 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
       refresh();
       toast.success(
         requisitionId
-          ? 'This job now uses the wording for everyone'
+          ? 'This job now uses the wording for all jobs'
           : 'Back to the standard wording',
       );
     },
-    onError: (e: Error) => toast.error('Could not reset', e.message),
+    onError: (e: Error) => toast.error('Could not reset the wording', e.message),
   });
 
   const insert = (variable: string) => {
@@ -201,8 +201,8 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
                 onClick={() => reset.mutate()}
               >
                 {requisitionId && template.source === 'job'
-                  ? 'Use the wording for everyone'
-                  : 'Reset to default'}
+                  ? 'Use the wording for all jobs'
+                  : 'Go back to standard wording'}
               </Button>
             )
           }
@@ -237,7 +237,6 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
                   type="button"
                   onClick={() => insert(variable)}
                   aria-label={`Insert ${variable}`}
-                  title={`Insert {{${variable}}} at the cursor`}
                   className="rounded-full border border-border bg-card px-2.5 py-0.5 font-mono text-xs text-fg-muted transition-colors hover:border-primary hover:bg-accent hover:text-accent-foreground"
                 >
                   {`{{${variable}}}`}
@@ -278,7 +277,7 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
       <Card className="2xl:sticky 2xl:top-[101px]">
         <CardHeader
           title="Preview"
-          description="Shown with sample details like “Alex” and “Senior Engineer”."
+          description="Uses sample details, for example “Alex” and “Senior Engineer”."
         />
         <div className="border-t border-border-subtle px-5 py-5">
           {previewError && (

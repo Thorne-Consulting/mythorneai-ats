@@ -30,7 +30,12 @@ import { parseQuestions } from './questions';
 export function useJob(id: string) {
   return useQuery({
     queryKey: ['public', 'job', id],
-    queryFn: () => publicFetch<PublicJob>(`/public/jobs/${id}`, {}, 'We could not load this job.'),
+    queryFn: () =>
+      publicFetch<PublicJob>(
+        `/public/jobs/${id}`,
+        {},
+        'Something went wrong on our side. Please try again.',
+      ),
   });
 }
 
@@ -42,7 +47,7 @@ export function JobUnavailable({ error, onRetry }: { error: Error; onRetry: () =
         <EmptyState
           icon={SearchX}
           title="This job is no longer open"
-          description="It may have been filled or taken down. Have a look at the jobs that are still open."
+          description="It may have been filled. See the jobs that are still open."
           action={
             <Button asChild>
               <Link href="/careers">See open jobs</Link>
@@ -100,10 +105,7 @@ export function JobPage({ id }: { id: string }) {
 
   return (
     <div className="pb-24 lg:pb-0">
-      <Breadcrumbs
-        items={[{ label: 'Open jobs', href: '/careers' }, { label: posting.title }]}
-        className="mb-4"
-      />
+      <Breadcrumbs items={[{ label: 'Open jobs', href: '/careers' }]} className="mb-4" />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="min-w-0 space-y-8">
           <JobPostingView job={posting} company={company} />
@@ -167,7 +169,7 @@ export function JobPage({ id }: { id: string }) {
 
           {otherRoles.length > 0 && (
             <Card className="overflow-hidden">
-              <CardHeader title="Other open roles" />
+              <CardHeader title="Other open jobs" />
               <ul className="border-t border-border-subtle">
                 {otherRoles.map((role) => (
                   <li key={role.id} className="border-b border-border-subtle last:border-b-0">

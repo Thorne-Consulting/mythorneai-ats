@@ -6,7 +6,6 @@ import { Check, Send, X } from 'lucide-react';
 import { api } from '@/api';
 import {
   Alert,
-  Avatar,
   Badge,
   Button,
   DescriptionList,
@@ -104,33 +103,19 @@ export function ApprovalDetailDrawer({
                 value: <Badge tone={item.type === 'Offer' ? 'amber' : 'blue'}>{typeLabel}</Badge>,
               },
               {
-                label: 'Asked by',
-                value: (
-                  <span className="inline-flex items-center gap-2">
-                    <Avatar name={item.requestedByName} size="xs" />
-                    {item.requestedByName}
-                  </span>
-                ),
-              },
-              { label: 'Asked on', value: formatDateTime(item.createdAt) },
-              {
-                label: 'Order',
-                value: chain.data
-                  ? chain.data.sequential
-                    ? 'One after another'
-                    : 'All at once'
-                  : '—',
+                label: 'Approvers are asked',
+                value: chain.data ? (chain.data.sequential ? 'One at a time' : 'All at once') : '—',
               },
             ]}
           />
 
           <section aria-labelledby="approval-chain">
             <h3 id="approval-chain" className="mb-3 text-md font-semibold text-fg">
-              Approval chain
+              Approvers
             </h3>
             {chain.isError ? (
-              <Alert tone="info" title="Only the job’s hiring team can see the full chain">
-                You can still approve or reject. Your decision is recorded either way.
+              <Alert tone="info" title="Only the job’s hiring team can see every approver">
+                You can still approve or reject. We save your decision either way.
               </Alert>
             ) : !chain.data ? (
               <SkeletonRows rows={2} className="px-0" />

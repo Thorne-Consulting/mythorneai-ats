@@ -76,7 +76,7 @@ export function ShortcutList({ className }: { className?: string }) {
 // Workspace settings sections (admins), mirroring the settings sidebar.
 const SETTINGS: [string, string][] = [
   ['/admin', 'Members'],
-  ['/admin/roles', 'Roles & permissions'],
+  ['/admin/roles', 'Roles and permissions'],
   ['/admin/invitations', 'Invitations'],
   ['/admin/approvals', 'Approvals'],
   ['/admin/reminders', 'Reminders'],
@@ -90,7 +90,7 @@ const SETTINGS: [string, string][] = [
   ['/admin/integrations', 'Calendar'],
   ['/admin/webhooks', 'Webhooks'],
   ['/admin/ai-settings', 'AI assistance'],
-  ['/admin/audit', 'Audit log'],
+  ['/admin/audit', 'Activity history'],
   ['/admin/sso', 'Single sign-on'],
   ['/admin/workflows', 'Automated workflows'],
 ];
@@ -108,7 +108,7 @@ export function SearchTrigger({ onOpen, className }: { onOpen: () => void; class
       )}
     >
       <Search className="size-5 shrink-0" aria-hidden />
-      <span className="flex-1 truncate">Search candidates, jobs, or keywords...</span>
+      <span className="flex-1 truncate">Search candidates and jobs…</span>
       <Kbd className="max-lg:hidden">/</Kbd>
     </button>
   );
@@ -167,7 +167,7 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
       {
         key: 'theme',
         group: 'Actions',
-        title: 'Toggle dark mode',
+        title: 'Turn dark mode on or off',
         keywords: 'theme light dark appearance',
         icon: Moon,
         run: () => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'),
@@ -219,7 +219,7 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
           group: 'Go to',
           title: label,
           meta: 'Settings',
-          keywords: 'settings admin',
+          keywords: `settings admin ${href}`, // ponytail: the path keeps old names (audit, sso) findable
           icon: Settings,
           href,
         });

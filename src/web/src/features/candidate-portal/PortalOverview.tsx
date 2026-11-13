@@ -23,6 +23,7 @@ import {
 } from '@/components/ui';
 import { formatRelative } from '@/lib/format';
 import { cn } from '@/lib/cn';
+import { safeWebUrl } from '@/lib/safe-url';
 import { ApplicationCard, usePortalData } from './PortalShell';
 import {
   activityFeed,
@@ -37,13 +38,11 @@ const todoIcon: Record<TodoItem['kind'], LucideIcon> = {
   book: CalendarClock,
   message: MessageSquare,
   offer: Gift,
-  interview: Video,
 };
 const todoTone: Record<TodoItem['kind'], string> = {
   book: 'bg-tone-amber-bg text-tone-amber-dot',
   message: 'bg-tone-blue-bg text-tone-blue-dot',
   offer: 'bg-tone-green-bg text-tone-green-dot',
-  interview: 'bg-tone-violet-bg text-tone-violet-dot',
 };
 
 /** /candidate-portal/home: what needs you, your next interview, applications and recent activity. */
@@ -51,29 +50,17 @@ export function PortalOverview() {
   const portal = usePortalData();
   const todo = todoItems(portal);
   const next = upcomingInterviews(portal)[0];
+  const meetingUrl = safeWebUrl(next?.meetingLink);
   const active = portal.applications.filter((a) => !isClosed(a));
-  const closed = portal.applications.length - active.length;
-  const booked = upcomingInterviews(portal).length;
   const feed = activityFeed(portal, 6);
 
   return (
     <>
-      <PageHeader
-        eyebrow={greeting()}
-        title={`Hi, ${portal.candidate.firstName}`}
-        description={
-          portal.company
-            ? `Here's where your applications with ${portal.company} stand.`
-            : "Here's where your applications stand."
-        }
-      />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <PageHeader title={`${greeting()}, ${portal.candidate.firstName}`} />
+      <div className={cn('grid gap-5', next && 'xl:grid-cols-[minmax(0,1fr)_320px]')}>
         <div className="flex flex-col gap-5">
           <Card>
-            <CardHeader
-              title="To do"
-              description={todo.length ? 'Things that need you, most urgent first.' : undefined}
-            />
+            <CardHeader title="To do" />
             <CardBody>
               {todo.length === 0 ? (
                 <div className="flex items-center gap-3 rounded-lg bg-tone-green-bg px-4 py-3">
@@ -132,7 +119,6 @@ export function PortalOverview() {
                   compact
                   icon={FileText}
                   title="No active applications"
-                  description="Looking for your next role? See what's open."
                   action={
                     <Button asChild variant="secondary">
                       <Link href="/careers">See open jobs</Link>
@@ -172,11 +158,11 @@ export function PortalOverview() {
           </Card>
         </div>
 
-        <aside className="flex flex-col gap-5 xl:sticky xl:top-6 xl:self-start">
-          <Card>
-            <CardHeader title="Next interview" />
-            <CardBody>
-              {next ? (
+        {next && (
+          <aside className="xl:sticky xl:top-6 xl:self-start">
+            <Card>
+              <CardHeader title="Next interview" />
+              <CardBody>
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <span className="flex size-14 shrink-0 flex-col items-center justify-center rounded-lg bg-accent text-accent-foreground">
@@ -194,9 +180,9 @@ export function PortalOverview() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {next.meetingLink && (
+                    {meetingUrl && (
                       <Button asChild size="sm">
-                        <a href={next.meetingLink} target="_blank" rel="noreferrer">
+                        <a href={meetingUrl} target="_blank" rel="noreferrer">
                           <Video /> Join meeting
                         </a>
                       </Button>
@@ -205,47 +191,15 @@ export function PortalOverview() {
                       <Link
                         href={`/candidate-portal/applications/${next.application.id}/interviews`}
                       >
-                        Details
+                        Interview details
                       </Link>
                     </Button>
                   </div>
                 </div>
-              ) : (
-                <p className="text-sm text-fg-subtle">
-                  No interviews booked. When the team proposes times, you&apos;ll pick one here.
-                </p>
-              )}
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardHeader title="At a glance" />
-            <CardBody>
-              <dl className="grid grid-cols-3 gap-2 text-center">
-                {[
-                  ['Active', active.length],
-                  ['Interviews', booked],
-                  ['Closed', closed],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg bg-muted px-2 py-3">
-                    <dd className="text-2xl font-bold text-fg tnum">{value}</dd>
-                    <dt className="text-xs text-fg-subtle">{label}</dt>
-                  </div>
-                ))}
-              </dl>
-            </CardBody>
-          </Card>
-
-          <Card>
-            <CardBody className="space-y-2 pt-5">
-              <p className="text-base font-semibold text-fg">Questions?</p>
-              <p className="text-sm text-fg-muted">
-                Message the hiring team from any application, or read how the process works.
-              </p>
-              <CardLink href="/candidate-portal/help">How it works</CardLink>
-            </CardBody>
-          </Card>
-        </aside>
+              </CardBody>
+            </Card>
+          </aside>
+        )}
       </div>
     </>
   );

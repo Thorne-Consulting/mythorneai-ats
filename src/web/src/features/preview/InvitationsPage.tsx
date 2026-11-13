@@ -39,7 +39,10 @@ export function InvitationsPage() {
     setInvitations((list) =>
       list.map((i) => (ids.includes(i.id) ? { ...i, status: 'Pending', sent: 'Just now' } : i)),
     );
-    toast.success(`${plural(ids.length, 'invite')} resent`, 'The new link is valid for 7 days.');
+    toast.success(
+      `${plural(ids.length, 'invitation')} sent again`,
+      'The new link works for 7 days.',
+    );
   };
 
   return (
@@ -73,7 +76,7 @@ export function InvitationsPage() {
                 leftIcon={<RotateCw />}
                 onClick={() => resend(sel.selected)}
               >
-                Resend
+                Send again
               </Button>
               <Button
                 size="sm"
@@ -81,7 +84,7 @@ export function InvitationsPage() {
                 leftIcon={<X />}
                 onClick={() => setRevoking(sel.selected)}
               >
-                Revoke
+                Withdraw
               </Button>
             </SelectionBar>
             <Table>
@@ -94,7 +97,7 @@ export function InvitationsPage() {
                       onCheckedChange={sel.toggleAll}
                     />
                   </TH>
-                  <TH>Invitee</TH>
+                  <TH>Invited person</TH>
                   <TH>Role</TH>
                   <TH>Sent</TH>
                   <TH>Status</TH>
@@ -129,10 +132,10 @@ export function InvitationsPage() {
                     <TD align="right">
                       <RowActions label={`Actions for ${i.email}`}>
                         <MenuItem icon={<RotateCw />} onSelect={() => resend([i.id])}>
-                          Resend invite
+                          Send again
                         </MenuItem>
                         <MenuItem icon={<X />} danger onSelect={() => setRevoking([i.id])}>
-                          Revoke
+                          Withdraw invitation
                         </MenuItem>
                       </RowActions>
                     </TD>
@@ -149,15 +152,15 @@ export function InvitationsPage() {
         onClose={() => setRevoking(null)}
         title={
           revoking?.length === 1
-            ? 'Revoke this invitation?'
-            : `Revoke ${plural(revoking?.length ?? 0, 'invitation')}?`
+            ? 'Withdraw this invitation?'
+            : `Withdraw ${plural(revoking?.length ?? 0, 'invitation')}?`
         }
-        message="The invite link stops working. You can invite them again later."
-        confirmLabel="Revoke"
+        message="The invitation link stops working. You can invite them again later."
+        confirmLabel="Withdraw"
         onConfirm={() => {
           if (!revoking) return;
           setInvitations((list) => list.filter((i) => !revoking.includes(i.id)));
-          toast.success(`${plural(revoking.length, 'invitation')} revoked`);
+          toast.success(`${plural(revoking.length, 'invitation')} withdrawn`);
         }}
       />
       <InviteMembersModal
@@ -178,8 +181,8 @@ export function InvitationsPage() {
             ...list,
           ]);
           toast.success(
-            `${plural(fresh.length, 'invite')} sent`,
-            fresh.length < emails.length ? 'Some addresses already had an invite.' : undefined,
+            `${plural(fresh.length, 'invitation')} sent`,
+            fresh.length < emails.length ? 'Some addresses already had an invitation.' : undefined,
           );
         }}
       />

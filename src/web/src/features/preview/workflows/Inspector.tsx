@@ -69,6 +69,7 @@ export function StepInspector({
             key={f.key}
             inset
             label={f.label}
+            description={f.description}
             data={f.options ?? []}
             value={v[f.key]}
             onChange={(x) => x && set(x)}
@@ -132,7 +133,9 @@ export function StepInspector({
             />
             {withVariables && (
               <div>
-                <p className="mb-1.5 text-2xs text-fg-subtle">Insert a variable at the cursor</p>
+                <p className="mb-1.5 text-2xs text-fg-subtle">
+                  Add a placeholder. It fills in with each candidate’s details.
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {EMAIL_VARIABLES.map((x) => (
                     <button
@@ -141,7 +144,7 @@ export function StepInspector({
                       onClick={() => insertVariable(f.key, x)}
                       className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-2xs text-fg-muted hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     >
-                      {x.slice(2, -2)}
+                      {x.slice(2, -2).replace(/[._]/g, ' ')}
                     </button>
                   ))}
                 </div>
@@ -160,6 +163,7 @@ export function StepInspector({
         <div className="min-w-0 flex-1">
           <Eyebrow>{def.eyebrow}</Eyebrow>
           <h2 className="truncate text-lg font-semibold text-fg">{v.name || def.label}</h2>
+          <p className="mt-0.5 text-sm text-fg-muted">{def.help}</p>
         </div>
       </div>
       <Input
@@ -174,7 +178,7 @@ export function StepInspector({
 
       {connections && (
         <div>
-          <Eyebrow className="mb-2">Branches</Eyebrow>
+          <Eyebrow className="mb-2">Paths</Eyebrow>
           <ul className="divide-y divide-border-subtle rounded-lg border border-border-subtle">
             {connections.map((c) => (
               <li
@@ -193,7 +197,7 @@ export function StepInspector({
             ))}
           </ul>
           <p className="mt-1.5 text-2xs text-fg-subtle">
-            Drag from a branch dot on the canvas to connect it.
+            To connect a path, drag from its dot on the canvas to the next step.
           </p>
         </div>
       )}
@@ -201,7 +205,7 @@ export function StepInspector({
       <Separator />
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" size="sm" leftIcon={<Copy />} onClick={onDuplicate}>
-          Duplicate
+          Duplicate step
         </Button>
         <Button variant="danger-quiet" size="sm" leftIcon={<Trash2 />} onClick={onDelete}>
           Delete step
@@ -248,7 +252,7 @@ export function EdgeInspector({
         </h2>
         {edge.sourceHandle && (
           <p className="text-sm text-fg-subtle">
-            Leaves from the “{String(edge.sourceHandle).replace(/^v:/, '')}” output.
+            Follows the “{String(edge.sourceHandle).replace(/^v:/, '')}” path.
           </p>
         )}
       </div>

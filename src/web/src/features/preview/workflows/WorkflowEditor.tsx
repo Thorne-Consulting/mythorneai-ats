@@ -61,6 +61,7 @@ import { formatRelative } from '@/lib/format';
 import { PreviewAlert } from '../preview-ui';
 import {
   GROUPS,
+  GROUP_LABELS,
   Highlights,
   STEPS,
   StepIcon,
@@ -203,7 +204,7 @@ function Editor({
       setPanel('problems');
       return toast.error(
         'Fix the problems first',
-        'An active workflow must be valid. Pause it to save a draft.',
+        'An active workflow can’t have problems. Pause it to save unfinished changes.',
       );
     }
     const now = new Date().toISOString();
@@ -213,15 +214,15 @@ function Editor({
       updatedAt: now,
       versions: [{ id: uid(), savedAt: now, ...snap }, ...workflow.versions].slice(0, MAX_VERSIONS),
     });
-    toast.success('Workflow saved', 'Saved in this browser.');
+    toast.success('Workflow saved');
   };
   const setStatus = (on: boolean) => {
     if (on && (problems.length || dirty)) {
       setPanel('problems');
       return toast.error(
         problems.length
-          ? 'Fix the problems before activating.'
-          : 'Save your changes before activating.',
+          ? 'Fix the problems before you activate it.'
+          : 'Save your changes before you activate it.',
       );
     }
     onPatch({ status: on ? 'Active' : 'Paused' });
@@ -440,11 +441,11 @@ function Editor({
       case 'logic.condition':
         return `${v.field} is “${candidate.values[v.field] || 'empty'}”, so the answer is ${branch === 'yes' ? 'Yes' : 'No'}.`;
       case 'logic.split':
-        return `${v.field} is “${candidate.values[v.field] || 'empty'}”: follows ${branch === 'other' ? 'Other' : branch?.slice(2)}.`;
+        return `${v.field} is “${candidate.values[v.field] || 'empty'}”, so it follows the ${branch === 'other' ? 'Other' : branch?.slice(2)} path.`;
       case 'approval.request':
         return `${v.approver} ${branch === 'approved' ? 'approves' : 'rejects'} (as set for this test).`;
       case 'logic.wait':
-        return `Would wait ${v.duration}; skipped in a test run.`;
+        return `Would wait ${v.duration}. A test skips the wait.`;
       case 'action.send_email':
         return `Would email ${v.to.toLowerCase()}: “${fill(v.subject)}”.`;
       default:
@@ -491,8 +492,8 @@ function Editor({
   return (
     <div className="space-y-4">
       <PreviewAlert>
-        This editor runs on sample data until the backend exists. Workflows are saved in this
-        browser and nothing is sent to candidates.
+        This is a preview. Workflows are saved only in this browser, and nothing is sent to
+        candidates.
       </PreviewAlert>
 
       {/* Top bar */}
@@ -574,7 +575,7 @@ function Editor({
                 toast.success('No problems found', 'This workflow is ready to activate.');
             }}
           >
-            Validate
+            Check for problems
           </Button>
           <Button
             variant={panel === 'test' ? 'soft' : 'secondary'}
@@ -620,7 +621,7 @@ function Editor({
           </p>
           {GROUPS.map((g) => (
             <div key={g} className="mb-4">
-              <Eyebrow className="mb-1.5 px-1">{g}</Eyebrow>
+              <Eyebrow className="mb-1.5 px-1">{GROUP_LABELS[g]}</Eyebrow>
               <ul className="space-y-0.5">
                 {STEPS.filter((s) => s.group === g).map((s) => (
                   <li key={s.kind}>
@@ -723,7 +724,7 @@ function Editor({
                       {GROUPS.map((g, i) => (
                         <div key={g}>
                           {i > 0 && <MenuSeparator />}
-                          <MenuLabel>{g}</MenuLabel>
+                          <MenuLabel>{GROUP_LABELS[g]}</MenuLabel>
                           {STEPS.filter((s) => s.group === g).map((s) => (
                             <MenuItem key={s.kind} onSelect={() => addStep(s.kind)}>
                               {s.label}
@@ -739,7 +740,7 @@ function Editor({
                     leftIcon={<LayoutGrid />}
                     onClick={autoLayout}
                   >
-                    Auto-layout
+                    Tidy up
                   </Button>
                 </Panel>
                 {nodes.length === 0 && (
@@ -747,11 +748,11 @@ function Editor({
                     <EmptyState
                       compact
                       icon={WorkflowIcon}
-                      title="Start with a trigger"
-                      description="Pick what starts this workflow from the Triggers list."
+                      title="Choose what starts this workflow"
+                      description="Pick a step from the Start when list, or add this common one."
                       action={
                         <Button size="sm" onClick={() => addStep('trigger.stage_entered')}>
-                          Add “Stage entered”
+                          Add “Candidate moves stage”
                         </Button>
                       }
                     />
@@ -766,12 +767,9 @@ function Editor({
         <Card className="overflow-y-auto p-4">
           {panel === 'problems' ? (
             <section aria-label="Problems">
-              <PanelHeader title="Validation" onClose={() => setPanel('inspect')} />
+              <PanelHeader title="Problems" onClose={() => setPanel('inspect')} />
               {problems.length === 0 ? (
-                <Alert tone="success">
-                  One trigger, no loops, every branch connected and every step reachable. Ready to
-                  activate.
-                </Alert>
+                <Alert tone="success">No problems found. This workflow is ready to activate.</Alert>
               ) : (
                 <>
                   <p className="mb-3 text-sm text-fg-muted">
@@ -829,7 +827,7 @@ function Editor({
               </p>
               <Select
                 inset
-                label="Approvals in this test"
+                label="Approvers in this test"
                 data={['Approve', 'Reject']}
                 value={approvals}
                 onChange={(v) => {
@@ -838,7 +836,7 @@ function Editor({
                 }}
               />
               {path.length === 0 ? (
-                <Alert tone="warning">Add a trigger before running a test.</Alert>
+                <Alert tone="warning">Add a starting step before you run a test.</Alert>
               ) : (
                 <>
                   <div className="flex flex-wrap gap-2">
@@ -894,8 +892,8 @@ function Editor({
                   {step >= path.length - 1 && (
                     <Alert tone={stoppedEarly ? 'warning' : 'success'}>
                       {stoppedEarly
-                        ? `The run stops at “${titleById(path[path.length - 1])}”: the branch it needs is not connected.`
-                        : `Run complete in ${path.length} steps.`}
+                        ? `The test stops at “${titleById(path[path.length - 1])}” because the path it needs is not connected.`
+                        : `Test finished after ${path.length} steps.`}
                     </Alert>
                   )}
                 </>
@@ -982,8 +980,7 @@ function Overview({
       <div>
         <h2 className="text-lg font-semibold text-fg">Select a step to edit it</h2>
         <p className="mt-1 text-sm text-fg-muted">
-          Click a step or a connection on the canvas. Drag from a dot on the right of a step to
-          connect it to the next one.
+          To connect two steps, drag from the dot on the right of one step to the next.
         </p>
       </div>
       <dl className="grid grid-cols-3 gap-2 text-center">

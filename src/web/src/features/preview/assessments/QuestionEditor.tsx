@@ -201,7 +201,7 @@ function QuestionCard({
   return (
     <div className="rounded-lg border border-border-subtle p-4">
       <div className="flex flex-wrap items-end gap-2">
-        <span className="mb-2.5 text-sm font-semibold text-fg-subtle tnum">Q{n}</span>
+        <span className="mb-2.5 text-sm font-semibold text-fg-subtle tnum">{n}.</span>
         <Select
           label="Type"
           data={typeOptions}
@@ -264,16 +264,16 @@ function QuestionCard({
       {isAutoScored(q) && (
         <fieldset className="mt-3">
           <legend className="mb-1.5 text-sm font-medium text-fg">
-            Options{' '}
+            Answers{' '}
             <span className="font-normal text-fg-subtle">
-              · tick the correct {q.type === 'single' ? 'answer' : 'answers'}
+              · check the correct {q.type === 'single' ? 'one' : 'ones'}
             </span>
           </legend>
           <ul className="flex flex-col gap-2">
             {q.options.map((o, oi) => (
               <li key={o.id} className="flex items-center gap-2">
                 <Checkbox
-                  aria-label={`Option ${oi + 1} is correct`}
+                  aria-label={`Answer ${oi + 1} is correct`}
                   checked={o.correct}
                   onCheckedChange={(on) =>
                     set({
@@ -288,8 +288,8 @@ function QuestionCard({
                   }
                 />
                 <Input
-                  aria-label={`Option ${oi + 1}`}
-                  placeholder={`Option ${oi + 1}`}
+                  aria-label={`Answer ${oi + 1}`}
+                  placeholder={`Answer ${oi + 1}`}
                   value={o.text}
                   onChange={(e) => {
                     const text = e.currentTarget.value;
@@ -298,7 +298,7 @@ function QuestionCard({
                   className="flex-1"
                 />
                 <IconButton
-                  label={`Remove option ${oi + 1}`}
+                  label={`Remove answer ${oi + 1}`}
                   variant="quiet"
                   size="sm"
                   disabled={q.options.length <= 2}
@@ -320,7 +320,7 @@ function QuestionCard({
               })
             }
           >
-            Add option
+            Add answer
           </Button>
         </fieldset>
       )}
@@ -336,7 +336,7 @@ function QuestionCard({
           />
           <Textarea
             label="Starter code"
-            description="What the candidate sees in the editor when they start."
+            description="The code candidates see when they start."
             minRows={4}
             spellCheck={false}
             textareaClassName="font-mono text-sm"
@@ -349,7 +349,7 @@ function QuestionCard({
       {q.type === 'file' && (
         <Input
           label="Accepted file types"
-          description="Comma separated, e.g. .pdf,.png"
+          description="Separate them with commas. For example: .pdf,.png"
           value={q.accept}
           onChange={(e) => set({ accept: e.currentTarget.value })}
           className="mt-3 sm:max-w-80"
@@ -358,7 +358,7 @@ function QuestionCard({
 
       {!isAutoScored(q) && (
         <Textarea
-          label="Rubric"
+          label="How to score"
           description="What a full-marks answer includes. Reviewers score against this."
           minRows={2}
           value={q.rubric}

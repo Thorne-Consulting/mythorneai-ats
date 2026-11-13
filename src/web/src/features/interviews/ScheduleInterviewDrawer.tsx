@@ -125,7 +125,7 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
       opened={opened}
       onClose={onClose}
       title="Schedule interview"
-      description="Pick an active candidate, then choose a time. The event syncs to your calendar provider."
+      description="Choose a candidate and a time. We add the interview to your calendar."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -136,7 +136,7 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
             disabled={!applicationId || !title || !startsAt || !endsAt || !interviewers}
             onClick={() => mutation.mutate()}
           >
-            {status === 'Proposed' ? 'Offer time' : 'Schedule and sync'}
+            {status === 'Proposed' ? 'Offer this time' : 'Schedule interview'}
           </Button>
         </>
       }
@@ -158,16 +158,11 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
             setKitId(null);
           }}
           data={candidateOptions}
-          description={
-            selectedApplication
-              ? `${selectedApplication.requisitionCode} · ${selectedApplication.requisitionTitle}`
-              : undefined
-          }
         />
         <Select
           inset
           label="Interview kit"
-          placeholder={applicationId ? 'Choose a structured kit' : 'Choose a candidate first'}
+          placeholder={applicationId ? 'Choose a kit' : 'Choose a candidate first'}
           clearable
           disabled={!applicationId || application.isLoading}
           value={kitId}
@@ -185,12 +180,12 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
         />
         <Select
           inset
-          label="Candidate booking"
+          label="How to book"
           value={status}
           onChange={(value) => value && setStatus(value)}
           data={[
-            { value: 'Scheduled', label: 'Schedule now' },
-            { value: 'Proposed', label: 'Offer this time to candidate' },
+            { value: 'Scheduled', label: 'Book this time now' },
+            { value: 'Proposed', label: 'Let the candidate confirm this time' },
           ]}
         />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -215,28 +210,28 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
         <Input
           inset
           label="Interviewers"
-          description="Comma-separated work emails"
+          description="Work emails, separated by commas"
           placeholder="interviewer@example.com"
           value={interviewers}
           onChange={(event) => setInterviewers(event.currentTarget.value)}
         />
         {availability.data?.missingConnections.length ? (
           <Alert tone="warning" title="Some calendars aren’t connected">
-            These interviewers need to connect a calendar before shared availability can be shown:{' '}
-            {availability.data.missingConnections.join(', ')}
+            We can only find times when everyone is free after these interviewers connect a
+            calendar: {availability.data.missingConnections.join(', ')}
           </Alert>
         ) : null}
         <Select
           inset
-          label="Shared availability"
+          label="Times when everyone is free"
           placeholder={
             availability.isFetching
               ? 'Checking calendars…'
               : interviewerEmails.length === 0
                 ? 'Add interviewers first'
                 : slots.length
-                  ? 'Choose a common time'
-                  : 'No shared calendar times found'
+                  ? 'Choose a time'
+                  : 'No time works for everyone'
           }
           disabled={availability.isFetching || !slots.length}
           value={null}

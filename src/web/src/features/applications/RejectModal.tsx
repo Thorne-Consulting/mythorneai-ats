@@ -46,7 +46,7 @@ export function RejectModal({
       opened={opened}
       onClose={onClose}
       title="Reject applicant"
-      description="This decision is recorded in the audit history."
+      description="This is saved in the activity history."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -65,7 +65,7 @@ export function RejectModal({
     >
       <div className="space-y-4">
         <Select
-          label="Disposition reason"
+          label="Reason"
           placeholder="Choose a reason"
           value={reason}
           onChange={setReason}
@@ -79,11 +79,12 @@ export function RejectModal({
           disabled={!reason}
           onClick={() => draftMutation.mutate()}
         >
-          Draft candidate message with AI
+          Draft a message with AI
         </Button>
         {draft && (
           <Textarea
-            label="Review and edit before sending"
+            label="Message to the candidate"
+            description="Check and edit it before you send."
             minRows={6}
             value={draft}
             onChange={(event) => setDraft(event.currentTarget.value)}

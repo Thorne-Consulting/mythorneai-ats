@@ -5,7 +5,6 @@ import { FileSignature } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api, ApiError } from '@/api';
 import { useCurrentUser } from '@/auth';
-import { StatusBadge } from '@/components/status';
 import {
   Alert,
   Button,
@@ -57,8 +56,8 @@ export function ApplicationOffer({ id }: { id: string }) {
         <Card>
           <EmptyState
             icon={FileSignature}
-            title="Nothing to see here"
-            description="Only the hiring team and the people asked to approve can see the offer."
+            title="You cannot see this offer"
+            description="Only the hiring team and the approvers can see it."
           />
         </Card>
       );
@@ -81,7 +80,6 @@ export function ApplicationOffer({ id }: { id: string }) {
       {live && (
         <Card className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
           <Steps steps={PROGRESS} current={progressIndex[live.status]} />
-          <StatusBadge status={live.status} />
         </Card>
       )}
       {building ? (
@@ -105,7 +103,7 @@ export function ApplicationOffer({ id }: { id: string }) {
             title="No offer yet"
             description={
               detail.status === 'Active'
-                ? 'The recruiter starts the offer when the panel is ready.'
+                ? 'The recruiter starts the offer when the team is ready.'
                 : `An offer can only be made while the application is active. This one is ${detail.status.toLowerCase()}.`
             }
           />
@@ -202,10 +200,10 @@ function OfferWizard({
     {
       id: 'approvers',
       title: 'Approvers',
-      description: 'Who signs off before it goes out.',
+      description: 'Who approves it before it goes out.',
       valid: !data.approvalRequired || approvers.length > 0,
     },
-    { id: 'review', title: 'Review and submit', description: 'Check it, then submit.' },
+    { id: 'review', title: 'Review and submit' },
   ];
 
   const preview = (
@@ -256,7 +254,7 @@ function OfferWizard({
                 data={CURRENCIES}
               />
               <Select
-                label="Per"
+                label="Paid per"
                 value={terms.payPeriod}
                 onChange={(value) => value && set({ payPeriod: value as OfferTerms['payPeriod'] })}
                 data={[
@@ -268,13 +266,13 @@ function OfferWizard({
             </div>
             <Input
               label="Bonus"
-              description="Optional, e.g. 10% annual target."
+              description="Optional. For example, 10% yearly target."
               value={terms.bonus}
               onChange={(event) => set({ bonus: event.currentTarget.value })}
             />
             <Input
               label="Equity"
-              description="Optional, e.g. 2,000 options over 4 years."
+              description="Optional. For example, 2,000 stock options over 4 years."
               value={terms.equity}
               onChange={(event) => set({ equity: event.currentTarget.value })}
             />
@@ -316,7 +314,7 @@ function OfferWizard({
             />
             <Textarea
               label="Anything else for approvers"
-              description="Why this person, and anything the approvers should know."
+              description="For example, why you chose this person."
               className="sm:col-span-2"
               minRows={4}
               value={terms.notes}
@@ -358,8 +356,8 @@ function OfferWizard({
                 : 'No approval needed. The offer is ready to send straight away.'}
             </p>
             <Alert tone="info" title={`Nothing goes to ${candidateName} yet`}>
-              Once approved, you send the acceptance email from this page. These terms are for the
-              approvers; the candidate gets the standard acceptance email.
+              After it is approved, you send the acceptance email from this page. These terms are
+              only for approvers. The candidate gets the standard acceptance email.
             </Alert>
           </div>
         )}
@@ -373,7 +371,7 @@ function OfferWizard({
             opened={withdrawing}
             onClose={() => setWithdrawing(false)}
             title="Withdraw this offer?"
-            confirmLabel="Withdraw"
+            confirmLabel="Withdraw offer"
             message="Nothing has been sent to the candidate. Any approvals so far are dropped, and you can start a new offer later."
             onConfirm={() =>
               withdraw.mutateAsync(live.id).then(

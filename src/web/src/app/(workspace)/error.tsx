@@ -10,7 +10,7 @@ export default function ErrorPage({ reset }: { reset: () => void }) {
       <EmptyState
         icon={AlertTriangle}
         title="Could not load this page"
-        description="Something went wrong while loading this screen. Your changes were not lost."
+        description="Something went wrong on our side. Try again, or go back to the dashboard."
         action={
           <div className="flex flex-wrap justify-center gap-2">
             <Button variant="secondary" asChild>

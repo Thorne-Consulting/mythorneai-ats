@@ -20,16 +20,16 @@ import { PreviewAlert } from './preview-ui';
 import { sampleSso, sampleSsoStats } from './sample-admin';
 
 const providers = [
-  { value: 'okta', label: 'Okta', description: 'SAML 2.0 with SCIM provisioning' },
+  { value: 'okta', label: 'Okta', description: 'Sign-in and automatic account setup' },
   {
     value: 'google',
     label: 'Google Workspace',
-    description: 'SAML 2.0, users matched by email domain',
+    description: 'Sign-in only. People are matched by email domain.',
   },
   {
     value: 'microsoft',
     label: 'Microsoft Entra ID',
-    description: 'SAML 2.0 with SCIM provisioning',
+    description: 'Sign-in and automatic account setup',
   },
 ];
 
@@ -56,7 +56,7 @@ export function SsoPage() {
             setTesting(true);
             setTimeout(() => {
               setTesting(false);
-              toast.success('Connection looks good', 'Sample check only: no request was made.');
+              toast.success('Connection looks good', 'This was a sample check. Nothing was sent.');
             }, 700);
           }}
         >
@@ -69,38 +69,39 @@ export function SsoPage() {
         <StatCard
           icon={ShieldCheck}
           tone="green"
-          label="SSO coverage"
+          label="Signing in with SSO"
           value={`${s.onSso} / ${s.members}`}
-          hint={`${Math.round((s.onSso / s.members) * 100)}% of members sign in with SSO`}
+          hint={`${Math.round((s.onSso / s.members) * 100)}% of members`}
         />
         <StatCard
           icon={KeyRound}
           tone="amber"
-          label="Password sign-ins"
+          label="Signing in with a password"
           value={s.members - s.onSso}
-          hint="Members not on SSO yet"
         />
         <StatCard
           icon={Users}
           tone="violet"
-          label="SCIM provisioned"
+          label="Accounts set up automatically"
           value={s.scimUsers}
-          hint="Accounts managed by your provider"
         />
         <StatCard
           icon={RefreshCw}
-          label="Last directory sync"
+          label="Last account update"
           value={s.lastSync}
-          hint="Runs every 40 minutes"
+          hint="Happens every 40 minutes"
         />
       </StatGrid>
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Card>
-          <CardHeader title="Identity provider" description="Where your team's accounts live." />
+          <CardHeader
+            title="Sign-in provider"
+            description="The service that holds your team's company accounts."
+          />
           <div className="flex flex-col gap-4 px-5 pb-5">
             <RadioGroup
-              aria-label="Identity provider"
+              aria-label="Sign-in provider"
               value={draft.provider}
               onValueChange={(v) => set({ provider: v })}
               options={providers}
@@ -110,20 +111,20 @@ export function SsoPage() {
               label="Email domain"
               value={draft.domain}
               onChange={(e) => set({ domain: e.currentTarget.value })}
-              error={!domainOk && 'Enter a domain like example.com'}
+              error={!domainOk && 'Enter a domain, for example acme.com'}
             />
             <Input
               inset
-              label="Metadata URL"
+              label="Setup address (metadata URL)"
               type="url"
               value={draft.metadataUrl}
               onChange={(e) => set({ metadataUrl: e.currentTarget.value })}
-              error={!urlOk && 'Use the https:// URL from your provider'}
+              error={!urlOk && 'Use the address from your provider. It starts with https://.'}
             />
             <Switch
               labelPosition="left"
-              label="Require SSO for all members"
-              description="Turns off password sign-in. Owners keep a password as a break-glass account."
+              label="Everyone must use single sign-on"
+              description="This turns off password sign-in. Owners keep a password so they can still get in if the provider is down."
               checked={draft.requireSso}
               onCheckedChange={(v) => set({ requireSso: v })}
             />
@@ -140,32 +141,32 @@ export function SsoPage() {
 
         <Card className="h-fit">
           <CardHeader
-            title="SCIM provisioning"
-            description="Create, update and remove accounts from your provider automatically."
+            title="Automatic account setup (SCIM)"
+            description="Your provider adds, updates and removes accounts here for you."
           />
           <div className="flex flex-col gap-4 px-5 pb-5">
             <Switch
               labelPosition="left"
-              label="Enable SCIM"
+              label="Turn on automatic account setup"
               checked={draft.scim}
               onCheckedChange={(v) => set({ scim: v })}
             />
             <Input
               inset
-              label="SCIM base URL"
+              label="Address for your provider"
               readOnly
               value={draft.scimBaseUrl}
               disabled={!draft.scim}
-              rightSection={<CopyButton value={draft.scimBaseUrl} label="Copy base URL" />}
+              rightSection={<CopyButton value={draft.scimBaseUrl} label="Copy address" />}
             />
             <Input
               inset
-              label="Bearer token"
+              label="Access key"
               readOnly
               value={draft.scimToken}
               disabled={!draft.scim}
               inputClassName="font-mono text-sm"
-              rightSection={<CopyButton value={draft.scimToken} label="Copy token" />}
+              rightSection={<CopyButton value={draft.scimToken} label="Copy access key" />}
             />
             <div>
               <Button
@@ -175,7 +176,7 @@ export function SsoPage() {
                 disabled={!draft.scim}
                 onClick={() => setRegenerating(true)}
               >
-                Regenerate token
+                Create new access key
               </Button>
             </div>
           </div>
@@ -192,7 +193,7 @@ export function SsoPage() {
             disabled={!urlOk || !domainOk}
             onClick={() => {
               setSaved(draft);
-              toast.success('Single sign-on saved', 'Kept on this page only.');
+              toast.success('Single sign-on saved', 'Saved on this page only.');
             }}
           >
             Save changes
@@ -203,14 +204,14 @@ export function SsoPage() {
       <ConfirmDialog
         opened={regenerating}
         onClose={() => setRegenerating(false)}
-        title="Regenerate the SCIM token?"
-        message="The current token stops working straight away. Paste the new one into your identity provider to keep provisioning running."
-        confirmLabel="Regenerate token"
+        title="Create a new access key?"
+        message="The current key stops working right away. Paste the new one into your sign-in provider so accounts keep updating."
+        confirmLabel="Create new key"
         onConfirm={() => {
           const token = `scim_sample_${crypto.randomUUID().replaceAll('-', '').slice(0, 16)}`;
           setDraft((d) => ({ ...d, scimToken: token }));
           setSaved((d) => ({ ...d, scimToken: token }));
-          toast.success('New token created', 'Copy it into your identity provider.');
+          toast.success('New access key created', 'Paste it into your sign-in provider.');
         }}
       />
     </>

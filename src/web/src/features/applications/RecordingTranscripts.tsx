@@ -26,7 +26,7 @@ export function RecordingTranscripts({
     onSuccess: (_result, id) => {
       onUpdated();
       setShown((value) => ({ ...value, [id]: true }));
-      toast.success('Transcript ready', 'Check it before relying on it.');
+      toast.success('Transcript ready', 'Check it before you rely on it.');
     },
     onError: (error: Error) => toast.error('Could not transcribe the recording', error.message),
   });
@@ -61,7 +61,7 @@ export function RecordingTranscripts({
           </div>
           {shown[item.id] && item.transcript && (
             <div className="mt-2">
-              <p className="text-xs text-fg-subtle">Machine transcript. It can contain mistakes.</p>
+              <p className="text-xs text-fg-subtle">Written by a computer. It may have mistakes.</p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-fg">{item.transcript}</p>
             </div>
           )}

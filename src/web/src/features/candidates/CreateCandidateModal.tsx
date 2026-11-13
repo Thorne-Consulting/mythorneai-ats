@@ -31,10 +31,11 @@ const INITIAL: CandidateForm = {
 
 function validate(values: CandidateForm) {
   const errors: Partial<Record<keyof CandidateForm, string>> = {};
-  if (!values.firstName.trim()) errors.firstName = 'Required';
-  if (!values.lastName.trim()) errors.lastName = 'Required';
-  if (!/^\S+@\S+\.\S+$/.test(values.email)) errors.email = 'Enter a valid email';
-  if (!values.source.trim()) errors.source = 'Required';
+  if (!values.firstName.trim()) errors.firstName = 'Enter a first name';
+  if (!values.lastName.trim()) errors.lastName = 'Enter a last name';
+  if (!/^\S+@\S+\.\S+$/.test(values.email))
+    errors.email = 'Enter an email address, for example name@example.com';
+  if (!values.source.trim()) errors.source = 'Enter where they came from';
   return errors;
 }
 
@@ -57,7 +58,7 @@ export function CreateCandidateModal({
       setErrors({});
       onClose();
     },
-    onError: (error: Error) => toast.error('Could not add candidate', error.message),
+    onError: (error: Error) => toast.error('Could not add the candidate', error.message),
   });
   const field = (key: Exclude<keyof CandidateForm, 'tags'>) => ({
     value: values[key],
@@ -102,14 +103,15 @@ export function CreateCandidateModal({
           <Input
             label="Source"
             required
-            placeholder="Referral, LinkedIn, direct…"
+            placeholder="For example, Referral or LinkedIn"
             {...field('source')}
           />
-          <Input label="LinkedIn URL" {...field('linkedInUrl')} />
+          <Input label="LinkedIn profile link" {...field('linkedInUrl')} />
         </div>
         <TagsInput
           label="Tags"
-          placeholder="Type and press enter"
+          placeholder="Type a tag and press Enter"
+
           value={values.tags}
           onChange={(tags) => setValues((current) => ({ ...current, tags }))}
         />

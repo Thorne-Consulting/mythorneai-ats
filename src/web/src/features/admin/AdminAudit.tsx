@@ -77,7 +77,7 @@ export function AdminAudit() {
             setSearch(v);
             setPage(1);
           }}
-          placeholder="Search events, ids or people"
+          placeholder="Search by event, record number or person"
           className="w-full sm:w-72"
         />
         <FilterSelect

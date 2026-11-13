@@ -29,21 +29,15 @@ type Step = { title: string; detail: string; href?: string; action?: string };
 function nextSteps(job: RequisitionWithSettings, candidates: number, canManage: boolean): Step[] {
   const base = `/jobs/${job.id}`;
   const steps: Step[] = [];
-  if (job.status === 'PendingApproval')
-    steps.push({
-      title: 'Waiting for approval',
-      detail: 'The job opens once every approver agrees.',
-    });
   if (job.status === 'Draft')
     steps.push({
       title: 'Still a draft',
-      detail:
-        'Open the job (or submit it for approval) with Change status to start taking applications.',
+      detail: 'Use Change status to open the job or send it for approval. Then people can apply.',
     });
   if (job.status === 'OnHold')
     steps.push({
       title: 'On hold',
-      detail: 'Hidden from the careers site until you open it again.',
+      detail: 'People can’t see it on your careers site until you open it again.',
     });
   if (job.interviewKits.length === 0)
     steps.push({
@@ -56,21 +50,21 @@ function nextSteps(job: RequisitionWithSettings, candidates: number, canManage: 
   if (!req || (req.required.length === 0 && req.preferred.length === 0))
     steps.push({
       title: 'No requirements written',
-      detail: 'Requirements drive candidate matching and keep screening consistent.',
+      detail: 'Requirements help us match candidates and keep screening fair.',
       href: `${base}/requirements`,
       action: 'Write requirements',
     });
   if (!job.description?.trim())
     steps.push({
-      title: 'No role summary',
-      detail: 'Applicants see an empty posting without one.',
+      title: 'No job summary',
+      detail: 'Without one, applicants see an empty job posting.',
       href: canManage ? `${base}/settings` : `${base}/posting`,
       action: canManage ? 'Add a summary' : 'View posting',
     });
   if (job.status === 'Open' && candidates === 0 && canManage)
     steps.push({
       title: 'No candidates yet',
-      detail: 'Share the posting or add people from your talent pool.',
+      detail: 'Share the job posting, or add people you already have on file.',
       href: `/candidates?job=${job.id}`,
       action: 'Find candidates',
     });
@@ -99,9 +93,6 @@ export function JobOverview({ id, initialBoard }: { id: string; initialBoard?: B
         <Card>
           <CardHeader
             title="Candidates by stage"
-            description={
-              board.data ? `${total} active ${total === 1 ? 'candidate' : 'candidates'}` : undefined
-            }
             action={<CardLink href={`${base}/pipeline`}>Open pipeline</CardLink>}
           />
           <CardBody>
@@ -132,7 +123,7 @@ export function JobOverview({ id, initialBoard }: { id: string; initialBoard?: B
         <Card>
           <CardHeader
             title="Funnel"
-            description="Active candidates who have reached each stage or gone past it."
+            description="How many active candidates reached each stage or went past it."
           />
           <CardBody>
             {!board.data ? (
@@ -142,7 +133,7 @@ export function JobOverview({ id, initialBoard }: { id: string; initialBoard?: B
                 compact
                 icon={Users}
                 title="No active candidates yet"
-                description="The funnel fills in as people apply and move through the stages."
+                description="This fills in as people apply and move through the stages."
                 action={
                   canManage ? (
                     <Button asChild variant="secondary">
@@ -235,11 +226,8 @@ export function JobOverview({ id, initialBoard }: { id: string; initialBoard?: B
               columns={2}
               items={[
                 { label: 'Openings', value: job.openings },
-                { label: 'Type', value: job.employmentType },
-                { label: 'Work mode', value: job.workMode },
-                { label: 'Location', value: job.location },
+                { label: 'Employment type', value: job.employmentType },
                 { label: 'Target start', value: formatDate(job.targetStartDate) },
-                { label: 'Interview kits', value: job.interviewKits.length },
                 { label: 'Created', value: formatDate(job.createdAt) },
                 { label: 'Updated', value: formatRelative(job.updatedAt) },
               ]}

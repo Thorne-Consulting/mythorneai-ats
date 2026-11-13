@@ -38,11 +38,13 @@ export function parseLabel(attachment: Attachment) {
     case 'Processing':
       return 'being read';
     case 'NeedsOcr':
-      return 'needs OCR';
+      return 'scanned, so the text could not be read';
     case 'Failed':
       return 'could not be read';
     default:
-      return attachment.scanStatus === 'ValidationOnly' ? 'type checked' : attachment.scanStatus;
+      return attachment.scanStatus === 'ValidationOnly'
+        ? 'file type checked'
+        : attachment.scanStatus;
   }
 }
 
@@ -95,9 +97,9 @@ export function useCandidateFiles(candidateId: string) {
     mutationFn: (file: File) => api.upload(`/api/candidates/${candidateId}/attachments`, file),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
-      toast.success('Document uploaded', 'It is queued for parsing.');
+      toast.success('Document uploaded', 'We will read it in a moment.');
     },
-    onError: (error: Error) => toast.error('Could not upload', error.message),
+    onError: (error: Error) => toast.error('Could not upload the document', error.message),
   });
   const parseResume = useMutation({
     mutationFn: (attachmentId: string) =>
@@ -105,9 +107,9 @@ export function useCandidateFiles(candidateId: string) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
       queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidateId] });
-      toast.success('Resume parsing queued');
+      toast.success('Reading the resume again');
     },
-    onError: (error: Error) => toast.error('Could not parse resume', error.message),
+    onError: (error: Error) => toast.error('Could not read the resume', error.message),
   });
   const previewModal = (
     <Modal
@@ -157,7 +159,6 @@ export function CandidateRail({
               ),
             },
             { label: 'Phone', value: candidate.phone ?? <Missing /> },
-            { label: 'Location', value: candidate.location ?? <Missing /> },
             ...(linkedIn
               ? [
                   {
@@ -254,7 +255,7 @@ export function CandidateRail({
                           disabled={parseResume.isPending}
                           onClick={() => parseResume.mutate(attachment.id)}
                         >
-                          Retry reading
+                          Try reading again
                         </Button>
                       )}
                   </div>

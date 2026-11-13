@@ -42,7 +42,7 @@ export function InterviewKitView({
         </Button>
         <span className="flex items-center gap-1.5 text-sm text-fg-subtle">
           <Clock3 className="size-4" aria-hidden />
-          {kit.durationMinutes} min
+          {kit.durationMinutes} minutes
         </span>
         {canManage && (
           <Button asChild variant="secondary" size="sm" className="ml-auto">
@@ -70,7 +70,7 @@ export function KitGone({ kitsHref }: { kitsHref: string }) {
       <EmptyState
         compact
         title="This kit no longer exists"
-        description="It may have been deleted. The job's other kits are still there."
+        description="Someone may have deleted it. The job's other kits are still there."
         action={
           <Button asChild variant="secondary" size="sm">
             <Link href={kitsHref}>All kits</Link>

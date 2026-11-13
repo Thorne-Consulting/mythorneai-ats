@@ -24,11 +24,17 @@ const initialValues: ImportForm = {
 
 function validate(values: ImportForm) {
   const errors: Partial<Record<keyof ImportForm, string>> = {};
-  if (!values.firstName.trim()) errors.firstName = 'Required';
-  if (!values.lastName.trim()) errors.lastName = 'Required';
-  if (!/^\S+@\S+\.\S+$/.test(values.email)) errors.email = 'Enter a valid email';
-  if (!values.source.trim()) errors.source = 'Required';
+  if (!values.firstName.trim()) errors.firstName = 'Enter a first name';
+  if (!values.lastName.trim()) errors.lastName = 'Enter a last name';
+  if (!/^\S+@\S+\.\S+$/.test(values.email))
+    errors.email = 'Enter an email address, for example name@example.com';
+  if (!values.source.trim()) errors.source = 'Enter where they came from';
   return errors;
+}
+
+/** "1 job", "3 jobs". */
+function count(n: number, word: string) {
+  return `${n} ${n === 1 ? word : `${word}s`}`;
 }
 
 // Only identity can be typed over here. Everything the resume says is parsed and stays read-only,
@@ -55,7 +61,7 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
         source: 'Resume import',
       });
     },
-    onError: (error: Error) => toast.error('Could not parse resume', error.message),
+    onError: (error: Error) => toast.error('Could not read the resume', error.message),
   });
   const importResume = useMutation({
     mutationFn: async (form: ImportForm) => {
@@ -72,7 +78,7 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
       resetAndClose();
       router.push(`/candidates/${result.candidateId}`);
     },
-    onError: (error: Error) => toast.error('Could not import resume', error.message),
+    onError: (error: Error) => toast.error('Could not add the candidate', error.message),
   });
 
   const chooseFile = (nextFile: File | null) => {
@@ -113,12 +119,12 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
       opened={opened}
       onClose={resetAndClose}
       title="Import a resume"
-      description="Upload a PDF or DOCX. The resume is parsed into the candidate's profile; you only confirm who they are."
+      description="Upload a PDF or Word document. We read it into a new profile. You just confirm who the person is."
       size="lg"
       footer={
         <>
           <p className="mr-auto max-w-[430px] text-xs text-fg-subtle">
-            Parsed data supports search and review. It never makes or recommends a hiring decision.
+            What we read helps you search and review. It never makes or suggests a hiring decision.
           </p>
           <Button variant="secondary" onClick={resetAndClose}>
             Cancel
@@ -167,8 +173,9 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
                 </p>
               </div>
               <Badge>
-                {preview.form.work.length} jobs · {preview.form.education.length} schools ·{' '}
-                {preview.form.skills.length} skills
+                {count(preview.form.work.length, 'job')} ·{' '}
+                {count(preview.form.education.length, 'school')} ·{' '}
+                {count(preview.form.skills.length, 'skill')}
               </Badge>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">

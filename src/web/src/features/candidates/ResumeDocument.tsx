@@ -139,9 +139,9 @@ export function ResumeDocument({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidateId] });
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
-      toast.success('Re-parse queued');
+      toast.success('Reading the resume again');
     },
-    onError: (error: Error) => toast.error('Could not re-parse', error.message),
+    onError: (error: Error) => toast.error('Could not read the resume', error.message),
   });
 
   const profile = query.data;
@@ -198,8 +198,8 @@ export function ResumeDocument({
       parsing
         ? 'Reading the resume…'
         : attachment.parseStatus === 'NeedsOcr'
-          ? 'This file has no text layer, so nothing could be read from it. It needs OCR.'
-          : (attachment.parseError ?? 'Nothing has been read from this file.'),
+          ? 'This file is a scanned image, so we could not read any text. Upload a copy saved straight from Word or as a PDF.'
+          : (attachment.parseError ?? 'We have not read this file yet.'),
     )
   ) : (
     <Document profile={profile} />
@@ -417,8 +417,8 @@ function Document({ profile }: { profile: ResumeProfile }) {
                               : skill.source === 'JobDescription'
                                 ? 'Mentioned in a job'
                                 : 'In the skills section',
-                            skill.yearsUsed ? `${skill.yearsUsed} yrs` : null,
-                            skill.lastUsedYear ? `last ${skill.lastUsedYear}` : null,
+                            skill.yearsUsed ? `${skill.yearsUsed} years` : null,
+                            skill.lastUsedYear ? `last used ${skill.lastUsedYear}` : null,
                             skill.verified ? null : 'Not found in the document',
                           ]
                             .filter(Boolean)
@@ -508,7 +508,9 @@ function Document({ profile }: { profile: ResumeProfile }) {
       {profile.unassignedText.length > 0 && (
         <details className="mt-7 text-sm">
           <summary className="cursor-pointer text-fg-subtle hover:text-fg">
-            {profile.unassignedText.length} lines the parser could not place
+            {profile.unassignedText.length === 1
+              ? '1 line we could not fit into a section'
+              : `${profile.unassignedText.length} lines we could not fit into a section`}
           </summary>
           <pre className="mt-2.5 rounded-md bg-secondary p-3 font-mono text-xs whitespace-pre-wrap text-fg">
             {profile.unassignedText.join('\n')}
@@ -527,9 +529,8 @@ function Document({ profile }: { profile: ResumeProfile }) {
       )}
 
       <p className="mt-8 text-sm text-fg-subtle">
-        Dotted amber text was written by the parser but not found in the document.
-        {profile.parsedAt && ` Read ${formatRelative(profile.parsedAt)}`}
-        {profile.model && ` with ${profile.model}`}.
+        Text with a dotted amber line was not found in the original file, so check it there.
+        {profile.parsedAt && ` Read ${formatRelative(profile.parsedAt)}.`}
       </p>
     </>
   );

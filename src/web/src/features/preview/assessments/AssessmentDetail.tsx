@@ -86,7 +86,7 @@ export function AssessmentDetail({ id, initialTab }: { id: string; initialTab?: 
             <StatusBadge status={statusLabel[a.status]} />
           </PreviewTitle>
         }
-        description={`${a.type} · ${a.department} · ${a.minutes} min`}
+        description={`${a.type} · ${a.department}`}
         actions={
           <>
             <Button
@@ -167,8 +167,8 @@ function NotFound() {
       <Card>
         <EmptyState
           icon={ClipboardList}
-          title="This assessment does not exist in this browser"
-          description="Preview data lives in your browser, so links from someone else will not open here."
+          title="Not saved in this browser"
+          description="Preview data is saved in each person’s browser, so links from someone else won’t open here."
           action={
             <Link
               href="/assessments"
@@ -219,7 +219,7 @@ function Overview({ a, own }: { a: Assessment; own: Invite[] }) {
               ? `${pct(decided.filter((i) => i.decision === 'Passed').length, decided.length)}%`
               : '—'
           }
-          hint={`${decided.length} decided`}
+          hint={`Of ${decided.length} with a decision`}
         />
         <StatCard
           icon={BarChart3}
@@ -228,7 +228,7 @@ function Overview({ a, own }: { a: Assessment; own: Invite[] }) {
           value={
             scores.length ? Math.round(scores.reduce((s, x) => s + x, 0) / scores.length) : '—'
           }
-          hint={`Pass mark ${a.passMark}`}
+          hint={`Pass mark ${a.passMark}%`}
         />
       </StatGrid>
       <div className="grid gap-5 lg:grid-cols-[1fr_340px]">
@@ -239,18 +239,18 @@ function Overview({ a, own }: { a: Assessment; own: Invite[] }) {
               <DescriptionList
                 columns={3}
                 items={[
-                  { label: 'Type', value: a.type },
-                  { label: 'Department', value: a.department },
                   {
-                    label: 'Duration',
-                    value: `${a.minutes} min${a.settings.timed ? ', timed' : ''}`,
+                    label: 'Time',
+                    value: `${a.minutes} minutes${a.settings.timed ? ', with a timer' : ''}`,
                   },
-                  { label: 'Pass mark', value: `${a.passMark}%` },
                   { label: 'Questions', value: `${qs.length} in ${a.sections.length} sections` },
                   { label: 'Total points', value: qs.reduce((s, q) => s + q.points, 0) },
-                  { label: 'Attempts', value: a.settings.attempts },
+                  { label: 'Attempts allowed', value: a.settings.attempts },
                   { label: 'Invites expire after', value: `${a.settings.expiryDays} days` },
-                  { label: 'Proctoring', value: proctoring.length ? proctoring.join(', ') : 'Off' },
+                  {
+                    label: 'Cheating checks',
+                    value: proctoring.length ? proctoring.join(', ') : 'Off',
+                  },
                 ]}
               />
             </div>
@@ -316,7 +316,7 @@ function Questions({ a }: { a: Assessment }) {
         <Card key={s.id}>
           <CardHeader
             title={s.title || 'Untitled section'}
-            description={`${s.questions.length} questions · ${s.questions.reduce((t, q) => t + q.points, 0)} points`}
+            description={`${s.questions.length} ${s.questions.length === 1 ? 'question' : 'questions'} · ${s.questions.reduce((t, q) => t + q.points, 0)} points`}
           />
           <ol className="divide-y divide-border-subtle border-t border-border-subtle">
             {s.questions.map((q) => (
@@ -326,7 +326,7 @@ function Questions({ a }: { a: Assessment }) {
                   <p className="min-w-0 flex-1 text-base text-fg">{q.prompt}</p>
                   <Badge size="sm">{questionTypeLabels[q.type]}</Badge>
                   <Badge size="sm" tone="blue">
-                    {q.points} pts
+                    {q.points} {q.points === 1 ? 'point' : 'points'}
                   </Badge>
                 </div>
                 {isAutoScored(q) && (
@@ -361,7 +361,7 @@ function Questions({ a }: { a: Assessment }) {
                 )}
                 {q.rubric && (
                   <p className="mt-2 ml-6 text-xs text-fg-muted">
-                    <span className="font-medium text-fg">Rubric: </span>
+                    <span className="font-medium text-fg">How to score: </span>
                     {q.rubric}
                   </p>
                 )}
@@ -406,7 +406,7 @@ function Invited({
     const n = own.filter((i) => ids.includes(i.id) && i.status !== 'Completed').length;
     toast.success(
       n ? `Reminder sent to ${n} ${n === 1 ? 'candidate' : 'candidates'}` : 'Nobody to remind',
-      n ? 'Sample only: no email is sent.' : 'Completed candidates are skipped.',
+      n ? 'This is a preview, so no email is sent.' : 'Candidates who finished are skipped.',
     );
   };
   const columns: Column<Invite>[] = [
@@ -567,7 +567,7 @@ function Invited({
 function Score({ a, i }: { a: Assessment; i: Invite }) {
   if (i.status !== 'Completed') return <span className="text-fg-subtle">—</span>;
   const r = resultOf(a, i);
-  if (r.percent === null) return <span className="text-fg-muted">In review</span>;
+  if (r.percent === null) return <span className="text-fg-muted">Not scored yet</span>;
   return <span className="font-semibold tnum">{r.percent}</span>;
 }
 
@@ -613,7 +613,7 @@ function Results({ a, completed }: { a: Assessment; completed: Invite[] }) {
       id: 'decision',
       header: 'Result',
       sortValue: (i) => i.decision ?? 'Review',
-      cell: (i) => <StatusBadge status={i.decision ?? 'Review'} />,
+      cell: (i) => <StatusBadge status={i.decision ?? 'InReview'} />,
     },
     {
       id: 'reviewer',
@@ -628,7 +628,7 @@ function Results({ a, completed }: { a: Assessment; completed: Invite[] }) {
         <EmptyState
           icon={BarChart3}
           title="No submissions yet"
-          description="Results appear here as soon as an invited candidate submits."
+          description="Results show up here when an invited candidate finishes."
         />
       </Card>
     );
@@ -637,7 +637,7 @@ function Results({ a, completed }: { a: Assessment; completed: Invite[] }) {
       <Card>
         <CardHeader
           title="Score distribution"
-          description={`${scored.length} scored · median ${median ?? '—'} · pass mark ${a.passMark}`}
+          description={`${scored.length} scored · middle score ${median ?? '—'} · pass mark ${a.passMark}%`}
         />
         <div className="px-5 pb-5">
           <BarChart

@@ -128,10 +128,7 @@ export function useScorecardForm({
     onSuccess: () => {
       discard();
       onSubmitted();
-      toast.success(
-        'Scorecard submitted and locked',
-        'Feedback from the rest of the panel is now visible to you.',
-      );
+      toast.success('Scorecard submitted', 'You can now see the other interviewers’ scorecards.');
     },
     onError: (error: Error) => toast.error('Could not submit the scorecard', error.message),
   });
@@ -159,9 +156,9 @@ export function ScorecardFields({ form }: { form: ScorecardForm }) {
   const { rating, recommendation, evidence, strengths, concerns, values } = draft;
   return (
     <div className="space-y-5">
-      <Alert tone="warning" icon={Lock} title="This cannot be edited after you submit">
-        Your scorecard locks on submission. Feedback from the rest of the panel stays hidden until
-        then, so nobody anchors on anyone else.
+      <Alert tone="warning" icon={Lock} title="You cannot edit this after you submit">
+        Other interviewers’ scorecards stay hidden until you submit yours, so your scores stay your
+        own.
       </Alert>
       {restored && <p className="text-sm text-fg-subtle">Draft restored from your last visit.</p>}
 
@@ -173,12 +170,12 @@ export function ScorecardFields({ form }: { form: ScorecardForm }) {
           <div>
             <div className="flex items-baseline justify-between gap-3">
               <h3 className="text-base font-semibold text-fg">{criterion.name}</h3>
-              <span className="text-xs text-fg-subtle tnum">weight {criterion.weight}</span>
+              <span className="text-xs text-fg-subtle tnum">Weight {criterion.weight}</span>
             </div>
             <p className="mt-1 text-sm text-fg">{criterion.question}</p>
             {criterion.description && (
               <p className="mt-0.5 text-xs text-fg-subtle">
-                Scoring guidance: {criterion.description}
+                What good looks like: {criterion.description}
               </p>
             )}
           </div>
@@ -191,7 +188,7 @@ export function ScorecardFields({ form }: { form: ScorecardForm }) {
             />
           </div>
           <Textarea
-            label="Observed evidence"
+            label="What you saw or heard"
             minRows={2}
             value={values[criterion.id]?.evidence ?? ''}
             onChange={(event) => update(criterion.id, { evidence: event.currentTarget.value })}
@@ -225,19 +222,19 @@ export function ScorecardFields({ form }: { form: ScorecardForm }) {
         onChange={(event) => patch({ evidence: event.currentTarget.value })}
       />
       <Textarea
-        label="Demonstrated strengths"
+        label="Strengths"
         minRows={2}
         value={strengths}
         onChange={(event) => patch({ strengths: event.currentTarget.value })}
       />
       <Textarea
-        label="Risks or concerns"
+        label="Concerns"
         minRows={2}
         value={concerns}
         onChange={(event) => patch({ concerns: event.currentTarget.value })}
       />
       <Checkbox
-        label="No risks or concerns observed"
+        label="No concerns"
         checked={concerns.trim() === NONE_OBSERVED}
         onCheckedChange={(checked) => patch({ concerns: checked ? NONE_OBSERVED : '' })}
       />
@@ -284,7 +281,7 @@ export function ScorecardModal({
         opened={opened}
         onClose={closeWithGuard}
         dismissable={!form.mutation.isPending}
-        title={`Scorecard — ${candidateName} · ${interviewTitle}`}
+        title={`Scorecard for ${candidateName} · ${interviewTitle}`}
         size="lg"
         footer={
           <>
@@ -296,7 +293,7 @@ export function ScorecardModal({
               loading={form.mutation.isPending}
               onClick={() => form.mutation.mutate()}
             >
-              Submit and lock
+              Submit scorecard
             </Button>
           </>
         }

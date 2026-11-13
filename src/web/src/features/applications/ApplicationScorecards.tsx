@@ -50,7 +50,7 @@ export function ApplicationScorecards({ id, focus }: { id: string; focus?: strin
     () => false,
   );
 
-  // "Write feedback" links land here with ?interview=; bring that form into view once.
+  // "Write scorecard" links land here with ?interview=; bring that form into view once.
   useEffect(() => {
     if (focus && query.data)
       document.getElementById(`interview-${focus}`)?.scrollIntoView({ block: 'start' });
@@ -115,8 +115,8 @@ export function ApplicationScorecards({ id, focus }: { id: string; focus?: strin
             title="No scorecards submitted yet"
             description={
               owed.length
-                ? 'Yours will be the first. The comparison appears here once the panel submits.'
-                : 'The comparison appears here once the panel submits their scorecards.'
+                ? 'Yours will be the first.'
+                : 'You will see everyone’s scores side by side here once interviewers submit.'
             }
           />
         </Card>
@@ -130,7 +130,7 @@ export function ApplicationScorecards({ id, focus }: { id: string; focus?: strin
               <p className="min-w-0 flex-1 text-sm text-fg-muted">
                 <span className="font-medium text-fg">{interview.title}</span>:{' '}
                 {interview.submittedScorecards} of {interview.interviewerEmails.length} submitted.
-                Hidden until you submit yours, so nobody anchors on anyone else.
+                You can see them after you submit yours, so your scores stay your own.
               </p>
             </Card>
           ),
@@ -159,11 +159,11 @@ function OwedScorecard({
     <Card id={`interview-${interview.id}`} className="scroll-mt-24">
       <CardHeader
         title={`Your scorecard: ${interview.title}`}
-        description={`${formatDateTime(interview.startsAt)}${interview.interviewKitName ? ` · ${interview.interviewKitName}` : ''}${upcoming ? ' · not started yet' : ''}`}
+        description={`${formatDateTime(interview.startsAt)}${interview.interviewKitName ? ` · ${interview.interviewKitName}` : ''}${upcoming ? ' · has not happened yet' : ''}`}
         action={
           <Button asChild variant="link" size="sm">
             <Link href={`/interviews/${interview.id}?application=${applicationId}`}>
-              Open prep page
+              Open interview prep
             </Link>
           </Button>
         }
@@ -177,7 +177,7 @@ function OwedScorecard({
           loading={form.mutation.isPending}
           onClick={() => form.mutation.mutate()}
         >
-          Submit and lock
+          Submit scorecard
         </Button>
       </CardFooter>
     </Card>
@@ -224,7 +224,7 @@ function PanelComparison({ interview }: { interview: Interview }) {
           {criteria.map((criterion) => (
             <TR key={criterion.id}>
               <TD className="min-w-48">
-                <CellStack primary={criterion.name} secondary={`weight ${criterion.weight}`} />
+                <CellStack primary={criterion.name} secondary={`Weight ${criterion.weight}`} />
               </TD>
               {cards.map((card) => (
                 <TD key={card.id} align="center">

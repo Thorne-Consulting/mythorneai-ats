@@ -39,7 +39,7 @@ export function RequisitionDetails({ id }: { id: string }) {
                 requisition.description ? 'text-fg' : 'text-fg-subtle',
               )}
             >
-              {requisition.description || 'No role summary has been added.'}
+              {requisition.description || 'No job summary yet.'}
             </p>
           </CardBody>
         </Card>
@@ -52,10 +52,10 @@ export function RequisitionDetails({ id }: { id: string }) {
             columns={2}
             items={[
               {
-                label: 'To fill',
+                label: 'Openings',
                 value: `${requisition.openings} ${requisition.openings === 1 ? 'position' : 'positions'}`,
               },
-              { label: 'Contract type', value: requisition.employmentType },
+              { label: 'Employment type', value: requisition.employmentType },
               { label: 'Hiring manager', value: <Person email={requisition.ownerEmail} /> },
               { label: 'Recruiter', value: <Person email={requisition.recruiterEmail} /> },
               { label: 'Target start', value: formatDate(requisition.targetStartDate) },

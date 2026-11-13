@@ -106,7 +106,7 @@ function ApplyWizard({ job }: { job: PublicJob }) {
           },
         ]
       : []),
-    { id: 'review', title: 'Review and submit', description: 'Check, then send' },
+    { id: 'review', title: 'Review and submit', description: 'Check your answers' },
   ];
   const step = steps[current];
   const goTo = (stepId: string) => setCurrent(steps.findIndex((s) => s.id === stepId));
@@ -115,9 +115,9 @@ function ApplyWizard({ job }: { job: PublicJob }) {
     setResumeError('');
     if (!file) return setResume(null);
     const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
-    if (!RESUME_TYPES.includes(ext)) return setResumeError('Upload a PDF, DOC or DOCX file.');
+    if (!RESUME_TYPES.includes(ext)) return setResumeError('Upload a PDF or Word document.');
     if (file.size === 0 || file.size > MAX_BYTES)
-      return setResumeError('The file must be under 10 MB.');
+      return setResumeError('Choose a file that is under 10 MB.');
     setResume(file);
     setNoResume(false);
   }
@@ -173,11 +173,7 @@ function ApplyWizard({ job }: { job: PublicJob }) {
         { label: 'Apply' },
       ]}
       title={submitted ? 'Confirm your email' : `Apply for ${job.title}`}
-      description={
-        submitted
-          ? 'One last step: enter the code we emailed you so we know the application is really yours.'
-          : 'A few short steps. Fields marked * are required.'
-      }
+      description={submitted ? undefined : 'Fields marked * are required.'}
     />
   );
 
@@ -210,14 +206,12 @@ function ApplyWizard({ job }: { job: PublicJob }) {
         aside={
           <Card>
             <CardBody className="space-y-3 pt-5">
-              <p className="text-xs text-fg-subtle">You are applying for</p>
-              <p className="text-md font-semibold text-fg">{job.title}</p>
               <JobMeta job={job} />
               <Link
                 href={`/careers/${job.id}`}
                 className="inline-block text-sm font-medium text-accent-foreground hover:underline"
               >
-                Read the job again
+                Read the job description
               </Link>
             </CardBody>
           </Card>
@@ -275,7 +269,7 @@ function ApplyWizard({ job }: { job: PublicJob }) {
             />
             {!contactValid && (
               <p className="text-sm text-fg-subtle sm:col-span-2">
-                Add your first name, last name and a valid email to continue.
+                Add your first name, last name and email to continue.
               </p>
             )}
           </div>
@@ -284,14 +278,13 @@ function ApplyWizard({ job }: { job: PublicJob }) {
         {step.id === 'resume' && (
           <div className="space-y-4">
             <p className="text-base text-fg-muted">
-              A resume helps the team see your experience at a glance. No resume handy? You can
-              apply without one.
+              A resume helps the team see your experience at a glance.
             </p>
             <FileDrop
               file={resume}
               onFile={pickResume}
               accept={RESUME_TYPES.join(',')}
-              hint="PDF, DOC or DOCX, up to 10 MB"
+              hint="PDF or Word document, up to 10 MB"
               label="Drop your resume here or browse"
             />
             {resumeError && (
@@ -352,9 +345,7 @@ function ApplyWizard({ job }: { job: PublicJob }) {
               />
             </ReviewSection>
             <ReviewSection title="Resume" onEdit={() => goTo('resume')}>
-              <p className="text-base text-fg">
-                {resume ? resume.name : 'No resume, applying without one'}
-              </p>
+              <p className="text-base text-fg">{resume ? resume.name : 'No resume'}</p>
             </ReviewSection>
             {questions.length > 0 && (
               <ReviewSection title="Your answers" onEdit={() => goTo('questions')}>
@@ -445,7 +436,7 @@ function ConfirmApplication({
     } catch (e) {
       setError(
         e instanceof PublicError && e.status === 400
-          ? 'That code is invalid or expired. Check it and try again, or send a new one.'
+          ? 'That code is wrong or too old. Check it and try again, or send a new code.'
           : (e as Error).message,
       );
     }
@@ -472,12 +463,13 @@ function ConfirmApplication({
           <CheckCircle2 className="size-12 text-tone-green-dot" strokeWidth={1.5} aria-hidden />
           <h2 className="text-lg font-semibold text-fg">Your application is in</h2>
           <p className="max-w-md text-base text-fg-muted">
-            Thanks for applying for {jobTitle}. The hiring team will review it, and you can follow
-            each step, book interviews and message the team in the candidate portal.
+            Thanks for applying for {jobTitle}. The hiring team will review it. In the candidate
+            portal, you can follow each step, book interviews and message the team.
           </p>
           {!done.stored && (
             <p className="max-w-md text-sm text-fg-subtle">
-              Your browser blocks storage, so sign in to the portal with your email to see it.
+              Your browser settings stop us from keeping you signed in. Sign in to the portal with
+              your email to see your application.
             </p>
           )}
           <div className="mt-2 flex flex-wrap justify-center gap-2">
@@ -536,7 +528,7 @@ function ConfirmApplication({
             .
           </p>
           <p>
-            Already applied for this job before? We do not send a second code; your application is
+            Applied for this job before? Then we do not send a new code. Your application is already
             in the{' '}
             <Link
               href="/candidate-portal"

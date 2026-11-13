@@ -68,7 +68,7 @@ export function ReportChartView({ chart }: { chart: ReportChart }) {
   return (
     <Card
       role="figure"
-      aria-label={`${chart.title}. The figures are also in the table.`}
+      aria-label={`${chart.title}. The numbers are also in the table below.`}
       className="min-w-0 break-inside-avoid"
     >
       <CardHeader title={chart.title} description={chart.caption ?? undefined} />

@@ -17,8 +17,7 @@ export function TalentPools() {
         description="Groups of people worth keeping in touch with, for jobs that are not open yet."
       />
       <PreviewAlert>
-        Talent pools run on sample data until the backend exists. The people in your real list are
-        not affected.
+        Talent pools show sample data for now. Your real candidates are not changed.
       </PreviewAlert>
       <DataTable
         viewKey="talent-pools"
@@ -44,7 +43,8 @@ export function TalentPools() {
           },
           {
             id: 'recent',
-            header: 'Added in 30 days',
+            header: 'Added in last 30 days',
+
             align: 'right',
             className: 'tnum text-fg-muted',
             cell: (pool) => pool.addedRecently || '–',

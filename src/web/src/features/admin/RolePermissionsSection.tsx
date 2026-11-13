@@ -43,14 +43,14 @@ interface RolePermissions {
 
 const DESCRIPTIONS: Record<string, { label: string; text: string }> = {
   reports: { label: 'Reports', text: 'See hiring reports and export them.' },
-  import: { label: 'Import', text: 'Import candidates in bulk from a CSV file.' },
+  import: { label: 'Import', text: 'Add many candidates at once from a spreadsheet (CSV) file.' },
   templates: { label: 'Templates', text: 'Edit the wording of emails sent to candidates.' },
 };
 const ROLE_CARDS: Record<Role, { icon: LucideIcon; text: string }> = {
-  Admin: { icon: ShieldCheck, text: 'Workspace & security' },
+  Admin: { icon: ShieldCheck, text: 'Workspace and security' },
   Recruiter: { icon: Briefcase, text: 'All recruiting activity' },
-  HiringManager: { icon: Users, text: 'Their jobs & candidates' },
-  Interviewer: { icon: CalendarCheck, text: 'Assigned interviews only' },
+  HiringManager: { icon: Users, text: 'Their own jobs and candidates' },
+  Interviewer: { icon: CalendarCheck, text: 'Only interviews assigned to them' },
 };
 const roleLabel = (role: string) => ROLE_LABELS[role as Role] ?? role;
 const permLabel = (p: string) => DESCRIPTIONS[p]?.label ?? p;
@@ -132,7 +132,7 @@ function Editor({ source, onSaved }: { source: RolePermissions; onSaved: () => v
       onSaved();
       toast.success('Roles and permissions saved');
     },
-    onError: (error: Error) => toast.error('Could not save', error.message),
+    onError: (error: Error) => toast.error('Could not save permissions', error.message),
   });
   const toggle = (role: string, permission: string, on: boolean) =>
     replace({
@@ -163,8 +163,8 @@ function Editor({ source, onSaved }: { source: RolePermissions; onSaved: () => v
       </Alert>
       <SettingsSection
         id="roles"
-        title="Permission model"
-        description="Every role comes with its own base access. Turn on these extras for the roles that need them."
+        title="Extra permissions"
+        description="Each role has its own basic access. Turn on extras for the roles that need them."
         dirty={dirty}
         saving={save.isPending}
         onSave={() => save.mutate()}
@@ -194,7 +194,7 @@ function Editor({ source, onSaved }: { source: RolePermissions; onSaved: () => v
                     checked
                     disabled
                     onCheckedChange={() => undefined}
-                    label="Full · locked"
+                    label="Always on"
                     aria-label={`Admin: ${permLabel(permission)}, always on`}
                   />
                 </TD>
@@ -205,7 +205,7 @@ function Editor({ source, onSaved }: { source: RolePermissions; onSaved: () => v
                       <Switch
                         checked={on}
                         onCheckedChange={(v) => toggle(role, permission, v)}
-                        label={on ? 'On' : 'No access'}
+                        label={on ? 'On' : 'Off'}
                         aria-label={`${roleLabel(role)}: ${permLabel(permission)}`}
                       />
                     </TD>
@@ -254,11 +254,11 @@ export function RoleDetail({ slug }: { slug: string }) {
             aria-hidden
           />
           <div>
-            <p className="font-medium text-fg">Base access: {text.toLowerCase()}</p>
+            <p className="font-medium text-fg">Basic access: {text.toLowerCase()}</p>
             <p className="mt-0.5 text-sm text-fg-subtle">
               {role === 'Admin'
                 ? 'Admins always have every permission. Nothing here can be turned off.'
-                : 'Every role comes with this. The extras below add to it.'}
+                : 'This role always has this. The extras below add to it.'}
             </p>
           </div>
         </Card>
@@ -295,7 +295,7 @@ function RoleEditor({
       onSaved();
       toast.success(`${ROLE_LABELS[role]} permissions saved`);
     },
-    onError: (error: Error) => toast.error('Could not save', error.message),
+    onError: (error: Error) => toast.error('Could not save permissions', error.message),
   });
   const toggle = (permission: string, on: boolean) =>
     replace({
@@ -310,9 +310,11 @@ function RoleEditor({
       id="role-permissions"
       title="Extra permissions"
       description={
-        locked
-          ? 'Always on for this role.'
-          : `${granted.length} of ${draft.available.length} turned on.`
+        role === 'Admin'
+          ? undefined
+          : locked
+            ? 'Always on for this role.'
+            : `${granted.length} of ${draft.available.length} turned on.`
       }
       dirty={dirty}
       saving={save.isPending}
@@ -367,7 +369,7 @@ function RoleMembers({ role }: { role: Role }) {
             <li key={user.email} className="flex items-center gap-3 px-5 py-3">
               <Avatar name={user.displayName} size="sm" />
               <CellStack primary={user.displayName} secondary={user.email} className="flex-1" />
-              {!user.isActive && <Badge tone="gray">Inactive</Badge>}
+              {!user.isActive && <Badge tone="gray">Deactivated</Badge>}
             </li>
           ))}
         </ul>

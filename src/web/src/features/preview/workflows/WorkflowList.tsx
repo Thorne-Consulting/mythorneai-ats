@@ -93,11 +93,11 @@ export function WorkflowList() {
     },
     {
       id: 'trigger',
-      header: 'Trigger',
+      header: 'Starts when',
       sortValue: (w) => (triggerOf(w) ? titleOf(triggerOf(w)!.data) : ''),
       cell: (w) => {
         const t = triggerOf(w);
-        if (!t) return <span className="text-fg-subtle">No trigger</span>;
+        if (!t) return <span className="text-fg-subtle">Not set</span>;
         return (
           <CellStack
             primary={titleOf(t.data)}
@@ -167,8 +167,8 @@ export function WorkflowList() {
         </Button>
       </div>
       <PreviewAlert>
-        Workflows run on sample data until the backend exists. They are saved in this browser and
-        nothing is sent to candidates.
+        This is a preview. Workflows are saved only in this browser, and nothing is sent to
+        candidates.
       </PreviewAlert>
       <Card className="px-5 pb-2">
         <DataTable
@@ -204,7 +204,7 @@ export function WorkflowList() {
               description={
                 workflows.length
                   ? 'Try another search or status.'
-                  : 'Start from a template to automate a routine hiring step.'
+                  : 'Start from a template to automate a hiring task you do often.'
               }
               action={
                 workflows.length ? undefined : (
@@ -294,7 +294,7 @@ function CreateWorkflowModal({
       >
         <Input
           label="Name"
-          placeholder={template === 'Blank' ? 'e.g. Reference check' : template}
+          placeholder={template === 'Blank' ? 'For example, Reference check' : template}
           value={name}
           onChange={(e) => setName(e.currentTarget.value)}
           error={touched && !finalName ? 'Give the workflow a name.' : undefined}

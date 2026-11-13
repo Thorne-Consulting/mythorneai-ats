@@ -178,7 +178,7 @@ ${items.join('\n')}`;
 export const kitBlocks: EditorTemplate[] = [
   {
     label: 'Competency table',
-    hint: 'Competency, question, what good looks like, weight',
+    hint: 'What to score, the question, what a good answer looks like, and its weight',
     markdown: `${SCORECARD_HEADER}\n${scorecardRow('', '', '', 3)}`,
   },
 ];
@@ -186,7 +186,7 @@ export const kitBlocks: EditorTemplate[] = [
 export const kitTemplates: EditorTemplate[] = [
   {
     label: 'Recruiter screen',
-    hint: '30 min · motivation, must-haves, logistics',
+    hint: '30 minutes · motivation, must-haves, logistics',
     markdown: kit(
       'Recruiter screen',
       'Suggested length: 30 minutes. Confirm the must-haves and the candidate’s interest before the team spends time on them. Leave five minutes for their questions and explain the next steps.',
@@ -225,7 +225,7 @@ export const kitTemplates: EditorTemplate[] = [
   },
   {
     label: 'Hiring manager interview',
-    hint: '45 min · impact, ownership, how they work',
+    hint: '45 minutes · impact, ownership, how they work',
     markdown: kit(
       'Hiring manager interview',
       'Suggested length: 45 minutes. Go deep on one or two pieces of recent work. Ask for specific situations and push for what the candidate did, what happened and what they would change.',
@@ -264,7 +264,7 @@ export const kitTemplates: EditorTemplate[] = [
   },
   {
     label: 'Technical / skills interview',
-    hint: '60 min · role knowledge, problem solving, quality',
+    hint: '60 minutes · role knowledge, problem solving, quality',
     markdown: kit(
       'Technical / skills interview',
       'Suggested length: 60 minutes. Work through one realistic problem from this role rather than trivia or brainteasers. Let the candidate ask clarifying questions; how they reason matters as much as the answer.',
@@ -303,7 +303,7 @@ export const kitTemplates: EditorTemplate[] = [
   },
   {
     label: 'Behavioral interview',
-    hint: '45 min · collaboration, ambiguity, leadership',
+    hint: '45 minutes · collaboration, ambiguity, leadership',
     markdown: kit(
       'Behavioral interview',
       'Suggested length: 45 minutes. Ask for real past situations, not hypotheticals. Use the STAR prompts (situation, task, action, result) to get specifics, and spend most of the time on what the candidate did.',
@@ -342,7 +342,7 @@ export const kitTemplates: EditorTemplate[] = [
   },
   {
     label: 'Work sample review',
-    hint: '60 min · take-home or portfolio walkthrough',
+    hint: '60 minutes · take-home or portfolio walkthrough',
     markdown: kit(
       'Work sample review',
       'Suggested length: 60 minutes. The candidate presents a take-home task or past work for about 20 minutes, then you ask questions. Judge the work against the brief they were given, not against how you would have done it.',
@@ -374,7 +374,7 @@ export const kitTemplates: EditorTemplate[] = [
   },
   {
     label: 'Values interview',
-    hint: '45 min · how they work, what they add to the team',
+    hint: '45 minutes · how they work, what they add to the team',
     markdown: kit(
       'Values interview',
       'Suggested length: 45 minutes. Assess the behaviors behind your company values, not whether the candidate is like the team. Replace the competencies below with your own values, each written as an observable behavior.',
@@ -406,7 +406,7 @@ export const kitTemplates: EditorTemplate[] = [
   },
   {
     label: 'Scorecard table',
-    hint: 'Competencies to score; Tab in the last cell adds one',
+    hint: 'What to score. Press Tab in the last cell to add a row.',
     markdown: `## Scorecard\n\n${SCORECARD_HEADER}\n${scorecardRow('New competency', 'Tell me about a time when…', 'What a strong answer shows', 3)}`,
   },
   {

@@ -146,11 +146,11 @@ export function MessagesShell({ children }: { children: ReactNode }) {
     <Ctx.Provider value={store}>
       <PageHeader
         title={<PreviewTitle>Messages</PreviewTitle>}
-        description="Keep conversations personal and every candidate in the loop."
+        description="Write to candidates and keep track of their replies."
       />
       <PreviewAlert>
-        Messages here are sample data kept in this browser. Nothing is sent to anyone until the
-        messaging backend exists.
+        This is a preview with sample messages. They are saved only in this browser, and nothing is
+        sent.
       </PreviewAlert>
       <SidebarLayout
         navWidth="lg:w-52"
@@ -203,7 +203,7 @@ export function MessagesShell({ children }: { children: ReactNode }) {
           store.send(id, { ...emptyDraft, text });
           setSelectedId(id);
           if (pathname !== '/messages') router.push('/messages');
-          toast.success('Message added', 'Sample only: nothing was sent.');
+          toast.success('Message added', 'This is a preview, so nothing was sent.');
         }}
       />
     </Ctx.Provider>

@@ -104,33 +104,42 @@ export function validate(nodes: GNode[], edges: GEdge[]): Problem[] {
   const problems: Problem[] = [];
   const triggers = nodes.filter((n) => n.trigger);
   if (triggers.length === 0)
-    problems.push({ message: 'Add a trigger to start the workflow.', nodeIds: [] });
+    problems.push({
+      message: 'Add a step from the Start when list to begin the workflow.',
+      nodeIds: [],
+    });
   if (triggers.length > 1)
     problems.push({
-      message: `A workflow has exactly one trigger; this one has ${triggers.length}.`,
+      message: `A workflow can have only one starting step. This one has ${triggers.length}.`,
       nodeIds: triggers.map((t) => t.id),
     });
   for (const t of triggers)
     if (edges.some((e) => e.target === t.id))
       problems.push({
-        message: `Nothing can lead into the trigger “${t.label}”.`,
+        message: `“${t.label}” starts the workflow, so no step can lead into it.`,
         nodeIds: [t.id],
       });
 
   const cycle = findCycle(nodes, edges);
   if (cycle)
     problems.push({
-      message: `These steps loop back on themselves: ${cycle.map((id) => nodes.find((n) => n.id === id)?.label ?? id).join(' → ')}.`,
+      message: `These steps go around in a circle: ${cycle.map((id) => nodes.find((n) => n.id === id)?.label ?? id).join(' → ')}.`,
       nodeIds: cycle,
     });
 
   for (const n of nodes)
     for (const b of n.branches ?? [])
       if (!edges.some((e) => e.source === n.id && e.sourceHandle === b.id))
-        problems.push({ message: `“${n.label}” has no “${b.label}” branch.`, nodeIds: [n.id] });
+        problems.push({
+          message: `“${n.label}” has nothing connected to its “${b.label}” path.`,
+          nodeIds: [n.id],
+        });
 
   if (triggers.length && nodes.length === 1)
-    problems.push({ message: 'Add a step after the trigger.', nodeIds: [triggers[0].id] });
+    problems.push({
+      message: `Add a step after “${triggers[0].label}”.`,
+      nodeIds: [triggers[0].id],
+    });
 
   // Orphans: steps the trigger(s) can never reach.
   const out = outgoing(edges);
@@ -145,7 +154,7 @@ export function validate(nodes: GNode[], edges: GEdge[]): Problem[] {
   const orphans = triggers.length ? nodes.filter((n) => !seen.has(n.id)) : [];
   if (orphans.length)
     problems.push({
-      message: `${orphans.length === 1 ? 'One step is' : `${orphans.length} steps are`} not connected to the trigger: ${orphans.map((n) => n.label).join(', ')}.`,
+      message: `${orphans.length === 1 ? 'One step is' : `${orphans.length} steps are`} not linked to the start: ${orphans.map((n) => n.label).join(', ')}.`,
       nodeIds: orphans.map((n) => n.id),
     });
   return problems;

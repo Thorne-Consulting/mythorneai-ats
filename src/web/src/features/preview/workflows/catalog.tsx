@@ -46,6 +46,8 @@ export type StepDef = {
   group: Group;
   label: string;
   eyebrow: string;
+  /** One plain sentence on what the step does, shown under its name in the inspector. */
+  help: string;
   icon: LucideIcon;
   fields: FieldDef[];
   defaults: Values;
@@ -108,28 +110,24 @@ export const EMAIL_TEMPLATES: Record<string, { subject: string; body: string }> 
 };
 
 const step = (d: Omit<StepDef, 'eyebrow'> & { eyebrow?: string }): StepDef => ({
-  eyebrow:
-    d.group === 'Triggers'
-      ? 'Trigger'
-      : d.group === 'Approvals'
-        ? 'Approval'
-        : d.group === 'Actions'
-          ? 'Action'
-          : d.label,
+  eyebrow: d.group === 'Triggers' ? 'Starts when' : d.group === 'Approvals' ? 'Approval' : 'Action',
   ...d,
 });
-const jobField: FieldDef = { key: 'job', label: 'Jobs', type: 'select', options: JOBS };
+const jobField: FieldDef = { key: 'job', label: 'Which jobs', type: 'select', options: JOBS };
 const yesNo: Output[] = [
   { id: 'yes', label: 'Yes' },
   { id: 'no', label: 'No' },
 ];
+/** "1 days" reads as "1 day". */
+const dur = (d = '') => d.replace(/^1 (.*)s$/, '1 $1');
 
 export const STEPS: StepDef[] = [
   // Triggers
   step({
     kind: 'trigger.stage_entered',
     group: 'Triggers',
-    label: 'Stage entered',
+    label: 'Candidate moves stage',
+    help: 'Starts when someone moves a candidate to the stage you pick.',
     icon: MoveRight,
     fields: [{ key: 'stage', label: 'Stage', type: 'select', options: STAGES }, jobField],
     defaults: { stage: 'Interview', job: 'Any job' },
@@ -138,13 +136,14 @@ export const STEPS: StepDef[] = [
   step({
     kind: 'trigger.application_created',
     group: 'Triggers',
-    label: 'Application created',
+    label: 'New application',
+    help: 'Starts when someone applies for a job.',
     icon: UserPlus,
     fields: [
       jobField,
       {
         key: 'source',
-        label: 'Source',
+        label: 'Where they applied from',
         type: 'select',
         options: ['Any source', 'Careers page', 'Referral', 'LinkedIn', 'Agency'],
       },
@@ -155,7 +154,8 @@ export const STEPS: StepDef[] = [
   step({
     kind: 'trigger.interview_completed',
     group: 'Triggers',
-    label: 'Interview completed',
+    label: 'Interview finished',
+    help: 'Starts when an interview is marked as done.',
     icon: CalendarCheck2,
     fields: [
       {
@@ -167,29 +167,31 @@ export const STEPS: StepDef[] = [
       jobField,
     ],
     defaults: { interview: 'Any interview', job: 'Any job' },
-    summary: (v) => `${v.interview} is marked complete · ${v.job}`,
+    summary: (v) => `${v.interview} is marked done · ${v.job}`,
   }),
   step({
     kind: 'trigger.scorecard_submitted',
     group: 'Triggers',
     label: 'Scorecard submitted',
+    help: 'Starts when an interviewer sends in their scorecard.',
     icon: ClipboardCheck,
     fields: [
       {
         key: 'recommendation',
-        label: 'Recommendation',
+        label: 'Their recommendation',
         type: 'select',
         options: ['Any recommendation', 'Yes or strong yes', 'Mixed', 'No or strong no'],
       },
       jobField,
     ],
     defaults: { recommendation: 'Any recommendation', job: 'Any job' },
-    summary: (v) => `${v.recommendation} · ${v.job}`,
+    summary: (v) => `Scorecard with ${v.recommendation.toLowerCase()} · ${v.job}`,
   }),
   step({
     kind: 'trigger.offer_accepted',
     group: 'Triggers',
     label: 'Offer accepted',
+    help: 'Starts when a candidate signs their offer.',
     icon: FileSignature,
     fields: [jobField],
     defaults: { job: 'Any job' },
@@ -199,6 +201,7 @@ export const STEPS: StepDef[] = [
     kind: 'trigger.candidate_rejected',
     group: 'Triggers',
     label: 'Candidate rejected',
+    help: 'Starts when someone rejects a candidate.',
     icon: UserX,
     fields: [
       {
@@ -213,26 +216,34 @@ export const STEPS: StepDef[] = [
           'Did not pass interview',
         ],
       },
-      { key: 'afterStage', label: 'Rejected at or after', type: 'select', options: STAGES },
+      {
+        key: 'afterStage',
+        label: 'Only if they reached',
+        type: 'select',
+        options: STAGES,
+        description: 'Skips candidates rejected before this stage.',
+      },
     ],
     defaults: { reason: 'Any reason', afterStage: 'Interview' },
-    summary: (v) => `${v.reason} · at ${v.afterStage} or later`,
+    summary: (v) => `${v.reason} · reached ${v.afterStage} or later`,
   }),
   // Logic
   step({
     kind: 'logic.condition',
     group: 'Logic',
-    label: 'Condition',
+    label: 'Yes or no check',
+    eyebrow: 'Check',
+    help: 'Checks one detail about the candidate. A match goes down the Yes path, anyone else goes down the No path.',
     icon: GitBranch,
     fields: [
-      { key: 'field', label: 'Candidate field', type: 'select', options: CANDIDATE_FIELDS },
+      { key: 'field', label: 'Detail to check', type: 'select', options: CANDIDATE_FIELDS },
       {
         key: 'operator',
-        label: 'Operator',
+        label: 'Rule',
         type: 'select',
         options: ['is', 'is not', 'contains', 'greater than', 'less than'],
       },
-      { key: 'value', label: 'Value', type: 'text', placeholder: 'e.g. Referral' },
+      { key: 'value', label: 'Value', type: 'text', placeholder: 'For example, Referral' },
     ],
     defaults: { field: 'Source', operator: 'is', value: 'Referral' },
     summary: (v) => `${v.field} ${v.operator} ${v.value || '…'}`,
@@ -242,32 +253,36 @@ export const STEPS: StepDef[] = [
   step({
     kind: 'logic.wait',
     group: 'Logic',
-    label: 'Wait',
+    label: 'Wait a set time',
+    eyebrow: 'Wait',
+    help: 'Pauses here before going on to the next step.',
     icon: Clock,
     fields: [
       { key: 'duration', label: 'Wait for', type: 'duration' },
       {
         key: 'window',
-        label: 'Continue',
+        label: 'Then go on',
         type: 'select',
         options: ['Any time', 'During business hours', 'Next weekday morning'],
       },
     ],
     defaults: { duration: '2 days', window: 'During business hours' },
-    summary: (v) => `${v.duration}, then ${v.window.toLowerCase()}`,
+    summary: (v) => `Wait ${dur(v.duration)}, then go on ${v.window.toLowerCase()}`,
   }),
   step({
     kind: 'logic.split',
     group: 'Logic',
-    label: 'Split by field',
+    label: 'Split into paths',
+    eyebrow: 'Split',
+    help: 'Sends each candidate down a different path, based on one detail about them.',
     icon: Split,
     fields: [
-      { key: 'field', label: 'Split on', type: 'select', options: CANDIDATE_FIELDS },
+      { key: 'field', label: 'Detail to split on', type: 'select', options: CANDIDATE_FIELDS },
       {
         key: 'branches',
-        label: 'Branches',
+        label: 'Paths',
         type: 'tags',
-        description: 'One path per value, plus Other for everything else.',
+        description: 'Add one path for each value. Anyone who matches none goes down Other.',
       },
     ],
     defaults: { field: 'Department', branches: 'Engineering, Sales' },
@@ -281,12 +296,13 @@ export const STEPS: StepDef[] = [
   step({
     kind: 'approval.request',
     group: 'Approvals',
-    label: 'Request approval',
+    label: 'Ask for approval',
+    help: 'Waits for someone to approve or reject, then follows the matching path.',
     icon: CheckSquare,
     fields: [
       {
         key: 'approver',
-        label: 'Approver',
+        label: 'Who approves',
         type: 'select',
         options: [
           'Hiring manager',
@@ -298,14 +314,15 @@ export const STEPS: StepDef[] = [
       },
       {
         key: 'person',
-        label: 'Person (when specific)',
+        label: 'Person',
         type: 'text',
         placeholder: 'Name or email',
+        description: 'Only needed when you pick Specific person.',
       },
-      { key: 'due', label: 'Respond within', type: 'duration' },
+      { key: 'due', label: 'They have', type: 'duration' },
       {
         key: 'timeout',
-        label: 'If nobody responds',
+        label: 'If nobody answers',
         type: 'select',
         options: [
           'Remind the approver',
@@ -316,7 +333,7 @@ export const STEPS: StepDef[] = [
       },
       {
         key: 'note',
-        label: 'Message to approver',
+        label: 'Message to the approver',
         type: 'textarea',
         placeholder: 'What should they check?',
       },
@@ -329,7 +346,7 @@ export const STEPS: StepDef[] = [
       note: '',
     },
     summary: (v) =>
-      `${v.approver === 'Specific person' && v.person ? v.person : v.approver} · within ${v.due}`,
+      `${v.approver === 'Specific person' && v.person ? v.person : v.approver} · within ${dur(v.due)}`,
     outputs: () => [
       { id: 'approved', label: 'Approved' },
       { id: 'rejected', label: 'Rejected' },
@@ -341,12 +358,13 @@ export const STEPS: StepDef[] = [
     kind: 'action.send_email',
     group: 'Actions',
     label: 'Send email',
+    help: 'Sends an email. Placeholders fill in with each candidate’s details.',
     icon: Mail,
     fields: [
       { key: 'to', label: 'To', type: 'select', options: ['Candidate', ...PEOPLE] },
       {
         key: 'from',
-        label: 'Send as',
+        label: 'From',
         type: 'select',
         options: ['Recruiter', 'Hiring manager', 'No-reply address'],
       },
@@ -356,6 +374,7 @@ export const STEPS: StepDef[] = [
         type: 'select',
         options: ['Custom message', ...Object.keys(EMAIL_TEMPLATES)],
         apply: (t) => EMAIL_TEMPLATES[t] ?? {},
+        description: 'Picking one fills in the subject and message.',
       },
       { key: 'subject', label: 'Subject', type: 'text' },
       { key: 'body', label: 'Message', type: 'textarea' },
@@ -372,13 +391,14 @@ export const STEPS: StepDef[] = [
   step({
     kind: 'action.notify',
     group: 'Actions',
-    label: 'Notify user',
+    label: 'Alert a teammate',
+    help: 'Sends a short alert to someone on your team.',
     icon: Bell,
     fields: [
-      { key: 'who', label: 'Notify', type: 'select', options: PEOPLE },
+      { key: 'who', label: 'Who', type: 'select', options: PEOPLE },
       {
         key: 'channel',
-        label: 'Channel',
+        label: 'Send by',
         type: 'select',
         options: ['In app', 'Email', 'Slack', 'Microsoft Teams'],
       },
@@ -389,20 +409,22 @@ export const STEPS: StepDef[] = [
       channel: 'In app',
       message: '{{candidate.full_name}} needs your attention on {{job.title}}.',
     },
-    summary: (v) => `${v.who} via ${v.channel.toLowerCase()}`,
+    summary: (v) => `Alert the ${v.who.toLowerCase()} (${v.channel.toLowerCase()})`,
   }),
   step({
     kind: 'action.move_stage',
     group: 'Actions',
-    label: 'Move stage',
+    label: 'Change stage',
+    help: 'Moves the candidate to another stage.',
     icon: GitFork,
     fields: [
-      { key: 'stage', label: 'Move to', type: 'select', options: STAGES },
+      { key: 'stage', label: 'New stage', type: 'select', options: STAGES },
       {
         key: 'reason',
-        label: 'Reason (for rejections)',
+        label: 'Reason',
         type: 'select',
         options: ['None', 'Not qualified', 'Position filled', 'Withdrew', 'Did not pass interview'],
+        description: 'Only used when the new stage is Rejected.',
       },
     ],
     defaults: { stage: 'Screening', reason: 'None' },
@@ -413,9 +435,15 @@ export const STEPS: StepDef[] = [
     kind: 'action.create_task',
     group: 'Actions',
     label: 'Create task',
+    help: 'Gives someone on your team a to-do with a due date.',
     icon: CheckSquare,
     fields: [
-      { key: 'title', label: 'Task', type: 'text', placeholder: 'e.g. Call the candidate' },
+      {
+        key: 'title',
+        label: 'What to do',
+        type: 'text',
+        placeholder: 'For example, call the candidate',
+      },
       { key: 'assignee', label: 'Assign to', type: 'select', options: PEOPLE },
       { key: 'due', label: 'Due in', type: 'duration' },
       { key: 'priority', label: 'Priority', type: 'select', options: ['Low', 'Normal', 'High'] },
@@ -426,12 +454,14 @@ export const STEPS: StepDef[] = [
       due: '1 days',
       priority: 'Normal',
     },
-    summary: (v) => `${v.title || 'Task'} → ${v.assignee.toLowerCase()}, due in ${v.due}`,
+    summary: (v) =>
+      `Assign “${v.title || 'Task'}” to the ${v.assignee.toLowerCase()}, due in ${dur(v.due)}`,
   }),
   step({
     kind: 'action.add_tag',
     group: 'Actions',
     label: 'Add tag',
+    help: 'Adds labels to the candidate so you can find them later.',
     icon: Tag,
     fields: [{ key: 'tags', label: 'Tags', type: 'tags' }],
     defaults: { tags: 'Follow up' },
@@ -445,14 +475,21 @@ export const STEPS: StepDef[] = [
   step({
     kind: 'action.webhook',
     group: 'Actions',
-    label: 'Call webhook',
+    label: 'Send to another app',
+    help: 'Sends candidate details to another app’s web address (a webhook), so that app can act on them. Ask whoever runs that app for the address.',
     icon: Webhook,
     fields: [
-      { key: 'url', label: 'URL', type: 'text', placeholder: 'https://' },
-      { key: 'method', label: 'Method', type: 'select', options: ['POST', 'PUT'] },
+      { key: 'url', label: 'Web address', type: 'text', placeholder: 'https://' },
+      {
+        key: 'method',
+        label: 'Method',
+        type: 'select',
+        options: ['POST', 'PUT'],
+        description: 'Most apps use POST. Change it only if the app asks for PUT.',
+      },
       {
         key: 'payload',
-        label: 'Send',
+        label: 'What to send',
         type: 'select',
         options: ['Candidate and application', 'Application only', 'Event only'],
       },
@@ -462,11 +499,18 @@ export const STEPS: StepDef[] = [
       method: 'POST',
       payload: 'Candidate and application',
     },
-    summary: (v) => `${v.method} ${v.url.replace(/^https?:\/\//, '') || '…'}`,
+    summary: (v) => `Send to ${v.url.replace(/^https?:\/\//, '') || '…'}`,
   }),
 ];
 
 export const GROUPS: Group[] = ['Triggers', 'Logic', 'Approvals', 'Actions'];
+/** What each group is called on screen. */
+export const GROUP_LABELS: Record<Group, string> = {
+  Triggers: 'Start when',
+  Logic: 'Check or wait',
+  Approvals: 'Approvals',
+  Actions: 'Then do',
+};
 const byKind = new Map(STEPS.map((s) => [s.kind, s]));
 export const defOf = (kind: string) => byKind.get(kind) ?? STEPS[0];
 export const titleOf = (d: StepData) => d.values.name || defOf(d.kind).label;

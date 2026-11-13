@@ -51,7 +51,7 @@ export function InterviewerHome({
             tone={data.scorecardsDue.length > 0 ? 'amber' : 'green'}
             label="Feedback to submit"
             value={data.scorecardsDue.length}
-            hint={data.scorecardsDue.length > 0 ? 'Oldest first below' : 'All caught up'}
+            hint={data.scorecardsDue.length > 0 ? 'Oldest first' : 'All caught up'}
           />
         </StatGrid>
 
@@ -86,7 +86,7 @@ export function InterviewerHome({
                   compact
                   icon={CalendarDays}
                   title="Nothing scheduled this week"
-                  description="When someone books you, it appears here with a link to prepare."
+                  description="When you’re added to an interview, it shows up here."
                 />
               )}
             </Card>

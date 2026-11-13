@@ -79,12 +79,14 @@ export function SavedViews<S>({
           >
             <Input
               label="View name"
-              placeholder="e.g. Senior engineers in review"
+              placeholder="For example, senior engineers in review"
               value={name}
               onChange={(e) => setName(e.currentTarget.value)}
               autoFocus
             />
-            <p className="text-xs text-fg-subtle">Saves the current filters in this browser.</p>
+            <p className="text-xs text-fg-subtle">
+              Saves the filters you have on now. Only you see this view, on this computer.
+            </p>
             <Button type="submit" fullWidth disabled={!name.trim()}>
               Save view
             </Button>

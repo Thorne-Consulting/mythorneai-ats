@@ -65,7 +65,7 @@ export function InterviewKitEditor({
   const checks = [
     { label: 'A title', done: Boolean(kit.name) },
     { label: 'A duration', done: durationOk },
-    { label: 'At least one competency', done: kit.criteria.length > 0 },
+    { label: 'At least one scorecard row', done: kit.criteria.length > 0 },
   ];
   const ready = checks.every((item) => item.done);
 
@@ -84,7 +84,7 @@ export function InterviewKitEditor({
           rightSection="min"
           value={duration}
           onValueChange={setDuration}
-          error={durationOk ? undefined : 'Between 15 and 480 minutes'}
+          error={durationOk ? undefined : 'Choose 15 to 480 minutes'}
         />
         <ul className="flex flex-col gap-2">
           {checks.map((item) => (

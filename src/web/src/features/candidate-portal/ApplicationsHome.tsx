@@ -20,7 +20,6 @@ export function ApplicationsHome() {
     <>
       <PageHeader
         title="Applications"
-        description="Every role you've applied for, where each one stands and what comes next."
         actions={
           <Button asChild variant="secondary">
             <Link href="/careers">See open jobs</Link>
@@ -62,7 +61,7 @@ export function ApplicationsHome() {
                 description={
                   tab === 'active'
                     ? 'Your earlier applications are under Closed.'
-                    : 'Applications that end up hired, closed or withdrawn are kept here.'
+                    : 'Applications that are hired, closed or withdrawn move here.'
                 }
               />
             </Card>

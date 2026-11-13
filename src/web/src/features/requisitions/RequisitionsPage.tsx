@@ -79,7 +79,7 @@ const VIEWS: SavedView<JobFilters>[] = [
   { id: 'open', name: 'Open', state: { ...NONE, statuses: ['Open'] }, builtIn: true },
   {
     id: 'drafts',
-    name: 'Drafts & approval',
+    name: 'Drafts and approval',
     state: { ...NONE, statuses: ['Draft', 'PendingApproval'] },
     builtIn: true,
   },
@@ -164,7 +164,9 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
       );
       const failed = results.flatMap((result, i) =>
         result.status === 'rejected'
-          ? [`${change[i].title}: ${(result.reason as Error)?.message ?? 'refused'}`]
+          ? [
+              `${change[i].title}: ${(result.reason as Error)?.message ?? 'the change was not allowed'}`,
+            ]
           : [],
       );
       return { target, changed: change.length - failed.length, failed, skipped: skipped.length };
@@ -175,7 +177,7 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
         toast.success(
           `${jobs(changed)} moved to ${humanize(target)}`,
           skipped
-            ? `${jobs(skipped)} skipped: already there, or not a move you can make.`
+            ? `${jobs(skipped)} skipped. They are already there, or you can’t move them there.`
             : undefined,
         );
       else if (!failed.length)
@@ -224,7 +226,7 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
     },
     {
       id: 'department',
-      header: 'Team',
+      header: 'Department',
       defaultHidden: true,
       cell: (job) => job.department,
       sortValue: (job) => job.department,
@@ -393,7 +395,7 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
     <>
       <PageHeader
         title="Jobs"
-        description="Manage your open roles and find the right talent for every team."
+        description="Find a job, see how many people applied, or change its status."
         actions={
           canCreate && (
             <Button asChild>
@@ -417,16 +419,15 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
         <StatCard
           icon={Users}
           tone="violet"
-          label="Total applications"
+          label="Active applications"
           value={base.reduce((sum, job) => sum + job.activeApplications, 0)}
-          hint="Active, across every job"
         />
         <StatCard
           icon={FilePen}
           tone="amber"
           label="Draft jobs"
           value={drafts}
-          hint={pending ? `${pending} waiting for approval` : 'Ready when you are'}
+          hint={pending ? `${pending} waiting for approval` : undefined}
         />
         <StatCard
           icon={CircleCheck}

@@ -40,7 +40,7 @@ import { cn } from '@/lib/cn';
 import { useLocalStorageState } from '@/lib/hooks';
 import type { Conversation } from '../sample-messages';
 import { emptyDraft, useMessages } from './MessagesShell';
-import { candidateValues, fillTemplate } from './template-vars';
+import { candidateValues, fillTemplate, variableLabel } from './template-vars';
 
 const formatSize = (b: number) =>
   b < 1024
@@ -89,7 +89,7 @@ export const Thread = forwardRef<
             <p className="truncate text-xs text-fg-subtle">{c.email}</p>
           </div>
           <IconButton
-            label={c.starred ? 'Unstar' : 'Star'}
+            label={c.starred ? 'Remove star' : 'Star conversation'}
             variant="quiet"
             size="sm"
             aria-pressed={c.starred}
@@ -218,7 +218,6 @@ export const Thread = forwardRef<
           <Separator className="my-4" />
           <DescriptionList
             items={[
-              { label: 'Email', value: c.email },
               { label: 'Phone', value: c.phone },
               { label: 'Location', value: c.location },
             ]}
@@ -259,7 +258,7 @@ const Composer = forwardRef<HTMLTextAreaElement, { c: Conversation }>(function C
     send(c.id, draft);
     toast.success(
       draft.scheduledFor ? `Scheduled for ${formatWhen(draft.scheduledFor)}` : 'Message added',
-      'Sample only: nothing was sent.',
+      'This is a preview, so nothing was sent.',
     );
   };
   const insertTemplate = (id: string) => {
@@ -269,8 +268,8 @@ const Composer = forwardRef<HTMLTextAreaElement, { c: Conversation }>(function C
     set({ text: draft.text.trim() ? `${draft.text.trimEnd()}\n\n${text}` : text });
     if (missing.length)
       toast(
-        `Fill in ${missing.map((m) => `{{${m}}}`).join(', ')}`,
-        `${c.name} has no value for it yet.`,
+        `Fill in by hand: ${missing.map(variableLabel).join(', ')}`,
+        `We don’t have this for ${c.name} yet.`,
       );
   };
   const minDate = new Date(Date.now() + 5 * 60_000);
@@ -286,7 +285,7 @@ const Composer = forwardRef<HTMLTextAreaElement, { c: Conversation }>(function C
     >
       <Textarea
         ref={ref}
-        label="Reply via email"
+        label="Reply by email"
         placeholder={`Write your message to ${firstName}…`}
         minRows={2}
         maxRows={8}
@@ -378,7 +377,7 @@ const Composer = forwardRef<HTMLTextAreaElement, { c: Conversation }>(function C
               value={draft.scheduledFor}
               onChange={(e) => set({ scheduledFor: e.currentTarget.value })}
             />
-            <p className="mt-2 text-2xs text-fg-subtle">Kept in this browser; nothing is sent.</p>
+            <p className="mt-2 text-2xs text-fg-subtle">This is a preview, so nothing is sent.</p>
           </PopoverContent>
         </Popover>
         <Button

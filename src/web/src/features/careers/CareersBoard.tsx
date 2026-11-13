@@ -63,7 +63,7 @@ export function CareersBoard() {
       publicFetch<PublicJobPage>(
         `/public/jobs?${new URLSearchParams({ query, offset: String(pageParam), limit: String(PAGE_SIZE) })}`,
         {},
-        'We could not load open jobs.',
+        'Something went wrong on our side. Please try again.',
       ),
     getNextPageParam: (last) =>
       last.offset + last.items.length < last.total ? last.offset + last.items.length : undefined,
@@ -97,7 +97,7 @@ export function CareersBoard() {
     <>
       <PageHeader
         title={company ? `Jobs at ${company}` : 'Open jobs'}
-        description="Find a role that fits. Apply in a few steps, then follow your application in the candidate portal."
+        description="Apply in a few steps. Then follow your application in the candidate portal."
       />
 
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
@@ -170,7 +170,7 @@ export function CareersBoard() {
             <EmptyState
               icon={Briefcase}
               title="No open jobs right now"
-              description="Check back soon. Already applied somewhere? You can follow your application in the candidate portal."
+              description="Check back soon. Already applied? Follow your application in the candidate portal."
               action={
                 <Button asChild variant="secondary">
                   <Link href="/candidate-portal">Go to the candidate portal</Link>

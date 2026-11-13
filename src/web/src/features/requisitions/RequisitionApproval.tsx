@@ -42,10 +42,10 @@ export function RequisitionApproval({
       invalidate();
       toast.success(
         'Sent for approval',
-        'Approvers have been emailed, and the job opens when they agree.',
+        'We emailed the approvers. The job opens when they all agree.',
       );
     },
-    onError: (error: Error) => toast.error('Could not submit the job', error.message),
+    onError: (error: Error) => toast.error('Could not send the job for approval', error.message),
   });
 
   if (!relevant || !query.data) return null;

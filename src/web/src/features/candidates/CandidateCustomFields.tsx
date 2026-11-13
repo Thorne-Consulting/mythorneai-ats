@@ -67,7 +67,7 @@ export function CandidateCustomFields({
       toast.success('Details saved');
       setOpened(false);
     },
-    onError: (error: Error) => toast.error('Could not save', error.message),
+    onError: (error: Error) => toast.error('Could not save the details', error.message),
   });
   const fields = definitions.data ?? [];
   if (fields.length === 0) return null;

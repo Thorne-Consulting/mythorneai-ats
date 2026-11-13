@@ -22,9 +22,9 @@ export function InviteMembersModal({
   const bad = emails.filter((e) => !isEmail(e));
   const emailError =
     emails.length === 0
-      ? 'Add at least one email'
+      ? 'Add at least one email address'
       : bad.length
-        ? `Not an email: ${bad.join(', ')}`
+        ? `Check these addresses: ${bad.join(', ')}`
         : undefined;
   const close = () => {
     setEmails([]);
@@ -55,15 +55,15 @@ export function InviteMembersModal({
               close();
             }}
           >
-            Send invites
+            Send invitations
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <TagsInput
-          label="Emails"
-          description="Press Enter or comma after each email."
+          label="Email addresses"
+          description="Press Enter or type a comma after each one."
           placeholder="name@example.com"
           value={emails}
           onChange={setEmails}

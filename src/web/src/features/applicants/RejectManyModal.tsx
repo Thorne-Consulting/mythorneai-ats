@@ -23,7 +23,7 @@ export function RejectManyModal({
       opened={opened}
       onClose={onClose}
       title={title}
-      description="The same job-related reason is recorded for each selected applicant."
+      description="We save the same reason for every applicant you selected."
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>
@@ -41,7 +41,7 @@ export function RejectManyModal({
       }
     >
       <Select
-        label="Disposition reason"
+        label="Reason"
         placeholder="Choose a reason"
         value={reason}
         onChange={setReason}

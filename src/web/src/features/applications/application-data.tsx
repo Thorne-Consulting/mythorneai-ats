@@ -11,7 +11,7 @@ export function OfflineNotice({ onRetry }: { onRetry: () => void }) {
     <Card>
       <EmptyState
         icon={WifiOff}
-        title="You appear to be offline"
+        title="You seem to be offline"
         description="Check your connection, then try again."
         action={
           <Button variant="secondary" onClick={onRetry}>

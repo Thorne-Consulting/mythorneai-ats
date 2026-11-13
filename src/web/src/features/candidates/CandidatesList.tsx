@@ -296,7 +296,7 @@ export function CandidatesList({
       setSelected([]);
       setTargetStage(null);
       refreshAll();
-      toast.success('Moved');
+      toast.success('Moved to the new stage');
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -529,7 +529,7 @@ export function CandidatesList({
           <div className="sm:col-span-2">
             <TagsInput
               label="Skills"
-              placeholder="Type a skill, press Enter"
+              placeholder="Type a skill and press Enter"
               value={filters.skills}
               onChange={(value) =>
                 set(
@@ -603,7 +603,7 @@ export function CandidatesList({
           />
           <Checkbox
             className="sm:col-span-2"
-            label="Include do-not-contact"
+            label="Include people marked do not contact"
             checked={filters.includeDnc}
             onCheckedChange={(checked) => set('includeDnc', checked)}
           />
@@ -655,7 +655,7 @@ export function CandidatesList({
           <div className="flex flex-col gap-3">
             <Input
               label="Name"
-              placeholder="e.g. Chicago React leads"
+              placeholder="For example, Chicago React leads"
               value={saveName}
               onChange={(event) => setSaveName(event.currentTarget.value)}
               onKeyDown={(event) => {
@@ -716,7 +716,7 @@ export function CandidatesList({
             limit={6}
           />
         ) : (
-          <span className="text-fg-subtle">No named matches</span>
+          <span className="text-fg-subtle">No direct matches</span>
         ),
       csv: (item) => item.matched.join(', '),
     },
@@ -735,7 +735,7 @@ export function CandidatesList({
               <span className="font-normal text-fg-subtle">Not yet</span>
             )
           }
-          secondary={item.fitScore != null ? `assessed ${item.fitScore}` : undefined}
+          secondary={item.fitScore != null ? `AI match ${item.fitScore}%` : undefined}
         />
       ),
       csv: (item) => (item.dismissed ? 'Dismissed' : item.appliedToJob ? 'Applied' : 'Not yet'),
@@ -756,7 +756,7 @@ export function CandidatesList({
               </MenuItem>
             )}
             <MenuItem onSelect={() => setFitFor({ id: item.candidateId, name: item.name })}>
-              Why this ranking
+              Why they rank here
             </MenuItem>
             <MenuItem onSelect={() => router.push(`/candidates/${item.candidateId}`)}>
               Open profile
@@ -864,7 +864,7 @@ export function CandidatesList({
           <>
             <div className="tnum">{app ? formatDate(app.appliedAt) : '–'}</div>
             <div className="mt-0.5 text-xs text-fg-subtle">
-              Active {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
+              Last active {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
             </div>
           </>
         );
@@ -1049,7 +1049,7 @@ export function CandidatesList({
         <EmptyState
           icon={UserSearch}
           title="Nobody matches these filters"
-          description={anyFilter ? 'Try fewer filters, or clear them all.' : undefined}
+          description={anyFilter ? 'Try using fewer filters.' : undefined}
           action={
             anyFilter && (
               <Button variant="secondary" onClick={clearFilters}>
@@ -1070,7 +1070,8 @@ export function CandidatesList({
       )}
       {!!rank.data?.pending && (
         <p className="mt-3 text-sm text-fg-subtle">
-          {rank.data.pending} resumes are still being read and will rank once they are.
+          {rank.data.pending === 1 ? '1 resume is' : `${rank.data.pending} resumes are`} still being
+          read. They join the ranking when they are done.
         </p>
       )}
       <DataTable
@@ -1100,7 +1101,6 @@ export function CandidatesList({
           tone="violet"
           label="Total candidates"
           value={everyone.data?.total ?? '–'}
-          hint="Everyone on file"
         />
         <StatCard
           icon={Workflow}
@@ -1123,7 +1123,6 @@ export function CandidatesList({
           tone="amber"
           label="At offer"
           value={inStages((stage) => /offer/i.test(stage))}
-          hint="Active applications in an offer stage"
         />
       </StatGrid>
 
@@ -1174,7 +1173,7 @@ export function CandidatesList({
             )
           }
           title={`Delete the view “${view.name}”?`}
-          message="Only the saved filters go. Nobody's record changes."
+          message="This removes the saved filters only. No candidate records change."
           confirmLabel="Delete view"
         />
       )}
@@ -1221,8 +1220,9 @@ export function CandidatesList({
         }
       >
         <Textarea
-          label="Why"
-          description="Recorded with the decision. Keep it about the job."
+          label="Reason"
+          description="We save this with the decision. Keep it about the job."
+
           value={dismissReason}
           onChange={(event) => setDismissReason(event.currentTarget.value)}
           minRows={2}

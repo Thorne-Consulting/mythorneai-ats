@@ -103,7 +103,6 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
     <>
       <PageHeader
         title="Candidates"
-        description="Your talent, all in one place. Discover, review, and move great people forward."
         actions={
           staff && (
             <>
@@ -119,7 +118,7 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
                       From a resume
                     </MenuItem>
                     <MenuItem icon={<Sheet />} onSelect={() => setOpen('csv')}>
-                      From a CSV file
+                      From a spreadsheet (CSV)
                     </MenuItem>
                   </MenuContent>
                 </Menu>
@@ -131,9 +130,7 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
           )
         }
       />
-      <SidebarLayout nav={<SectionNav title="Segments" groups={groups} />}>
-        {children}
-      </SidebarLayout>
+      <SidebarLayout nav={<SectionNav title="Browse" groups={groups} />}>{children}</SidebarLayout>
       <CreateCandidateModal opened={open === 'create'} onClose={close} />
       <ImportCandidatesModal opened={open === 'csv'} onClose={close} />
       <ResumeImportModal opened={open === 'resume'} onClose={close} />

@@ -46,7 +46,7 @@ export function ApplicationRecord({ id }: { id: string }) {
   const unread = messages.filter((message) => message.fromCandidate && !message.readAt).length;
   const next = owed
     ? {
-        text: `You owe a scorecard for ${owed.title}.`,
+        text: `Your scorecard for ${owed.title} is due.`,
         action: 'Write scorecard',
         href: `/applications/${id}/scorecards?interview=${owed.id}`,
       }
@@ -78,7 +78,7 @@ export function ApplicationRecord({ id }: { id: string }) {
       <Card id="notes">
         <CardHeader
           title="Team notes"
-          description="Notes stay inside the team; the candidate never sees them."
+          description="The candidate never sees these notes."
           action={
             canManage && (
               <Button

@@ -186,8 +186,7 @@ export function PipelineBoard({
       </Board>
       {canManage && (
         <p className="mt-1 text-xs text-fg-subtle">
-          Drag candidates between stages, or use a card&apos;s ••• menu, to update their progress.
-          Changes save automatically.
+          Drag a card to another stage, or use its ••• menu. Changes save right away.
         </p>
       )}
     </div>

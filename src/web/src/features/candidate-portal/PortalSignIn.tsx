@@ -37,10 +37,10 @@ export function PortalSignIn() {
       setSent(response.ok);
       setMessage(
         response.ok
-          ? 'If that email is on file, a code is on its way. It can take a minute to arrive.'
+          ? 'If you applied with that email, we sent you a code. It can take a minute to arrive.'
           : response.status === 429
             ? 'Too many tries in a short time. Wait a minute, then try again.'
-            : 'We could not send a code right now. Please try again shortly.',
+            : 'We could not send a code. Please try again in a few minutes.',
       );
     } catch {
       setMessage(OFFLINE);
@@ -58,11 +58,11 @@ export function PortalSignIn() {
         body: JSON.stringify({ email, code: code.trim() }),
       });
       if (!response.ok) {
-        setMessage(
-          'That code is invalid or expired. Check it and try again, or ask for a new one.',
-        );
+        setMessage('That code is wrong or too old. Check it and try again, or ask for a new one.');
       } else if (!writeToken((await response.json()).token)) {
-        setMessage('Your browser is blocking storage, so we cannot keep you signed in.');
+        setMessage(
+          'Your browser settings stop us from keeping you signed in. Allow site data for this site, then try again.',
+        );
       } else {
         setMessage('');
         await reload();
@@ -127,7 +127,7 @@ export function PortalSignIn() {
                 required
               />
               <Button type="submit" loading={busy} fullWidth>
-                Open portal
+                Sign in
               </Button>
               <Button
                 variant="quiet"

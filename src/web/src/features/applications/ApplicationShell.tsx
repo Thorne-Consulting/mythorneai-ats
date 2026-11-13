@@ -63,7 +63,7 @@ export function ApplicationShell({
       }),
     onSuccess: () => {
       invalidate();
-      toast.success('Applicant moved');
+      toast.success('Stage changed');
     },
     // The API refuses a straight move to Hired (409) and explains why; show that, not a generic error.
     onError: (error: Error) => toast.error('Could not move this applicant', error.message),
@@ -105,7 +105,8 @@ export function ApplicationShell({
                 <h1 className="text-3xl font-bold tracking-[-0.01em] text-fg">
                   {application.candidateName}
                 </h1>
-                <StageBadge stage={application.stage} />
+                {/* The stage picker already shows the stage to people who can move it. */}
+                {!canMove && <StageBadge stage={application.stage} />}
                 {application.status !== 'Active' && <StatusBadge status={application.status} />}
               </div>
               <p className="mt-1 text-base text-fg-muted">
@@ -199,7 +200,6 @@ export function ApplicationShell({
                     ),
                   },
                   { label: 'Phone', value: application.candidatePhone ?? '–' },
-                  { label: 'Location', value: application.candidateLocation ?? '–' },
                   { label: 'Source', value: application.source },
                   { label: 'Applied', value: formatDate(application.appliedAt) },
                   { label: 'Last activity', value: formatRelative(application.lastActivityAt) },
@@ -215,12 +215,6 @@ export function ApplicationShell({
                   ))}
                 </div>
               )}
-              <Link
-                href={`/candidates/${application.candidateId}`}
-                className="inline-block text-sm font-medium text-accent-foreground hover:underline"
-              >
-                Resume and other applications
-              </Link>
             </CardBody>
           </Card>
           <NextInterview id={id} interviews={application.interviews} />
@@ -293,7 +287,7 @@ function OfferStatus({ applicationId }: { applicationId: string }) {
   return (
     <Card className="flex items-center justify-between gap-3 px-5 py-4">
       <div className="min-w-0">
-        <h2 className="text-base font-semibold text-fg">Acceptance</h2>
+        <h2 className="text-base font-semibold text-fg">Offer</h2>
         <Link
           href={`/applications/${applicationId}/offer`}
           className="text-sm text-accent-foreground hover:underline"

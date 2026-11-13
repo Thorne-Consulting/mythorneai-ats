@@ -28,12 +28,12 @@ export const REPORT_GROUPS: { label: string; reports: ReportMeta[] }[] = [
       {
         key: 'funnel',
         title: 'Hiring funnel',
-        blurb: 'How many applications reach each stage and carry on to the next.',
+        blurb: 'How many applications reach each stage and move on to the next.',
       },
       {
         key: 'hires',
         title: 'Hires',
-        blurb: 'Everyone marked hired, with what payroll and HR need.',
+        blurb: 'Everyone you hired, with the details payroll and HR need.',
       },
     ],
   },
@@ -73,7 +73,7 @@ export const REPORT_GROUPS: { label: string; reports: ReportMeta[] }[] = [
       {
         key: 'interviewers',
         title: 'Interviewer load and feedback',
-        blurb: 'Who interviews most, and how quickly scorecards arrive.',
+        blurb: 'Who interviews the most, and how fast they send scorecards.',
       },
     ],
   },

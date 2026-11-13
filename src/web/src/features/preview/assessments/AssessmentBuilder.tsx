@@ -97,7 +97,6 @@ export function AssessmentBuilder({ id }: { id?: string }) {
     <PageHeader
       breadcrumbs={crumbs}
       title={<PreviewTitle>{id ? 'Edit assessment' : 'Create assessment'}</PreviewTitle>}
-      description="Set the basics, write the questions, choose the rules, then check it as a candidate would."
       actions={
         form && (
           <>
@@ -107,7 +106,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
             <Button
               variant="secondary"
               onClick={() => {
-                toast.success('Draft kept in this browser', 'Pick up where you left off any time.');
+                toast.success('Draft saved in this browser', 'You can pick up where you left off.');
                 router.push(existing ? `/assessments/${existing.id}` : '/assessments');
               }}
             >
@@ -164,8 +163,8 @@ export function AssessmentBuilder({ id }: { id?: string }) {
       label: 'Name, duration and pass mark set',
     },
     { ok: questions.length > 0, label: 'At least one question' },
-    { ok: questionsOk, label: 'Every question complete, with correct answers marked' },
-    { ok: !errors.attempts && !errors.expiry, label: 'Attempts and expiry set' },
+    { ok: questionsOk, label: 'Every question filled in, with correct answers marked' },
+    { ok: !errors.attempts && !errors.expiry, label: 'Attempts and invitation length set' },
   ];
 
   const finish = () => {
@@ -216,11 +215,11 @@ export function AssessmentBuilder({ id }: { id?: string }) {
           {
             id: 'settings',
             title: 'Settings',
-            description: 'Timer, attempts, proctoring',
+            description: 'Timer, attempts and cheating checks',
             valid: !errors.attempts && !errors.expiry,
           },
           { id: 'review', title: 'Review', description: 'See it as a candidate' },
-          { id: 'publish', title: 'Publish', description: 'Go live or keep as draft' },
+          { id: 'publish', title: 'Publish', description: 'Publish now or save a draft' },
         ]}
         current={step}
         onStepChange={(i) => {
@@ -236,7 +235,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
               <DescriptionList
                 items={[
                   { label: 'Name', value: form.name || '—' },
-                  { label: 'Type', value: `${form.type} · ${form.department}` },
+                  { label: 'Type and department', value: `${form.type} · ${form.department}` },
                   {
                     label: 'Questions',
                     value: `${questions.length} in ${form.sections.length} sections`,
@@ -284,7 +283,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
               error={errors.minutes}
             />
             <NumberInput
-              label="Pass mark (%)"
+              label="Pass mark (percent)"
               min={1}
               max={100}
               value={form.passMark || ''}
@@ -311,7 +310,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
               <legend className="mb-2 text-md font-semibold text-fg">Time and attempts</legend>
               <Switch
                 className="sm:col-span-2"
-                label="Timed"
+                label="Use a timer"
                 description={`Submit automatically after ${form.minutes || 0} minutes.`}
                 checked={form.settings.timed}
                 onCheckedChange={(timed) => setSettings({ timed })}
@@ -324,7 +323,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
                 error={errors.attempts}
               />
               <NumberInput
-                label="Invitation expires after (days)"
+                label="Invitation lasts (days)"
                 min={1}
                 value={form.settings.expiryDays || ''}
                 onValueChange={(v) => setSettings({ expiryDays: v === '' ? 0 : v })}
@@ -346,7 +345,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
               />
             </fieldset>
             <fieldset className="flex flex-col gap-4">
-              <legend className="mb-2 text-md font-semibold text-fg">Proctoring</legend>
+              <legend className="mb-2 text-md font-semibold text-fg">Cheating checks</legend>
               <Switch
                 label="Record webcam"
                 description="Candidates are asked for camera access before they start."
@@ -354,7 +353,7 @@ export function AssessmentBuilder({ id }: { id?: string }) {
                 onCheckedChange={(webcam) => setSettings({ webcam })}
               />
               <Switch
-                label="Log tab switches"
+                label="Note when they switch tabs"
                 checked={form.settings.tabSwitch}
                 onCheckedChange={(tabSwitch) => setSettings({ tabSwitch })}
               />

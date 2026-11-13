@@ -75,7 +75,7 @@ export function ApplicantsTable({
       header: 'Experience',
       align: 'right',
       className: 'tnum whitespace-nowrap',
-      cell: (app) => (app.yearsExperience != null ? `${app.yearsExperience} yrs` : '—'),
+      cell: (app) => (app.yearsExperience != null ? `${app.yearsExperience} years` : '—'),
       sortValue: (app) => app.yearsExperience,
     },
     {
