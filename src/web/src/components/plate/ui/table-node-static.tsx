@@ -51,8 +51,8 @@ export function TableCellElementStatic({
       {...props}
       as={isHeader ? 'th' : 'td'}
       className={cn(
-        'h-full overflow-visible border-none bg-background p-0',
-        element.background ? 'bg-(--cellBackground)' : 'bg-background',
+        'h-full overflow-visible border-none bg-card p-0',
+        element.background ? 'bg-(--cellBackground)' : 'bg-card',
         isHeader && 'text-left font-normal *:m-0',
         'before:size-full',
         "before:absolute before:box-border before:select-none before:content-['']",

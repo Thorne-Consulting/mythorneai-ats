@@ -1,9 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Group, Modal, Stack, Textarea } from '@mantine/core';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Button, Modal, Textarea, toast } from '@/components/ui';
 import type { ModalProps } from './application-types';
 
 export function NoteModal({
@@ -21,25 +21,35 @@ export function NoteModal({
       onSaved();
       onClose();
     },
+    onError: (error: Error) => toast.error('Could not add the note', error.message),
   });
   return (
-    <Modal opened={opened} onClose={onClose} title="Add review note">
-      <Stack>
-        <Textarea
-          label="Job-related note"
-          minRows={6}
-          value={body}
-          onChange={(event) => setBody(event.currentTarget.value)}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Add review note"
+      description="Only the hiring team sees notes."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!body.trim()} onClick={() => mutation.mutate()}>
+          <Button
+            disabled={!body.trim()}
+            loading={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
             Add note
           </Button>
-        </Group>
-      </Stack>
+        </>
+      }
+    >
+      <Textarea
+        label="Job-related note"
+        minRows={6}
+        value={body}
+        onChange={(event) => setBody(event.currentTarget.value)}
+      />
     </Modal>
   );
 }

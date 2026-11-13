@@ -1,22 +1,27 @@
 import type { Metadata } from 'next';
-import { ColorSchemeScript, mantineHtmlProps } from '@mantine/core';
-import '@mantine/core/styles.css';
-import '@mantine/charts/styles.css';
-import '@mantine/dates/styles.css';
-import '@mantine/notifications/styles.css';
+import { Roboto } from 'next/font/google';
 import '../styles.css';
+import { themeScript } from '@/lib/theme';
 import { Providers } from './providers';
 
+const roboto = Roboto({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-roboto',
+});
+
 export const metadata: Metadata = {
-  title: 'Internal ATS',
-  description: 'Focused applicant and interview management for internal hiring teams.',
+  title: { default: 'MyThorneAI ATS', template: '%s · MyThorneAI ATS' },
+  description: 'Smarter hiring. Brighter futures.',
+  icons: { icon: '/brand/mark.png' },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" {...mantineHtmlProps}>
+    <html lang="en" className={roboto.variable} suppressHydrationWarning>
       <head>
-        <ColorSchemeScript />
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
         <Providers>{children}</Providers>

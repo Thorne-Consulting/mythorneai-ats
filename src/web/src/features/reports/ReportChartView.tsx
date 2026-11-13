@@ -1,6 +1,7 @@
 'use client';
 
-import { BarChart, DonutChart, FunnelChart, LineChart, ScatterChart } from '@mantine/charts';
+import { Card, CardHeader } from '@/components/ui';
+import { BarChart, DonutChart, FunnelBars, LineChart, ScatterChart } from '@/components/ui/chart';
 
 type Cell = string | number | null;
 
@@ -12,19 +13,7 @@ export interface ReportChart {
   caption?: string | null;
 }
 
-const COLORS = [
-  'indigo.6',
-  'teal.6',
-  'orange.6',
-  'gray.5',
-  'grape.6',
-  'cyan.6',
-  'yellow.6',
-  'pink.6',
-];
-const color = (index: number) => COLORS[index % COLORS.length];
-
-/** One report chart. Columns[0] labels each row; the other columns are the series. */
+/** One report chart in a card. Columns[0] labels each row; the other columns are the series. */
 export function ReportChartView({ chart }: { chart: ReportChart }) {
   const [label, ...values] = chart.columns;
   const named = chart.rows.map((row) => ({
@@ -35,99 +24,55 @@ export function ReportChartView({ chart }: { chart: ReportChart }) {
     [label]: String(row[0] ?? '—'),
     ...Object.fromEntries(values.map((name, index) => [name, Number(row[index + 1] ?? 0)])),
   }));
-  const series = values.map((name, index) => ({ name, color: color(index) }));
+  const series = values.map((key) => ({ key }));
   const empty =
     chart.rows.length === 0 || chart.rows.every((row) => row.slice(1).every((cell) => !cell));
 
   let body;
   if (empty) {
-    body = <p className="reports-chart-empty">Nothing to show for these filters yet.</p>;
-  } else if (chart.kind === 'donut' || chart.kind === 'funnel') {
-    const cells = named.map((item, index) => ({ ...item, color: color(index) }));
     body = (
-      <div className="reports-donut">
-        {chart.kind === 'donut' ? (
-          <DonutChart
-            size={160}
-            thickness={24}
-            withTooltip
-            tooltipDataSource="segment"
-            data={cells}
-          />
-        ) : (
-          <FunnelChart size={180} withTooltip data={cells} />
-        )}
-        <ul className="reports-legend">
-          {cells.map((item) => (
-            <li key={item.name}>
-              <span
-                className="reports-swatch"
-                style={{ background: `var(--mantine-color-${item.color.replace('.', '-')})` }}
-              />
-              {item.name}
-              <b>{item.value}</b>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <p className="py-8 text-center text-sm text-fg-subtle">
+        Nothing to show for these filters yet.
+      </p>
     );
+  } else if (chart.kind === 'donut') {
+    body = (
+      <DonutChart data={named} centerValue={named.reduce((sum, item) => sum + item.value, 0)} />
+    );
+  } else if (chart.kind === 'funnel') {
+    body = <FunnelBars data={named} />;
   } else if (chart.kind === 'scatter') {
     body = (
       <ScatterChart
-        h={240}
-        data={[
-          {
-            name: 'Applications',
-            color: 'indigo.6',
-            data: chart.rows.map((row) => ({ x: Number(row[0] ?? 0), y: Number(row[1] ?? 0) })),
-          },
-        ]}
-        dataKey={{ x: 'x', y: 'y' }}
-        labels={{ x: label, y: values[0] }}
-        xAxisProps={{ domain: [0, 100] }}
-        yAxisProps={{ allowDecimals: false }}
+        data={chart.rows.map((row) => ({ x: Number(row[0] ?? 0), y: Number(row[1] ?? 0) }))}
+        xLabel={label}
+        yLabel={values[0]}
+        xDomain={[0, 100]}
       />
     );
   } else if (chart.kind === 'line') {
-    body = (
-      <LineChart
-        h={220}
-        data={items}
-        dataKey={label}
-        series={series}
-        curveType="monotone"
-        withDots={items.length <= 16}
-        gridAxis="y"
-      />
-    );
+    body = <LineChart data={items} dataKey={label} series={series} />;
   } else {
     // Long labels (jobs, stages, people) read better as horizontal bars.
-    const vertical = named.some((item) => item.name.length > 12);
     body = (
       <BarChart
-        h={vertical ? Math.max(160, items.length * 34 + 40) : 220}
         data={items}
         dataKey={label}
         series={series}
-        type={chart.kind === 'stacked' ? 'stacked' : 'default'}
-        orientation={vertical ? 'vertical' : 'horizontal'}
-        yAxisProps={vertical ? { width: 140 } : undefined}
-        gridAxis={vertical ? 'x' : 'y'}
-        withLegend={series.length > 1}
+        stacked={chart.kind === 'stacked'}
+        horizontal={named.some((item) => item.name.length > 12)}
       />
     );
   }
 
   return (
-    <figure
-      className="reports-chart"
+    <Card
+      role="figure"
       aria-label={`${chart.title}. The figures are also in the table.`}
+      className="min-w-0 break-inside-avoid"
     >
-      <figcaption>
-        <span className="reports-chart-title">{chart.title}</span>
-        {chart.caption && <span className="reports-chart-caption">{chart.caption}</span>}
-      </figcaption>
-      {body}
-    </figure>
+      <CardHeader title={chart.title} description={chart.caption ?? undefined} />
+      <div className="px-5 pb-5">{body}</div>
+    </Card>
   );
 }

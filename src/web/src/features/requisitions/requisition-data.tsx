@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
-import type { BoardData, RequisitionDetail } from '@/types';
+import type { BoardData, RequisitionDetail, RequisitionSummary, User } from '@/types';
 
 export type BoardApplication = BoardData['stages'][number]['applications'][number];
 
@@ -23,12 +23,30 @@ export function useBoard(id: string, initialData?: BoardData) {
   });
 }
 
-export function useCanManage(requisition?: RequisitionDetail) {
-  const user = useCurrentUser();
+type JobPeople = Pick<RequisitionSummary, 'ownerEmail' | 'recruiterEmail'>;
+
+/** Same rule as useCanManage, for places that check many jobs at once (list rows). */
+export function canManageJob(user: Pick<User, 'role' | 'email'>, job?: JobPeople) {
   return (
     ['Admin', 'Recruiter'].includes(user.role) ||
     // Named viewers see the job but don't manage it; that stays with the owner and recruiter.
     (user.role === 'HiringManager' &&
-      (requisition?.ownerEmail === user.email || requisition?.recruiterEmail === user.email))
+      (job?.ownerEmail === user.email || job?.recruiterEmail === user.email))
   );
 }
+
+export function useCanManage(requisition?: JobPeople) {
+  return canManageJob(useCurrentUser(), requisition);
+}
+
+/** "priya.manager@acme.com" reads as "Priya Manager". */
+export function nameFromEmail(email: string) {
+  return email
+    .split('@')[0]
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+export { statusOptions } from './job-status';

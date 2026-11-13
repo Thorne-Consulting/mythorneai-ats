@@ -1,27 +1,33 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Lock } from 'lucide-react';
+import { useMutation } from '@tanstack/react-query';
+import { api } from '@/api';
 import {
   Alert,
   Button,
   Checkbox,
-  Group,
+  Fieldset,
+  Label,
   Modal,
-  Paper,
+  RadioGroup,
   Rating,
-  Select,
-  Stack,
-  Text,
   Textarea,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconLock } from '@tabler/icons-react';
-import { useMutation } from '@tanstack/react-query';
-import { api } from '@/api';
+  toast,
+} from '@/components/ui';
 import type { InterviewCriterion } from '@/types';
 import type { ModalProps } from './application-types';
 
 const NONE_OBSERVED = 'None observed';
+
+const RECOMMENDATIONS = [
+  { value: 'StrongNo', label: 'Strong no' },
+  { value: 'No', label: 'No' },
+  { value: 'Mixed', label: 'Mixed' },
+  { value: 'Yes', label: 'Yes' },
+  { value: 'StrongYes', label: 'Strong yes' },
+];
 
 interface ScorecardDraft {
   rating: number;
@@ -61,33 +67,24 @@ function isDraftDirty(draft: ScorecardDraft) {
   );
 }
 
-export function ScorecardModal({
+/**
+ * Draft, validation and submit for one interviewer's scorecard. The modal and the Scorecards page
+ * share it (and the same local draft), so starting in one and finishing in the other works.
+ */
+export function useScorecardForm({
   interviewId,
-  interviewTitle,
-  candidateName,
   criteria,
-  opened,
-  onClose,
-  onSaved,
-}: ModalProps & {
+  onSubmitted,
+}: {
   interviewId: string;
-  interviewTitle: string;
-  candidateName: string;
   criteria: InterviewCriterion[];
+  onSubmitted: () => void;
 }) {
   // A scorecard is long-form prose about someone's career. It must survive Esc,
   // a stray overlay click, and a tab change that unmounts this whole subtree.
   const draftKey = `scorecard-draft:${interviewId}`;
   const [draft, setDraft] = useState<ScorecardDraft>(() => readDraft(draftKey));
-  const { rating, recommendation, evidence, strengths, concerns, values } = draft;
   const patch = (next: Partial<ScorecardDraft>) => setDraft((current) => ({ ...current, ...next }));
-  const setRating = (value: number) => patch({ rating: value });
-  const setRecommendation = (value: string | null) => patch({ recommendation: value });
-  const setEvidence = (value: string) => patch({ evidence: value });
-  const setStrengths = (value: string) => patch({ strengths: value });
-  const setConcerns = (value: string) => patch({ concerns: value });
-  const setValues = (updater: (current: ScorecardDraft['values']) => ScorecardDraft['values']) =>
-    setDraft((current) => ({ ...current, values: updater(current.values) }));
   const dirty = isDraftDirty(draft);
   const restored = useRef(dirty).current;
 
@@ -103,16 +100,16 @@ export function ScorecardModal({
     }
   }, [draft, dirty, draftKey]);
 
-  const closeWithGuard = () => {
-    if (dirty && !window.confirm('Keep this draft? Cancel to discard it and close.')) {
-      window.localStorage.removeItem(draftKey);
-      setDraft(emptyDraft());
-    }
-    onClose();
+  const discard = () => {
+    window.localStorage.removeItem(draftKey);
+    setDraft(emptyDraft());
   };
-
+  const { rating, recommendation, evidence, strengths, concerns, values } = draft;
   const complete = criteria.every(
     (criterion) => values[criterion.id]?.rating && values[criterion.id]?.evidence.trim(),
+  );
+  const canSubmit = Boolean(
+    rating && recommendation && evidence.trim() && strengths.trim() && concerns.trim() && complete,
   );
   const mutation = useMutation({
     mutationFn: () =>
@@ -129,147 +126,205 @@ export function ScorecardModal({
         })),
       }),
     onSuccess: () => {
-      window.localStorage.removeItem(draftKey);
-      setDraft(emptyDraft());
-      onSaved();
-      onClose();
-      notifications.show({
-        color: 'teal',
-        title: 'Scorecard submitted and locked',
-        message: 'Feedback from the rest of the panel is now visible to you.',
-      });
+      discard();
+      onSubmitted();
+      toast.success(
+        'Scorecard submitted and locked',
+        'Feedback from the rest of the panel is now visible to you.',
+      );
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not submit the scorecard', error.message),
   });
   const update = (id: string, next: Partial<{ rating: number; evidence: string }>) =>
-    setValues((current) => ({
+    setDraft((current) => ({
       ...current,
-      [id]: { rating: current[id]?.rating ?? 0, evidence: current[id]?.evidence ?? '', ...next },
+      values: {
+        ...current.values,
+        [id]: {
+          rating: current.values[id]?.rating ?? 0,
+          evidence: current.values[id]?.evidence ?? '',
+          ...next,
+        },
+      },
     }));
+
+  return { draft, patch, update, dirty, restored, discard, canSubmit, mutation, criteria };
+}
+
+export type ScorecardForm = ReturnType<typeof useScorecardForm>;
+
+/** The scorecard itself: the lock warning, one block per criterion, then the overall call. */
+export function ScorecardFields({ form }: { form: ScorecardForm }) {
+  const { draft, patch, update, restored, criteria } = form;
+  const { rating, recommendation, evidence, strengths, concerns, values } = draft;
   return (
-    <Modal
-      opened={opened}
-      onClose={closeWithGuard}
-      closeOnClickOutside={false}
-      title={`Scorecard — ${candidateName} · ${interviewTitle}`}
-      size="lg"
-    >
-      <Stack>
-        <Alert
-          color="orange"
-          icon={<IconLock size={18} />}
-          title="This cannot be edited after you submit"
+    <div className="space-y-5">
+      <Alert tone="warning" icon={Lock} title="This cannot be edited after you submit">
+        Your scorecard locks on submission. Feedback from the rest of the panel stays hidden until
+        then, so nobody anchors on anyone else.
+      </Alert>
+      {restored && <p className="text-sm text-fg-subtle">Draft restored from your last visit.</p>}
+
+      {criteria.map((criterion) => (
+        <section
+          key={criterion.id}
+          className="space-y-3 rounded-lg border border-border-subtle p-4"
         >
-          Your scorecard locks on submission. Feedback from the rest of the panel stays hidden until
-          then, so nobody anchors on anyone else.
-        </Alert>
-        {restored && (
-          <Text size="sm" c="dimmed">
-            Draft restored from your last visit.
-          </Text>
-        )}
-        {criteria.map((criterion) => (
-          <Paper key={criterion.id} withBorder p="md">
-            <Group justify="space-between">
-              <Text fw={650}>{criterion.name}</Text>
-              <Text size="xs" c="dimmed">
-                weight {criterion.weight}
-              </Text>
-            </Group>
-            <Text size="sm" mt="xs">
-              {criterion.question}
-            </Text>
+          <div>
+            <div className="flex items-baseline justify-between gap-3">
+              <h3 className="text-base font-semibold text-fg">{criterion.name}</h3>
+              <span className="text-xs text-fg-subtle tnum">weight {criterion.weight}</span>
+            </div>
+            <p className="mt-1 text-sm text-fg">{criterion.question}</p>
             {criterion.description && (
-              <Text size="xs" c="dimmed">
+              <p className="mt-0.5 text-xs text-fg-subtle">
                 Scoring guidance: {criterion.description}
-              </Text>
+              </p>
             )}
-            <Text size="sm" fw={600} mt="sm" id={`score-${criterion.id}`}>
-              Score
-            </Text>
+          </div>
+          <div className="flex items-center gap-3">
+            <Label>Score</Label>
             <Rating
+              label={`Score for ${criterion.name}`}
               value={values[criterion.id]?.rating ?? 0}
               onChange={(value) => update(criterion.id, { rating: value })}
-              aria-labelledby={`score-${criterion.id}`}
-            />
-            <Textarea
-              label="Observed evidence"
-              minRows={2}
-              mt="sm"
-              value={values[criterion.id]?.evidence ?? ''}
-              onChange={(event) => update(criterion.id, { evidence: event.currentTarget.value })}
-            />
-          </Paper>
-        ))}
-        <Group>
-          <div>
-            <Text size="sm" fw={600} id="overall-rating-label">
-              Overall rating
-            </Text>
-            <Rating
-              value={rating}
-              onChange={setRating}
-              size="lg"
-              aria-labelledby="overall-rating-label"
             />
           </div>
-          <Select
-            label="Recommendation"
-            value={recommendation}
-            onChange={setRecommendation}
-            data={[
-              ['StrongNo', 'Strong no'],
-              ['No', 'No'],
-              ['Mixed', 'Mixed'],
-              ['Yes', 'Yes'],
-              ['StrongYes', 'Strong yes'],
-            ].map(([value, label]) => ({ value, label }))}
-            style={{ flex: 1 }}
+          <Textarea
+            label="Observed evidence"
+            minRows={2}
+            value={values[criterion.id]?.evidence ?? ''}
+            onChange={(event) => update(criterion.id, { evidence: event.currentTarget.value })}
           />
-        </Group>
-        <Textarea
-          label="Decision summary"
-          minRows={3}
-          value={evidence}
-          onChange={(event) => setEvidence(event.currentTarget.value)}
-        />
-        <Textarea
-          label="Demonstrated strengths"
-          minRows={2}
-          value={strengths}
-          onChange={(event) => setStrengths(event.currentTarget.value)}
-        />
-        <Textarea
-          label="Risks or concerns"
-          minRows={2}
-          value={concerns}
-          onChange={(event) => setConcerns(event.currentTarget.value)}
-        />
-        <Checkbox
-          label="No risks or concerns observed"
-          checked={concerns.trim() === NONE_OBSERVED}
-          onChange={(event) => setConcerns(event.currentTarget.checked ? NONE_OBSERVED : '')}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={
-              !rating ||
-              !recommendation ||
-              !evidence.trim() ||
-              !strengths.trim() ||
-              !concerns.trim() ||
-              !complete
-            }
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            Submit and lock
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
+        </section>
+      ))}
+
+      <div className="grid gap-5 sm:grid-cols-[auto_1fr]">
+        <div className="space-y-1.5">
+          <Label>Overall rating</Label>
+          <Rating
+            label="Overall rating"
+            value={rating}
+            onChange={(value) => patch({ rating: value })}
+          />
+        </div>
+        <Fieldset legend="Recommendation">
+          <RadioGroup
+            aria-label="Recommendation"
+            orientation="horizontal"
+            value={recommendation}
+            onValueChange={(value) => patch({ recommendation: value })}
+            options={RECOMMENDATIONS}
+          />
+        </Fieldset>
+      </div>
+      <Textarea
+        label="Decision summary"
+        minRows={3}
+        value={evidence}
+        onChange={(event) => patch({ evidence: event.currentTarget.value })}
+      />
+      <Textarea
+        label="Demonstrated strengths"
+        minRows={2}
+        value={strengths}
+        onChange={(event) => patch({ strengths: event.currentTarget.value })}
+      />
+      <Textarea
+        label="Risks or concerns"
+        minRows={2}
+        value={concerns}
+        onChange={(event) => patch({ concerns: event.currentTarget.value })}
+      />
+      <Checkbox
+        label="No risks or concerns observed"
+        checked={concerns.trim() === NONE_OBSERVED}
+        onCheckedChange={(checked) => patch({ concerns: checked ? NONE_OBSERVED : '' })}
+      />
+    </div>
+  );
+}
+
+/** Shortcut from an interview card; the Scorecards tab is the full page. */
+export function ScorecardModal({
+  interviewId,
+  interviewTitle,
+  candidateName,
+  criteria,
+  opened,
+  onClose,
+  onSaved,
+}: ModalProps & {
+  interviewId: string;
+  interviewTitle: string;
+  candidateName: string;
+  criteria: InterviewCriterion[];
+}) {
+  const [askKeep, setAskKeep] = useState(false);
+  const form = useScorecardForm({
+    interviewId,
+    criteria,
+    onSubmitted: () => {
+      onSaved();
+      onClose();
+    },
+  });
+
+  // Closing with work in it asks whether to keep the draft; an empty form just closes.
+  const closeWithGuard = () => (form.dirty ? setAskKeep(true) : onClose());
+  const discardAndClose = () => {
+    form.discard();
+    setAskKeep(false);
+    onClose();
+  };
+
+  return (
+    <>
+      <Modal
+        opened={opened}
+        onClose={closeWithGuard}
+        dismissable={!form.mutation.isPending}
+        title={`Scorecard — ${candidateName} · ${interviewTitle}`}
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={onClose} disabled={form.mutation.isPending}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!form.canSubmit}
+              loading={form.mutation.isPending}
+              onClick={() => form.mutation.mutate()}
+            >
+              Submit and lock
+            </Button>
+          </>
+        }
+      >
+        <ScorecardFields form={form} />
+      </Modal>
+      <Modal
+        opened={askKeep}
+        onClose={() => setAskKeep(false)}
+        size="sm"
+        title="Keep this draft?"
+        description="Your scorecard is saved on this device until you submit it."
+        footer={
+          <>
+            <Button variant="danger-quiet" onClick={discardAndClose}>
+              Discard draft
+            </Button>
+            <Button
+              onClick={() => {
+                setAskKeep(false);
+                onClose();
+              }}
+            >
+              Keep draft
+            </Button>
+          </>
+        }
+      />
+    </>
   );
 }

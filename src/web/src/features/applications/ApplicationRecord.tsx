@@ -1,10 +1,10 @@
 'use client';
 
-import { Button, Stack, Text } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconArrowRight, IconPlus } from '@tabler/icons-react';
+import { useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight, Plus } from 'lucide-react';
 import { useCurrentUser } from '@/auth';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { Alert, Avatar, Button, Card, CardHeader, SkeletonRows } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import {
   canManageRole,
@@ -22,11 +22,16 @@ export function ApplicationRecord({ id }: { id: string }) {
   const query = useApplication(id);
   const { messages } = useApplicationExtras(id);
   const invalidate = useInvalidateApplication(id);
-  const [noteOpened, noteModal] = useDisclosure();
+  const [noteOpened, setNoteOpened] = useState(false);
   const canManage = canManageRole(user.role);
 
   if (query.isError) return <LoadError error={query.error} onRetry={query.refetch} />;
-  if (!query.data) return <LoadingBlock rows={3} />;
+  if (!query.data)
+    return (
+      <Card>
+        <SkeletonRows rows={3} />
+      </Card>
+    );
   const application = query.data.application;
   const firstName = application.candidateName.split(' ')[0];
 
@@ -43,7 +48,7 @@ export function ApplicationRecord({ id }: { id: string }) {
     ? {
         text: `You owe a scorecard for ${owed.title}.`,
         action: 'Write scorecard',
-        href: `/applications/${id}/interviews?scorecard=${owed.id}`,
+        href: `/applications/${id}/scorecards?interview=${owed.id}`,
       }
     : canManage && unread > 0
       ? {
@@ -54,79 +59,76 @@ export function ApplicationRecord({ id }: { id: string }) {
       : null;
 
   return (
-    <>
-      <Stack gap={48}>
-        {next && (
-          <div className="next-step" role="status">
-            <Text className="next-step-text" fw={600}>
-              {next.text}
-            </Text>
-            <Button
-              component="a"
-              href={next.href}
-              size="sm"
-              rightSection={<IconArrowRight size={15} />}
-            >
-              {next.action}
+    <div className="space-y-5">
+      {next && (
+        <Alert
+          tone="info"
+          title={next.text}
+          action={
+            <Button asChild variant="secondary" size="sm">
+              <Link href={next.href}>
+                {next.action}
+                <ArrowRight />
+              </Link>
             </Button>
-          </div>
+          }
+        />
+      )}
+
+      <Card id="notes">
+        <CardHeader
+          title="Team notes"
+          description="Notes stay inside the team; the candidate never sees them."
+          action={
+            canManage && (
+              <Button
+                size="sm"
+                variant="secondary"
+                leftIcon={<Plus />}
+                onClick={() => setNoteOpened(true)}
+              >
+                Add note
+              </Button>
+            )
+          }
+        />
+        {application.notes.length === 0 ? (
+          <p className="px-5 pb-5 text-sm text-fg-subtle">No notes yet.</p>
+        ) : (
+          <ul className="divide-y divide-border-subtle border-t border-border-subtle">
+            {application.notes.map((note) => (
+              <li key={note.id} className="flex gap-3 px-5 py-4">
+                <Avatar name={note.authorEmail} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-fg-subtle">
+                    <span className="font-medium text-fg-muted">{note.authorEmail}</span> ·{' '}
+                    {formatDateTime(note.createdAt)}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-base text-fg">
+                    {note.body}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
         )}
+      </Card>
 
-        <section id="notes" className="record-section">
-          <div className="panel">
-            <div className="panel-head">
-              <h2 className="panel-title">Team notes</h2>
-              {canManage && (
-                <Button
-                  size="xs"
-                  variant="default"
-                  leftSection={<IconPlus size={14} />}
-                  onClick={noteModal.open}
-                >
-                  Add note
-                </Button>
-              )}
-            </div>
-            {application.notes.length === 0 ? (
-              <Text c="dimmed" size="sm" p={24}>
-                No notes yet. Notes stay inside the team; the candidate never sees them.
-              </Text>
-            ) : (
-              <ul className="rows" style={{ paddingTop: 4 }}>
-                {application.notes.map((note) => (
-                  <li key={note.id}>
-                    <div className="row" style={{ alignItems: 'flex-start', paddingBlock: 12 }}>
-                      <span className="row-main">
-                        <span className="row-meta">
-                          {note.authorEmail} · {formatDateTime(note.createdAt)}
-                        </span>
-                        <Text size="sm" mt={4} style={{ whiteSpace: 'pre-wrap' }}>
-                          {note.body}
-                        </Text>
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
+      <section id="acceptance" className="scroll-mt-20">
+        <OfferPanel
+          applicationId={id}
+          applicationStatus={application.status}
+          candidateName={application.candidateName}
+          canManage={canManage}
+        />
+      </section>
 
-        <section id="acceptance" className="record-section">
-          <OfferPanel
-            applicationId={id}
-            applicationStatus={application.status}
-            candidateName={application.candidateName}
-            canManage={canManage}
-          />
-        </section>
-      </Stack>
       <NoteModal
         applicationId={id}
         opened={noteOpened}
-        onClose={noteModal.close}
+        onClose={() => setNoteOpened(false)}
         onSaved={invalidate}
       />
-    </>
+    </div>
   );
 }

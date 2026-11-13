@@ -1,22 +1,35 @@
 'use client';
 
 import { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ActionIcon,
+  ArrowDown,
+  ArrowUp,
+  ChevronRight,
+  GitBranch,
+  GripVertical,
+  PenLine,
+  Plus,
+  Trash2,
+} from 'lucide-react';
+import { api } from '@/api';
+import { StageBadge } from '@/components/status';
+import {
   Badge,
   Button,
   Checkbox,
-  Group,
+  ConfirmDialog,
+  EmptyState,
+  IconButton,
+  Input,
+  Label,
+  MenuItem,
   Modal,
-  Paper,
-  Stack,
-  Text,
-  TextInput,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconArrowDown, IconArrowUp, IconPlus, IconTrash } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/api';
+  RowActions,
+  SkeletonRows,
+  toast,
+} from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { SettingsSection } from './settings-shared';
 
 interface PipelineTemplate {
@@ -36,20 +49,15 @@ export function PipelineTemplatesSection() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [removing, setRemoving] = useState<PipelineTemplate | null>(null);
+  const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
   const templates = useQuery({
     queryKey: ['pipeline-templates'],
     queryFn: () => api.get<PipelineTemplate[]>('/api/pipeline-templates'),
   });
   const done = (message: string) => {
     queryClient.invalidateQueries({ queryKey: ['pipeline-templates'] });
-    notifications.show({ color: 'teal', message });
+    toast.success(message);
   };
-  const fail = (error: Error) =>
-    notifications.show({
-      color: 'red',
-      title: 'Could not save the pipeline',
-      message: error.message,
-    });
   const save = useMutation({
     mutationFn: (value: Draft) => {
       const body = {
@@ -65,142 +73,192 @@ export function PipelineTemplatesSection() {
       done('Pipeline saved');
       setDraft(null);
     },
-    onError: fail,
+    onError: (error: Error) => toast.error('Could not save the pipeline', error.message),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/admin/pipeline-templates/${id}`),
-    onSuccess: () => {
-      done('Pipeline deleted');
-      setRemoving(null);
-    },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not delete', message: error.message }),
+    onSuccess: () => done('Pipeline deleted'),
+    onError: (error: Error) => toast.error('Could not delete', error.message),
   });
 
-  const move = (index: number, by: number) => {
-    if (!draft) return;
+  const moveTo = (from: number, to: number) => {
+    if (!draft || from === to) return;
     const stages = [...draft.stageNames];
-    [stages[index], stages[index + by]] = [stages[index + by], stages[index]];
+    stages.splice(to, 0, ...stages.splice(from, 1));
     setDraft({ ...draft, stageNames: stages });
   };
+  const move = (index: number, by: number) => moveTo(index, index + by);
   const names = draft?.stageNames.map((x) => x.trim()).filter(Boolean) ?? [];
   const valid =
     !!draft?.name.trim() &&
     names.length >= 1 &&
     names.length <= 12 &&
     new Set(names.map((x) => x.toLowerCase())).size === names.length;
+  const addNew = () =>
+    setDraft({
+      name: '',
+      stageNames: ['Applied', 'Screen', 'Interview', 'Offer'],
+      isDefault: false,
+    });
 
   return (
-    <SettingsSection id="pipelines" title="Hiring pipelines">
-      <Stack gap="sm">
-        {(templates.data ?? []).map((template) => (
-          <Paper key={template.id} withBorder radius="md" p="md">
-            <Group justify="space-between" wrap="wrap" gap="sm">
-              <div style={{ flex: '1 1 260px' }}>
-                <Group gap="xs">
-                  <Text fw={600}>{template.name}</Text>
-                  {template.isDefault && (
-                    <Badge variant="light" color="gray" tt="none">
-                      Default
-                    </Badge>
-                  )}
-                </Group>
-                <Text size="sm" c="dimmed">
-                  {[...template.stageNames, 'Hired'].join(' → ')}
-                </Text>
-              </div>
-              <Group gap="xs">
-                <Button variant="default" size="xs" onClick={() => setDraft({ ...template })}>
-                  Edit
-                </Button>
-                <Button
-                  variant="subtle"
-                  color="red"
-                  size="xs"
-                  aria-label={`Delete ${template.name}`}
-                  onClick={() => setRemoving(template)}
+    <SettingsSection
+      id="pipelines"
+      title="Pipelines"
+      description="Hired is always the last stage and is added for you."
+      action={
+        <Button leftIcon={<Plus />} onClick={addNew}>
+          Add pipeline
+        </Button>
+      }
+    >
+      {!templates.data ? (
+        <SkeletonRows rows={2} className="p-0" />
+      ) : templates.data.length === 0 ? (
+        <EmptyState
+          compact
+          icon={GitBranch}
+          title="No pipelines yet"
+          description="Add one so new jobs start with the stages your team actually uses."
+        />
+      ) : (
+        <ul className="-my-4 divide-y divide-border-subtle">
+          {templates.data.map((template) => (
+            <li key={template.id} className="flex flex-wrap items-center gap-3 py-4">
+              <div className="min-w-0 flex-1 basis-72">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium text-fg">{template.name}</p>
+                  {template.isDefault && <Badge tone="blue">Default</Badge>}
+                </div>
+                <ol
+                  className="mt-2 flex flex-wrap items-center gap-1"
+                  aria-label={`${template.name} stages`}
                 >
+                  {[...template.stageNames, 'Hired'].map((stage, i) => (
+                    <li key={`${stage}-${i}`} className="flex items-center gap-1">
+                      {i > 0 && <ChevronRight className="size-3 text-fg-subtle" aria-hidden />}
+                      <StageBadge stage={stage} size="sm" />
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <RowActions label={`Actions for ${template.name}`}>
+                <MenuItem icon={<PenLine />} onSelect={() => setDraft({ ...template })}>
+                  Edit
+                </MenuItem>
+                <MenuItem icon={<Trash2 />} danger onSelect={() => setRemoving(template)}>
                   Delete
-                </Button>
-              </Group>
-            </Group>
-          </Paper>
-        ))}
-        {templates.data?.length === 0 && (
-          <Text size="sm" c="dimmed">
-            No pipelines yet. Add one so new jobs start with the stages your team actually uses.
-          </Text>
-        )}
-        <div>
-          <Button
-            variant="default"
-            leftSection={<IconPlus size={16} />}
-            onClick={() =>
-              setDraft({
-                name: '',
-                stageNames: ['Applied', 'Screen', 'Interview', 'Offer'],
-                isDefault: false,
-              })
-            }
-          >
-            Add pipeline
-          </Button>
-        </div>
-      </Stack>
+                </MenuItem>
+              </RowActions>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Modal
         opened={draft !== null}
         onClose={() => setDraft(null)}
         title={draft?.id ? 'Edit pipeline' : 'New pipeline'}
-        centered
+        description="Drag the handles or use the arrows to change the order."
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDraft(null)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!valid}
+              loading={save.isPending}
+              onClick={() => draft && save.mutate(draft)}
+            >
+              Save pipeline
+            </Button>
+          </>
+        }
       >
         {draft && (
-          <Stack gap="md">
-            <TextInput
+          <div className="flex flex-col gap-4">
+            <Input
+              inset
               label="Name"
               value={draft.name}
               onChange={(event) => setDraft({ ...draft, name: event.currentTarget.value })}
-              data-autofocus
+              autoFocus
             />
             <div>
-              <Text size="sm" fw={500} mb={4}>
-                Stages, in order
-              </Text>
-              <Stack gap={6}>
+              <Label>Stages, in order</Label>
+              <div className="mt-2 flex flex-col gap-1.5">
                 {draft.stageNames.map((stage, index) => (
-                  <Group key={index} gap={4} wrap="nowrap">
-                    <TextInput
+                  <div
+                    key={index}
+                    className={cn(
+                      'flex items-center gap-1 rounded-md',
+                      drag?.over === index && drag.from !== index && 'bg-accent',
+                      drag?.from === index && 'opacity-50',
+                    )}
+                    onDragOver={(event) => {
+                      if (!drag) return;
+                      event.preventDefault();
+                      if (drag.over !== index) setDrag({ ...drag, over: index });
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (drag) moveTo(drag.from, index);
+                      setDrag(null);
+                    }}
+                  >
+                    {/* Drag by the handle; the arrow buttons do the same from the keyboard. */}
+                    <span
+                      draggable
+                      aria-hidden
+                      title="Drag to reorder"
+                      className="flex cursor-grab items-center text-fg-subtle hover:text-fg active:cursor-grabbing"
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = 'move';
+                        event.dataTransfer.setData('text/plain', String(index));
+                        const row = event.currentTarget.parentElement;
+                        if (row) event.dataTransfer.setDragImage(row, 12, row.offsetHeight / 2);
+                        setDrag({ from: index, over: index });
+                      }}
+                      onDragEnd={() => setDrag(null)}
+                    >
+                      <GripVertical className="size-4" />
+                    </span>
+                    <span className="w-5 shrink-0 text-right text-xs text-fg-subtle tnum">
+                      {index + 1}
+                    </span>
+                    <Input
                       aria-label={`Stage ${index + 1}`}
                       value={stage}
+                      className="flex-1"
                       onChange={(event) => {
                         const stages = [...draft.stageNames];
                         stages[index] = event.currentTarget.value;
                         setDraft({ ...draft, stageNames: stages });
                       }}
-                      style={{ flex: 1 }}
                     />
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      aria-label={`Move stage ${index + 1} up`}
+                    <IconButton
+                      variant="quiet"
+                      size="sm"
+                      label={`Move stage ${index + 1} up`}
                       disabled={index === 0}
                       onClick={() => move(index, -1)}
                     >
-                      <IconArrowUp size={16} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      color="gray"
-                      aria-label={`Move stage ${index + 1} down`}
+                      <ArrowUp />
+                    </IconButton>
+                    <IconButton
+                      variant="quiet"
+                      size="sm"
+                      label={`Move stage ${index + 1} down`}
                       disabled={index === draft.stageNames.length - 1}
                       onClick={() => move(index, 1)}
                     >
-                      <IconArrowDown size={16} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      color="red"
-                      aria-label={`Remove stage ${index + 1}`}
+                      <ArrowDown />
+                    </IconButton>
+                    <IconButton
+                      variant="danger-quiet"
+                      size="sm"
+                      label={`Remove stage ${index + 1}`}
                       onClick={() =>
                         setDraft({
                           ...draft,
@@ -208,69 +266,63 @@ export function PipelineTemplatesSection() {
                         })
                       }
                     >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Group>
+                      <Trash2 />
+                    </IconButton>
+                  </div>
                 ))}
-                <Group justify="space-between">
+                <div className="flex items-center justify-between gap-2 pl-6">
                   <Button
-                    variant="subtle"
-                    size="compact-sm"
-                    leftSection={<IconPlus size={14} />}
+                    variant="quiet"
+                    size="sm"
+                    leftIcon={<Plus />}
                     disabled={draft.stageNames.length >= 12}
                     onClick={() => setDraft({ ...draft, stageNames: [...draft.stageNames, ''] })}
                   >
                     Add stage
                   </Button>
-                  <Text size="sm" c="dimmed">
-                    Then Hired, added for you
-                  </Text>
-                </Group>
-              </Stack>
+                  <span className="text-xs text-fg-subtle">Then Hired, added for you</span>
+                </div>
+              </div>
+              {names.length > 0 && (
+                <div className="mt-3 rounded-lg bg-muted px-3 py-2.5">
+                  <p className="text-xs text-fg-subtle">New jobs start with</p>
+                  <ol
+                    className="mt-1.5 flex flex-wrap items-center gap-1"
+                    aria-label="Stage preview"
+                  >
+                    {[...names, 'Hired'].map((stage, i) => (
+                      <li key={`${stage}-${i}`} className="flex items-center gap-1">
+                        {i > 0 && <ChevronRight className="size-3 text-fg-subtle" aria-hidden />}
+                        <StageBadge stage={stage} size="sm" />
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
               {!valid && draft.name.trim() && (
-                <Text size="sm" c="red" mt="xs">
+                <p role="alert" className="mt-2 text-xs text-destructive">
                   Use one to twelve stages, each with a different name.
-                </Text>
+                </p>
               )}
             </div>
             <Checkbox
               label="Use as the default for new jobs"
               checked={draft.isDefault}
-              onChange={(event) => setDraft({ ...draft, isDefault: event.currentTarget.checked })}
+              onCheckedChange={(isDefault) => setDraft({ ...draft, isDefault })}
             />
-            <Group justify="flex-end">
-              <Button variant="default" onClick={() => setDraft(null)}>
-                Cancel
-              </Button>
-              <Button disabled={!valid} loading={save.isPending} onClick={() => save.mutate(draft)}>
-                Save pipeline
-              </Button>
-            </Group>
-          </Stack>
+          </div>
         )}
       </Modal>
-      <Modal
+      <ConfirmDialog
         opened={removing !== null}
         onClose={() => setRemoving(null)}
         title="Delete this pipeline?"
-        centered
-      >
-        <Text size="sm" mb="md">
-          “{removing?.name}” won’t be offered for new jobs. Jobs already using it keep their stages.
-        </Text>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={() => setRemoving(null)}>
-            Keep it
-          </Button>
-          <Button
-            color="red"
-            loading={remove.isPending}
-            onClick={() => removing && remove.mutate(removing.id)}
-          >
-            Delete pipeline
-          </Button>
-        </Group>
-      </Modal>
+        message={`“${removing?.name ?? ''}” won’t be offered for new jobs. Jobs already using it keep their stages.`}
+        confirmLabel="Delete pipeline"
+        onConfirm={async () => {
+          if (removing) await remove.mutateAsync(removing.id).catch(() => undefined);
+        }}
+      />
     </SettingsSection>
   );
 }

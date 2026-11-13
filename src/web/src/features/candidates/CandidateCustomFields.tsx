@@ -1,14 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Button, Group, Modal, NumberInput, Select, Stack, TextInput } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconMailOff } from '@tabler/icons-react';
+import { MailX } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import {
+  Alert,
+  Button,
+  DescriptionList,
+  Input,
+  Modal,
+  NumberInput,
+  Select,
+  toast,
+} from '@/components/ui';
 import { formatDate } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
-import { Fact, Missing, RailGroup } from './Rail';
+import { Missing, RailGroup } from './Rail';
 
 /** Fields the API returns that the shared CandidateDetail type doesn't list yet. */
 export type CandidateExtras = { customFieldsJson?: string | null; emailBounced?: boolean };
@@ -31,7 +39,7 @@ function parseValues(json?: string | null): Record<string, string> {
 
 export function EmailBouncedAlert() {
   return (
-    <Alert variant="light" color="yellow" icon={<IconMailOff size={18} />} title="Email bounced">
+    <Alert tone="warning" icon={MailX} title="Email bounced">
       Emails to this address bounced, so we’ve stopped sending. Check the address.
     </Alert>
   );
@@ -56,11 +64,10 @@ export function CandidateCustomFields({
     mutationFn: () => api.put(`/api/candidates/${candidate.id}/custom-fields`, { values: draft }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
-      notifications.show({ color: 'teal', message: 'Details saved' });
+      toast.success('Details saved');
       setOpened(false);
     },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not save', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save', error.message),
   });
   const fields = definitions.data ?? [];
   if (fields.length === 0) return null;
@@ -81,22 +88,32 @@ export function CandidateCustomFields({
         title="Details"
         action={
           canEdit && (
-            <button type="button" className="text-action" onClick={edit}>
+            <Button variant="link" size="sm" onClick={edit}>
               Edit
-            </button>
+            </Button>
           )
         }
       >
-        <dl className="facts-grid rail-facts">
-          {fields.map((field) => (
-            <Fact key={field.key} label={field.label}>
-              {show(field)}
-            </Fact>
-          ))}
-        </dl>
+        <DescriptionList
+          items={fields.map((field) => ({ label: field.label, value: show(field) }))}
+        />
       </RailGroup>
-      <Modal opened={opened} onClose={() => setOpened(false)} title="Edit details" centered>
-        <Stack gap="md">
+      <Modal
+        opened={opened}
+        onClose={() => setOpened(false)}
+        title="Edit details"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOpened(false)}>
+              Cancel
+            </Button>
+            <Button loading={save.isPending} onClick={() => save.mutate()}>
+              Save details
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4">
           {fields.map((field) =>
             field.type === 'select' ? (
               <Select
@@ -116,10 +133,10 @@ export function CandidateCustomFields({
                     ? ''
                     : Number(draft[field.key])
                 }
-                onChange={(value) => set(field.key, value === '' ? '' : String(value))}
+                onValueChange={(value) => set(field.key, value === '' ? '' : String(value))}
               />
             ) : (
-              <TextInput
+              <Input
                 key={field.key}
                 type={field.type === 'date' ? 'date' : 'text'}
                 label={field.label}
@@ -128,15 +145,7 @@ export function CandidateCustomFields({
               />
             ),
           )}
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setOpened(false)}>
-              Cancel
-            </Button>
-            <Button loading={save.isPending} onClick={() => save.mutate()}>
-              Save details
-            </Button>
-          </Group>
-        </Stack>
+        </div>
       </Modal>
     </>
   );

@@ -1,9 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Drawer, Group, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
-import { DateTimePicker } from '@mantine/dates';
-import { notifications } from '@mantine/notifications';
+import { Alert, Button, Drawer, Input, SearchSelect, Select, toast } from '@/components/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
 import type { ApplicationDetailResponse, CandidateListPage } from '@/types';
@@ -94,10 +92,12 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['interview-calendar'] });
       queryClient.invalidateQueries({ queryKey: ['application', applicationId] });
-      notifications.show({ color: 'teal', message: 'Interview scheduled' });
+      toast.success(
+        status === 'Proposed' ? 'Time offered to the candidate' : 'Interview scheduled',
+      );
       onClose();
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not schedule the interview', error.message),
   });
   const selectKit = (value: string | null) => {
     setKitId(value);
@@ -111,36 +111,61 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
     }
   };
 
+  const candidateOptions =
+    // Each active application is its own choice: a person in two jobs appears twice.
+    (candidates.data?.items ?? []).flatMap((person) =>
+      person.applications
+        .filter((app) => app.status === 'Active')
+        .map((app) => ({ value: app.id, label: `${person.name} · ${app.requisitionTitle}` })),
+    );
+  const slots = availability.data?.slots ?? [];
+
   return (
-    <Drawer opened={opened} onClose={onClose} title="Schedule interview" position="right" size="md">
-      <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          Pick an active candidate, then choose a time. The event will sync to your configured
-          calendar provider.
-        </Text>
-        <Select
-          searchable
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title="Schedule interview"
+      description="Pick an active candidate, then choose a time. The event syncs to your calendar provider."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            loading={mutation.isPending}
+            disabled={!applicationId || !title || !startsAt || !endsAt || !interviewers}
+            onClick={() => mutation.mutate()}
+          >
+            {status === 'Proposed' ? 'Offer time' : 'Schedule and sync'}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <SearchSelect
           label="Candidate"
-          placeholder="Search active candidates"
+          placeholder={
+            candidates.isLoading
+              ? 'Loading candidates…'
+              : candidateOptions.length
+                ? 'Choose an active candidate'
+                : 'No active candidates found'
+          }
+          disabled={!candidateOptions.length}
           value={applicationId}
           onChange={(value) => {
             setApplicationId(value);
             setKitId(null);
           }}
-          // Each active application is its own choice: a person in two jobs appears twice.
-          data={(candidates.data?.items ?? []).flatMap((person) =>
-            person.applications
-              .filter((app) => app.status === 'Active')
-              .map((app) => ({ value: app.id, label: `${person.name} · ${app.requisitionTitle}` })),
-          )}
-          nothingFoundMessage="No active candidates found"
+          data={candidateOptions}
+          description={
+            selectedApplication
+              ? `${selectedApplication.requisitionCode} · ${selectedApplication.requisitionTitle}`
+              : undefined
+          }
         />
-        {selectedApplication && (
-          <Text size="sm" c="dimmed">
-            {selectedApplication.requisitionCode} · {selectedApplication.requisitionTitle}
-          </Text>
-        )}
         <Select
+          inset
           label="Interview kit"
           placeholder={applicationId ? 'Choose a structured kit' : 'Choose a candidate first'}
           clearable
@@ -152,12 +177,14 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
             label: `${kit.name} · ${kit.durationMinutes} min`,
           }))}
         />
-        <TextInput
+        <Input
+          inset
           label="Interview name"
           value={title}
           onChange={(event) => setTitle(event.currentTarget.value)}
         />
         <Select
+          inset
           label="Candidate booking"
           value={status}
           onChange={(value) => value && setStatus(value)}
@@ -166,16 +193,27 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
             { value: 'Proposed', label: 'Offer this time to candidate' },
           ]}
         />
-        <SimpleGrid cols={{ base: 1, sm: 2 }}>
-          <DateTimePicker
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
+            inset
+            type="datetime-local"
             label="Starts"
-            value={startsAt}
-            onChange={setStartsAt}
-            clearable={false}
+            required
+            value={startsAt ?? ''}
+            onChange={(event) => setStartsAt(event.currentTarget.value || null)}
           />
-          <DateTimePicker label="Ends" value={endsAt} onChange={setEndsAt} clearable={false} />
-        </SimpleGrid>
-        <TextInput
+          <Input
+            inset
+            type="datetime-local"
+            label="Ends"
+            required
+            min={startsAt ?? undefined}
+            value={endsAt ?? ''}
+            onChange={(event) => setEndsAt(event.currentTarget.value || null)}
+          />
+        </div>
+        <Input
+          inset
           label="Interviewers"
           description="Comma-separated work emails"
           placeholder="interviewer@example.com"
@@ -183,40 +221,37 @@ export function ScheduleInterviewDrawer({ opened, onClose, selectedDate }: Props
           onChange={(event) => setInterviewers(event.currentTarget.value)}
         />
         {availability.data?.missingConnections.length ? (
-          <Text size="sm" c="orange">
+          <Alert tone="warning" title="Some calendars aren’t connected">
             These interviewers need to connect a calendar before shared availability can be shown:{' '}
             {availability.data.missingConnections.join(', ')}
-          </Text>
+          </Alert>
         ) : null}
         <Select
+          inset
           label="Shared availability"
-          placeholder={availability.isFetching ? 'Checking calendars…' : 'Choose a common time'}
-          disabled={availability.isFetching || !availability.data?.slots.length}
-          data={(availability.data?.slots ?? []).map((slot) => ({
+          placeholder={
+            availability.isFetching
+              ? 'Checking calendars…'
+              : interviewerEmails.length === 0
+                ? 'Add interviewers first'
+                : slots.length
+                  ? 'Choose a common time'
+                  : 'No shared calendar times found'
+          }
+          disabled={availability.isFetching || !slots.length}
+          value={null}
+          data={slots.map((slot) => ({
             value: slot.startsAt,
             label: `${new Date(slot.startsAt).toLocaleString()} – ${new Date(slot.endsAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`,
           }))}
           onChange={(value) => {
-            const slot = availability.data?.slots.find((item) => item.startsAt === value);
+            const slot = slots.find((item) => item.startsAt === value);
             if (!slot) return;
             setStartsAt(localDateTime(new Date(slot.startsAt)));
             setEndsAt(localDateTime(new Date(slot.endsAt)));
           }}
-          nothingFoundMessage="No shared calendar times found"
         />
-        <Group justify="flex-end" mt="sm">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            loading={mutation.isPending}
-            disabled={!applicationId || !title || !startsAt || !endsAt || !interviewers}
-            onClick={() => mutation.mutate()}
-          >
-            {status === 'Proposed' ? 'Offer time' : 'Schedule and sync'}
-          </Button>
-        </Group>
-      </Stack>
+      </div>
     </Drawer>
   );
 }

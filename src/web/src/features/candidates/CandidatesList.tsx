@@ -1,59 +1,71 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type KeyboardEvent, type MouseEvent, type SyntheticEvent } from 'react';
 import {
-  ActionIcon,
-  Alert,
-  Button,
-  Checkbox,
-  Group,
-  Menu,
-  Modal,
-  NumberInput,
-  Pagination,
-  Paper,
-  Popover,
-  Radio,
-  SegmentedControl,
-  Select,
-  Stack,
-  Table,
-  TagsInput,
-  Text,
-  Textarea,
-  TextInput,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { notifications } from '@mantine/notifications';
-import {
-  IconDots,
-  IconSearch,
-  IconSparkles,
-  IconUserCheck,
-  IconUserOff,
-  IconUserSearch,
-  IconX,
-} from '@tabler/icons-react';
+  CalendarDays,
+  FileCheck2,
+  GitCompareArrows,
+  SlidersHorizontal,
+  Sparkles,
+  Trash2,
+  UserCheck,
+  UserSearch,
+  Users,
+  UserX,
+  Workflow,
+  X,
+} from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
-import { EmptyState } from '@/components/ui/Cards';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatRelative } from '@/lib/format';
+import {
+  Alert,
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  CellStack,
+  Checkbox,
+  ConfirmDialog,
+  CountBadge,
+  EmptyState,
+  FilterSelect,
+  Input,
+  MenuItem,
+  MenuSeparator,
+  Modal,
+  NumberInput,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowActions,
+  SearchInput,
+  SegmentedControl,
+  Select,
+  SplitView,
+  StatCard,
+  StatGrid,
+  TagsInput,
+  Textarea,
+  toast,
+} from '@/components/ui';
+import { DataTable, type Column } from '@/components/data-table/DataTable';
+import { StageBadge, StatusBadge, stageTone } from '@/components/status';
+import { formatDate, formatRelative } from '@/lib/format';
 import { RejectManyModal } from '@/features/applicants/RejectManyModal';
 import { FitDrawer } from '@/features/talent/FitDrawer';
 import type {
   CandidateListApplication,
   CandidateListItem,
   CandidateListPage,
+  DashboardData,
   RequisitionDetail,
   RequisitionSummary,
 } from '@/types';
 import { BLANK, candidateParams, DEFAULT_LIST_QUERY, type Filters } from './candidate-filters';
 import { CandidatePreview, type PreviewPerson, SkillText } from './CandidatePreview';
 
-const STATUS_OPTIONS = ['Active', 'Hired', 'Rejected', 'Withdrawn'];
 const SENIORITY_OPTIONS = [
   'Junior',
   'Mid',
@@ -114,7 +126,22 @@ type RankResponse = {
   pending: number;
   dismissed: number;
 };
-type SavedView = { id: string; name: string; paramsJson: string };
+/** A segment or saved view of the list: what the server fetched, and how to start. */
+export type ListStart = {
+  initialData: CandidateListPage;
+  initialFilters: Filters;
+  initialDescribe?: string;
+  /** Opened from a job (?job=): rank everyone against it straight away. */
+  rank?: boolean;
+  /** Set on /candidates/views/[id]. */
+  view?: { id: string; name: string };
+};
+
+/** The side preview pane only exists from `lg` up (see SplitView). */
+const wide = () => window.matchMedia('(min-width: 1024px)').matches;
+/** The candidate id a row carries in its first cell. */
+const rowId = (row: Element | null | undefined) =>
+  (row?.querySelector('[data-row-id]') as HTMLElement | null)?.dataset.rowId;
 
 /**
  * Everyone in one list: one row per person. Filters cover the person and their applications.
@@ -123,29 +150,32 @@ type SavedView = { id: string; name: string; paramsJson: string };
  */
 export function CandidatesList({
   initialData,
-  initialJobId,
-}: {
-  initialData: CandidateListPage;
-  initialJobId?: string;
-}) {
+  initialFilters,
+  initialDescribe = '',
+  rank: rankOnLoad,
+  view,
+}: ListStart) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const user = useCurrentUser();
   const staff = ['Admin', 'Recruiter'].includes(user.role);
   const canManage = staff || user.role === 'HiringManager';
+  // The segment's status stays when filters are cleared.
+  const base: Filters = { ...BLANK, status: initialFilters.status };
+  const initialQuery = candidateParams(initialFilters, 1).toString();
 
-  const [filters, setFilters] = useState<Filters>({ ...BLANK, jobId: initialJobId ?? null });
+  const [filters, setFilters] = useState<Filters>(initialFilters);
   const [page, setPage] = useState(1);
-  const [describe, setDescribe] = useState('');
+  const [describe, setDescribe] = useState(initialDescribe);
   const [ranking, setRanking] = useState<{ jobId: string; query: string } | null>(
-    staff && initialJobId ? { jobId: initialJobId, query: '' } : null,
+    staff && rankOnLoad && initialFilters.jobId ? { jobId: initialFilters.jobId, query: '' } : null,
   );
   const [rankPage, setRankPage] = useState(1);
   const [includeDismissed, setIncludeDismissed] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [targetStage, setTargetStage] = useState<string | null>(null);
-  const [bulkRejectOpened, bulkReject] = useDisclosure();
+  const [bulkRejectOpened, setBulkRejectOpened] = useState(false);
   const [rejecting, setRejecting] = useState<{
     name: string;
     app: CandidateListApplication;
@@ -153,8 +183,9 @@ export function CandidatesList({
   const [fitFor, setFitFor] = useState<{ id: string; name: string } | null>(null);
   const [dismissFor, setDismissFor] = useState<RankedCandidate | null>(null);
   const [dismissReason, setDismissReason] = useState('');
-  const [saveOpened, saveMenu] = useDisclosure();
-  const [saveName, setSaveName] = useState('');
+  const [saveOpened, setSaveOpened] = useState(false);
+  // On a saved view the name is filled in, so saving again updates it (the API upserts by name).
+  const [saveName, setSaveName] = useState(view?.name ?? '');
 
   const set = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((current) => ({
@@ -168,11 +199,11 @@ export function CandidatesList({
     if (key === 'jobId') setTargetStage(null);
   };
   const clearFilters = () => {
-    setFilters(BLANK);
+    setFilters(base);
     setPage(1);
     setSelected([]);
   };
-  const anyFilter = JSON.stringify(filters) !== JSON.stringify(BLANK);
+  const anyFilter = JSON.stringify(filters) !== JSON.stringify(base);
 
   const jobs = useQuery({
     queryKey: ['requisitions'],
@@ -187,7 +218,7 @@ export function CandidatesList({
   const list = useQuery({
     queryKey: ['candidates', params],
     queryFn: () => api.get<CandidateListPage>(`/api/candidates?${params}`),
-    initialData: params === DEFAULT_LIST_QUERY ? initialData : undefined,
+    initialData: params === initialQuery ? initialData : undefined,
     placeholderData: (previous) => previous,
   });
   const rank = useQuery({
@@ -204,11 +235,6 @@ export function CandidatesList({
         page: rankPage,
         pageSize: 25,
       }),
-  });
-  const savedViews = useQuery({
-    queryKey: ['saved-views', 'talent'],
-    queryFn: () => api.get<SavedView[]>('/api/saved-views?area=talent'),
-    enabled: staff,
   });
 
   // Describe who you need: with a job chosen it ranks against the job, otherwise AI sets filters.
@@ -242,7 +268,7 @@ export function CandidatesList({
       }));
       setPage(1);
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error(error.message),
   });
   const runDescribe = () => {
     if (filters.jobId) {
@@ -270,9 +296,9 @@ export function CandidatesList({
       setSelected([]);
       setTargetStage(null);
       refreshAll();
-      notifications.show({ color: 'teal', message: 'Moved' });
+      toast.success('Moved');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error(error.message),
   });
   // Rejecting keeps each application in its own stage, so no stage needs picking first.
   const reject = useMutation({
@@ -287,17 +313,15 @@ export function CandidatesList({
     onSuccess: (_result, { apps }) => {
       setSelected([]);
       setRejecting(null);
-      bulkReject.close();
+      setBulkRejectOpened(false);
       refreshAll();
-      notifications.show({
-        color: 'teal',
-        message:
-          apps.length === 1 ? 'Application rejected' : `${apps.length} applications rejected`,
-      });
+      toast.success(
+        apps.length === 1 ? 'Application rejected' : `${apps.length} applications rejected`,
+      );
     },
     onError: (error: Error) => {
       refreshAll();
-      notifications.show({ color: 'red', message: error.message });
+      toast.error(error.message);
     },
   });
   const addToJob = useMutation({
@@ -308,13 +332,10 @@ export function CandidatesList({
         source: 'Existing candidate',
       }),
     onSuccess: () => {
-      notifications.show({
-        color: 'teal',
-        message: 'Added to this job. Find them on its pipeline.',
-      });
+      toast.success('Added to this job', 'Find them on its pipeline.');
       refreshAll();
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error(error.message),
   });
   const dismiss = useMutation({
     mutationFn: () =>
@@ -323,21 +344,21 @@ export function CandidatesList({
         reason: dismissReason.trim(),
       }),
     onSuccess: () => {
-      notifications.show({
-        color: 'teal',
-        message: `${dismissFor?.name} is hidden from this job's ranking. Show dismissed to bring them back.`,
-      });
+      toast.success(
+        `${dismissFor?.name} is hidden from this job's ranking`,
+        'Show dismissed to bring them back.',
+      );
       setDismissFor(null);
       setDismissReason('');
       refreshAll();
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error(error.message),
   });
   const undoDismiss = useMutation({
     mutationFn: (candidateId: string) =>
       api.delete(`/api/requisitions/${ranking!.jobId}/dismissals/${candidateId}`),
     onSuccess: refreshAll,
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error(error.message),
   });
   const saveView = useMutation({
     mutationFn: () =>
@@ -347,38 +368,22 @@ export function CandidatesList({
         paramsJson: JSON.stringify({ filters, describe }),
       }),
     onSuccess: () => {
-      setSaveName('');
-      saveMenu.close();
+      setSaveOpened(false);
       queryClient.invalidateQueries({ queryKey: ['saved-views', 'talent'] });
-      notifications.show({ color: 'teal', message: 'Saved' });
+      toast.success('View saved', 'Find it in the sidebar under Saved views.');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error(error.message),
   });
-  const applyView = (id: string | null) => {
-    const view = savedViews.data?.find((item) => item.id === id);
-    if (!view) return;
-    // Older views from Find for a job stored { jobId, query, minYears, location }.
-    const saved = JSON.parse(view.paramsJson) as {
-      filters?: Partial<Filters>;
-      describe?: string;
-      jobId?: string | null;
-      query?: string;
-      minYears?: number | null;
-      location?: string;
-    };
-    const next: Filters = saved.filters
-      ? { ...BLANK, ...saved.filters }
-      : {
-          ...BLANK,
-          jobId: saved.jobId ?? null,
-          minYears: saved.minYears ?? '',
-          location: saved.location ?? '',
-        };
-    setFilters(next);
-    setDescribe(saved.describe ?? saved.query ?? '');
-    setPage(1);
-    setRanking(null);
-  };
+  const deleteView = useMutation({
+    mutationFn: () => api.delete(`/api/saved-views/${view!.id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['saved-views', 'talent'] });
+      toast.success('View deleted');
+      router.push('/candidates');
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const [deleteOpened, setDeleteOpened] = useState(false);
 
   const items = list.data?.items ?? [];
   const rankItems = rank.data?.items ?? [];
@@ -398,7 +403,8 @@ export function CandidatesList({
         matchedTerms: item.matched,
       }))
     : items;
-  const preview = people.find((person) => person.id === previewId) ?? people[0];
+  // The side pane is closed until a row is opened for preview.
+  const preview = people.find((person) => person.id === previewId);
 
   const selectedApps = useMemo(
     () =>
@@ -408,7 +414,6 @@ export function CandidatesList({
         .filter((app): app is CandidateListApplication => Boolean(app)),
     [items, selected, filters.jobId],
   );
-  const allSelected = items.length > 0 && items.every((person) => selected.includes(person.id));
   const canBulk = canManage && Boolean(filters.jobId) && !ranking;
 
   const jobOptions =
@@ -418,218 +423,203 @@ export function CandidatesList({
     : [];
   const rankJobTitle = jobs.data?.find((item) => item.id === ranking?.jobId)?.title;
 
-  const selectRow = (id: string) => ({
-    'data-active': preview?.id === id || undefined,
-    tabIndex: 0,
-    onClick: () => setPreviewId(id),
-    onDoubleClick: () => router.push(`/candidates/${id}`),
-    onKeyDown: (event: React.KeyboardEvent) => {
-      if (event.target !== event.currentTarget) return;
-      if (event.key === 'Enter') router.push(`/candidates/${id}`);
-      if (event.key === ' ') {
-        event.preventDefault();
+  // Click opens the preview (the profile on a narrow screen); Enter and double-click open the
+  // profile; up and down walk the rows and the preview follows.
+  const openRow = (id: string) => (wide() ? setPreviewId(id) : router.push(`/candidates/${id}`));
+  const onRowKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+    const row = event.target as HTMLElement;
+    if (row.tagName !== 'TR') return;
+    if (event.key === 'Enter') {
+      const id = rowId(row);
+      if (!id) return;
+      event.preventDefault();
+      event.stopPropagation();
+      router.push(`/candidates/${id}`);
+    }
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      const next = (
+        event.key === 'ArrowDown' ? row.nextElementSibling : row.previousElementSibling
+      ) as HTMLElement | null;
+      const id = rowId(next);
+      if (next && id) {
+        next.focus();
         setPreviewId(id);
       }
-    },
-  });
-  const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+    }
+  };
+  const onRowDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+    const id = rowId((event.target as HTMLElement).closest('tbody tr'));
+    if (id) router.push(`/candidates/${id}`);
+  };
+  const previewing = (id: string) => (id === previewId ? 'bg-accent hover:bg-accent' : undefined);
+  const stop = (event: SyntheticEvent) => event.stopPropagation();
   const copyEmail = (email: string) => {
     navigator.clipboard.writeText(email);
-    notifications.show({ message: `Copied ${email}` });
+    toast(`Copied ${email}`);
   };
 
-  const rail = (
-    <aside className="applicants-rail" aria-label="Filters">
-      <TextInput
-        aria-label="Search people"
-        placeholder="Search names, resumes, skills"
-        value={filters.search}
-        onChange={(event) => set('search', event.currentTarget.value)}
-        leftSection={<IconSearch size={15} />}
-      />
-      <div>
-        <p className="applicants-group-title">Job</p>
-        <Select
-          size="xs"
-          searchable
-          clearable
-          placeholder="Any job"
-          aria-label="Job"
-          value={filters.jobId}
-          onChange={(value) => set('jobId', value)}
-          data={jobOptions}
-        />
-        <Select
-          mt={6}
-          size="xs"
-          clearable
-          placeholder={filters.jobId ? 'Any stage' : 'Pick a job first'}
-          aria-label="Stage"
-          disabled={!filters.jobId}
-          value={filters.stageId}
-          onChange={(value) => set('stageId', value)}
-          data={stageOptions}
-        />
-      </div>
-      <div>
-        <p className="applicants-group-title">Application status</p>
-        <Radio.Group
-          value={filters.status ?? 'any'}
-          onChange={(value) => set('status', value === 'any' ? null : value)}
-        >
-          <Stack gap={6}>
-            <Radio size="xs" value="any" label="Anyone" />
-            {STATUS_OPTIONS.map((value) => (
-              <Radio key={value} size="xs" value={value} label={value} />
-            ))}
-          </Stack>
-        </Radio.Group>
-      </div>
-      <div>
-        <p className="applicants-group-title">Minimum rating</p>
-        <SegmentedControl
-          size="xs"
-          fullWidth
-          value={filters.minRating ?? 'any'}
-          onChange={(value) => set('minRating', value === 'any' ? null : value)}
-          data={['any', '1', '2', '3', '4', '5'].map((value) => ({
-            value,
-            label: value === 'any' ? 'Any' : value,
-          }))}
-        />
-      </div>
-      <div>
-        <p className="applicants-group-title">Skills</p>
-        <TagsInput
-          size="xs"
-          aria-label="Skills"
-          placeholder="Type a skill, press Enter"
-          value={filters.skills}
-          onChange={(value) =>
-            set(
-              'skills',
-              value.map((item) => item.toLowerCase()),
-            )
-          }
-        />
-        <SegmentedControl
-          mt={6}
-          size="xs"
-          fullWidth
-          value={filters.skillMode}
-          onChange={(value) => set('skillMode', value)}
-          data={[
-            { value: 'any', label: 'Any of them' },
-            { value: 'all', label: 'All of them' },
-          ]}
-        />
-      </div>
-      <div>
-        <p className="applicants-group-title">Background</p>
-        <Stack gap={6}>
-          <TextInput
-            size="xs"
-            placeholder="Job title"
-            aria-label="Job title"
+  // Headline numbers: everyone on file (the unfiltered list, shared with the list's cache) and
+  // the active pipeline from the dashboard summary.
+  const everyone = useQuery({
+    queryKey: ['candidates', DEFAULT_LIST_QUERY],
+    queryFn: () => api.get<CandidateListPage>(`/api/candidates?${DEFAULT_LIST_QUERY}`),
+    initialData: initialQuery === DEFAULT_LIST_QUERY ? initialData : undefined,
+  });
+  const dashboard = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => api.get<DashboardData>('/api/dashboard'),
+  });
+  const pipeline = dashboard.data?.pipeline ?? [];
+  const inStages = (test: (stage: string) => boolean) =>
+    dashboard.data
+      ? pipeline.filter((row) => test(row.stage)).reduce((sum, row) => sum + row.count, 0)
+      : '–';
+
+  const total = ranking ? (rank.data?.total ?? 0) : (list.data?.total ?? 0);
+  const pageSize = ranking ? (rank.data?.pageSize ?? 25) : (list.data?.pageSize ?? 25);
+  // Filters behind "More filters": everything but search, job, stage, status and sort.
+  const moreCount = (Object.keys(BLANK) as (keyof Filters)[]).filter(
+    (key) =>
+      !['search', 'jobId', 'stageId', 'status', 'sort'].includes(key) &&
+      JSON.stringify(filters[key]) !== JSON.stringify(BLANK[key]),
+  ).length;
+
+  const label = (text: string) => <p className="mb-1.5 text-xs text-fg-subtle">{text}</p>;
+  const moreFilters = (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="secondary" leftIcon={<SlidersHorizontal />}>
+          More filters
+          {moreCount > 0 && <CountBadge count={moreCount} />}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        className="max-h-[min(70vh,640px)] w-[min(92vw,520px)] overflow-y-auto"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            {label('Minimum rating')}
+            <SegmentedControl
+              size="sm"
+              aria-label="Minimum rating"
+              value={filters.minRating ?? 'any'}
+              onValueChange={(value) => set('minRating', value === 'any' ? null : value)}
+              items={['any', '1', '2', '3', '4', '5'].map((value) => ({
+                value,
+                label: value === 'any' ? 'Any' : value,
+              }))}
+            />
+          </div>
+          <div>
+            {label('Resume')}
+            <SegmentedControl
+              size="sm"
+              aria-label="Resume"
+              value={filters.hasResume ?? 'any'}
+              onValueChange={(value) => set('hasResume', value === 'any' ? null : value)}
+              items={[
+                { value: 'any', label: 'Any' },
+                { value: 'true', label: 'Read' },
+                { value: 'false', label: 'Not yet' },
+              ]}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <TagsInput
+              label="Skills"
+              placeholder="Type a skill, press Enter"
+              value={filters.skills}
+              onChange={(value) =>
+                set(
+                  'skills',
+                  value.map((item) => item.toLowerCase()),
+                )
+              }
+            />
+            <SegmentedControl
+              className="mt-2"
+              size="sm"
+              aria-label="Skill match"
+              value={filters.skillMode}
+              onValueChange={(value) => set('skillMode', value)}
+              items={[
+                { value: 'any', label: 'Any of them' },
+                { value: 'all', label: 'All of them' },
+              ]}
+            />
+          </div>
+          <Input
+            label="Job title"
             value={filters.title}
             onChange={(event) => set('title', event.currentTarget.value)}
           />
-          <TextInput
-            size="xs"
-            placeholder="Location"
-            aria-label="Location"
+          <Input
+            label="Location"
             value={filters.location}
             onChange={(event) => set('location', event.currentTarget.value)}
           />
           <NumberInput
-            size="xs"
-            placeholder="Minimum years"
-            aria-label="Minimum years of experience"
-            suffix=" years"
+            label="Minimum years of experience"
             min={0}
             max={50}
-            value={filters.minYears}
-            onChange={(value) => set('minYears', value)}
+            value={filters.minYears === '' ? '' : Number(filters.minYears)}
+            onValueChange={(value) => set('minYears', value)}
           />
           <Select
-            size="xs"
+            label="Minimum seniority"
             clearable
             placeholder="Any seniority"
-            aria-label="Minimum seniority"
             data={SENIORITY_OPTIONS}
             value={filters.seniority}
             onChange={(value) => set('seniority', value)}
           />
           <Select
-            size="xs"
+            label="Minimum degree"
             clearable
             placeholder="Any degree"
-            aria-label="Minimum degree"
             data={DEGREE_OPTIONS}
             value={filters.minDegree}
             onChange={(value) => set('minDegree', value)}
           />
-          <TextInput
-            size="xs"
-            placeholder="Worked at"
-            aria-label="Company"
-            value={filters.company}
-            onChange={(event) => set('company', event.currentTarget.value)}
-          />
-          <TextInput
-            size="xs"
-            placeholder="Studied at"
-            aria-label="School"
-            value={filters.school}
-            onChange={(event) => set('school', event.currentTarget.value)}
-          />
           <Select
-            size="xs"
+            label="Source"
             clearable
             placeholder="Any source"
-            aria-label="Source"
             data={SOURCE_OPTIONS}
             value={filters.source}
             onChange={(value) => set('source', value)}
           />
-        </Stack>
-      </div>
-      <div>
-        <p className="applicants-group-title">Resume</p>
-        <SegmentedControl
-          size="xs"
-          fullWidth
-          value={filters.hasResume ?? 'any'}
-          onChange={(value) => set('hasResume', value === 'any' ? null : value)}
-          data={[
-            { value: 'any', label: 'Any' },
-            { value: 'true', label: 'Read' },
-            { value: 'false', label: 'Not yet' },
-          ]}
-        />
-      </div>
-      <Checkbox
-        size="xs"
-        label="Include do-not-contact"
-        checked={filters.includeDnc}
-        onChange={(event) => set('includeDnc', event.currentTarget.checked)}
-      />
-      {anyFilter && (
-        <button
-          type="button"
-          className="text-action"
-          onClick={clearFilters}
-          style={{ alignSelf: 'flex-start' }}
-        >
-          Clear all filters
-        </button>
-      )}
-    </aside>
+          <Input
+            label="Worked at"
+            value={filters.company}
+            onChange={(event) => set('company', event.currentTarget.value)}
+          />
+          <Input
+            label="Studied at"
+            value={filters.school}
+            onChange={(event) => set('school', event.currentTarget.value)}
+          />
+          <Checkbox
+            className="sm:col-span-2"
+            label="Include do-not-contact"
+            checked={filters.includeDnc}
+            onCheckedChange={(checked) => set('includeDnc', checked)}
+          />
+        </div>
+        {anyFilter && (
+          <Button variant="link" size="sm" className="mt-4" onClick={clearFilters}>
+            Clear all filters
+          </Button>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 
   const describeBar = staff && (
-    <div className="candidates-describe">
-      <TextInput
+    <div className="flex flex-wrap items-center gap-2">
+      <Input
         aria-label="Describe who you need"
         placeholder={
           filters.jobId
@@ -641,41 +631,29 @@ export function CandidatesList({
         onKeyDown={(event) => {
           if (event.key === 'Enter') runDescribe();
         }}
-        leftSection={<IconSparkles size={16} />}
-        style={{ flex: '1 1 320px' }}
+        leftSection={<Sparkles />}
+        className="min-w-[260px] flex-1"
       />
       <Button
+        variant="soft"
         onClick={runDescribe}
         loading={toFilters.isPending}
         disabled={!filters.jobId && !describe.trim()}
       >
         {filters.jobId ? 'Rank for this job' : 'Set filters'}
       </Button>
-      {savedViews.data && savedViews.data.length > 0 && (
-        <Select
-          aria-label="Saved views"
-          placeholder="Saved views"
-          data={savedViews.data.map((view) => ({ value: view.id, label: view.name }))}
-          value={null}
-          onChange={applyView}
-          w={170}
-        />
+      {view && (
+        <Button variant="danger-quiet" leftIcon={<Trash2 />} onClick={() => setDeleteOpened(true)}>
+          Delete view
+        </Button>
       )}
-      <Popover
-        opened={saveOpened}
-        onChange={saveMenu.toggle}
-        position="bottom-end"
-        withArrow
-        shadow="md"
-      >
-        <Popover.Target>
-          <Button variant="default" onClick={saveMenu.toggle}>
-            Save view
-          </Button>
-        </Popover.Target>
-        <Popover.Dropdown>
-          <Stack gap="xs" w={240}>
-            <TextInput
+      <Popover open={saveOpened} onOpenChange={setSaveOpened}>
+        <PopoverTrigger asChild>
+          <Button variant="secondary">{view ? 'Update view' : 'Save view'}</Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64">
+          <div className="flex flex-col gap-3">
+            <Input
               label="Name"
               placeholder="e.g. Chicago React leads"
               value={saveName}
@@ -685,421 +663,524 @@ export function CandidatesList({
               }}
               autoFocus
             />
-            <Button size="sm" disabled={!saveName.trim()} onClick={() => saveView.mutate()}>
+            <Button
+              size="sm"
+              disabled={!saveName.trim()}
+              loading={saveView.isPending}
+              onClick={() => saveView.mutate()}
+            >
               Save
             </Button>
-          </Stack>
-        </Popover.Dropdown>
+          </div>
+        </PopoverContent>
       </Popover>
     </div>
   );
 
-  const rankTable = !rank.data ? (
-    <LoadingBlock rows={6} />
-  ) : (
-    <>
-      {rank.data.note && (
-        <Alert color="yellow" mb="sm">
-          {rank.data.note}
-        </Alert>
-      )}
-      {rank.data.pending > 0 && (
-        <Text size="sm" c="dimmed" mb="sm">
-          {rank.data.pending} resumes are still being read and will rank once they are.
-        </Text>
-      )}
-      {rankItems.length === 0 ? (
-        <EmptyState icon={IconUserSearch} title="Nobody on file matches this job yet" />
-      ) : (
-        <div className="panel">
-          <Table.ScrollContainer minWidth={760}>
-            <Table className="inbox-table applicants-table candidates-table" verticalSpacing={0}>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th w={70} ta="right">
-                    Score
-                  </Table.Th>
-                  <Table.Th>Candidate</Table.Th>
-                  <Table.Th>Matches</Table.Th>
-                  <Table.Th w={130}>This job</Table.Th>
-                  <Table.Th w={44} />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {rankItems.map((item) => (
-                  <Table.Tr
-                    key={item.candidateId}
-                    data-dismissed={item.dismissed || undefined}
-                    {...selectRow(item.candidateId)}
-                  >
-                    <Table.Td className="applicants-num">
-                      <span className="candidates-score">{Math.round(item.score)}</span>
-                    </Table.Td>
-                    <Table.Td>
-                      <span className="applicants-name">{item.name}</span>
-                      {item.currentTitle && (
-                        <span className="applicants-title">{item.currentTitle}</span>
-                      )}
-                    </Table.Td>
-                    <Table.Td className="candidates-matches">
-                      {item.matched.length ? (
-                        <SkillText
-                          person={{
-                            id: item.candidateId,
-                            name: item.name,
-                            email: item.email,
-                            skills: item.matched,
-                            matchedTerms: item.matched,
-                          }}
-                          limit={6}
-                        />
-                      ) : (
-                        <span className="applicants-dim">No named matches</span>
-                      )}
-                    </Table.Td>
-                    <Table.Td>
-                      {item.dismissed ? (
-                        <span className="applicants-dim">Dismissed</span>
-                      ) : item.appliedToJob ? (
-                        'Applied'
-                      ) : (
-                        <span className="applicants-dim">Not yet</span>
-                      )}
-                      {item.fitScore != null && (
-                        <span className="applicants-title">assessed {item.fitScore}</span>
-                      )}
-                    </Table.Td>
-                    <Table.Td onClick={stop}>
-                      <Menu position="bottom-end" withArrow shadow="md">
-                        <Menu.Target>
-                          <ActionIcon
-                            variant="subtle"
-                            color="gray"
-                            size="sm"
-                            aria-label={`Actions for ${item.name}`}
-                          >
-                            <IconDots size={16} />
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          {!item.appliedToJob && !item.dismissed && (
-                            <Menu.Item onClick={() => addToJob.mutate(item.candidateId)}>
-                              Add to this job
-                            </Menu.Item>
-                          )}
-                          <Menu.Item
-                            onClick={() => setFitFor({ id: item.candidateId, name: item.name })}
-                          >
-                            Why this ranking
-                          </Menu.Item>
-                          <Menu.Item onClick={() => router.push(`/candidates/${item.candidateId}`)}>
-                            Open profile
-                          </Menu.Item>
-                          <Menu.Item onClick={() => copyEmail(item.email)}>Copy email</Menu.Item>
-                          <Menu.Divider />
-                          {item.dismissed ? (
-                            <Menu.Item onClick={() => undoDismiss.mutate(item.candidateId)}>
-                              Bring back
-                            </Menu.Item>
-                          ) : (
-                            <Menu.Item color="red" onClick={() => setDismissFor(item)}>
-                              Dismiss for this job…
-                            </Menu.Item>
-                          )}
-                        </Menu.Dropdown>
-                      </Menu>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
+  const rankColumns: Column<RankedCandidate>[] = [
+    {
+      id: 'score',
+      header: 'Score',
+      align: 'right',
+      className: 'w-[70px] text-lg font-light tnum',
+      cell: (item) => Math.round(item.score),
+      csv: (item) => Math.round(item.score),
+      hideable: false,
+    },
+    {
+      id: 'candidate',
+      header: 'Candidate',
+      hideable: false,
+      cell: (item) => (
+        <div className="flex items-center gap-3" data-row-id={item.candidateId}>
+          <Avatar name={item.name} />
+          <CellStack primary={item.name} secondary={item.currentTitle} />
         </div>
+      ),
+      csv: (item) => item.name,
+    },
+    {
+      id: 'matches',
+      header: 'Matches',
+      className: 'whitespace-normal',
+      cell: (item) =>
+        item.matched.length ? (
+          <SkillText
+            person={{
+              id: item.candidateId,
+              name: item.name,
+              email: item.email,
+              skills: item.matched,
+              matchedTerms: item.matched,
+            }}
+            limit={6}
+          />
+        ) : (
+          <span className="text-fg-subtle">No named matches</span>
+        ),
+      csv: (item) => item.matched.join(', '),
+    },
+    {
+      id: 'job',
+      header: 'This job',
+      className: 'w-[130px]',
+      cell: (item) => (
+        <CellStack
+          primary={
+            item.dismissed ? (
+              <span className="font-normal text-fg-subtle">Dismissed</span>
+            ) : item.appliedToJob ? (
+              'Applied'
+            ) : (
+              <span className="font-normal text-fg-subtle">Not yet</span>
+            )
+          }
+          secondary={item.fitScore != null ? `assessed ${item.fitScore}` : undefined}
+        />
+      ),
+      csv: (item) => (item.dismissed ? 'Dismissed' : item.appliedToJob ? 'Applied' : 'Not yet'),
+    },
+    {
+      id: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      label: 'Actions',
+      align: 'right',
+      className: 'w-14',
+      hideable: false,
+      cell: (item) => (
+        <div onClick={stop}>
+          <RowActions label={`Actions for ${item.name}`}>
+            {!item.appliedToJob && !item.dismissed && (
+              <MenuItem onSelect={() => addToJob.mutate(item.candidateId)}>
+                Add to this job
+              </MenuItem>
+            )}
+            <MenuItem onSelect={() => setFitFor({ id: item.candidateId, name: item.name })}>
+              Why this ranking
+            </MenuItem>
+            <MenuItem onSelect={() => router.push(`/candidates/${item.candidateId}`)}>
+              Open profile
+            </MenuItem>
+            <MenuItem onSelect={() => copyEmail(item.email)}>Copy email</MenuItem>
+            <MenuSeparator />
+            {item.dismissed ? (
+              <MenuItem onSelect={() => undoDismiss.mutate(item.candidateId)}>Bring back</MenuItem>
+            ) : (
+              <MenuItem danger onSelect={() => setDismissFor(item)}>
+                Dismiss for this job…
+              </MenuItem>
+            )}
+          </RowActions>
+        </div>
+      ),
+    },
+  ];
+
+  const jobsById = new Map(jobs.data?.map((item) => [item.id, item]));
+  const showFit = items.some((person) => shownApp(person)?.fitScore != null);
+  const listColumns: Column<CandidateListItem>[] = [
+    {
+      id: 'candidate',
+      header: 'Candidate',
+      hideable: false,
+      className: 'max-w-[280px]',
+      cell: (person) => (
+        <div className="flex items-center gap-3" data-row-id={person.id}>
+          <Avatar name={person.name} />
+          <CellStack
+            primary={
+              <span className="flex items-center gap-1.5">
+                <span className="truncate">{person.name}</span>
+                {person.doNotContact && (
+                  <Badge tone="red" size="sm">
+                    Do not contact
+                  </Badge>
+                )}
+              </span>
+            }
+            secondary={person.email}
+          />
+        </div>
+      ),
+      csv: (person) => `${person.name} <${person.email}>`,
+    },
+    {
+      id: 'job',
+      header: 'Applied for',
+      className: 'max-w-[240px]',
+      cell: (person) => {
+        const app = shownApp(person);
+        if (!app) return <span className="text-fg-subtle">No job yet</span>;
+        const department = jobsById.get(app.requisitionId)?.department;
+        return (
+          <CellStack
+            primary={app.requisitionTitle}
+            secondary={[
+              department || app.requisitionCode,
+              person.applications.length > 1 ? `+${person.applications.length - 1} more` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          />
+        );
+      },
+      csv: (person) => shownApp(person)?.requisitionTitle,
+    },
+    ...(showFit
+      ? [
+          {
+            id: 'fit',
+            header: 'AI match',
+            cell: (person: CandidateListItem) => {
+              const fit = shownApp(person)?.fitScore;
+              return fit != null ? (
+                <span
+                  className={fit >= 75 ? 'font-medium text-tone-green-fg tnum' : 'font-medium tnum'}
+                >
+                  {fit}%
+                </span>
+              ) : (
+                <span className="text-fg-subtle">–</span>
+              );
+            },
+            csv: (person: CandidateListItem) => shownApp(person)?.fitScore,
+          },
+        ]
+      : []),
+    {
+      id: 'source',
+      header: 'Source',
+      className: 'text-fg-muted',
+      cell: (person) => person.source,
+      csv: (person) => person.source,
+    },
+    {
+      id: 'applied',
+      header: 'Applied',
+      className: 'whitespace-nowrap',
+      cell: (person) => {
+        const app = shownApp(person);
+        return (
+          <>
+            <div className="tnum">{app ? formatDate(app.appliedAt) : '–'}</div>
+            <div className="mt-0.5 text-xs text-fg-subtle">
+              Active {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
+            </div>
+          </>
+        );
+      },
+      csv: (person) => shownApp(person)?.appliedAt,
+    },
+    {
+      id: 'stage',
+      header: 'Stage',
+      cell: (person) => {
+        const app = shownApp(person);
+        if (!app) return <span className="text-fg-subtle">–</span>;
+        return app.status === 'Active' ? (
+          <StageBadge stage={app.stage} />
+        ) : (
+          <StatusBadge status={app.status} />
+        );
+      },
+      csv: (person) => {
+        const app = shownApp(person);
+        return app && (app.status === 'Active' ? app.stage : app.status);
+      },
+    },
+    {
+      id: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      label: 'Actions',
+      align: 'right',
+      className: 'w-14',
+      hideable: false,
+      cell: (person) => {
+        const app = shownApp(person);
+        return (
+          <div onClick={stop}>
+            <RowActions label={`Actions for ${person.name}`}>
+              <MenuItem onSelect={() => router.push(`/candidates/${person.id}`)}>
+                Open profile
+              </MenuItem>
+              {person.applications.map((item) => (
+                <MenuItem key={item.id} onSelect={() => router.push(`/applications/${item.id}`)}>
+                  Open {item.requisitionTitle}
+                </MenuItem>
+              ))}
+              {person.email !== 'Restricted' && (
+                <MenuItem onSelect={() => copyEmail(person.email)}>Copy email</MenuItem>
+              )}
+              {canManage && app?.status === 'Active' && (
+                <>
+                  <MenuSeparator />
+                  <MenuItem danger onSelect={() => setRejecting({ name: person.name, app })}>
+                    Reject from {app.requisitionTitle}…
+                  </MenuItem>
+                </>
+              )}
+            </RowActions>
+          </div>
+        );
+      },
+    },
+  ];
+
+  const toolbar = (
+    <>
+      <SearchInput
+        placeholder="Search names, resumes, skills"
+        value={filters.search}
+        onValueChange={(value) => set('search', value)}
+        className="w-full sm:w-72"
+      />
+      <FilterSelect
+        aria-label="Job"
+        allLabel="All jobs"
+        data={jobOptions}
+        value={filters.jobId}
+        onChange={(value) => set('jobId', value)}
+      />
+      {filters.jobId && (
+        <FilterSelect
+          aria-label="Stage"
+          allLabel="All stages"
+          data={stageOptions}
+          value={filters.stageId}
+          onChange={(value) => set('stageId', value)}
+        />
+      )}
+      {ranking ? (
+        <>
+          <Checkbox
+            label={`Show dismissed${rank.data?.dismissed ? ` (${rank.data.dismissed})` : ''}`}
+            checked={includeDismissed}
+            onCheckedChange={setIncludeDismissed}
+          />
+          <Button variant="secondary" leftIcon={<X />} onClick={() => setRanking(null)}>
+            Back to the list
+          </Button>
+        </>
+      ) : (
+        <FilterSelect
+          aria-label="Sort"
+          allLabel={SORT_OPTIONS[0].label}
+          data={SORT_OPTIONS.slice(1)}
+          value={filters.sort === SORT_OPTIONS[0].value ? null : filters.sort}
+          onChange={(value) => set('sort', value ?? SORT_OPTIONS[0].value)}
+        />
+      )}
+      {moreFilters}
+    </>
+  );
+
+  // Compare works on any two or three people; move and reject need a job to act inside.
+  const compareAction = (
+    <Button
+      size="sm"
+      variant="secondary"
+      leftIcon={<GitCompareArrows />}
+      disabled={selected.length < 2 || selected.length > 3}
+      title={selected.length > 3 ? 'Compare up to three people' : undefined}
+      onClick={() => router.push(`/candidates/compare?ids=${selected.join(',')}`)}
+    >
+      Compare
+    </Button>
+  );
+  const bulkActions = (
+    <>
+      {compareAction}
+      {canBulk && (
+        <>
+          <Select
+            size="sm"
+            aria-label="Move to stage"
+            placeholder="Move to stage"
+            value={targetStage}
+            onChange={setTargetStage}
+            data={stageOptions}
+            className="w-48"
+          />
+          <Button
+            size="sm"
+            leftIcon={<UserCheck />}
+            disabled={!targetStage || selectedApps.length === 0}
+            loading={moveMany.isPending}
+            onClick={() => moveMany.mutate(selectedApps.map((app) => app.id))}
+          >
+            Move
+          </Button>
+          <Button
+            size="sm"
+            variant="danger-quiet"
+            leftIcon={<UserX />}
+            disabled={selectedApps.filter((app) => app.status === 'Active').length === 0}
+            onClick={() => setBulkRejectOpened(true)}
+          >
+            Reject
+          </Button>
+        </>
       )}
     </>
   );
 
-  const total = ranking ? (rank.data?.total ?? 0) : (list.data?.total ?? 0);
-  const pageSize = ranking ? (rank.data?.pageSize ?? 25) : (list.data?.pageSize ?? 25);
-  const pages = Math.ceil(total / pageSize);
-
-  // Shared pieces for the list layouts below.
-  const stageOf = (app?: CandidateListApplication) =>
-    app ? (app.status === 'Active' ? app.stage : app.status) : null;
-  const listState = !list.data ? (
-    <LoadingBlock rows={6} />
-  ) : items.length === 0 ? (
-    <EmptyState
-      icon={IconUserSearch}
-      title="Nobody matches these filters"
-      actionLabel={anyFilter ? 'Clear filters' : undefined}
-      onAction={clearFilters}
+  const tableProps = {
+    toolbar,
+    selectable: true,
+    selected,
+    onSelectedChange: setSelected,
+    bulkActions,
+    noun: 'candidate',
+  };
+  const listTable = (
+    <DataTable
+      {...tableProps}
+      viewKey="candidates"
+      exportName="candidates"
+      data={items}
+      columns={listColumns}
+      getRowId={(person) => person.id}
+      loading={!list.data}
+      onRowOpen={(person) => openRow(person.id)}
+      rowLabel={(person) => person.name}
+      rowClassName={(person) => previewing(person.id)}
+      pagination={{ page, pageSize, total, onPageChange: setPage }}
+      empty={
+        <EmptyState
+          icon={UserSearch}
+          title="Nobody matches these filters"
+          description={anyFilter ? 'Try fewer filters, or clear them all.' : undefined}
+          action={
+            anyFilter && (
+              <Button variant="secondary" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )
+          }
+        />
+      }
     />
-  ) : null;
-  const headCheck = canBulk && (
-    <Table.Th w={40}>
-      <Checkbox
-        aria-label="Select everyone on this page"
-        checked={allSelected}
-        indeterminate={selected.length > 0 && !allSelected}
-        onChange={(event) =>
-          setSelected(event.currentTarget.checked ? items.map((person) => person.id) : [])
-        }
-      />
-    </Table.Th>
   );
-  const rowCheck = (person: CandidateListItem, app?: CandidateListApplication) =>
-    canBulk && (
-      <Table.Td w={40} onClick={stop}>
-        <Checkbox
-          aria-label={`Select ${person.name}`}
-          checked={selected.includes(person.id)}
-          disabled={!app}
-          onChange={(event) => {
-            const { checked } = event.currentTarget;
-            setSelected((current) =>
-              checked ? [...current, person.id] : current.filter((id) => id !== person.id),
-            );
-          }}
-        />
-      </Table.Td>
-    );
-  const rowMenu = (person: CandidateListItem, app?: CandidateListApplication) => (
-    <Table.Td w={44} onClick={stop}>
-      <Menu position="bottom-end" withArrow shadow="md">
-        <Menu.Target>
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            size="sm"
-            aria-label={`Actions for ${person.name}`}
-          >
-            <IconDots size={16} />
-          </ActionIcon>
-        </Menu.Target>
-        <Menu.Dropdown>
-          <Menu.Item onClick={() => router.push(`/candidates/${person.id}`)}>
-            Open profile
-          </Menu.Item>
-          {person.applications.map((item) => (
-            <Menu.Item key={item.id} onClick={() => router.push(`/applications/${item.id}`)}>
-              Open {item.requisitionTitle}
-            </Menu.Item>
-          ))}
-          {person.email !== 'Restricted' && (
-            <Menu.Item onClick={() => copyEmail(person.email)}>Copy email</Menu.Item>
-          )}
-          {canManage && app?.status === 'Active' && (
-            <>
-              <Menu.Divider />
-              <Menu.Item color="red" onClick={() => setRejecting({ name: person.name, app })}>
-                Reject from {app.requisitionTitle}…
-              </Menu.Item>
-            </>
-          )}
-        </Menu.Dropdown>
-      </Menu>
-    </Table.Td>
-  );
-  const listHead = (
-    <div className="applicants-head">
-      <span className="applicants-count" aria-live="polite">
-        {ranking
-          ? `Ranked for ${rankJobTitle ?? 'this job'}`
-          : `${total} ${total === 1 ? 'person' : 'people'}`}
-      </span>
-      {ranking ? (
-        <Group gap="sm">
-          <Checkbox
-            size="xs"
-            label={`Show dismissed${rank.data?.dismissed ? ` (${rank.data.dismissed})` : ''}`}
-            checked={includeDismissed}
-            onChange={(event) => setIncludeDismissed(event.currentTarget.checked)}
-          />
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconX size={14} />}
-            onClick={() => setRanking(null)}
-          >
-            Back to the list
-          </Button>
-        </Group>
-      ) : (
-        <Select
-          size="xs"
-          w={160}
-          aria-label="Sort"
-          value={filters.sort}
-          allowDeselect={false}
-          onChange={(value) => value && set('sort', value)}
-          data={SORT_OPTIONS}
-        />
+  const rankTable = (
+    <>
+      {rank.data?.note && (
+        <Alert tone="warning" className="mt-3">
+          {rank.data.note}
+        </Alert>
       )}
-    </div>
-  );
-  const pager = pages > 1 && (
-    <Group justify="flex-end" mt="md">
-      <Pagination
-        size="sm"
-        total={pages}
-        value={ranking ? rankPage : page}
-        onChange={ranking ? setRankPage : setPage}
+      {!!rank.data?.pending && (
+        <p className="mt-3 text-sm text-fg-subtle">
+          {rank.data.pending} resumes are still being read and will rank once they are.
+        </p>
+      )}
+      <DataTable
+        {...tableProps}
+        viewKey="candidates-rank"
+        exportName="candidates-ranked"
+        data={rankItems}
+        columns={rankColumns}
+        getRowId={(item) => item.candidateId}
+        loading={!rank.data}
+        onRowOpen={(item) => openRow(item.candidateId)}
+        rowLabel={(item) => item.name}
+        rowClassName={(item) =>
+          [item.dismissed && 'opacity-55', previewing(item.candidateId)].filter(Boolean).join(' ')
+        }
+        pagination={{ page: rankPage, pageSize, total, onPageChange: setRankPage }}
+        empty={<EmptyState icon={UserSearch} title="Nobody on file matches this job yet" />}
       />
-    </Group>
+    </>
   );
 
   return (
     <>
-      {describeBar}
-      <div className="candidates">
-        {rail}
-        <div className="candidates-main">
-          {listHead}
-          {ranking
-            ? rankTable
-            : (listState ?? (
-                <div className="panel">
-                  <Table.ScrollContainer minWidth={640}>
-                    <Table
-                      className="inbox-table candidates-table person-table"
-                      verticalSpacing={0}
-                    >
-                      <Table.Thead>
-                        <Table.Tr>
-                          {headCheck}
-                          <Table.Th>Person</Table.Th>
-                          <Table.Th>Job</Table.Th>
-                          <Table.Th w={130}>Stage</Table.Th>
-                          <Table.Th w={64} ta="right">
-                            Exp.
-                          </Table.Th>
-                          <Table.Th w={110}>Last activity</Table.Th>
-                          <Table.Th w={44} />
-                        </Table.Tr>
-                      </Table.Thead>
-                      <Table.Tbody>
-                        {items.map((person) => {
-                          const app = shownApp(person);
-                          return (
-                            <Table.Tr
-                              key={person.id}
-                              data-selected={selected.includes(person.id) || undefined}
-                              {...selectRow(person.id)}
-                            >
-                              {rowCheck(person, app)}
-                              <Table.Td>
-                                <span className="person-cut person-name">{person.name}</span>
-                                <span className="person-cut person-sub">
-                                  {person.currentTitle ?? 'No title'}
-                                </span>
-                              </Table.Td>
-                              <Table.Td>
-                                <span className="person-cut person-main">
-                                  {app ? (
-                                    app.requisitionTitle
-                                  ) : (
-                                    <span className="person-sub">No job yet</span>
-                                  )}
-                                </span>
-                                <span className="person-cut person-sub">
-                                  {app
-                                    ? `${app.requisitionCode}${person.applications.length > 1 ? ` · +${person.applications.length - 1} more` : ''}`
-                                    : person.source}
-                                </span>
-                              </Table.Td>
-                              <Table.Td>
-                                <span className="person-cut person-main">
-                                  {stageOf(app) ?? '–'}
-                                </span>
-                                {app?.rating ? (
-                                  <span className="person-cut person-sub">
-                                    Rated {app.rating.toFixed(1)}
-                                  </span>
-                                ) : null}
-                              </Table.Td>
-                              <Table.Td className="person-num">
-                                {person.experienceYears != null
-                                  ? `${person.experienceYears} yrs`
-                                  : '–'}
-                              </Table.Td>
-                              <Table.Td>
-                                <span className="person-cut person-sub">
-                                  {formatRelative(app?.lastActivityAt ?? person.updatedAt)}
-                                </span>
-                              </Table.Td>
-                              {rowMenu(person, app)}
-                            </Table.Tr>
-                          );
-                        })}
-                      </Table.Tbody>
-                    </Table>
-                  </Table.ScrollContainer>
-                </div>
-              ))}
-          {pager}
-        </div>
-        {preview && (
-          <CandidatePreview
-            key={preview.id}
-            person={preview}
-            onFilter={(patch) => {
-              setFilters((current) => ({ ...current, ...patch }));
-              setPage(1);
-            }}
-          />
-        )}
-      </div>
+      <StatGrid className="mb-5">
+        <StatCard
+          icon={Users}
+          tone="violet"
+          label="Total candidates"
+          value={everyone.data?.total ?? '–'}
+          hint="Everyone on file"
+        />
+        <StatCard
+          icon={Workflow}
+          tone="blue"
+          label="Active applications"
+          value={dashboard.data?.activeCandidates ?? '–'}
+          hint={dashboard.data && `Across ${dashboard.data.openRequisitions} open jobs`}
+        />
+        <StatCard
+          icon={CalendarDays}
+          tone="green"
+          label="In interview"
+          value={inStages((stage) => stageTone(stage) === 'blue')}
+          hint={
+            dashboard.data && `${dashboard.data.interviewsThisWeek} interviews in the next 7 days`
+          }
+        />
+        <StatCard
+          icon={FileCheck2}
+          tone="amber"
+          label="At offer"
+          value={inStages((stage) => /offer/i.test(stage))}
+          hint="Active applications in an offer stage"
+        />
+      </StatGrid>
 
-      {canBulk && selected.length > 0 && (
-        <Paper
-          className="bulk-bar"
-          withBorder
-          radius="lg"
-          p="sm"
-          shadow="md"
-          role="region"
-          aria-label="Bulk actions"
-        >
-          <Group gap="sm" wrap="wrap">
-            <Text fw={650} size="sm">
-              {selectedApps.length} selected
-            </Text>
-            <Select
-              placeholder="Move to stage"
-              aria-label="Move to stage"
-              value={targetStage}
-              onChange={setTargetStage}
-              data={stageOptions}
-              style={{ flex: '0 1 200px' }}
+      <SplitView
+        storageKey="candidates"
+        sideOpen={Boolean(preview)}
+        main={
+          <Card className="min-w-0 px-4 pt-4">
+            {describeBar}
+            {ranking && (
+              <h2 className="mt-4 text-md font-semibold text-fg">
+                Ranked for {rankJobTitle ?? 'this job'}
+              </h2>
+            )}
+            <div aria-live="polite" className="sr-only">
+              {ranking
+                ? `Ranked for ${rankJobTitle ?? 'this job'}`
+                : `${total} ${total === 1 ? 'person' : 'people'}`}
+            </div>
+            <div onKeyDownCapture={onRowKeys} onDoubleClick={onRowDoubleClick}>
+              {ranking ? rankTable : listTable}
+            </div>
+          </Card>
+        }
+        side={
+          preview && (
+            <CandidatePreview
+              key={preview.id}
+              person={preview}
+              onClose={() => setPreviewId(null)}
+              onFilter={(patch) => {
+                setFilters((current) => ({ ...current, ...patch }));
+                setPage(1);
+              }}
             />
-            <Button
-              leftSection={<IconUserCheck size={15} />}
-              disabled={!targetStage || selectedApps.length === 0}
-              loading={moveMany.isPending}
-              onClick={() => moveMany.mutate(selectedApps.map((app) => app.id))}
-            >
-              Move
-            </Button>
-            <Button
-              color="red"
-              variant="light"
-              leftSection={<IconUserOff size={15} />}
-              disabled={selectedApps.filter((app) => app.status === 'Active').length === 0}
-              onClick={bulkReject.open}
-            >
-              Reject
-            </Button>
-            <Button variant="subtle" color="gray" ml="auto" onClick={() => setSelected([])}>
-              Clear
-            </Button>
-          </Group>
-        </Paper>
-      )}
+          )
+        }
+      />
 
+      {view && (
+        <ConfirmDialog
+          opened={deleteOpened}
+          onClose={() => setDeleteOpened(false)}
+          onConfirm={() =>
+            deleteView.mutateAsync().then(
+              () => undefined,
+              () => undefined,
+            )
+          }
+          title={`Delete the view “${view.name}”?`}
+          message="Only the saved filters go. Nobody's record changes."
+          confirmLabel="Delete view"
+        />
+      )}
       <RejectManyModal
         opened={bulkRejectOpened}
-        onClose={bulkReject.close}
+        onClose={() => setBulkRejectOpened(false)}
         loading={reject.isPending}
         onReject={(reason) =>
           reject.mutate({ apps: selectedApps.filter((app) => app.status === 'Active'), reason })
@@ -1122,31 +1203,30 @@ export function CandidatesList({
       <Modal
         opened={dismissFor !== null}
         onClose={() => setDismissFor(null)}
-        title={dismissFor ? `Dismiss ${dismissFor.name} for this job` : ''}
-      >
-        <Stack>
-          <Textarea
-            label="Why"
-            description="Recorded with the decision. Keep it about the job."
-            value={dismissReason}
-            onChange={(event) => setDismissReason(event.currentTarget.value)}
-            autosize
-            minRows={2}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDismissFor(null)}>
+        title={dismissFor ? `Dismiss ${dismissFor.name} for this job` : 'Dismiss'}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setDismissFor(null)}>
               Cancel
             </Button>
             <Button
-              color="red"
+              variant="danger"
               disabled={!dismissReason.trim()}
               loading={dismiss.isPending}
               onClick={() => dismiss.mutate()}
             >
               Dismiss
             </Button>
-          </Group>
-        </Stack>
+          </>
+        }
+      >
+        <Textarea
+          label="Why"
+          description="Recorded with the decision. Keep it about the job."
+          value={dismissReason}
+          onChange={(event) => setDismissReason(event.currentTarget.value)}
+          minRows={2}
+        />
       </Modal>
     </>
   );

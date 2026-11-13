@@ -1,17 +1,27 @@
 'use client';
 
-import { Alert, Button, Stack } from '@mantine/core';
-import { IconAlertTriangle } from '@tabler/icons-react';
+import Link from 'next/link';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+import { Button, Card, EmptyState } from '@/components/ui';
 
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
-    <Alert color="red" icon={<IconAlertTriangle size={18} />} title="Could not load this page">
-      <Stack align="flex-start" mt="sm">
-        Something went wrong while loading this screen. Your changes were not lost.
-        <Button color="red" variant="light" onClick={reset}>
-          Try again
-        </Button>
-      </Stack>
-    </Alert>
+    <Card>
+      <EmptyState
+        icon={AlertTriangle}
+        title="Could not load this page"
+        description="Something went wrong while loading this screen. Your changes were not lost."
+        action={
+          <div className="flex flex-wrap justify-center gap-2">
+            <Button variant="secondary" asChild>
+              <Link href="/">Back to dashboard</Link>
+            </Button>
+            <Button leftIcon={<RotateCcw />} onClick={reset}>
+              Try again
+            </Button>
+          </div>
+        }
+      />
+    </Card>
   );
 }

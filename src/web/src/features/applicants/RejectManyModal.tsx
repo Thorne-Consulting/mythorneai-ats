@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Group, Modal, Select, Stack, Text } from '@mantine/core';
+import { Button, Modal, Select } from '@/components/ui';
+import { DISPOSITION_REASONS } from '@/features/applications/application-types';
 
 export function RejectManyModal({
   opened,
@@ -18,40 +19,34 @@ export function RejectManyModal({
 }) {
   const [reason, setReason] = useState<string | null>(null);
   return (
-    <Modal opened={opened} onClose={onClose} title={title}>
-      <Stack>
-        <Select
-          label="Disposition reason"
-          value={reason}
-          onChange={setReason}
-          data={[
-            'Does not meet minimum requirements',
-            'Skills mismatch',
-            'Experience mismatch',
-            'Compensation mismatch',
-            'Location or availability',
-            'Withdrew',
-            'Position closed',
-            'Other',
-          ]}
-        />
-        <Text size="sm" c="dimmed">
-          The same job-related reason is recorded for each selected applicant.
-        </Text>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={title}
+      description="The same job-related reason is recorded for each selected applicant."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            color="red"
+            variant="danger"
             disabled={!reason}
             loading={loading}
             onClick={() => reason && onReject(reason)}
           >
             Reject applicants
           </Button>
-        </Group>
-      </Stack>
+        </>
+      }
+    >
+      <Select
+        label="Disposition reason"
+        placeholder="Choose a reason"
+        value={reason}
+        onChange={setReason}
+        data={DISPOSITION_REASONS}
+      />
     </Modal>
   );
 }

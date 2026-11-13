@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Collapse, Group, Stack, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconFileText } from '@tabler/icons-react';
+import { FileText } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Button, toast } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import type { Interview } from './application-types';
 
@@ -27,25 +26,22 @@ export function RecordingTranscripts({
     onSuccess: (_result, id) => {
       onUpdated();
       setShown((value) => ({ ...value, [id]: true }));
-      notifications.show({
-        color: 'teal',
-        message: 'Transcript ready. Check it before relying on it.',
-      });
+      toast.success('Transcript ready', 'Check it before relying on it.');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not transcribe the recording', error.message),
   });
   if (recordings.length === 0) return null;
   return (
-    <Stack gap="sm" mt="md">
+    <div className="mt-4 space-y-3">
       {recordings.map((item) => (
-        <div key={item.id}>
-          <Group justify="space-between" wrap="wrap" gap="xs">
-            <Text size="sm">Recording from {formatDateTime(item.recordedAt)}</Text>
-            <Group gap="xs">
+        <div key={item.id} className="rounded-lg border border-border-subtle p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-fg">Recording from {formatDateTime(item.recordedAt)}</p>
+            <div className="flex gap-2">
               {item.transcript && (
                 <Button
-                  size="compact-xs"
-                  variant="subtle"
+                  size="xs"
+                  variant="quiet"
                   aria-expanded={!!shown[item.id]}
                   onClick={() => setShown((value) => ({ ...value, [item.id]: !value[item.id] }))}
                 >
@@ -53,26 +49,24 @@ export function RecordingTranscripts({
                 </Button>
               )}
               <Button
-                size="compact-xs"
-                variant="light"
-                leftSection={<IconFileText size={13} />}
+                size="xs"
+                variant="soft"
+                leftIcon={<FileText />}
                 loading={transcribe.isPending && transcribe.variables === item.id}
                 onClick={() => transcribe.mutate(item.id)}
               >
                 {item.transcript ? 'Transcribe again' : 'Transcribe'}
               </Button>
-            </Group>
-          </Group>
-          <Collapse in={!!shown[item.id] && !!item.transcript}>
-            <Text size="xs" c="dimmed" mt="xs">
-              Machine transcript. It can contain mistakes.
-            </Text>
-            <Text size="sm" mt={4} style={{ whiteSpace: 'pre-wrap' }}>
-              {item.transcript}
-            </Text>
-          </Collapse>
+            </div>
+          </div>
+          {shown[item.id] && item.transcript && (
+            <div className="mt-2">
+              <p className="text-xs text-fg-subtle">Machine transcript. It can contain mistakes.</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-fg">{item.transcript}</p>
+            </div>
+          )}
         </div>
       ))}
-    </Stack>
+    </div>
   );
 }

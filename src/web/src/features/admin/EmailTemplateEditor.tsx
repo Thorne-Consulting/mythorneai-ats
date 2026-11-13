@@ -1,26 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Mail } from 'lucide-react';
+import { api } from '@/api';
 import {
   Alert,
   Badge,
-  Box,
   Button,
-  Group,
-  NavLink,
-  Paper,
-  Stack,
-  Text,
+  Card,
+  CardHeader,
+  EmptyState,
+  Input,
+  SkeletonRows,
   Textarea,
-  TextInput,
-  UnstyledButton,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconMail } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/api';
-import { EmptyState } from '@/components/ui/Cards';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+  toast,
+} from '@/components/ui';
+import { cn } from '@/lib/cn';
 
 export interface EmailTemplate {
   key: string;
@@ -55,32 +51,56 @@ export function EmailTemplateEditor({ requisitionId }: { requisitionId?: string 
         `/api/email-templates${requisitionId ? `?requisitionId=${requisitionId}` : ''}`,
       ),
   });
-  if (!templates.data) return <LoadingBlock rows={4} />;
-  if (templates.data.length === 0) return <EmptyState icon={IconMail} title="No emails to edit" />;
+  if (!templates.data)
+    return (
+      <Card>
+        <SkeletonRows rows={4} />
+      </Card>
+    );
+  if (templates.data.length === 0)
+    return (
+      <Card>
+        <EmptyState icon={Mail} title="No emails to edit" />
+      </Card>
+    );
   const current = templates.data.find((x) => x.key === selected) ?? templates.data[0];
 
   return (
-    <Group align="flex-start" gap="lg" wrap="wrap">
-      <Box component="nav" aria-label="Emails" style={{ flex: '0 0 240px', minWidth: 200 }}>
-        {templates.data.map((template) => (
-          <NavLink
-            key={template.key}
-            label={template.label}
-            active={template.key === current.key}
-            aria-current={template.key === current.key ? 'true' : undefined}
-            onClick={() => setSelected(template.key)}
-            style={{ borderRadius: 8 }}
-          />
-        ))}
-      </Box>
-      <Box style={{ flex: '1 1 480px', minWidth: 0 }}>
-        <Editor
-          key={`${current.key}-${requisitionId ?? ''}-${current.version}-${current.source}`}
-          template={current}
-          requisitionId={requisitionId}
-        />
-      </Box>
-    </Group>
+    <div className="grid items-start gap-5 lg:grid-cols-[240px_1fr]">
+      <Card className="p-2">
+        <nav aria-label="Emails" className="flex gap-1 overflow-x-auto lg:flex-col">
+          {templates.data.map((template) => {
+            const active = template.key === current.key;
+            return (
+              <button
+                key={template.key}
+                type="button"
+                aria-current={active ? 'true' : undefined}
+                onClick={() => setSelected(template.key)}
+                className={cn(
+                  'flex shrink-0 items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm text-fg-muted transition-colors hover:bg-secondary hover:text-fg',
+                  active &&
+                    'bg-accent font-medium text-accent-foreground hover:bg-accent hover:text-accent-foreground',
+                )}
+              >
+                <span className="truncate">{template.label}</span>
+                {template.source !== 'default' && (
+                  <span
+                    aria-label="Customized"
+                    className="size-1.5 shrink-0 rounded-full bg-tone-blue-dot"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+      </Card>
+      <Editor
+        key={`${current.key}-${requisitionId ?? ''}-${current.version}-${current.source}`}
+        template={current}
+        requisitionId={requisitionId}
+      />
+    </div>
   );
 }
 
@@ -124,7 +144,7 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
     onSuccess: () => {
       setError(null);
       refresh();
-      notifications.show({ color: 'teal', message: `${template.label} email saved` });
+      toast.success(`${template.label} email saved`);
     },
     onError: (e: Error) => setError(e.message),
   });
@@ -135,15 +155,13 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
       ),
     onSuccess: () => {
       refresh();
-      notifications.show({
-        color: 'teal',
-        message: requisitionId
+      toast.success(
+        requisitionId
           ? 'This job now uses the wording for everyone'
           : 'Back to the standard wording',
-      });
+      );
     },
-    onError: (e: Error) =>
-      notifications.show({ color: 'red', title: 'Could not reset', message: e.message }),
+    onError: (e: Error) => toast.error('Could not reset', e.message),
   });
 
   const insert = (variable: string) => {
@@ -162,142 +180,123 @@ function Editor({ template, requisitionId }: { template: EmailTemplate; requisit
   };
 
   return (
-    <Stack gap="md">
-      <Group justify="space-between" wrap="wrap" gap="sm">
-        <div>
-          <Text fw={650}>{template.label}</Text>
-          <Group gap="xs" mt={4}>
-            <Badge variant="light" color="gray" tt="none">
-              {SOURCE_LABEL[template.source]}
-            </Badge>
-            {template.version > 0 && (
-              <Text size="sm" c="dimmed">
-                Version {template.version}
-              </Text>
-            )}
-          </Group>
+    <div className="grid min-w-0 items-start gap-5 2xl:grid-cols-2">
+      <Card>
+        <CardHeader
+          title={template.label}
+          description={
+            <span className="mt-1 flex flex-wrap items-center gap-2">
+              <Badge tone={template.source === 'default' ? 'gray' : 'blue'}>
+                {SOURCE_LABEL[template.source]}
+              </Badge>
+              {template.version > 0 && <span>Version {template.version}</span>}
+            </span>
+          }
+          action={
+            template.source !== 'default' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                loading={reset.isPending}
+                onClick={() => reset.mutate()}
+              >
+                {requisitionId && template.source === 'job'
+                  ? 'Use the wording for everyone'
+                  : 'Reset to default'}
+              </Button>
+            )
+          }
+        />
+        <div className="flex flex-col gap-4 border-t border-border-subtle px-5 py-5">
+          <Input
+            label="Subject"
+            ref={subjectRef}
+            value={subject}
+            onChange={(event) => setSubject(event.currentTarget.value)}
+            onFocus={() => (focus.current = 'subject')}
+          />
+          <Textarea
+            label="Message"
+            ref={bodyRef}
+            minRows={8}
+            maxRows={20}
+            value={body}
+            onChange={(event) => setBody(event.currentTarget.value)}
+            onFocus={() => (focus.current = 'body')}
+          />
+          <div className="rounded-lg bg-muted p-3">
+            <p className="text-sm font-medium text-fg">Details you can drop in</p>
+            <p className="mt-0.5 text-xs text-fg-subtle">
+              Click one to add it where your cursor is. It’s filled in with real details when the
+              email is sent.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {variables.map((variable) => (
+                <button
+                  key={variable}
+                  type="button"
+                  onClick={() => insert(variable)}
+                  aria-label={`Insert ${variable}`}
+                  title={`Insert {{${variable}}} at the cursor`}
+                  className="rounded-full border border-border bg-card px-2.5 py-0.5 font-mono text-xs text-fg-muted transition-colors hover:border-primary hover:bg-accent hover:text-accent-foreground"
+                >
+                  {`{{${variable}}}`}
+                </button>
+              ))}
+            </div>
+          </div>
+          {error && (
+            <Alert tone="danger" title="This email wasn’t saved">
+              {error}
+            </Alert>
+          )}
         </div>
-        {template.source !== 'default' && (
-          <Button
-            variant="default"
-            size="xs"
-            loading={reset.isPending}
-            onClick={() => reset.mutate()}
-          >
-            {requisitionId && template.source === 'job'
-              ? 'Use the wording for everyone'
-              : 'Reset to default'}
-          </Button>
-        )}
-      </Group>
-
-      <TextInput
-        label="Subject"
-        ref={subjectRef}
-        value={subject}
-        onChange={(event) => setSubject(event.currentTarget.value)}
-        onFocus={() => (focus.current = 'subject')}
-      />
-      <Textarea
-        label="Message"
-        ref={bodyRef}
-        autosize
-        minRows={8}
-        maxRows={20}
-        value={body}
-        onChange={(event) => setBody(event.currentTarget.value)}
-        onFocus={() => (focus.current = 'body')}
-      />
-      <div>
-        <Text size="sm" fw={500} mb={4}>
-          Details you can drop in
-        </Text>
-        <Text size="sm" c="dimmed" mb={6}>
-          Click one to add it where your cursor is. It’s filled in with real details when the email
-          is sent.
-        </Text>
-        <Group gap={6}>
-          {variables.map((variable) => (
-            <UnstyledButton
-              key={variable}
-              onClick={() => insert(variable)}
-              aria-label={`Insert ${variable}`}
-              style={{
-                border: '1px solid var(--mantine-color-gray-4)',
-                borderRadius: 999,
-                padding: '2px 10px',
-                fontSize: 13,
-                fontFamily: 'var(--mantine-font-family-monospace)',
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-card px-5 py-3">
+          {dirty && (
+            <Badge tone="amber" className="mr-auto">
+              Unsaved changes
+            </Badge>
+          )}
+          {dirty && (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSubject(template.subject);
+                setBody(template.body);
+                setError(null);
               }}
             >
-              {`{{${variable}}}`}
-            </UnstyledButton>
-          ))}
-        </Group>
-      </div>
-
-      {error && (
-        <Alert color="red" title="This email wasn’t saved">
-          {error}
-        </Alert>
-      )}
-      <Group justify="flex-end" gap="md">
-        {dirty && (
-          <Badge variant="light" color="gray" tt="none">
-            Unsaved changes
-          </Badge>
-        )}
-        {dirty && (
-          <Button
-            variant="subtle"
-            color="gray"
-            onClick={() => {
-              setSubject(template.subject);
-              setBody(template.body);
-              setError(null);
-            }}
-          >
-            Discard changes
+              Discard
+            </Button>
+          )}
+          <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!dirty}>
+            Save changes
           </Button>
-        )}
-        <Button onClick={() => save.mutate()} loading={save.isPending} disabled={!dirty}>
-          Save
-        </Button>
-      </Group>
+        </div>
+      </Card>
 
-      <div>
-        <Text size="sm" fw={500} mb={4}>
-          Preview
-        </Text>
-        {previewError && (
-          <Text size="sm" c="red" mb={4}>
-            The preview didn’t update. Your text is still here.
-          </Text>
-        )}
-        <Paper withBorder radius="md" p="md">
-          <Text size="sm" c="dimmed">
-            Subject
-          </Text>
-          <Text size="sm" fw={600} mb="sm">
-            {preview?.subject ?? '…'}
-          </Text>
+      <Card className="2xl:sticky 2xl:top-[101px]">
+        <CardHeader
+          title="Preview"
+          description="Shown with sample details like “Alex” and “Senior Engineer”."
+        />
+        <div className="border-t border-border-subtle px-5 py-5">
+          {previewError && (
+            <p className="mb-2 text-sm text-destructive">
+              The preview didn’t update. Your text is still here.
+            </p>
+          )}
+          <p className="text-xs text-fg-subtle">Subject</p>
+          <p className="mb-3 text-sm font-medium text-fg">{preview?.subject ?? '…'}</p>
+          {/* Email HTML renders on white, like an inbox, in both themes. */}
           <iframe
             title={`Preview of ${template.label} email`}
             sandbox=""
             srcDoc={preview?.html ?? ''}
-            style={{
-              width: '100%',
-              height: 360,
-              border: '1px solid var(--mantine-color-gray-3)',
-              borderRadius: 8,
-              background: '#fff',
-            }}
+            className="h-[360px] w-full rounded-lg border border-border bg-white"
           />
-          <Text size="xs" c="dimmed" mt={6}>
-            Shown with sample details like “Alex” and “Senior Engineer”.
-          </Text>
-        </Paper>
-      </div>
-    </Stack>
+        </div>
+      </Card>
+    </div>
   );
 }

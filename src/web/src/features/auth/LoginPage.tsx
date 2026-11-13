@@ -1,25 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Alert,
-  Avatar,
-  Box,
-  Button,
-  Center,
-  Group,
-  Loader,
-  Paper,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-  UnstyledButton,
-} from '@mantine/core';
-import { IconArrowRight, IconBriefcase2 } from '@tabler/icons-react';
+import { ArrowRight } from 'lucide-react';
+import { Alert, Avatar, Button, Card, Spinner } from '@/components/ui';
 import { useQuery } from '@tanstack/react-query';
 import { api, resetCsrfToken } from '@/api';
-import { humanize, initials } from '@/lib/format';
+import { humanize } from '@/lib/format';
 import type { User } from '@/types';
 
 type DevUser = Pick<User, 'email' | 'displayName' | 'role'>;
@@ -44,86 +30,72 @@ export function LoginPage({ unavailable = false }: { unavailable?: boolean }) {
   };
 
   return (
-    <Center mih="100dvh" p="md" bg="var(--surface-sunken)">
-      <Box w="100%" maw={400}>
-        <Stack align="center" gap={6} mb="xl">
-          <ThemeIcon
-            size={42}
-            radius="md"
-            variant="gradient"
-            gradient={{ from: 'indigo.6', to: 'violet.5', deg: 135 }}
-          >
-            <IconBriefcase2 size={22} />
-          </ThemeIcon>
-          <Title order={2} mt="xs">
-            Internal ATS
-          </Title>
-          <Text size="sm" c="dimmed">
-            Sign in with your company account.
-          </Text>
-        </Stack>
+    <div className="flex min-h-dvh items-center justify-center bg-background p-4">
+      <div className="w-full max-w-[400px]">
+        <div className="mb-6 flex flex-col items-center gap-1.5 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand/mark.png"
+            alt=""
+            width={56}
+            height={56}
+            className="size-14 rounded-full"
+          />
+          <h1 className="mt-2 text-2xl font-bold text-fg">MyThorneAI ATS</h1>
+          <p className="text-base text-fg-muted">Sign in with your company account.</p>
+        </div>
 
-        <Paper withBorder radius="lg" p="lg" bg="var(--mantine-color-body)">
+        <Card className="p-5">
           {users.isPending ? (
-            <Center py="xl">
-              <Loader size="sm" />
-            </Center>
+            <div className="flex justify-center py-8">
+              <Spinner className="size-5 text-fg-subtle" />
+            </div>
           ) : users.data ? (
-            <Stack gap="xs">
-              <Text size="xs" c="dimmed" fw={500} mb={2}>
-                Development sign-in
-              </Text>
+            <div className="flex flex-col gap-1">
+              <p className="mb-1 text-xs font-medium text-fg-subtle">Development sign-in</p>
               {users.data.map((user) => (
-                <UnstyledButton
+                <button
                   key={user.email}
-                  className="login-option"
+                  type="button"
                   disabled={signingIn !== null}
                   onClick={() => login(user.email)}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <Group gap="sm" wrap="nowrap">
-                    <Avatar size={34} radius="xl" color="indigo" variant="light">
-                      {initials(user.displayName)}
-                    </Avatar>
-                    <Box style={{ flex: 1, minWidth: 0 }}>
-                      <Text fw={600} size="sm" truncate>
-                        {user.displayName}
-                      </Text>
-                      <Text c="dimmed" size="xs" truncate>
-                        {humanize(user.role)}
-                      </Text>
-                    </Box>
-                    {signingIn === user.email ? (
-                      <Loader size={15} />
-                    ) : (
-                      <IconArrowRight size={16} color="var(--mantine-color-dimmed)" />
-                    )}
-                  </Group>
-                </UnstyledButton>
+                  <Avatar name={user.displayName} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-base font-medium text-fg">
+                      {user.displayName}
+                    </span>
+                    <span className="block truncate text-xs text-fg-subtle">
+                      {humanize(user.role)}
+                    </span>
+                  </span>
+                  {signingIn === user.email ? (
+                    <Spinner className="text-fg-subtle" />
+                  ) : (
+                    <ArrowRight className="size-4 text-fg-subtle" aria-hidden />
+                  )}
+                </button>
               ))}
-              <Text size="xs" c="dimmed" mt={4}>
-                Production uses company SSO.
-              </Text>
-            </Stack>
+              <p className="mt-2 text-xs text-fg-subtle">Production uses company SSO.</p>
+            </div>
           ) : (
-            <Stack gap="md">
+            <div className="flex flex-col gap-4">
               {unavailable && (
-                <Alert color="red" variant="light">
+                <Alert tone="danger">
                   Authentication is unavailable. Check the server configuration.
                 </Alert>
               )}
-              <Button
-                component="a"
-                href="/auth/login?returnUrl=/"
-                fullWidth
-                size="md"
-                rightSection={<IconArrowRight size={16} />}
-              >
-                Continue with company SSO
+              <Button asChild size="lg" fullWidth>
+                <a href="/auth/login?returnUrl=/">
+                  Continue with company SSO
+                  <ArrowRight />
+                </a>
               </Button>
-            </Stack>
+            </div>
           )}
-        </Paper>
-      </Box>
-    </Center>
+        </Card>
+      </div>
+    </div>
   );
 }

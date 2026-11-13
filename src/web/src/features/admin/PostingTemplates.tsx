@@ -1,58 +1,83 @@
 'use client';
 
-import { Button, Group, Paper, Table, Text, Title } from '@mantine/core';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
-import { IconPlus } from '@tabler/icons-react';
+import { FileText, Plus } from 'lucide-react';
 import { api } from '@/api';
+import {
+  Badge,
+  Button,
+  Card,
+  CardHeader,
+  EmptyState,
+  SkeletonRows,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  Table,
+} from '@/components/ui';
 
 type Template = { id: string; name: string; version: number };
 
 export function PostingTemplates() {
-  const router = useRouter();
   const templates = useQuery({
     queryKey: ['posting-templates'],
     queryFn: () => api.get<Template[]>('/api/posting-templates'),
   });
+  const newButton = (
+    <Button asChild>
+      <Link href="/admin/templates/new">
+        <Plus className="size-4" aria-hidden />
+        New template
+      </Link>
+    </Button>
+  );
 
   return (
-    <>
-      <Group justify="space-between" mb="lg">
-        <div>
-          <Title order={3}>Posting templates</Title>
-          <Text c="dimmed" size="sm">
-            Reusable company-ready content for new jobs.
-          </Text>
-        </div>
-        <Button
-          leftSection={<IconPlus size={17} />}
-          onClick={() => router.push('/admin/templates/new')}
-        >
-          New template
-        </Button>
-      </Group>
-      <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
-        <Table.ScrollContainer minWidth={520}>
-          <Table>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Name</Table.Th>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Updated</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {(templates.data ?? []).map((template) => (
-                <Table.Tr key={template.id}>
-                  <Table.Td>{template.name}</Table.Td>
-                  <Table.Td>v{template.version}</Table.Td>
-                  <Table.Td>Ready to use</Table.Td>
-                </Table.Tr>
+    <Card>
+      <CardHeader
+        title="Templates"
+        description="Pick one when you create a job and its sections are filled in for you."
+        action={newButton}
+      />
+      {!templates.data ? (
+        <SkeletonRows rows={3} />
+      ) : templates.data.length === 0 ? (
+        <EmptyState
+          compact
+          icon={FileText}
+          title="No posting templates yet"
+          description="Save the company intro, benefits and interview stages once, and reuse them on every job."
+          action={newButton}
+        />
+      ) : (
+        <div className="px-5 pb-3">
+          <Table className="min-w-[520px]">
+            <THead>
+              <tr>
+                <TH>Name</TH>
+                <TH>Version</TH>
+                <TH>Status</TH>
+              </tr>
+            </THead>
+            <TBody>
+              {templates.data.map((template) => (
+                <TR key={template.id}>
+                  <TD className="font-medium">{template.name}</TD>
+                  <TD className="text-fg-muted tnum">v{template.version}</TD>
+                  <TD>
+                    <Badge dot tone="green">
+                      Ready to use
+                    </Badge>
+                  </TD>
+                </TR>
               ))}
-            </Table.Tbody>
+            </TBody>
           </Table>
-        </Table.ScrollContainer>
-      </Paper>
-    </>
+        </div>
+      )}
+    </Card>
   );
 }

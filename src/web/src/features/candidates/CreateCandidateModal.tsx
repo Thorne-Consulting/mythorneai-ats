@@ -1,10 +1,9 @@
 'use client';
 
-import { Button, Group, Modal, SimpleGrid, Stack, TagsInput, TextInput } from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Button, Input, Modal, TagsInput, toast } from '@/components/ui';
 
 interface CandidateForm {
   firstName: string;
@@ -18,6 +17,27 @@ interface CandidateForm {
   tags: string[];
 }
 
+const INITIAL: CandidateForm = {
+  firstName: '',
+  lastName: '',
+  email: '',
+  phone: '',
+  location: '',
+  currentTitle: '',
+  linkedInUrl: '',
+  source: 'Direct applicant',
+  tags: [],
+};
+
+function validate(values: CandidateForm) {
+  const errors: Partial<Record<keyof CandidateForm, string>> = {};
+  if (!values.firstName.trim()) errors.firstName = 'Required';
+  if (!values.lastName.trim()) errors.lastName = 'Required';
+  if (!/^\S+@\S+\.\S+$/.test(values.email)) errors.email = 'Enter a valid email';
+  if (!values.source.trim()) errors.source = 'Required';
+  return errors;
+}
+
 export function CreateCandidateModal({
   opened,
   onClose,
@@ -26,74 +46,73 @@ export function CreateCandidateModal({
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
-  const form = useForm<CandidateForm>({
-    initialValues: {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      location: '',
-      currentTitle: '',
-      linkedInUrl: '',
-      source: 'Direct applicant',
-      tags: [],
-    },
-    validate: {
-      firstName: (value) => (value.trim() ? null : 'Required'),
-      lastName: (value) => (value.trim() ? null : 'Required'),
-      email: (value) => (/^\S+@\S+\.\S+$/.test(value) ? null : 'Enter a valid email'),
-      source: (value) => (value.trim() ? null : 'Required'),
-    },
-  });
+  const [values, setValues] = useState<CandidateForm>(INITIAL);
+  const [errors, setErrors] = useState<ReturnType<typeof validate>>({});
   const mutation = useMutation({
-    mutationFn: (values: CandidateForm) => api.post<{ id: string }>('/api/candidates', values),
+    mutationFn: (body: CandidateForm) => api.post<{ id: string }>('/api/candidates', body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidates'] });
-      notifications.show({ color: 'teal', message: 'Candidate added' });
-      form.reset();
+      toast.success('Candidate added');
+      setValues(INITIAL);
+      setErrors({});
       onClose();
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not add candidate',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not add candidate', error.message),
   });
+  const field = (key: Exclude<keyof CandidateForm, 'tags'>) => ({
+    value: values[key],
+    error: errors[key],
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = event.currentTarget.value;
+      setValues((current) => ({ ...current, [key]: value }));
+    },
+  });
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const found = validate(values);
+    setErrors(found);
+    if (Object.keys(found).length === 0) mutation.mutate(values);
+  };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Add candidate" size="lg" centered>
-      <form onSubmit={form.onSubmit((values) => mutation.mutate(values))}>
-        <Stack>
-          <SimpleGrid cols={{ base: 1, sm: 2 }}>
-            <TextInput label="First name" required {...form.getInputProps('firstName')} />
-            <TextInput label="Last name" required {...form.getInputProps('lastName')} />
-            <TextInput label="Email" type="email" required {...form.getInputProps('email')} />
-            <TextInput label="Phone" {...form.getInputProps('phone')} />
-            <TextInput label="Current title" {...form.getInputProps('currentTitle')} />
-            <TextInput label="Location" {...form.getInputProps('location')} />
-            <TextInput
-              label="Source"
-              required
-              placeholder="Referral, LinkedIn, direct…"
-              {...form.getInputProps('source')}
-            />
-            <TextInput label="LinkedIn URL" {...form.getInputProps('linkedInUrl')} />
-          </SimpleGrid>
-          <TagsInput
-            label="Tags"
-            placeholder="Type and press enter"
-            {...form.getInputProps('tags')}
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Add candidate"
+      size="lg"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form="create-candidate" loading={mutation.isPending}>
+            Add candidate
+          </Button>
+        </>
+      }
+    >
+      <form id="create-candidate" onSubmit={submit} noValidate className="flex flex-col gap-4">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input label="First name" required {...field('firstName')} />
+          <Input label="Last name" required {...field('lastName')} />
+          <Input label="Email" type="email" required {...field('email')} />
+          <Input label="Phone" {...field('phone')} />
+          <Input label="Current title" {...field('currentTitle')} />
+          <Input label="Location" {...field('location')} />
+          <Input
+            label="Source"
+            required
+            placeholder="Referral, LinkedIn, direct…"
+            {...field('source')}
           />
-          <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="submit" loading={mutation.isPending}>
-              Add candidate
-            </Button>
-          </Group>
-        </Stack>
+          <Input label="LinkedIn URL" {...field('linkedInUrl')} />
+        </div>
+        <TagsInput
+          label="Tags"
+          placeholder="Type and press enter"
+          value={values.tags}
+          onChange={(tags) => setValues((current) => ({ ...current, tags }))}
+        />
       </form>
     </Modal>
   );

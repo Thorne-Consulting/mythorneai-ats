@@ -1,23 +1,17 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import {
-  Badge,
-  Box,
-  Button,
-  Group,
-  Modal,
-  MultiSelect,
-  Stack,
-  Switch,
-  Text,
-  Textarea,
-} from '@mantine/core';
+import { Check, X } from 'lucide-react';
+import { Badge, Button, Modal, MultiSelect, Switch, Textarea, type Tone } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import { useDecideApproval, useDirectoryUsers, type ApprovalView } from './approval-data';
 
 const decisionLabel = { Pending: 'Waiting', Approved: 'Approved', Rejected: 'Rejected' } as const;
-const decisionColor = { Pending: 'gray', Approved: 'teal', Rejected: 'red' } as const;
+const decisionTone: Record<ApprovalView['decision'], Tone> = {
+  Pending: 'amber',
+  Approved: 'green',
+  Rejected: 'red',
+};
 
 /** Who has to approve, in order, with what they said. */
 export function ApprovalTimeline({ approvals }: { approvals: ApprovalView[] }) {
@@ -25,39 +19,37 @@ export function ApprovalTimeline({ approvals }: { approvals: ApprovalView[] }) {
   const nextSequence = pending.length ? Math.min(...pending.map((item) => item.sequence)) : null;
   const ordered = new Set(approvals.map((item) => item.sequence)).size > 1;
   return (
-    <Stack gap={0} component="ol" m={0} p={0} style={{ listStyle: 'none' }}>
+    <ol className="divide-y divide-border-subtle">
       {approvals.map((item) => (
-        <Box component="li" key={item.id} className="list-row">
-          <Group justify="space-between" wrap="nowrap" gap="sm" align="flex-start">
-            <Box style={{ minWidth: 0 }}>
-              <Text size="sm" fw={600} truncate>
-                {item.approverName}
-              </Text>
-              {item.comment && (
-                <Text size="sm" mt={2} style={{ whiteSpace: 'pre-wrap' }}>
-                  {item.comment}
-                </Text>
-              )}
-              <Text size="xs" c="dimmed" mt={2}>
-                {item.decidedAt
-                  ? formatDateTime(item.decidedAt)
-                  : ordered && item.sequence === nextSequence
-                    ? 'Their turn now'
-                    : ordered
-                      ? 'Comes after the person above'
-                      : 'Has not answered yet'}
-              </Text>
-            </Box>
-            <Badge variant="light" color={decisionColor[item.decision]}>
-              {decisionLabel[item.decision]}
-            </Badge>
-          </Group>
-        </Box>
+        <li
+          key={item.id}
+          className="flex items-start justify-between gap-3 py-3 first:pt-0 last:pb-0"
+        >
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-fg">{item.approverName}</p>
+            {item.comment && (
+              <p className="mt-0.5 whitespace-pre-wrap text-sm text-fg-muted">{item.comment}</p>
+            )}
+            <p className="mt-0.5 text-xs text-fg-subtle">
+              {item.decidedAt
+                ? formatDateTime(item.decidedAt)
+                : ordered && item.sequence === nextSequence
+                  ? 'Their turn now'
+                  : ordered
+                    ? 'Comes after the person above'
+                    : 'Has not answered yet'}
+            </p>
+          </div>
+          <Badge dot tone={decisionTone[item.decision]}>
+            {decisionLabel[item.decision]}
+          </Badge>
+        </li>
       ))}
-    </Stack>
+    </ol>
   );
 }
 
+/** Confirm step with custom body. `color="red"` makes the confirm button destructive. */
 export function ConfirmModal({
   opened,
   onClose,
@@ -78,24 +70,44 @@ export function ConfirmModal({
   children: ReactNode;
 }) {
   return (
-    <Modal opened={opened} onClose={onClose} title={title}>
-      <Stack>
-        <Box>{children}</Box>
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={title}
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
             Go back
           </Button>
-          <Button color={color} loading={loading} onClick={onConfirm}>
+          <Button
+            variant={color === 'red' ? 'danger' : 'primary'}
+            loading={loading}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </Button>
-        </Group>
-      </Stack>
+        </>
+      }
+    >
+      <div className="text-base text-fg-muted">{children}</div>
     </Modal>
   );
 }
 
-/** Approve / Reject with a comment box. Reject needs a reason, approve does not. */
-export function DecideControls({ approvalId, subject }: { approvalId: string; subject: string }) {
+/**
+ * Approve / Reject. Both ask first; rejecting is the confirm step for a destructive decision and
+ * needs a reason, approving takes an optional comment.
+ */
+export function DecideControls({
+  approvalId,
+  subject,
+  size = 'md',
+}: {
+  approvalId: string;
+  subject: string;
+  size?: 'sm' | 'md';
+}) {
   const [decision, setDecision] = useState<'Approved' | 'Rejected' | null>(null);
   const [comment, setComment] = useState('');
   const close = () => {
@@ -106,44 +118,52 @@ export function DecideControls({ approvalId, subject }: { approvalId: string; su
   const rejecting = decision === 'Rejected';
   return (
     <>
-      <Group gap="sm">
-        <Button onClick={() => setDecision('Approved')}>Approve</Button>
-        <Button variant="default" c="red.9" onClick={() => setDecision('Rejected')}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size={size}
+          variant="secondary"
+          className="text-destructive hover:text-destructive"
+          leftIcon={<X />}
+          onClick={() => setDecision('Rejected')}
+        >
           Reject
         </Button>
-      </Group>
+        <Button size={size} leftIcon={<Check />} onClick={() => setDecision('Approved')}>
+          Approve
+        </Button>
+      </div>
       <Modal
         opened={decision !== null}
         onClose={close}
-        title={rejecting ? `Reject: ${subject}` : `Approve: ${subject}`}
-      >
-        <Stack>
-          <Textarea
-            label={rejecting ? 'Why are you rejecting this?' : 'Comment (optional)'}
-            description={
-              rejecting ? 'The person who asked will see this and can fix it.' : undefined
-            }
-            required={rejecting}
-            minRows={3}
-            autosize
-            data-autofocus
-            value={comment}
-            onChange={(event) => setComment(event.currentTarget.value)}
-          />
-          <Group justify="flex-end">
-            <Button variant="default" onClick={close}>
+        title={rejecting ? `Reject ${subject}?` : `Approve ${subject}?`}
+        description={
+          rejecting ? 'The person who asked will see your reason and can fix it.' : undefined
+        }
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={close}>
               Cancel
             </Button>
             <Button
-              color={rejecting ? 'red' : undefined}
+              variant={rejecting ? 'danger' : 'primary'}
               loading={mutation.isPending}
               disabled={rejecting && !comment.trim()}
               onClick={() => decision && mutation.mutate({ id: approvalId, decision, comment })}
             >
               {rejecting ? 'Reject' : 'Approve'}
             </Button>
-          </Group>
-        </Stack>
+          </>
+        }
+      >
+        <Textarea
+          label={rejecting ? 'Why are you rejecting this?' : 'Comment (optional)'}
+          required={rejecting}
+          minRows={3}
+          autoFocus
+          value={comment}
+          onChange={(event) => setComment(event.currentTarget.value)}
+        />
       </Modal>
     </>
   );
@@ -178,26 +198,25 @@ export function ApproverPicker({
   for (const email of approvers)
     if (!data.some((item) => item.value === email)) data.push({ value: email, label: email });
   return (
-    <Stack gap="sm">
+    <div className="flex flex-col gap-3">
       <MultiSelect
         label="Who needs to approve"
         description={required ? 'At least one person.' : 'Optional. Leave empty to skip approval.'}
         placeholder="Search by name"
-        searchable
         data={data}
         value={approvers}
         onChange={setApprovers}
-        nothingFoundMessage="No one matches that name"
+        nothingFound="No one matches that name"
       />
       {approvers.length > 1 && (
         <Switch
           label="One after another"
           description="Each person is asked only after the one before has approved."
           checked={sequential}
-          onChange={(event) => setSequential(event.currentTarget.checked)}
+          onCheckedChange={setSequential}
         />
       )}
-      <Group>
+      <div>
         <Button
           loading={loading}
           disabled={required && approvers.length === 0}
@@ -205,7 +224,7 @@ export function ApproverPicker({
         >
           {approvers.length === 0 && emptySubmitLabel ? emptySubmitLabel : submitLabel}
         </Button>
-      </Group>
-    </Stack>
+      </div>
+    </div>
   );
 }

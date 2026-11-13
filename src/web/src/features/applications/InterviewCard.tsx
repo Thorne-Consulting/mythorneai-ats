@@ -1,47 +1,51 @@
 'use client';
 
-import {
-  ActionIcon,
-  Anchor,
-  Badge,
-  Button,
-  Group,
-  Menu,
-  Paper,
-  Rating,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconCalendarEvent, IconDots, IconNotes, IconSparkles } from '@tabler/icons-react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { notifications } from '@mantine/notifications';
+import { CalendarDays, ExternalLink, MoreHorizontal, NotebookPen, Sparkles } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
-import { RecommendationBadge, StatusBadge } from '@/components/ui/Badges';
+import { RecommendationBadge, StatusBadge } from '@/components/status';
+import {
+  Avatar,
+  Badge,
+  Button,
+  Card,
+  ConfirmDialog,
+  IconButton,
+  IconDisc,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  Rating,
+  toast,
+} from '@/components/ui';
 import { formatDateTime, humanize } from '@/lib/format';
+import { safeWebUrl } from '@/lib/safe-url';
 import type { InterviewKit } from '@/types';
 import type { Interview } from './application-types';
-import { InterviewModal } from './InterviewModal';
-import { InterviewRecorder } from './InterviewRecorder';
 import { AiSummary } from './AiSummary';
+import { InterviewModal } from './InterviewModal';
 import { InterviewQuestions } from './InterviewQuestions';
+import { InterviewRecorder } from './InterviewRecorder';
 import { MeetingNotesModal } from './MeetingNotesModal';
 import { RecordingTranscripts } from './RecordingTranscripts';
 import { ScorecardModal } from './ScorecardModal';
 
 function ScoreValue({ value, label }: { value: number; label: string }) {
   return (
-    <Group gap={6} wrap="nowrap">
-      <Rating value={value} readOnly size="xs" aria-hidden />
-      <Text size="sm" fw={650} className="tnum" aria-label={`${label}: ${value} out of 5`}>
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span aria-hidden>
+        <Rating value={value} readOnly size="sm" />
+      </span>
+      <span
+        className="text-sm font-semibold text-fg tnum"
+        aria-label={`${label}: ${value} out of 5`}
+      >
         {value}/5
-      </Text>
-    </Group>
+      </span>
+    </span>
   );
 }
 
@@ -62,18 +66,20 @@ export function InterviewCard({
   interviewKits: InterviewKit[];
   onUpdated: () => void;
 }) {
-  const [scoreOpened, scoreModal] = useDisclosure();
-  const [editOpened, editModal] = useDisclosure();
-  const [notesOpened, notesModal] = useDisclosure();
+  const [scoreOpened, setScoreOpened] = useState(false);
+  const [editOpened, setEditOpened] = useState(false);
+  const [notesOpened, setNotesOpened] = useState(false);
+  const [cancelOpened, setCancelOpened] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const mine = interview.scorecards.find(
     (scorecard) => scorecard.interviewerEmail === currentEmail,
   );
   const isAssigned = interview.interviewerEmails.includes(currentEmail);
+  const meetingUrl = safeWebUrl(interview.meetingLink);
   // "Write scorecard" on the home page lands here with the form already open.
   const requestedScorecard = useSearchParams().get('scorecard') === interview.id;
   useEffect(() => {
-    if (requestedScorecard && isAssigned && !mine) scoreModal.open();
+    if (requestedScorecard && isAssigned && !mine) setScoreOpened(true);
     // Only on arrival; closing the form must not reopen it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedScorecard]);
@@ -82,70 +88,64 @@ export function InterviewCard({
       api.patch(`/api/interviews/${interview.id}`, interviewPayload(interview, status)),
     onSuccess: () => {
       onUpdated();
-      notifications.show({ color: 'teal', message: 'Interview updated' });
+      toast.success('Interview updated');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not update the interview', error.message),
   });
   const summaryMutation = useMutation({
     mutationFn: () =>
-      api.post<{ summary: string }>('/api/ai/summarize-interview', {
-        interviewId: interview.id,
-      }),
+      api.post<{ summary: string }>('/api/ai/summarize-interview', { interviewId: interview.id }),
     onSuccess: (result) => setSummary(result.summary),
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not summarize', error.message),
   });
+  const calendarTone =
+    interview.calendarStatus === 'Created'
+      ? 'green'
+      : interview.calendarStatus === 'Failed'
+        ? 'red'
+        : 'gray';
+
   return (
-    <Paper withBorder radius="lg" p="lg">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-        <Group align="flex-start" wrap="nowrap" style={{ flex: '1 1 320px', minWidth: 0 }}>
-          <ThemeIcon variant="light" color="violet" size={42}>
-            <IconCalendarEvent size={20} />
-          </ThemeIcon>
-          <div style={{ minWidth: 0 }}>
-            <Group gap="xs" wrap="wrap">
-              <Title order={4}>{interview.title}</Title>
+    <Card className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 flex-[1_1_320px] items-start gap-3.5">
+          <IconDisc icon={CalendarDays} tone="violet" size="md" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-lg font-semibold text-fg">{interview.title}</h3>
               <StatusBadge status={interview.status} />
               {canManage && (
-                <Badge
-                  size="xs"
-                  variant="light"
-                  color={
-                    interview.calendarStatus === 'Created'
-                      ? 'teal'
-                      : interview.calendarStatus === 'Failed'
-                        ? 'red'
-                        : 'gray'
-                  }
-                >
+                <Badge tone={calendarTone} size="sm">
                   Calendar {humanize(interview.calendarStatus).toLowerCase()}
                 </Badge>
               )}
-            </Group>
-            <Text size="sm" c="dimmed" mt={4}>
+            </div>
+            <p className="mt-1 text-sm text-fg-muted">
               {formatDateTime(interview.startsAt)}–
               {new Date(interview.endsAt).toLocaleTimeString([], {
                 hour: 'numeric',
                 minute: '2-digit',
               })}{' '}
               · {interview.timeZone}
-            </Text>
-            <Text size="xs" c="dimmed" mt={4}>
+            </p>
+            <p className="mt-0.5 text-xs text-fg-subtle">
               {interview.interviewerEmails.join(', ')}
-            </Text>
-            {interview.meetingLink && (
-              <Anchor
-                size="sm"
-                href={interview.meetingLink}
+            </p>
+            {meetingUrl && (
+              <a
+                href={meetingUrl}
                 target="_blank"
                 rel="noreferrer"
                 aria-label={`Join ${interview.title} (opens in a new tab)`}
+                className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-accent-foreground hover:underline"
               >
                 Join meeting
-              </Anchor>
+                <ExternalLink className="size-3.5" aria-hidden />
+              </a>
             )}
           </div>
-        </Group>
-        <Group gap="sm">
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           {interview.status !== 'Cancelled' && (
             <InterviewQuestions
               applicationId={applicationId}
@@ -154,85 +154,76 @@ export function InterviewCard({
             />
           )}
           {isAssigned && !mine && interview.status !== 'Cancelled' && (
-            <Button size="sm" onClick={scoreModal.open}>
+            <Button size="sm" onClick={() => setScoreOpened(true)}>
               Submit scorecard
             </Button>
           )}
           {canManage && (
-            <Menu>
-              <Menu.Target>
-                <ActionIcon variant="default" aria-label={`Options for ${interview.title}`}>
-                  <IconDots size={16} />
-                </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown>
-                <Menu.Item onClick={editModal.open}>Reschedule or edit</Menu.Item>
-                <Menu.Item onClick={() => statusMutation.mutate('Completed')}>
+            <Menu modal={false}>
+              <MenuTrigger asChild>
+                <IconButton label={`Options for ${interview.title}`} size="sm">
+                  <MoreHorizontal />
+                </IconButton>
+              </MenuTrigger>
+              <MenuContent>
+                <MenuItem onSelect={() => setEditOpened(true)}>Reschedule or edit</MenuItem>
+                <MenuItem onSelect={() => statusMutation.mutate('Completed')}>
                   Mark completed
-                </Menu.Item>
-                <Menu.Item onClick={() => statusMutation.mutate('NoShow')}>Mark no-show</Menu.Item>
-                <Menu.Item color="red" onClick={() => statusMutation.mutate('Cancelled')}>
+                </MenuItem>
+                <MenuItem onSelect={() => statusMutation.mutate('NoShow')}>Mark no-show</MenuItem>
+                <MenuItem danger onSelect={() => setCancelOpened(true)}>
                   Cancel interview
-                </Menu.Item>
-              </Menu.Dropdown>
+                </MenuItem>
+              </MenuContent>
             </Menu>
           )}
-        </Group>
-      </Group>
+        </div>
+      </div>
+
       {interview.interviewKitInstructions && (
-        <Paper radius="md" p="md" mt="lg" bg="var(--surface-sunken)">
-          <Text size="xs" fw={500} c="dimmed" mb={4}>
-            Interviewer instructions
-          </Text>
-          <Text size="sm">{interview.interviewKitInstructions}</Text>
-        </Paper>
+        <div className="mt-5 rounded-lg bg-muted p-4">
+          <p className="text-xs font-medium text-fg-subtle">Interviewer instructions</p>
+          <p className="mt-1 text-base text-fg">{interview.interviewKitInstructions}</p>
+        </div>
       )}
+
       {interview.criteria.length > 0 && (
-        <Stack gap="xs" mt="lg">
+        <ul className="mt-5 space-y-2">
           {interview.criteria.map((criterion) => (
-            <Paper key={criterion.id} p="sm" radius="sm" bg="var(--surface-sunken)">
-              <Group justify="space-between">
-                <Text fw={650} size="sm">
-                  {criterion.name}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  weight {criterion.weight}
-                </Text>
-              </Group>
-              <Text size="sm" mt={4}>
-                {criterion.question}
-              </Text>
+            <li key={criterion.id} className="rounded-lg border border-border-subtle p-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="text-sm font-semibold text-fg">{criterion.name}</p>
+                <span className="text-xs text-fg-subtle tnum">weight {criterion.weight}</span>
+              </div>
+              <p className="mt-1 text-sm text-fg">{criterion.question}</p>
               {criterion.description && (
-                <Text size="xs" c="dimmed">
+                <p className="mt-0.5 text-xs text-fg-subtle">
                   What good looks like: {criterion.description}
-                </Text>
+                </p>
               )}
-            </Paper>
+            </li>
           ))}
-        </Stack>
+        </ul>
       )}
-      <Paper radius="md" p="md" mt="lg" bg="var(--surface-sunken)">
-        <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <ThemeIcon variant="light" color="indigo" size={32}>
-              <IconNotes size={16} />
-            </ThemeIcon>
+
+      <div className="mt-5 rounded-lg bg-muted p-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <IconDisc icon={NotebookPen} tone="blue" size="sm" />
             <div>
-              <Text fw={650} size="sm">
-                Meeting notes
-              </Text>
-              <Text size="xs" c="dimmed">
+              <p className="text-sm font-semibold text-fg">Meeting notes</p>
+              <p className="text-xs text-fg-subtle">
                 Notes from a meeting assistant, or your own. Summarize makes an AI draft for you to
                 check.
-              </Text>
+              </p>
             </div>
-          </Group>
-          <Group gap="xs">
+          </div>
+          <div className="flex gap-2">
             {canManage && (
               <Button
                 size="xs"
-                variant="light"
-                leftSection={<IconSparkles size={14} />}
+                variant="soft"
+                leftIcon={<Sparkles />}
                 loading={summaryMutation.isPending}
                 onClick={() => summaryMutation.mutate()}
               >
@@ -240,31 +231,32 @@ export function InterviewCard({
               </Button>
             )}
             {(isAssigned || canManage) && (
-              <Button size="xs" variant="light" onClick={notesModal.open}>
+              <Button size="xs" variant="secondary" onClick={() => setNotesOpened(true)}>
                 {interview.meetingNotes ? 'Edit notes' : 'Add notes'}
               </Button>
             )}
-          </Group>
-        </Group>
+          </div>
+        </div>
         {interview.meetingNotes ? (
           <>
-            <Text size="xs" c="dimmed" mt="md">
+            <p className="mt-4 text-xs text-fg-subtle">
               {interview.meetingNotesSource ?? 'Meeting assistant'}
               {interview.meetingNotesUpdatedAt
                 ? ` · Updated ${formatDateTime(interview.meetingNotesUpdatedAt)}`
                 : ''}
-            </Text>
-            <Text size="sm" mt="xs" style={{ whiteSpace: 'pre-wrap' }}>
+            </p>
+            <p className="mt-1.5 whitespace-pre-wrap break-words text-sm text-fg">
               {interview.meetingNotes}
-            </Text>
+            </p>
           </>
         ) : (
-          <Text size="sm" c="dimmed" mt="md">
+          <p className="mt-4 text-sm text-fg-subtle">
             No meeting notes yet. Paste notes now, or let a meeting assistant add them later.
-          </Text>
+          </p>
         )}
         {summary && <AiSummary text={summary} />}
-      </Paper>
+      </div>
+
       <InterviewRecorder
         interview={interview}
         canRecord={isAssigned || canManage}
@@ -272,63 +264,65 @@ export function InterviewCard({
         onUpdated={onUpdated}
       />
       {canManage && <RecordingTranscripts interview={interview} onUpdated={onUpdated} />}
+
       {isAssigned && !mine && interview.submittedScorecards > 0 && (
-        <Text size="xs" c="dimmed" mt="md">
+        <p className="mt-4 text-xs text-fg-subtle">
           Other feedback stays hidden until you submit yours.
-        </Text>
+        </p>
       )}
       {interview.scorecards.length > 0 && (
-        <Stack mt="lg">
+        <div className="mt-5 space-y-3">
           {interview.scorecards.map((scorecard) => (
-            <Paper key={scorecard.id} withBorder radius="md" p="md">
-              <Group justify="space-between" wrap="wrap" gap="sm">
-                <Text fw={650} size="sm">
-                  {scorecard.interviewerEmail}
-                </Text>
-                <Group gap="sm">
+            <article key={scorecard.id} className="rounded-lg border border-border-subtle p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <Avatar name={scorecard.interviewerEmail} size="sm" />
+                  <p className="truncate text-sm font-semibold text-fg">
+                    {scorecard.interviewerEmail}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
                   <ScoreValue value={scorecard.rating} label="Overall" />
                   <RecommendationBadge recommendation={scorecard.recommendation} />
-                </Group>
-              </Group>
-              <Text size="sm" mt="sm">
-                {scorecard.evidence}
-              </Text>
-              <SimpleGrid cols={{ base: 1, sm: 2 }} mt="sm">
-                <Text size="sm">
-                  <b>Strengths:</b> {scorecard.strengths}
-                </Text>
-                <Text size="sm">
-                  <b>Concerns:</b> {scorecard.concerns}
-                </Text>
-              </SimpleGrid>
-              {scorecard.criteria.map((criterion) => (
-                <Group
-                  key={criterion.criterionId}
-                  justify="space-between"
-                  mt="sm"
-                  gap="md"
-                  wrap="nowrap"
-                >
-                  <div>
-                    <Text size="sm" fw={650}>
-                      {criterion.criterionName}
-                    </Text>
-                    <Text size="sm">{criterion.evidence}</Text>
-                  </div>
-                  <ScoreValue value={criterion.rating} label={criterion.criterionName} />
-                </Group>
-              ))}
-            </Paper>
+                </div>
+              </div>
+              <p className="mt-3 text-base text-fg">{scorecard.evidence}</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <p className="text-sm text-fg-muted">
+                  <span className="font-semibold text-fg">Strengths:</span> {scorecard.strengths}
+                </p>
+                <p className="text-sm text-fg-muted">
+                  <span className="font-semibold text-fg">Concerns:</span> {scorecard.concerns}
+                </p>
+              </div>
+              {scorecard.criteria.length > 0 && (
+                <ul className="mt-3 divide-y divide-border-subtle border-t border-border-subtle">
+                  {scorecard.criteria.map((criterion) => (
+                    <li
+                      key={criterion.criterionId}
+                      className="flex items-start justify-between gap-4 py-2.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-fg">{criterion.criterionName}</p>
+                        <p className="text-sm text-fg-muted">{criterion.evidence}</p>
+                      </div>
+                      <ScoreValue value={criterion.rating} label={criterion.criterionName} />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </article>
           ))}
-        </Stack>
+        </div>
       )}
+
       <ScorecardModal
         interviewId={interview.id}
         interviewTitle={interview.title}
         candidateName={candidateName}
         criteria={interview.criteria}
         opened={scoreOpened}
-        onClose={scoreModal.close}
+        onClose={() => setScoreOpened(false)}
         onSaved={onUpdated}
       />
       <InterviewModal
@@ -336,16 +330,29 @@ export function InterviewCard({
         interviewKits={interviewKits}
         interview={interview}
         opened={editOpened}
-        onClose={editModal.close}
+        onClose={() => setEditOpened(false)}
         onSaved={onUpdated}
       />
       <MeetingNotesModal
         interview={interview}
         opened={notesOpened}
-        onClose={notesModal.close}
+        onClose={() => setNotesOpened(false)}
         onSaved={onUpdated}
       />
-    </Paper>
+      <ConfirmDialog
+        opened={cancelOpened}
+        onClose={() => setCancelOpened(false)}
+        title="Cancel this interview?"
+        confirmLabel="Yes, cancel interview"
+        message="The calendar invite is cancelled for everyone on it."
+        onConfirm={() =>
+          statusMutation.mutateAsync('Cancelled').then(
+            () => undefined,
+            () => undefined,
+          )
+        }
+      />
+    </Card>
   );
 }
 

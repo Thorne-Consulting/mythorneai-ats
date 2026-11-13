@@ -1,19 +1,28 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Group, Modal, Select, SimpleGrid, Stack, Switch, TextInput } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import type { Role } from '@/types';
+import { Button, Input, Modal, Select, Switch, toast } from '@/components/ui';
+import type { AdminUser, Role } from '@/types';
+import { ROLE_OPTIONS } from './admin-data';
 
-export function UserModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+/** Add a member, or edit one when `user` is given. The API upserts by email. */
+export function UserModal({
+  opened,
+  onClose,
+  user,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  user?: AdminUser | null;
+}) {
   const queryClient = useQueryClient();
-  const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState<Role>('Interviewer');
-  const [department, setDepartment] = useState('');
-  const [isActive, setIsActive] = useState(true);
+  const [email, setEmail] = useState(user?.email ?? '');
+  const [displayName, setDisplayName] = useState(user?.displayName ?? '');
+  const [role, setRole] = useState<Role>(user?.role ?? 'Interviewer');
+  const [department, setDepartment] = useState(user?.department ?? '');
+  const [isActive, setIsActive] = useState(user?.isActive ?? true);
   const mutation = useMutation({
     mutationFn: () =>
       api.post('/api/admin/users', {
@@ -25,50 +34,20 @@ export function UserModal({ opened, onClose }: { opened: boolean; onClose: () =>
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
-      notifications.show({ color: 'teal', message: 'User access saved' });
+      toast.success(user ? 'Member updated' : 'Member added');
       onClose();
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save access', error.message),
   });
   return (
-    <Modal opened={opened} onClose={onClose} title="Add or update user" centered>
-      <Stack>
-        <TextInput
-          label="Company email"
-          value={email}
-          onChange={(e) => setEmail(e.currentTarget.value)}
-        />
-        <TextInput
-          label="Display name"
-          value={displayName}
-          onChange={(e) => setDisplayName(e.currentTarget.value)}
-        />
-        <SimpleGrid cols={2}>
-          <Select
-            label="Role"
-            value={role}
-            onChange={(value) => value && setRole(value as Role)}
-            data={[
-              { value: 'Admin', label: 'Administrator' },
-              { value: 'Recruiter', label: 'Recruiter' },
-              { value: 'HiringManager', label: 'Hiring manager' },
-              { value: 'Interviewer', label: 'Interviewer' },
-            ]}
-            allowDeselect={false}
-          />
-          <TextInput
-            label="Team scope"
-            value={department}
-            onChange={(e) => setDepartment(e.currentTarget.value)}
-          />
-        </SimpleGrid>
-        <Switch
-          label="Account is active"
-          checked={isActive}
-          onChange={(e) => setIsActive(e.currentTarget.checked)}
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={user ? `Edit ${user.displayName}` : 'Add member'}
+      description="Only active members with a company email can sign in."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
@@ -78,8 +57,50 @@ export function UserModal({ opened, onClose }: { opened: boolean; onClose: () =>
           >
             Save access
           </Button>
-        </Group>
-      </Stack>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Input
+          inset
+          label="Company email"
+          type="email"
+          value={email}
+          // Email identifies the account; changing it would create someone new.
+          disabled={!!user}
+          onChange={(e) => setEmail(e.currentTarget.value)}
+          autoFocus={!user}
+        />
+        <Input
+          inset
+          label="Display name"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.currentTarget.value)}
+        />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Select
+            inset
+            label="Role"
+            value={role}
+            onChange={(value) => value && setRole(value as Role)}
+            data={ROLE_OPTIONS}
+          />
+          <Input
+            inset
+            label="Team scope"
+            placeholder="All teams"
+            value={department}
+            onChange={(e) => setDepartment(e.currentTarget.value)}
+          />
+        </div>
+        <Switch
+          labelPosition="left"
+          label="Account is active"
+          description="Turn off to stop this person signing in without losing their history."
+          checked={isActive}
+          onCheckedChange={setIsActive}
+        />
+      </div>
     </Modal>
   );
 }

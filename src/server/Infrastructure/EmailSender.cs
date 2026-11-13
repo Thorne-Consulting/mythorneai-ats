@@ -44,6 +44,7 @@ public sealed class ResendEmailSender(
     HttpClient http,
     IConfiguration configuration,
     IServiceScopeFactory scopes,
+    IHostEnvironment environment,
     ILogger<ResendEmailSender> logger
 ) : IEmailSender
 {
@@ -53,7 +54,18 @@ public sealed class ResendEmailSender(
         var from = configuration["Resend:From"];
         if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(from))
         {
-            logger.LogWarning("Resend is not configured; email to {Recipient} was not sent.", recipient);
+            // Development only: show the unsent email in the API log so local flows that depend on
+            // an emailed code (candidate portal sign-in, application verification) can be finished.
+            // Never in other environments, where the body may hold real candidate data.
+            if (environment.IsDevelopment())
+                logger.LogWarning(
+                    "Resend is not configured; email to {Recipient} was not sent. Development copy:\nSubject: {Subject}\n{Body}",
+                    recipient,
+                    subject,
+                    text
+                );
+            else
+                logger.LogWarning("Resend is not configured; email to {Recipient} was not sent.", recipient);
             return null;
         }
 

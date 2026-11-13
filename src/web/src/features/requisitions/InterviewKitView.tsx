@@ -1,10 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { Text } from '@mantine/core';
-import { IconArrowLeft, IconPencil } from '@tabler/icons-react';
+import { ArrowLeft, Clock3, Pencil } from 'lucide-react';
+import { Button, Card, EmptyState, SkeletonRows } from '@/components/ui';
 import { DocumentEditor } from '@/components/plate/document-editor';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
 import { kitToMarkdown } from './interview-kit-doc';
 import { useCanManage, useRequisition } from './requisition-data';
 
@@ -21,36 +20,63 @@ export function InterviewKitView({
 }) {
   const job = useRequisition(requisitionId);
   const canManage = useCanManage(job.data);
-  if (!job.data) return <LoadingBlock rows={4} />;
+  const kitsHref = `/jobs/${requisitionId}/kits`;
+  if (!job.data)
+    return (
+      <Card>
+        <SkeletonRows rows={4} />
+      </Card>
+    );
   const kit = job.data.interviewKits.find((item) => item.id === kitId);
-  if (!kit) return <Text c="dimmed">This kit no longer exists.</Text>;
-  const kitsHref = `/requisitions/${requisitionId}/kits`;
-  const editHref = `/requisitions/${requisitionId}/kits/${kit.id}/edit`;
+  if (!kit) return <KitGone kitsHref={kitsHref} />;
+  const editHref = `/jobs/${requisitionId}/kits/${kit.id}/edit`;
 
   return (
-    <article className="kit-read">
-      <p className="kit-read-bar">
-        <Link href={kitsHref} className="kit-read-btn">
-          <IconArrowLeft size={15} aria-hidden />
-          All kits
-        </Link>
-        <span className="kit-read-sep" aria-hidden />
-        <span className="kit-read-meta">{kit.durationMinutes} min</span>
+    <article className="max-w-[880px] space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button asChild variant="quiet" size="sm">
+          <Link href={kitsHref}>
+            <ArrowLeft />
+            All kits
+          </Link>
+        </Button>
+        <span className="flex items-center gap-1.5 text-sm text-fg-subtle">
+          <Clock3 className="size-4" aria-hidden />
+          {kit.durationMinutes} min
+        </span>
         {canManage && (
-          <>
-            <span className="kit-read-sep" aria-hidden />
-            <Link href={editHref} className="kit-read-btn">
-              <IconPencil size={15} aria-hidden />
+          <Button asChild variant="secondary" size="sm" className="ml-auto">
+            <Link href={editHref}>
+              <Pencil />
               Edit
             </Link>
-          </>
+          </Button>
         )}
-      </p>
-      <DocumentEditor
-        key={`${kit.id}-${kitToMarkdown(kit).length}`}
-        readOnly
-        value={kitToMarkdown(kit)}
-      />
+      </div>
+      <Card className="px-6 py-5">
+        <DocumentEditor
+          key={`${kit.id}-${kitToMarkdown(kit).length}`}
+          readOnly
+          value={kitToMarkdown(kit)}
+        />
+      </Card>
     </article>
+  );
+}
+
+export function KitGone({ kitsHref }: { kitsHref: string }) {
+  return (
+    <Card>
+      <EmptyState
+        compact
+        title="This kit no longer exists"
+        description="It may have been deleted. The job's other kits are still there."
+        action={
+          <Button asChild variant="secondary" size="sm">
+            <Link href={kitsHref}>All kits</Link>
+          </Button>
+        }
+      />
+    </Card>
   );
 }

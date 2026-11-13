@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Group, Modal, Select, Stack } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Button, Modal, Select, toast } from '@/components/ui';
 import type { RequisitionSummary } from '@/types';
 
 export function ApplyModal({
@@ -29,30 +28,21 @@ export function ApplyModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
       queryClient.invalidateQueries({ queryKey: ['board'] });
-      notifications.show({ color: 'teal', message: 'Application created' });
+      toast.success('Application created');
       setRequisitionId(null);
       onClose();
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not create the application', error.message),
   });
   return (
-    <Modal opened={opened} onClose={onClose} title="Add to a job" centered>
-      <Stack>
-        <Select
-          searchable
-          label="Open job"
-          placeholder="Choose a role"
-          value={requisitionId}
-          onChange={setRequisitionId}
-          data={
-            requisitions.data?.map((item) => ({
-              value: item.id,
-              label: `${item.code} · ${item.title}`,
-            })) ?? []
-          }
-        />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Add to a job"
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
@@ -62,8 +52,21 @@ export function ApplyModal({
           >
             Create application
           </Button>
-        </Group>
-      </Stack>
+        </>
+      }
+    >
+      <Select
+        label="Open job"
+        placeholder="Choose a role"
+        value={requisitionId}
+        onChange={setRequisitionId}
+        data={
+          requisitions.data?.map((item) => ({
+            value: item.id,
+            label: `${item.code} · ${item.title}`,
+          })) ?? []
+        }
+      />
     </Modal>
   );
 }

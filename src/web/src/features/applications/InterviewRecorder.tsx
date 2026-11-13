@@ -1,11 +1,10 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { ActionIcon, Button, Checkbox, Group, Paper, Stack, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconCopy, IconPlayerRecord, IconPlayerStop, IconTrash } from '@tabler/icons-react';
+import { Circle, Link2, Square, Trash2 } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Badge, Button, Checkbox, ConfirmDialog, IconButton, toast } from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import type { Interview } from './application-types';
 
@@ -20,31 +19,40 @@ export function InterviewRecorder({
   canDelete: boolean;
   onUpdated: () => void;
 }) {
+  // Recording needs every participant's explicit agreement; the button stays off until this is ticked.
   const [consent, setConsent] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const upload = useMutation({
     mutationFn: (file: File) =>
       api.upload(`/api/interviews/${interview.id}/recordings?consentConfirmed=true`, file),
     onSuccess: () => {
       onUpdated();
-      notifications.show({ color: 'teal', message: 'Recording saved to the interview record' });
+      toast.success('Recording saved to the interview record');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save the recording', error.message),
   });
   const remove = useMutation({
     mutationFn: (id: string) => api.delete(`/api/interview-recordings/${id}`),
     onSuccess: () => {
       onUpdated();
-      notifications.show({ color: 'teal', message: 'Recording deleted' });
+      toast.success('Recording deleted');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not delete the recording', error.message),
   });
   const copyLink = async (id: string) => {
-    await navigator.clipboard.writeText(`${window.location.origin}/api/interview-recordings/${id}`);
-    notifications.show({ color: 'teal', message: 'Internal recording link copied' });
+    try {
+      await navigator.clipboard.writeText(
+        `${window.location.origin}/api/interview-recordings/${id}`,
+      );
+      toast.success('Internal recording link copied');
+    } catch {
+      toast.error('Could not copy the link');
+    }
   };
   const start = async () => {
+    if (!consent) return;
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       const chunks: Blob[] = [];
@@ -68,83 +76,105 @@ export function InterviewRecorder({
       media.start(1000);
       setRecording(true);
     } catch {
-      notifications.show({ color: 'red', message: 'Screen recording was not started.' });
+      toast.error('Screen recording was not started');
     }
   };
   return (
-    <Paper radius="md" p="md" mt="md" bg="var(--surface-sunken)">
-      <Group justify="space-between" wrap="wrap" gap="sm">
+    <div className="mt-4 rounded-lg bg-muted p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <Text fw={650} size="sm">
+          <p className="flex items-center gap-2 text-sm font-semibold text-fg">
             Interview recording
-          </Text>
-          <Text size="xs" c="dimmed">
-            Screen and shared audio stay inside this ATS.
-          </Text>
+            {recording && (
+              <Badge tone="red" dot size="sm">
+                Recording
+              </Badge>
+            )}
+          </p>
+          <p className="text-xs text-fg-subtle">Screen and shared audio stay inside this ATS.</p>
         </div>
         {canRecord &&
           (recording ? (
             <Button
-              color="red"
-              leftSection={<IconPlayerStop size={15} />}
+              variant="danger"
+              size="sm"
+              leftIcon={<Square />}
               onClick={() => recorder.current?.stop()}
             >
               Stop and save
             </Button>
           ) : (
             <Button
-              variant="light"
-              leftSection={<IconPlayerRecord size={15} />}
+              variant="soft"
+              size="sm"
+              leftIcon={<Circle className="fill-current text-tone-red-dot" />}
               disabled={!consent || upload.isPending}
+              loading={upload.isPending}
               onClick={start}
             >
               Record interview
             </Button>
           ))}
-      </Group>
+      </div>
       {canRecord && !recording && (
         <Checkbox
-          mt="sm"
+          className="mt-3"
           checked={consent}
-          onChange={(event) => setConsent(event.currentTarget.checked)}
+          onCheckedChange={setConsent}
           label="Every participant has explicitly agreed to this recording."
         />
       )}
       {interview.recordings.map((item) => (
-        <Group key={item.id} justify="space-between" align="flex-end" mt="md" wrap="wrap" gap="sm">
+        <div key={item.id} className="mt-4 flex flex-wrap items-end justify-between gap-3">
           <video
             controls
             preload="metadata"
             src={`/api/interview-recordings/${item.id}`}
-            style={{ width: 'min(100%, 520px)', borderRadius: 8 }}
+            className="w-full max-w-[520px] rounded-lg bg-black"
           />
-          <Stack gap={4} align="flex-end">
-            <Text size="xs" c="dimmed">
+          <div className="flex flex-col items-end gap-1">
+            <p className="text-xs text-fg-subtle tnum">
               {formatDateTime(item.recordedAt)} · {Math.ceil(item.length / 1024 / 1024)} MB
-            </Text>
-            <Group gap={4}>
-              <ActionIcon
-                variant="subtle"
-                aria-label="Copy internal recording link"
+            </p>
+            <div className="flex gap-1">
+              <IconButton
+                variant="quiet"
+                size="sm"
+                label="Copy internal recording link"
                 onClick={() => copyLink(item.id)}
               >
-                <IconCopy size={15} />
-              </ActionIcon>
+                <Link2 />
+              </IconButton>
               {canDelete && (
-                <ActionIcon
-                  color="red"
-                  variant="subtle"
-                  aria-label="Delete recording"
-                  loading={remove.isPending}
-                  onClick={() => remove.mutate(item.id)}
+                <IconButton
+                  variant="danger-quiet"
+                  size="sm"
+                  label="Delete recording"
+                  loading={remove.isPending && remove.variables === item.id}
+                  onClick={() => setDeleting(item.id)}
                 >
-                  <IconTrash size={15} />
-                </ActionIcon>
+                  <Trash2 />
+                </IconButton>
               )}
-            </Group>
-          </Stack>
-        </Group>
+            </div>
+          </div>
+        </div>
       ))}
-    </Paper>
+      <ConfirmDialog
+        opened={deleting !== null}
+        onClose={() => setDeleting(null)}
+        title="Delete this recording?"
+        confirmLabel="Delete recording"
+        message="The video and any transcript made from it are removed for everyone. This cannot be undone."
+        onConfirm={() =>
+          deleting
+            ? remove.mutateAsync(deleting).then(
+                () => undefined,
+                () => undefined,
+              )
+            : undefined
+        }
+      />
+    </div>
   );
 }

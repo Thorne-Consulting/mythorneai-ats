@@ -65,3 +65,32 @@ export function candidateParams(filters: Filters, page: number) {
   return params;
 }
 export const DEFAULT_LIST_QUERY = candidateParams(BLANK, 1).toString();
+
+/** The status segments in the Candidates sidebar: route slug → application status. */
+export const STATUS_SEGMENTS = [
+  { slug: 'active', status: 'Active' },
+  { slug: 'hired', status: 'Hired' },
+  { slug: 'rejected', status: 'Rejected' },
+  { slug: 'withdrawn', status: 'Withdrawn' },
+] as const;
+
+/** A saved view's stored JSON as filters. Older views from Find for a job stored { jobId, query, minYears, location }. */
+export function viewState(paramsJson: string): { filters: Filters; describe: string } {
+  const saved = JSON.parse(paramsJson) as {
+    filters?: Partial<Filters>;
+    describe?: string;
+    jobId?: string | null;
+    query?: string;
+    minYears?: number | null;
+    location?: string;
+  };
+  const filters: Filters = saved.filters
+    ? { ...BLANK, ...saved.filters }
+    : {
+        ...BLANK,
+        jobId: saved.jobId ?? null,
+        minYears: saved.minYears ?? '',
+        location: saved.location ?? '',
+      };
+  return { filters, describe: saved.describe ?? saved.query ?? '' };
+}

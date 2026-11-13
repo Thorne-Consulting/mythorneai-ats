@@ -1,10 +1,8 @@
 'use client';
 
-import { Alert, Box, Group, Stack, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { SectionCard } from '@/components/ui/Cards';
+import { Alert, Card, CardBody, CardHeader, toast } from '@/components/ui';
 import { useInvalidateApprovals, type ApprovalView } from '@/features/approvals/approval-data';
 import {
   ApprovalTimeline,
@@ -42,18 +40,12 @@ export function RequisitionApproval({
       api.post(`/api/requisitions/${id}/submit-for-approval`, input),
     onSuccess: () => {
       invalidate();
-      notifications.show({
-        color: 'teal',
-        message:
-          'Sent for approval. Approvers have been emailed, and the job opens when they agree.',
-      });
+      toast.success(
+        'Sent for approval',
+        'Approvers have been emailed, and the job opens when they agree.',
+      );
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not submit the job',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not submit the job', error.message),
   });
 
   if (!relevant || !query.data) return null;
@@ -62,51 +54,45 @@ export function RequisitionApproval({
   const mine = approvals.find((item) => item.canDecide);
 
   if (status === 'PendingApproval') {
-    const waiting = approvals.filter((item) => item.decision === 'Pending');
     return (
-      <Box mb="xl">
-        <SectionCard title="Waiting for approval">
+      <Card className="mb-5">
+        <CardHeader title="Waiting for approval" />
+        <CardBody>
           <ApprovalTimeline approvals={approvals} />
           {mine && (
-            <Group p="lg">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               <DecideControls approvalId={mine.id} subject="Open this job" />
-            </Group>
+            </div>
           )}
-        </SectionCard>
-      </Box>
+        </CardBody>
+      </Card>
     );
   }
 
   if (!required && rejected.length === 0) return null;
   return (
-    <Stack gap="md" mb="xl">
+    <div className="mb-5 flex flex-col gap-4">
       {rejected.map((item) => (
-        <Alert
-          key={item.id}
-          color="red"
-          variant="light"
-          title={`${item.approverName} did not approve this job`}
-        >
-          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-            {item.comment}
-          </Text>
-          <Text size="sm" mt={4}>
-            Make the change they asked for, then submit it again.
-          </Text>
+        <Alert key={item.id} tone="danger" title={`${item.approverName} did not approve this job`}>
+          <p className="whitespace-pre-wrap">{item.comment}</p>
+          <p className="mt-1">Make the change they asked for, then submit it again.</p>
         </Alert>
       ))}
       {required && (
-        <SectionCard title="This job needs approval before it opens" padded>
-          <ApproverPicker
-            defaultApprovers={query.data.defaultApprovers}
-            defaultSequential={query.data.sequential}
-            required
-            submitLabel="Submit for approval"
-            loading={submit.isPending}
-            onSubmit={(approvers, sequential) => submit.mutate({ approvers, sequential })}
-          />
-        </SectionCard>
+        <Card>
+          <CardHeader title="This job needs approval before it opens" />
+          <CardBody>
+            <ApproverPicker
+              defaultApprovers={query.data.defaultApprovers}
+              defaultSequential={query.data.sequential}
+              required
+              submitLabel="Submit for approval"
+              loading={submit.isPending}
+              onSubmit={(approvers, sequential) => submit.mutate({ approvers, sequential })}
+            />
+          </CardBody>
+        </Card>
       )}
-    </Stack>
+    </div>
   );
 }

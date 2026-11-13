@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Button, Group, Modal, Select, Stack, Textarea } from '@mantine/core';
+import { Sparkles } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
-import type { ModalProps } from './application-types';
+import { Alert, Button, Modal, Select, Textarea, toast } from '@/components/ui';
+import { DISPOSITION_REASONS, type ModalProps } from './application-types';
 
 export function RejectModal({
   applicationId,
@@ -23,6 +24,7 @@ export function RejectModal({
         notes: reason ?? '',
       }),
     onSuccess: (result) => setDraft(result.draft),
+    onError: (error: Error) => toast.error('Could not draft a message', error.message),
   });
   const mutation = useMutation({
     mutationFn: () =>
@@ -35,31 +37,44 @@ export function RejectModal({
     onSuccess: () => {
       onSaved();
       onClose();
+      toast.success('Applicant rejected');
     },
+    onError: (error: Error) => toast.error('Could not reject this applicant', error.message),
   });
   return (
-    <Modal opened={opened} onClose={onClose} title="Reject applicant">
-      <Stack>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Reject applicant"
+      description="This decision is recorded in the audit history."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            disabled={!reason}
+            loading={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            Reject applicant
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
         <Select
           label="Disposition reason"
+          placeholder="Choose a reason"
           value={reason}
           onChange={setReason}
-          data={[
-            'Does not meet minimum requirements',
-            'Skills mismatch',
-            'Experience mismatch',
-            'Compensation mismatch',
-            'Location or availability',
-            'Withdrew',
-            'Position closed',
-            'Other',
-          ]}
+          data={DISPOSITION_REASONS}
         />
-        <Alert color="orange">
-          Use job-related reasons only. This decision is recorded in the audit history.
-        </Alert>
+        <Alert tone="warning">Use job-related reasons only.</Alert>
         <Button
-          variant="light"
+          variant="soft"
+          leftIcon={<Sparkles />}
           loading={draftMutation.isPending}
           disabled={!reason}
           onClick={() => draftMutation.mutate()}
@@ -74,15 +89,7 @@ export function RejectModal({
             onChange={(event) => setDraft(event.currentTarget.value)}
           />
         )}
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button color="red" disabled={!reason} onClick={() => mutation.mutate()}>
-            Reject applicant
-          </Button>
-        </Group>
-      </Stack>
+      </div>
     </Modal>
   );
 }

@@ -1,11 +1,9 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Code } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { Button, Card, CardBody, CardHeader, SkeletonRows, toast } from '@/components/ui';
 import { formatRelative } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
 import type { ResumeProfile } from '@/types';
@@ -30,51 +28,38 @@ function span(item: {
   return `${start ?? '?'} – ${end ?? '?'}`;
 }
 
-function duration(months?: number | null) {
-  if (!months) return null;
-  const years = Math.floor(months / 12);
-  const rest = months % 12;
-  return [years ? `${years} yr${years === 1 ? '' : 's'}` : null, rest ? `${rest} mo` : null]
-    .filter(Boolean)
-    .join(' ');
-}
-
 /** "ComputerScience" reads as "Computer Science". */
 function pretty(value: string) {
   return value.replace(/([a-z])([A-Z])/g, '$1 $2');
 }
 
+/** "https://linkedin.com/in/jane/" reads as "linkedin.com/in/jane", the way a resume prints it. */
+function bare(url: string) {
+  return url.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '');
+}
+
+/** Dotted amber underline: written by the parser but not found in the document. */
+const unverified =
+  'cursor-help underline decoration-tone-amber-dot decoration-dotted decoration-[1.5px] underline-offset-[3px]';
+
 /** The parser wrote this but could not find it in the document: the text itself gets the amber mark. */
 function Mark({ verified, children }: { verified: boolean; children: ReactNode }) {
   if (verified) return <>{children}</>;
   return (
-    <span className="unverified" title="Not found in the document. Check the original.">
+    <span className={unverified} title="Not found in the document. Check the original.">
       {children}
     </span>
   );
 }
 
-/** A value the parser judged rather than copied: seniority, contract type, degree level. */
-function Inferred({ children }: { children: ReactNode }) {
-  return (
-    <span className="inferred" title="The parser's judgement, not stated in the resume">
-      {children}
-    </span>
-  );
-}
-
-function Heading({ children }: { children: ReactNode }) {
-  return <h3 className="resume-h">{children}</h3>;
-}
-
-/** Pieces joined with " · ", skipping the empty ones. */
-function Dots({ parts }: { parts: ReactNode[] }) {
+/** Pieces joined with a separator, skipping the empty ones. */
+function Joined({ parts, sep = ' · ' }: { parts: ReactNode[]; sep?: ReactNode }) {
   const shown = parts.filter((part) => part !== null && part !== undefined && part !== false);
   return (
     <>
       {shown.map((part, index) => (
         <span key={index}>
-          {index > 0 && ' · '}
+          {index > 0 && <span className="text-fg-subtle">{sep}</span>}
           {part}
         </span>
       ))}
@@ -82,9 +67,53 @@ function Dots({ parts }: { parts: ReactNode[] }) {
   );
 }
 
+function Heading({ children }: { children: ReactNode }) {
+  return (
+    <h3 className="mt-6 mb-2 border-b border-fg pb-0.5 text-md leading-tight font-normal tracking-[0.02em] [font-variant-caps:small-caps]">
+      {children}
+    </h3>
+  );
+}
+
+const entries = 'space-y-2.5 pl-3.5';
+const bullets = 'mt-1 list-disc space-y-px pl-5 text-sm leading-[1.4] marker:text-[0.8em]';
+const right = 'flex-none whitespace-nowrap tnum';
+
+/** The two-row entry head of a typeset resume: bold title with the date flush right, then an italic line. */
+function Entry({
+  title,
+  right: rightText,
+  sub,
+  subRight,
+  children,
+}: {
+  title: ReactNode;
+  right?: ReactNode;
+  sub?: ReactNode;
+  subRight?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <li>
+      <div className="flex items-baseline justify-between gap-4 *:min-w-0">
+        <span className="font-bold">{title}</span>
+        {rightText && <span className={right}>{rightText}</span>}
+      </div>
+      {(sub || subRight) && (
+        <div className="flex items-baseline justify-between gap-4 text-sm italic *:min-w-0">
+          <span>{sub}</span>
+          {subRight && <span className={right}>{subRight}</span>}
+        </div>
+      )}
+      {children}
+    </li>
+  );
+}
+
 /**
- * The resume as a document to read, not a form that was filled in. Experience and education as
- * dated entries, skills by kind, the rest as plain lines. Read-only: it comes only from the file.
+ * The resume, typeset the way a LaTeX resume is: a serif, a centered name over a contact line,
+ * small-caps section heads over a hairline, two-row entries with the dates flush right, tight
+ * bullets. Read-only: it comes only from the file.
  */
 export function ResumeDocument({
   candidateId,
@@ -110,9 +139,9 @@ export function ResumeDocument({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidateId] });
       queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
-      notifications.show({ color: 'teal', message: 'Re-parse queued' });
+      toast.success('Re-parse queued');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not re-parse', error.message),
   });
 
   const profile = query.data;
@@ -120,114 +149,103 @@ export function ResumeDocument({
   const parsing = attachment?.parseStatus === 'Pending' || attachment?.parseStatus === 'Processing';
   const isPdf = attachment?.contentType === 'application/pdf';
 
-  const head = (
-    <div className="section-head">
-      <h2 id="resume-title" className="section-title">
-        Resume
-      </h2>
-      {attachment && (
-        <span className="text-actions">
-          <a
-            className="text-action"
-            href={`/api/attachments/${attachment.id}${isPdf ? '?inline=true' : ''}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open original
-          </a>
-          {profile?.parsedAt && (
-            <button type="button" className="text-action" onClick={() => setCompare((on) => !on)}>
-              {compare ? 'Hide the original' : 'Compare with the original'}
-            </button>
-          )}
-          {canReparse && (
-            <button
-              type="button"
-              className="text-action"
-              disabled={parsing || reparse.isPending}
-              onClick={() => reparse.mutate(attachment.id)}
-            >
-              {parsing ? 'Reading…' : 'Read it again'}
-            </button>
-          )}
-        </span>
-      )}
-    </div>
+  const shell = (body: ReactNode) => (
+    <Card>
+      <CardHeader
+        title="Resume"
+        action={
+          attachment && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Button variant="link" size="sm" asChild>
+                <a
+                  href={`/api/attachments/${attachment.id}${isPdf ? '?inline=true' : ''}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open original
+                </a>
+              </Button>
+              {profile?.parsedAt && (
+                <Button variant="link" size="sm" onClick={() => setCompare((on) => !on)}>
+                  {compare ? 'Hide the original' : 'Compare with the original'}
+                </Button>
+              )}
+              {canReparse && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  disabled={parsing || reparse.isPending}
+                  onClick={() => reparse.mutate(attachment.id)}
+                >
+                  {parsing ? 'Reading…' : 'Read it again'}
+                </Button>
+              )}
+            </div>
+          )
+        }
+      />
+      <CardBody className="px-5 pb-8 sm:px-10">{body}</CardBody>
+    </Card>
   );
+  const empty = (text: ReactNode) => <p className="text-base text-fg-subtle">{text}</p>;
 
-  if (query.isError)
-    return (
-      <>
-        {head}
-        <p className="record-empty">Could not load the resume.</p>
-      </>
-    );
-  if (!profile) return <LoadingBlock rows={6} />;
-  if (!attachment)
-    return (
-      <>
-        {head}
-        <p className="record-empty">No resume yet. Upload one under Documents.</p>
-      </>
-    );
+  if (query.isError) return shell(empty('Could not load the resume.'));
+  if (!profile) return shell(<SkeletonRows rows={6} className="p-0" />);
+  if (!attachment) return shell(empty('No resume yet. Upload one under Documents.'));
 
-  let body: ReactNode;
-  if (!profile.parsedAt) {
-    body = (
-      <p className="record-empty">
-        {parsing
-          ? 'Reading the resume…'
-          : attachment.parseStatus === 'NeedsOcr'
-            ? 'This file has no text layer, so nothing could be read from it. It needs OCR.'
-            : (attachment.parseError ?? 'Nothing has been read from this file.')}
-      </p>
-    );
-  } else {
-    body = <Document profile={profile} />;
-  }
+  const body = !profile.parsedAt ? (
+    empty(
+      parsing
+        ? 'Reading the resume…'
+        : attachment.parseStatus === 'NeedsOcr'
+          ? 'This file has no text layer, so nothing could be read from it. It needs OCR.'
+          : (attachment.parseError ?? 'Nothing has been read from this file.'),
+    )
+  ) : (
+    <Document profile={profile} />
+  );
+  const sticky = 'w-full rounded-lg border border-border h-[60vh] lg:sticky lg:top-6 lg:h-[80vh]';
 
-  return (
+  return shell(
     <>
-      {head}
       {attachment.parseError && profile.parsedAt && (
-        <p className="resume-warning">{attachment.parseError}</p>
+        <p className="mb-4 text-sm text-tone-amber-fg">{attachment.parseError}</p>
       )}
       {compare ? (
-        <div className="resume-compare">
+        <div className="grid items-start gap-8 lg:grid-cols-2">
           {isPdf ? (
             <iframe
               title={`Original ${attachment.originalFileName}`}
               src={`/api/attachments/${attachment.id}?inline=true`}
+              className={sticky}
             />
           ) : (
-            <div className="resume-original">
-              <p className="record-empty">
-                Word documents can't be shown here.{' '}
-                <a className="text-action" href={`/api/attachments/${attachment.id}`}>
+            <div className={`${sticky} p-5`}>
+              <p className="text-base text-fg-subtle">
+                Word documents can&apos;t be shown here.{' '}
+                <a
+                  className="text-accent-foreground hover:underline"
+                  href={`/api/attachments/${attachment.id}`}
+                >
                   Download {attachment.originalFileName}
                 </a>
               </p>
             </div>
           )}
-          {body}
+          <div className="min-w-0">{body}</div>
         </div>
       ) : (
         body
       )}
-    </>
+    </>,
   );
 }
 
 function Document({ profile }: { profile: ResumeProfile }) {
   const place = [profile.city, profile.region, profile.country].filter(Boolean).join(', ');
-  const links = [
-    ['LinkedIn', profile.linkedInUrl],
-    ['GitHub', profile.gitHubUrl],
-    ['Portfolio', profile.portfolioUrl],
-    ...profile.otherUrls.map((url) => ['Link', url] as const),
-  ]
-    .map(([label, url]) => [label, safeWebUrl(url ?? undefined)] as const)
-    .filter((item): item is readonly [string, string] => Boolean(item[1]));
+  const links = [profile.linkedInUrl, profile.gitHubUrl, profile.portfolioUrl, ...profile.otherUrls]
+    .map((url) => safeWebUrl(url ?? undefined))
+    .filter((url): url is string => Boolean(url));
   const skillsByCategory = Object.entries(
     profile.skills.reduce<Record<string, ResumeProfile['skills']>>((groups, skill) => {
       (groups[skill.category] ??= []).push(skill);
@@ -236,303 +254,283 @@ function Document({ profile }: { profile: ResumeProfile }) {
   );
 
   return (
-    <article className="resume-doc">
-      <header>
-        <p className="resume-who">
-          <Dots
-            parts={[
-              [profile.currentTitle, profile.currentEmployer].filter(Boolean).join(' at ') || null,
-              place || null,
-            ]}
-          />
-        </p>
-        <p className="resume-facts">
-          <Dots
-            parts={[
-              profile.yearsExperience != null && `${profile.yearsExperience} yrs experience`,
-              profile.seniority !== 'Unknown' && <Inferred>{profile.seniority}</Inferred>,
-              profile.highestDegreeLevel !== 'Unknown' && (
-                <Inferred>{pretty(profile.highestDegreeLevel)}</Inferred>
-              ),
-              profile.yearsManagement ? `${profile.yearsManagement} yrs managing` : null,
-              profile.openToRemote && 'open to remote',
-              profile.willingToRelocate && 'will relocate',
-            ]}
-          />
-        </p>
-        {links.length > 0 && (
-          <p className="resume-facts">
-            <Dots
-              parts={links.map(([label, url]) => (
-                <a key={url} href={url} target="_blank" rel="noopener noreferrer">
-                  {label}
-                </a>
-              ))}
+    <>
+      <article className="mx-auto max-w-[816px] font-serif text-[15px] leading-[1.4] text-fg [&_a]:underline [&_a]:underline-offset-2">
+        <header className="mb-5 text-center">
+          <p className="text-[28px] leading-tight font-bold tracking-[-0.01em]">{profile.name}</p>
+          <p className="mt-1 text-sm leading-relaxed">
+            <Joined
+              sep=" | "
+              parts={[
+                place || null,
+                profile.phone,
+                profile.email && <a href={`mailto:${profile.email}`}>{profile.email}</a>,
+                ...links.map((url) => (
+                  <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                    {bare(url)}
+                  </a>
+                )),
+              ]}
             />
           </p>
+        </header>
+
+        {profile.summary && (
+          <>
+            <Heading>Summary</Heading>
+            <p className="text-sm leading-[1.45] whitespace-pre-wrap">{profile.summary}</p>
+          </>
         )}
-      </header>
 
-      {profile.summary && (
-        <>
-          <Heading>Summary</Heading>
-          <p className="resume-prose">{profile.summary}</p>
-        </>
-      )}
-
-      {profile.work.length > 0 && (
-        <>
-          <Heading>Experience</Heading>
-          {profile.work.map((job) => (
-            <div key={job.id} className="resume-item">
-              <div className="resume-item-head">
-                <div>
-                  <span className="resume-item-title">
-                    <Mark verified={job.verified}>{job.title || 'Untitled role'}</Mark>
-                  </span>
-                  <span className="resume-item-sub">
-                    <Dots
-                      parts={[
-                        job.company,
-                        [job.city, job.region].filter(Boolean).join(', ') || null,
-                        job.isRemote && 'Remote',
-                      ]}
-                    />
-                  </span>
-                </div>
-                <span className="resume-dates">
-                  {span(job)}
-                  {duration(job.durationMonths) && (
-                    <>
-                      <br />
-                      {duration(job.durationMonths)}
-                    </>
+        {profile.work.length > 0 && (
+          <>
+            <Heading>Experience</Heading>
+            <ul className={entries}>
+              {profile.work.map((job) => (
+                <Entry
+                  key={job.id}
+                  title={<Mark verified={job.verified}>{job.title || 'Untitled role'}</Mark>}
+                  right={span(job)}
+                  sub={job.company}
+                  subRight={
+                    [job.city, job.region].filter(Boolean).join(', ') ||
+                    (job.isRemote ? 'Remote' : null)
+                  }
+                >
+                  {job.bullets.length > 0 && (
+                    <ul className={bullets}>
+                      {job.bullets.map((bullet, index) => (
+                        <li key={index}>{bullet}</li>
+                      ))}
+                    </ul>
                   )}
-                </span>
-              </div>
-              {(job.seniority !== 'Unknown' ||
-                job.employmentType !== 'Unknown' ||
-                job.managedPeople) && (
-                <p className="resume-meta">
-                  <Dots
-                    parts={[
-                      job.seniority !== 'Unknown' && <Inferred>{job.seniority}</Inferred>,
-                      job.employmentType !== 'Unknown' && (
-                        <Inferred>{pretty(job.employmentType)}</Inferred>
-                      ),
-                      job.managedPeople ? `managed ${job.managedPeople}` : null,
-                    ]}
-                  />
-                </p>
-              )}
-              {job.bullets.length > 0 && (
-                <ul className="resume-bullets">
-                  {job.bullets.map((bullet, index) => (
-                    <li key={index}>{bullet}</li>
-                  ))}
-                </ul>
-              )}
-              {job.skills.length > 0 && <p className="resume-meta">Used {job.skills.join(', ')}</p>}
-            </div>
-          ))}
-        </>
-      )}
+                  {(job.skills.length > 0 || job.managedPeople) && (
+                    <p className="mt-0.5 text-sm text-fg-muted italic">
+                      <Joined
+                        parts={[
+                          job.managedPeople ? `Managed ${job.managedPeople} people` : null,
+                          job.skills.length > 0 && job.skills.join(', '),
+                        ]}
+                      />
+                    </p>
+                  )}
+                </Entry>
+              ))}
+            </ul>
+          </>
+        )}
 
-      {profile.education.length > 0 && (
-        <>
-          <Heading>Education</Heading>
-          {profile.education.map((entry) => (
-            <div key={entry.id} className="resume-item">
-              <div className="resume-item-head">
-                <div>
-                  <span className="resume-item-title">
-                    <Mark verified={entry.verified}>
-                      {[entry.degree, entry.field].filter(Boolean).join(', ') || 'Program'}
-                    </Mark>
-                  </span>
-                  <span className="resume-item-sub">{entry.school}</span>
-                </div>
-                <span className="resume-dates">
-                  {[
+        {profile.projects.length > 0 && (
+          <>
+            <Heading>Projects</Heading>
+            <ul className={entries}>
+              {profile.projects.map((item) => {
+                const url = safeWebUrl(item.url ?? undefined);
+                return (
+                  <Entry
+                    key={item.id}
+                    title={
+                      <>
+                        {item.name}
+                        {item.skills.length > 0 && (
+                          <span className="font-normal italic">
+                            <span className="text-fg-subtle"> | </span>
+                            {item.skills.join(', ')}
+                          </span>
+                        )}
+                      </>
+                    }
+                    right={
+                      url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer">
+                          {bare(url).split('/')[0]}
+                        </a>
+                      ) : (
+                        item.year
+                      )
+                    }
+                  >
+                    {item.description && (
+                      <ul className={bullets}>
+                        <li>{item.description}</li>
+                      </ul>
+                    )}
+                  </Entry>
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        {profile.education.length > 0 && (
+          <>
+            <Heading>Education</Heading>
+            <ul className={entries}>
+              {profile.education.map((entry) => (
+                <Entry
+                  key={entry.id}
+                  title={<Mark verified={entry.verified}>{entry.school}</Mark>}
+                  right={[
                     entry.startYear,
                     entry.endYear
-                      ? `${entry.isInProgress ? 'expected ' : ''}${entry.endYear}`
+                      ? `${entry.isInProgress ? 'Expected ' : ''}${entry.endYear}`
                       : null,
                   ]
                     .filter(Boolean)
                     .join(' – ')}
-                </span>
-              </div>
-              {(entry.degreeLevel !== 'Unknown' ||
-                entry.fieldNormalized !== 'Unknown' ||
-                entry.gpa != null ||
-                entry.honors) && (
-                <p className="resume-meta">
-                  <Dots
-                    parts={[
-                      entry.degreeLevel !== 'Unknown' && (
-                        <Inferred>{pretty(entry.degreeLevel)}</Inferred>
-                      ),
-                      entry.fieldNormalized !== 'Unknown' && (
-                        <Inferred>{pretty(entry.fieldNormalized)}</Inferred>
-                      ),
-                      entry.gpa != null &&
-                        `GPA ${entry.gpa}${entry.gpaScale ? ` / ${entry.gpaScale}` : ''}`,
-                      entry.honors,
-                    ]}
-                  />
-                </p>
-              )}
-            </div>
-          ))}
-        </>
-      )}
+                  sub={
+                    <Joined
+                      sep=", "
+                      parts={[
+                        [entry.degree, entry.field].filter(Boolean).join(' in ') || null,
+                        entry.honors,
+                      ]}
+                    />
+                  }
+                  subRight={
+                    entry.gpa != null
+                      ? `GPA ${entry.gpa}${entry.gpaScale ? ` / ${entry.gpaScale}` : ''}`
+                      : null
+                  }
+                />
+              ))}
+            </ul>
+          </>
+        )}
 
-      {skillsByCategory.length > 0 && (
-        <>
-          <Heading>Skills</Heading>
-          <dl className="resume-skills">
-            {skillsByCategory.map(([category, skills]) => (
-              <div key={category}>
-                <dt>{pretty(category)}</dt>
-                <dd>
-                  {skills.map((skill, index) => (
-                    <span key={skill.name}>
-                      {index > 0 && ', '}
-                      <span
-                        className={skill.verified ? undefined : 'unverified'}
-                        title={[
-                          skill.source === 'Both'
-                            ? 'In the skills section and a job'
-                            : skill.source === 'JobDescription'
-                              ? 'Mentioned in a job'
-                              : 'In the skills section',
-                          skill.yearsUsed ? `${skill.yearsUsed} yrs` : null,
-                          skill.lastUsedYear ? `last ${skill.lastUsedYear}` : null,
-                          skill.verified ? null : 'Not found in the document',
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
-                      >
-                        {skill.name}
+        {(skillsByCategory.length > 0 || profile.languages.length > 0) && (
+          <>
+            <Heading>Skills</Heading>
+            <dl className="pl-3.5 text-sm leading-normal [&_dd]:inline [&_dt]:inline [&_dt]:font-bold [&_dt]:after:content-[':_']">
+              {skillsByCategory.map(([category, skills]) => (
+                <div key={category}>
+                  <dt>{pretty(category)}</dt>
+                  <dd>
+                    {skills.map((skill, index) => (
+                      <span key={skill.name}>
+                        {index > 0 && ', '}
+                        <span
+                          className={skill.verified ? undefined : unverified}
+                          title={[
+                            skill.source === 'Both'
+                              ? 'In the skills section and a job'
+                              : skill.source === 'JobDescription'
+                                ? 'Mentioned in a job'
+                                : 'In the skills section',
+                            skill.yearsUsed ? `${skill.yearsUsed} yrs` : null,
+                            skill.lastUsedYear ? `last ${skill.lastUsedYear}` : null,
+                            skill.verified ? null : 'Not found in the document',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        >
+                          {skill.name}
+                        </span>
                       </span>
-                    </span>
-                  ))}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </>
-      )}
-
-      {profile.certifications.length > 0 && (
-        <>
-          <Heading>Certifications</Heading>
-          <ul className="resume-lines">
-            {profile.certifications.map((item) => (
-              <li key={item.id}>
-                <Mark verified={item.verified}>
-                  <Dots parts={[item.name, item.issuer, item.year]} />
-                </Mark>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {profile.languages.length > 0 && (
-        <>
-          <Heading>Languages</Heading>
-          <p className="resume-prose">
-            {profile.languages
-              .map((item) =>
-                item.proficiency !== 'Unknown'
-                  ? `${item.language} (${item.proficiency.toLowerCase()})`
-                  : item.language,
-              )
-              .join(', ')}
-          </p>
-        </>
-      )}
-
-      {profile.projects.length > 0 && (
-        <>
-          <Heading>Projects</Heading>
-          {profile.projects.map((item) => {
-            const url = safeWebUrl(item.url ?? undefined);
-            return (
-              <div key={item.id} className="resume-item">
-                <div className="resume-item-head">
-                  <span className="resume-item-title">
-                    {url ? (
-                      <a href={url} target="_blank" rel="noopener noreferrer">
-                        {item.name}
-                      </a>
-                    ) : (
-                      item.name
-                    )}
-                  </span>
-                  {item.year && <span className="resume-dates">{item.year}</span>}
+                    ))}
+                  </dd>
                 </div>
-                {item.description && <p className="resume-prose">{item.description}</p>}
-                {item.skills.length > 0 && (
-                  <p className="resume-meta">Used {item.skills.join(', ')}</p>
-                )}
-              </div>
-            );
-          })}
-        </>
-      )}
+              ))}
+              {profile.languages.length > 0 && (
+                <div>
+                  <dt>Languages</dt>
+                  <dd>
+                    {profile.languages
+                      .map((item) =>
+                        item.proficiency !== 'Unknown'
+                          ? `${item.language} (${item.proficiency.toLowerCase()})`
+                          : item.language,
+                      )
+                      .join(', ')}
+                  </dd>
+                </div>
+              )}
+            </dl>
+          </>
+        )}
 
-      {profile.publications.length > 0 && (
-        <>
-          <Heading>Publications</Heading>
-          <ul className="resume-lines">
-            {profile.publications.map((item) => (
-              <li key={item.id}>
-                <Dots parts={[item.title, item.venue, item.year]} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+        {profile.certifications.length > 0 && (
+          <>
+            <Heading>Certifications</Heading>
+            <ul className={entries}>
+              {profile.certifications.map((item) => (
+                <Entry
+                  key={item.id}
+                  title={<Mark verified={item.verified}>{item.name}</Mark>}
+                  right={item.year}
+                  sub={item.issuer}
+                  subRight={item.expiresYear ? `Expires ${item.expiresYear}` : null}
+                />
+              ))}
+            </ul>
+          </>
+        )}
 
-      {profile.awards.length > 0 && (
-        <>
-          <Heading>Awards</Heading>
-          <ul className="resume-lines">
-            {profile.awards.map((item) => (
-              <li key={item.id}>
-                <Dots parts={[item.name, item.issuer, item.year]} />
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+        {profile.publications.length > 0 && (
+          <>
+            <Heading>Publications</Heading>
+            <ul className={entries}>
+              {profile.publications.map((item) => {
+                const url = safeWebUrl(item.url ?? undefined);
+                return (
+                  <Entry
+                    key={item.id}
+                    title={
+                      url ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer">
+                          {item.title}
+                        </a>
+                      ) : (
+                        item.title
+                      )
+                    }
+                    right={item.year}
+                    sub={item.venue}
+                  />
+                );
+              })}
+            </ul>
+          </>
+        )}
+
+        {profile.awards.length > 0 && (
+          <>
+            <Heading>Awards</Heading>
+            <ul className={entries}>
+              {profile.awards.map((item) => (
+                <Entry key={item.id} title={item.name} right={item.year} sub={item.issuer} />
+              ))}
+            </ul>
+          </>
+        )}
+      </article>
 
       {profile.unassignedText.length > 0 && (
-        <details className="resume-details">
-          <summary>{profile.unassignedText.length} lines the parser could not place</summary>
-          <Code block style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
+        <details className="mt-7 text-sm">
+          <summary className="cursor-pointer text-fg-subtle hover:text-fg">
+            {profile.unassignedText.length} lines the parser could not place
+          </summary>
+          <pre className="mt-2.5 rounded-md bg-secondary p-3 font-mono text-xs whitespace-pre-wrap text-fg">
             {profile.unassignedText.join('\n')}
-          </Code>
+          </pre>
         </details>
       )}
       {profile.resumeText && (
-        <details className="resume-details">
-          <summary>Text read from the file</summary>
-          <Code block style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>
+        <details className="mt-7 text-sm">
+          <summary className="cursor-pointer text-fg-subtle hover:text-fg">
+            Text read from the file
+          </summary>
+          <pre className="mt-2.5 rounded-md bg-secondary p-3 font-mono text-xs whitespace-pre-wrap text-fg">
             {profile.resumeText}
-          </Code>
+          </pre>
         </details>
       )}
 
-      <p className="resume-note">
-        Dotted amber text was written by the parser but not found in the document. Grey italic
-        values are its judgement, not quotes.
+      <p className="mt-8 text-sm text-fg-subtle">
+        Dotted amber text was written by the parser but not found in the document.
         {profile.parsedAt && ` Read ${formatRelative(profile.parsedAt)}`}
         {profile.model && ` with ${profile.model}`}.
       </p>
-    </article>
+    </>
   );
 }

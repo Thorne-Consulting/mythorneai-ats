@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Group, Stack, Text, TextInput, Title } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import Link from 'next/link';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { IconArrowLeft } from '@tabler/icons-react';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '@/api';
+import { Button, Card, CardHeader, Input, toast } from '@/components/ui';
 import { PlateMarkdownEditor } from '@/components/editor/PlateMarkdownEditor';
 import { markdownSections } from '@/lib/markdown-sections';
 
@@ -48,76 +48,56 @@ export function PostingTemplateEditor() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['posting-templates'] });
-      notifications.show({ color: 'teal', message: 'Template saved as a new version' });
+      toast.success('Template saved as a new version');
       router.push('/admin/templates');
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not save template',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not save template', error.message),
   });
+  const ready = !!name.trim() && !!sections['company header'] && !!sections['role description'];
 
   return (
-    <Stack maw={1080} mx="auto" gap="xl">
-      <Group justify="space-between" align="flex-start">
-        <div>
-          <Button
-            variant="subtle"
-            color="gray"
-            leftSection={<IconArrowLeft size={16} />}
-            onClick={() => router.back()}
-            px={0}
-          >
-            Back to templates
-          </Button>
-          <Title order={1} mt="xs">
-            New posting template
-          </Title>
-          <Text c="dimmed" size="sm">
-            Build reusable, portable Markdown for job listings.
-          </Text>
-        </div>
-        <Button
-          loading={mutation.isPending}
-          disabled={!name.trim() || !sections['company header'] || !sections['role description']}
-          onClick={() => mutation.mutate()}
-        >
-          Save template
-        </Button>
-      </Group>
-      <TextInput
-        label="Template name"
-        placeholder="Engineering standard"
-        required
-        value={name}
-        onChange={(event) => setName(event.currentTarget.value)}
-      />
-      <section>
-        <Title order={3}>Template content</Title>
-        <Text size="sm" c="dimmed" mb="xs">
-          Keep the section headings. They place each part of this document in the right part of a
-          job.
-        </Text>
-        <PlateMarkdownEditor
-          value={content}
-          onChange={setContent}
-          placeholder="Write the template…"
+    <div className="mx-auto flex max-w-5xl flex-col gap-5">
+      <Button asChild variant="link" className="w-fit">
+        <Link href="/admin/templates">
+          <ArrowLeft className="size-4" aria-hidden />
+          Back to templates
+        </Link>
+      </Button>
+      <Card>
+        <CardHeader
+          title="Template content"
+          description="Keep the section headings. They place each part of this document in the right part of a job."
         />
-      </section>
-      <Group justify="flex-end">
-        <Button variant="default" onClick={() => router.back()}>
-          Cancel
-        </Button>
-        <Button
-          loading={mutation.isPending}
-          disabled={!name.trim() || !sections['company header'] || !sections['role description']}
-          onClick={() => mutation.mutate()}
-        >
-          Save template
-        </Button>
-      </Group>
-    </Stack>
+        <div className="flex flex-col gap-4 border-t border-border-subtle px-5 py-5">
+          <Input
+            inset
+            label="Template name"
+            placeholder="Engineering standard"
+            required
+            className="max-w-md"
+            value={name}
+            onChange={(event) => setName(event.currentTarget.value)}
+          />
+          <PlateMarkdownEditor
+            value={content}
+            onChange={setContent}
+            placeholder="Write the template…"
+          />
+        </div>
+        <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-card px-5 py-3">
+          {!ready && (
+            <p className="mr-auto text-xs text-fg-subtle">
+              Add a name, a company header and a role description to save.
+            </p>
+          )}
+          <Button variant="secondary" onClick={() => router.back()}>
+            Cancel
+          </Button>
+          <Button loading={mutation.isPending} disabled={!ready} onClick={() => mutation.mutate()}>
+            Save template
+          </Button>
+        </div>
+      </Card>
+    </div>
   );
 }

@@ -1,69 +1,68 @@
 'use client';
 
-import { Button, Text } from '@mantine/core';
-import { IconChevronRight, IconPlus } from '@tabler/icons-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { ChevronRight, ClipboardList, Plus } from 'lucide-react';
+import { Button, Card, CardHeader, EmptyState, SkeletonRows } from '@/components/ui';
 import { useCanManage, useRequisition } from './requisition-data';
 
 export function RequisitionKits({ id }: { id: string }) {
-  const router = useRouter();
   const details = useRequisition(id);
   const canManage = useCanManage(details.data);
 
-  if (!details.data) return <LoadingBlock rows={3} />;
-  const requisition = details.data;
+  if (!details.data)
+    return (
+      <Card>
+        <SkeletonRows rows={3} />
+      </Card>
+    );
+  const kits = details.data.interviewKits;
+  const newKit = (label: string) => (
+    <Button asChild variant="secondary" size="sm">
+      <Link href={`/jobs/${id}/kits/new`}>
+        <Plus />
+        {label}
+      </Link>
+    </Button>
+  );
 
   return (
-    <>
-      <div className="section-head">
-        <h2 className="section-title">Interview kits</h2>
-        {canManage && requisition.interviewKits.length > 0 && (
-          <Button
-            size="xs"
-            variant="default"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => router.push(`/requisitions/${id}/kits/new`)}
-          >
-            New kit
-          </Button>
-        )}
-      </div>
-      {requisition.interviewKits.length === 0 ? (
-        <div className="panel empty-row">
-          <Text size="sm" c="dimmed">
-            No kits yet. A kit gives every interviewer the same questions and scoring scale.
-          </Text>
-          {canManage && (
-            <Button
-              size="xs"
-              variant="default"
-              onClick={() => router.push(`/requisitions/${id}/kits/new`)}
-            >
-              Add a kit
-            </Button>
-          )}
-        </div>
+    <Card className="overflow-hidden">
+      <CardHeader
+        title="Interview kits"
+        description="Every interviewer gets the same questions and scoring scale."
+        action={canManage && kits.length > 0 ? newKit('New kit') : undefined}
+      />
+      {kits.length === 0 ? (
+        <EmptyState
+          compact
+          icon={ClipboardList}
+          title="No kits yet"
+          description="A kit gives every interviewer the same questions and scoring scale."
+          action={canManage ? newKit('Add a kit') : undefined}
+        />
       ) : (
-        <ul className="kit-lines">
-          {requisition.interviewKits.map((kit) => (
-            <li key={kit.id}>
-              <Link href={`/requisitions/${id}/kits/${kit.id}`} className="kit-line">
-                <span className="kit-line-title">{kit.name}</span>
-                <span className="kit-line-meta">
-                  {kit.durationMinutes} min · {kit.criteria.length}{' '}
-                  {kit.criteria.length === 1 ? 'competency' : 'competencies'}
-                </span>
-                <span className="kit-line-names">
-                  {kit.criteria.map((criterion) => criterion.name).join(', ')}
-                </span>
-                <IconChevronRight size={16} className="kit-line-go" aria-hidden />
+        <ul className="border-t border-border-subtle">
+          {kits.map((kit) => (
+            <li key={kit.id} className="border-b border-border-subtle last:border-b-0">
+              <Link
+                href={`/jobs/${id}/kits/${kit.id}`}
+                className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-medium text-fg">{kit.name}</p>
+                  <p className="mt-0.5 truncate text-xs text-fg-subtle">
+                    {kit.durationMinutes} min · {kit.criteria.length}{' '}
+                    {kit.criteria.length === 1 ? 'competency' : 'competencies'}
+                    {kit.criteria.length > 0 &&
+                      ` · ${kit.criteria.map((criterion) => criterion.name).join(', ')}`}
+                  </p>
+                </div>
+                <ChevronRight className="size-4 shrink-0 text-fg-subtle" aria-hidden />
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </>
+    </Card>
   );
 }

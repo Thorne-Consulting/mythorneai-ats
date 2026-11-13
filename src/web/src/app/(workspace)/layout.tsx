@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { AuthProvider } from '@/auth';
-import { AppFrame } from '@/components/layout/AppFrame';
+import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { ServerApiError, serverApiGet } from '@/lib/server-api';
 import type { User } from '@/types';
@@ -17,7 +17,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   const navCollapsed = (await cookies()).get('ats-nav-collapsed')?.value === '1';
   return (
     <AuthProvider user={user}>
-      <AppFrame navCollapsed={navCollapsed}>{children}</AppFrame>
+      <AppShell navCollapsed={navCollapsed}>{children}</AppShell>
     </AuthProvider>
   );
 }

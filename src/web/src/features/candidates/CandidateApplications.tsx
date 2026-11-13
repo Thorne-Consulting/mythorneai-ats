@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { statusColors } from '@/components/ui/Badges';
-import { formatDate, humanize } from '@/lib/format';
+import { ChevronRight } from 'lucide-react';
+import { Card, CardHeader, CountBadge } from '@/components/ui';
+import { StageBadge, StatusBadge } from '@/components/status';
+import { formatDate } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
 
 /** Where this person is in hiring: one line per application, the whole line a link. */
@@ -12,44 +14,49 @@ export function CandidateApplications({
   applications: CandidateDetail['applications'];
 }) {
   return (
-    <>
-      <div className="section-head">
-        <h2 id="applications-title" className="section-title">
-          Applications
-        </h2>
-        {applications.length > 0 && <span className="section-count">{applications.length}</span>}
-      </div>
+    <Card>
+      <CardHeader
+        title={
+          <span className="flex items-center gap-2">
+            Applications
+            {applications.length > 0 && <CountBadge count={applications.length} tone="gray" />}
+          </span>
+        }
+      />
       {applications.length === 0 ? (
-        <p className="record-empty">Not in any job yet.</p>
+        <p className="px-5 pb-5 text-base text-fg-subtle">Not in any job yet.</p>
       ) : (
-        <ul className="apps">
+        <ul className="divide-y divide-border-subtle border-t border-border-subtle">
           {applications.map((application) => (
             <li key={application.id}>
-              <Link href={`/applications/${application.id}`} className="apps-row">
-                <span className="apps-job">
-                  <span className="apps-title">{application.requisitionTitle}</span>
-                  <span className="apps-sub">
+              <Link
+                href={`/applications/${application.id}`}
+                className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-medium text-fg">
+                    {application.requisitionTitle}
+                  </span>
+                  <span className="block truncate text-xs text-fg-subtle">
                     {application.requisitionCode} · applied {formatDate(application.appliedAt)}
                   </span>
                 </span>
-                <span className="apps-stage">{application.stage}</span>
-                <StatusText status={application.status} />
+                {application.status === 'Active' ? (
+                  <StageBadge stage={application.stage} />
+                ) : (
+                  <>
+                    <span className="hidden text-sm text-fg-subtle sm:inline">
+                      {application.stage}
+                    </span>
+                    <StatusBadge status={application.status} />
+                  </>
+                )}
+                <ChevronRight className="size-4 shrink-0 text-fg-subtle" aria-hidden />
               </Link>
             </li>
           ))}
         </ul>
       )}
-    </>
-  );
-}
-
-/** A status as a coloured dot and the word, never a pill: the colour is the data, the word reads it. */
-export function StatusText({ status }: { status: string }) {
-  const color = statusColors[status] ?? 'gray';
-  return (
-    <span className="status-text">
-      <span className="status-dot" style={{ background: `var(--mantine-color-${color}-6)` }} />
-      {humanize(status)}
-    </span>
+    </Card>
   );
 }

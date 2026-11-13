@@ -17,6 +17,8 @@ public static partial class PublicEndpoints
         MapPublicInterviewBooking(api);
         MapPublicMessaging(api);
         MapResendWebhook(api);
+        if (endpoints.ServiceProvider.GetRequiredService<IHostEnvironment>().IsDevelopment())
+            MapPublicDev(api);
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

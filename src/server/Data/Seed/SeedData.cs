@@ -25,7 +25,11 @@ public static partial class SeedData
             return;
 
         if (!string.Equals(configuration["Auth:Mode"], "Development", StringComparison.OrdinalIgnoreCase))
+        {
+            // Portal test candidates only need open jobs, not the development sign-in.
+            await EnsureLocalPortalCandidatesAsync(db, cancellationToken);
             return;
+        }
 
         if (!hasUsers)
         {
@@ -64,6 +68,7 @@ public static partial class SeedData
         }
 
         await EnsureDevelopmentResumesAsync(db, files, cancellationToken);
+        await EnsureLocalPortalCandidatesAsync(db, cancellationToken);
     }
 
     private static readonly string[] StageColors =

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
+import { Card, CardBody, CardHeader } from '@/components/ui';
 
-/** A titled group of facts in the record rail. The title is small; the facts carry the weight. */
+/** One card in the record rail: a small title, an optional action, and the facts. */
 export function RailGroup({
   title,
   action,
@@ -11,26 +12,13 @@ export function RailGroup({
   children: ReactNode;
 }) {
   return (
-    <section className="rail-group">
-      <div className="rail-head">
-        <h3 className="rail-title">{title}</h3>
-        {action}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-/** One label / value row. Put it inside a <dl className="facts-grid rail-facts">. */
-export function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="fact">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
+    <Card>
+      <CardHeader title={title} action={action} />
+      <CardBody>{children}</CardBody>
+    </Card>
   );
 }
 
 export function Missing({ children = 'Not provided' }: { children?: ReactNode }) {
-  return <span className="rail-missing">{children}</span>;
+  return <span className="text-fg-subtle">{children}</span>;
 }

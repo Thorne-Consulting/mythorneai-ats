@@ -32,13 +32,13 @@ public static partial class PublicEndpoints
             return Results.Ok(new { token, applicationId = application.Id });
         });
 
-        api.MapPost("/portal/access-code", async (RequestPortalCodeRequest request, AtsDbContext db, IEmailSender email, CancellationToken ct) =>
+        api.MapPost("/portal/access-code", async (RequestPortalCodeRequest request, AtsDbContext db, IEmailSender email, IHostEnvironment environment, CancellationToken ct) =>
         {
             var emailAddress = request.Email.Trim().ToLowerInvariant();
             var candidate = await db.Candidates.SingleOrDefaultAsync(x => x.Email == emailAddress, ct);
             if (candidate is not null)
             {
-                var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+                var code = CandidateCodes.New(emailAddress, environment);
                 candidate.PortalCodeHash = Hash(code); candidate.PortalCodeExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); candidate.PortalCodeAttempts = 0;
                 await db.SaveChangesAsync(ct);
                 await email.SendAsync(emailAddress, "Your candidate portal sign-in code", $"Your sign-in code is {code}. It expires in 15 minutes.", ct);

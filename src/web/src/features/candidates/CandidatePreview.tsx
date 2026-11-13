@@ -1,12 +1,14 @@
 'use client';
 
-import { Button, Group, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { X } from 'lucide-react';
 import { api } from '@/api';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { formatDate, formatRelative } from '@/lib/format';
+import { Avatar, Button, Card, IconButton, SkeletonRows, toast } from '@/components/ui';
+import { StageBadge, StatusBadge } from '@/components/status';
+import { formatDate } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail, ResumeProfile } from '@/types';
 import type { Filters } from './candidate-filters';
@@ -63,13 +65,13 @@ function FilterLink({
 }: {
   patch: Partial<Filters>;
   onFilter?: OnFilter;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   if (!onFilter) return <>{children}</>;
   return (
     <button
       type="button"
-      className="people-filter"
+      className="rounded-sm text-left underline decoration-border decoration-dotted underline-offset-2 hover:text-accent-foreground hover:decoration-current"
       title="Show people like this"
       onClick={() => onFilter(patch)}
     >
@@ -102,9 +104,11 @@ const DEGREE_LABELS: Record<string, string> = {
 export function CandidatePreview({
   person,
   onFilter,
+  onClose,
 }: {
   person: PreviewPerson;
   onFilter?: OnFilter;
+  onClose?: () => void;
 }) {
   const router = useRouter();
   const query = useQuery({
@@ -126,66 +130,97 @@ export function CandidatePreview({
   const degreeLink =
     resume && DEGREE_LABELS[resume.highestDegreeLevel] ? resume.highestDegreeLevel : null;
 
+  const heading = (text: string) => (
+    <h4 className="mt-5 mb-2 text-xs font-medium text-fg-subtle">{text}</h4>
+  );
+
   return (
-    <aside className="people-panel" aria-label={`About ${person.name}`}>
-      <h3 className="people-pname">{person.name}</h3>
-      <p className="people-prole">
-        {[person.currentTitle ?? 'No title on file', person.location].filter(Boolean).join(' · ')}
-      </p>
+    <Card
+      className="flex max-h-[calc(100dvh-117px)] flex-col overflow-y-auto p-5"
+      role="complementary"
+      aria-label={`About ${person.name}`}
+    >
+      <div className="flex items-center gap-3">
+        <Avatar name={person.name} size="lg" />
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-semibold text-fg">{person.name}</h3>
+          <p className="truncate text-sm text-fg-muted">
+            {[person.currentTitle ?? 'No title on file', person.location]
+              .filter(Boolean)
+              .join(' · ')}
+          </p>
+        </div>
+        {onClose && (
+          <IconButton
+            label="Close preview"
+            variant="quiet"
+            className="ml-auto self-start"
+            onClick={onClose}
+          >
+            <X />
+          </IconButton>
+        )}
+      </div>
       {query.isError ? (
-        <Text size="sm" c="red" mt="md">
-          Could not load the full record.
-        </Text>
+        <p className="mt-4 text-sm text-destructive">Could not load the full record.</p>
       ) : !detail ? (
-        <LoadingBlock rows={3} />
+        <SkeletonRows rows={3} className="px-0" />
       ) : (
         <>
-          <div className="people-stats">
-            <span>
-              <b>{resume?.yearsExperience ?? detail.resumeYearsExperience ?? '–'}</b>
-              <span>years</span>
-            </span>
-            <span>
-              <b>{seniorityLink ?? '–'}</b>
-              <span>level</span>
-            </span>
-            <span>
-              <b>{degreeLink ? DEGREE_LABELS[degreeLink] : '–'}</b>
-              <span>degree</span>
-            </span>
-          </div>
-          <h4 className="people-h">Where they are</h4>
+          <dl className="mt-4 grid grid-cols-3 divide-x divide-border-subtle rounded-lg bg-muted py-3 text-center">
+            {[
+              [resume?.yearsExperience ?? detail.resumeYearsExperience ?? '–', 'years'],
+              [seniorityLink ?? '–', 'level'],
+              [degreeLink ? DEGREE_LABELS[degreeLink] : '–', 'degree'],
+            ].map(([value, label]) => (
+              <div key={label} className="min-w-0 px-2">
+                <dd className="truncate text-base font-semibold text-fg tnum">{value}</dd>
+                <dt className="text-2xs text-fg-subtle">{label}</dt>
+              </div>
+            ))}
+          </dl>
+          {heading('Where they are')}
           {detail.applications.length === 0 ? (
-            <p className="people-none">Not applied to any job yet.</p>
+            <p className="text-sm text-fg-subtle">Not applied to any job yet.</p>
           ) : (
-            <ul className="people-where">
+            <ul className="space-y-2.5">
               {detail.applications.map((app) => (
-                <li key={app.id} data-closed={app.status !== 'Active' || undefined}>
-                  <a href={`/applications/${app.id}`}>{app.requisitionTitle}</a>
-                  <span className="people-sub">
-                    {app.status === 'Active' ? app.stage : app.status} · applied{' '}
-                    {formatDate(app.appliedAt)}
-                  </span>
-                  {scoreText(scoresFor(person, app.id)) && (
-                    <span className="people-sub">{scoreText(scoresFor(person, app.id))}</span>
-                  )}
+                <li key={app.id} className={app.status !== 'Active' ? 'opacity-70' : undefined}>
+                  <div className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/applications/${app.id}`}
+                      className="min-w-0 truncate text-base font-medium text-accent-foreground hover:underline"
+                    >
+                      {app.requisitionTitle}
+                    </Link>
+                    {app.status === 'Active' ? (
+                      <StageBadge stage={app.stage} size="sm" />
+                    ) : (
+                      <StatusBadge status={app.status} size="sm" />
+                    )}
+                  </div>
+                  <p className="text-xs text-fg-subtle">
+                    Applied {formatDate(app.appliedAt)}
+                    {scoreText(scoresFor(person, app.id)) &&
+                      ` · ${scoreText(scoresFor(person, app.id))}`}
+                  </p>
                 </li>
               ))}
             </ul>
           )}
           {resume && resume.work.length > 0 && (
             <>
-              <h4 className="people-h">Experience</h4>
-              <ul className="people-roles">
+              {heading('Experience')}
+              <ul className="space-y-2">
                 {resume.work.slice(0, 4).map((role) => (
-                  <li key={role.id}>
-                    <b>{role.title}</b>
-                    <span>
+                  <li key={role.id} className="text-sm">
+                    <p className="font-medium text-fg">{role.title}</p>
+                    <p className="text-fg-muted">
                       <FilterLink patch={{ company: role.company }} onFilter={onFilter}>
                         {role.company}
                       </FilterLink>
                       {span(role) ? ` · ${span(role)}` : ''}
-                    </span>
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -193,12 +228,14 @@ export function CandidatePreview({
           )}
           {resume && resume.education.length > 0 && (
             <>
-              <h4 className="people-h">Education</h4>
-              <ul className="people-roles">
+              {heading('Education')}
+              <ul className="space-y-2">
                 {resume.education.slice(0, 2).map((entry) => (
-                  <li key={entry.id}>
-                    <b>{entry.degree ?? entry.field ?? 'Studied'}</b>
-                    <span>
+                  <li key={entry.id} className="text-sm">
+                    <p className="font-medium text-fg">
+                      {entry.degree ?? entry.field ?? 'Studied'}
+                    </p>
+                    <p className="text-fg-muted">
                       <FilterLink patch={{ school: entry.school }} onFilter={onFilter}>
                         {entry.school}
                       </FilterLink>
@@ -207,31 +244,26 @@ export function CandidatePreview({
                         : entry.endYear
                           ? ` · ${entry.endYear}`
                           : ''}
-                    </span>
+                    </p>
                   </li>
                 ))}
               </ul>
             </>
           )}
-          <h4 className="people-h">About</h4>
-          <dl className="people-sheet">
+          {heading('About')}
+          <dl className="grid grid-cols-[88px_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm [&_dd]:text-fg [&_dt]:text-fg-subtle">
             {person.skills.length > 0 && (
               <>
                 <dt>Skills</dt>
                 <dd>
-                  <span className="people-wrap">
-                    {person.skills.slice(0, 10).map((skill, index) => (
-                      <span key={skill}>
-                        {index > 0 && ', '}
-                        <FilterLink
-                          patch={{ skills: [skill], skillMode: 'any' }}
-                          onFilter={onFilter}
-                        >
-                          {person.matchedTerms.includes(skill) ? <b>{skill}</b> : skill}
-                        </FilterLink>
-                      </span>
-                    ))}
-                  </span>
+                  {person.skills.slice(0, 10).map((skill, index) => (
+                    <span key={skill}>
+                      {index > 0 && ', '}
+                      <FilterLink patch={{ skills: [skill], skillMode: 'any' }} onFilter={onFilter}>
+                        {person.matchedTerms.includes(skill) ? <b>{skill}</b> : skill}
+                      </FilterLink>
+                    </span>
+                  ))}
                 </dd>
               </>
             )}
@@ -239,11 +271,10 @@ export function CandidatePreview({
               <>
                 <dt>Certificates</dt>
                 <dd>
-                  {resume.certifications.slice(0, 3).map((cert) => (
-                    <span key={cert.id} className="people-wrap">
-                      {cert.name}
-                    </span>
-                  ))}
+                  {resume.certifications
+                    .slice(0, 3)
+                    .map((cert) => cert.name)
+                    .join(', ')}
                 </dd>
               </>
             )}
@@ -254,12 +285,10 @@ export function CandidatePreview({
               </>
             )}
             <dt>Email</dt>
-            <dd>
-              <span>
-                <a className="people-link" href={`mailto:${person.email}`}>
-                  {person.email}
-                </a>
-              </span>
+            <dd className="truncate">
+              <a className="text-accent-foreground hover:underline" href={`mailto:${person.email}`}>
+                {person.email}
+              </a>
             </dd>
             {detail.phone && (
               <>
@@ -272,7 +301,7 @@ export function CandidatePreview({
                 <dt>LinkedIn</dt>
                 <dd>
                   <a
-                    className="people-link"
+                    className="text-accent-foreground hover:underline"
                     href={linkedIn}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -287,18 +316,18 @@ export function CandidatePreview({
           </dl>
         </>
       )}
-      <Group gap="sm" mt="lg">
+      <div className="mt-5 flex flex-wrap gap-2">
         <Button onClick={() => router.push(`/candidates/${person.id}`)}>Open profile</Button>
         <Button
-          variant="default"
+          variant="secondary"
           onClick={() => {
             navigator.clipboard.writeText(person.email);
-            notifications.show({ message: `Copied ${person.email}` });
+            toast(`Copied ${person.email}`);
           }}
         >
           Copy email
         </Button>
-      </Group>
-    </aside>
+      </div>
+    </Card>
   );
 }

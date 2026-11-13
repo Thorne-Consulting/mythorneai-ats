@@ -37,8 +37,22 @@ const saved = {
   interviewerMessage: 'You are on this one.',
   durationMinutes: 45,
   criteria: [
-    { id: 'c2', name: 'Judgement', question: 'What did you cut?', description: '', weight: 4, sortOrder: 1 },
-    { id: 'c1', name: 'Craft', question: 'Proudest of?', description: 'Real decisions.', weight: 2, sortOrder: 0 },
+    {
+      id: 'c2',
+      name: 'Judgement',
+      question: 'What did you cut?',
+      description: '',
+      weight: 4,
+      sortOrder: 1,
+    },
+    {
+      id: 'c1',
+      name: 'Craft',
+      question: 'Proudest of?',
+      description: 'Real decisions.',
+      weight: 2,
+      sortOrder: 0,
+    },
   ],
 };
 const back = parseKit(kitToMarkdown(saved));
@@ -48,7 +62,10 @@ assert.equal(back.candidateMessage, 'Pick a time.');
 assert.equal(back.interviewerMessage, 'You are on this one.');
 assert.deepEqual(
   back.criteria.map((c) => [c.name, c.question, c.description, c.weight]),
-  [['Craft', 'Proudest of?', 'Real decisions.', 2], ['Judgement', 'What did you cut?', '', 4]],
+  [
+    ['Craft', 'Proudest of?', 'Real decisions.', 2],
+    ['Judgement', 'What did you cut?', '', 4],
+  ],
 );
 console.log('kit round trip ok');
 
@@ -64,6 +81,9 @@ const tabled = parseKit(`# T
 |  | No name, dropped |  | 3 |`);
 assert.deepEqual(
   tabled.criteria.map((c) => [c.name, c.question, c.description, c.weight]),
-  [['Range', 'Pick one: A | B?', 'Explains why', 5], ['Depth', 'Go deeper?', '', 3]],
+  [
+    ['Range', 'Pick one: A | B?', 'Explains why', 5],
+    ['Depth', 'Go deeper?', '', 3],
+  ],
 );
 console.log('kit table ok');

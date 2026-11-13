@@ -1,20 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { FileButton, Modal } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
+import { CalendarClock, FileText, Upload } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import { formatDate, formatRelative } from '@/lib/format';
+import {
+  Badge,
+  Button,
+  DescriptionList,
+  FileButton,
+  IconDisc,
+  Modal,
+  toast,
+} from '@/components/ui';
+import { formatDate, formatDateTime, formatRelative } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail } from '@/types';
 import { CandidateCustomFields, type CandidateExtras } from './CandidateCustomFields';
 import { PotentialDuplicates } from './PotentialDuplicates';
-import { Fact, Missing, RailGroup } from './Rail';
+import { Missing, RailGroup } from './Rail';
 
 type Attachment = CandidateDetail['attachments'][number];
+type UpcomingInterview = {
+  id: string;
+  applicationId: string;
+  title: string;
+  startsAt: string;
+  requisitionTitle: string;
+};
 
-function parseLabel(attachment: Attachment) {
+export function parseLabel(attachment: Attachment) {
   switch (attachment.parseStatus) {
     case 'Parsed':
       return 'read';
@@ -30,7 +46,92 @@ function parseLabel(attachment: Attachment) {
   }
 }
 
-/** The facts a recruiter looks up while reading the record: how to reach them, the files, the dates. */
+const linkClass = 'text-accent-foreground hover:underline';
+
+/** The next scheduled interview on any of this person's applications, from the calendar feed. */
+function NextInterview({ applicationIds }: { applicationIds: string[] }) {
+  const interviews = useQuery({
+    queryKey: ['interviews', 'upcoming'],
+    queryFn: () => {
+      const from = new Date();
+      // ponytail: looks 180 days ahead; widen if interviews get booked further out.
+      const to = new Date(from.getTime() + 180 * 86_400_000);
+      return api.get<UpcomingInterview[]>(
+        `/api/interviews?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+      );
+    },
+  });
+  const next = interviews.data?.find((item) => applicationIds.includes(item.applicationId));
+  if (interviews.isError) return null;
+  return (
+    <RailGroup title="Next interview">
+      {next ? (
+        <Link
+          href={`/applications/${next.applicationId}/interviews`}
+          className="-m-2 flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted"
+        >
+          <IconDisc icon={CalendarClock} tone="blue" size="md" />
+          <span className="min-w-0">
+            <span className="block truncate text-base font-medium text-fg">{next.title}</span>
+            <span className="block truncate text-xs text-fg-subtle">
+              {formatDateTime(next.startsAt)} · {next.requisitionTitle}
+            </span>
+          </span>
+        </Link>
+      ) : (
+        <p className="text-sm text-fg-subtle">
+          {interviews.isLoading ? 'Checking the calendar…' : 'Nothing scheduled.'}
+        </p>
+      )}
+    </RailGroup>
+  );
+}
+
+/** Upload, re-read and preview a candidate's documents (the rail and the Files tab share it). */
+export function useCandidateFiles(candidateId: string) {
+  const [preview, setPreview] = useState<{ id: string; name: string } | null>(null);
+  const queryClient = useQueryClient();
+  const upload = useMutation({
+    mutationFn: (file: File) => api.upload(`/api/candidates/${candidateId}/attachments`, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
+      toast.success('Document uploaded', 'It is queued for parsing.');
+    },
+    onError: (error: Error) => toast.error('Could not upload', error.message),
+  });
+  const parseResume = useMutation({
+    mutationFn: (attachmentId: string) =>
+      api.post(`/api/candidates/${candidateId}/attachments/${attachmentId}/parse`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
+      queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidateId] });
+      toast.success('Resume parsing queued');
+    },
+    onError: (error: Error) => toast.error('Could not parse resume', error.message),
+  });
+  const previewModal = (
+    <Modal
+      opened={preview !== null}
+      onClose={() => setPreview(null)}
+      title={preview?.name ?? 'Preview'}
+      size="xl"
+    >
+      {preview && (
+        <iframe
+          title={`Preview ${preview.name}`}
+          src={`/api/attachments/${preview.id}?inline=true`}
+          className="h-[75vh] w-full rounded-md border-0"
+        />
+      )}
+    </Modal>
+  );
+  return { upload, parseResume, setPreview, previewModal };
+}
+
+/**
+ * The facts a recruiter looks up while reading the record: how to reach them, the next
+ * interview, skills, custom details, then the files. Nothing here repeats the resume.
+ */
 export function CandidateRail({
   candidate,
   canUpload,
@@ -38,47 +139,63 @@ export function CandidateRail({
   candidate: CandidateDetail & CandidateExtras;
   canUpload: boolean;
 }) {
-  const [preview, setPreview] = useState<{ id: string; name: string } | null>(null);
-  const queryClient = useQueryClient();
-  const upload = useMutation({
-    mutationFn: (file: File) => api.upload(`/api/candidates/${candidate.id}/attachments`, file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
-      notifications.show({ color: 'teal', message: 'Document uploaded and queued for parsing' });
-    },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
-  });
-  const parseResume = useMutation({
-    mutationFn: (attachmentId: string) =>
-      api.post(`/api/candidates/${candidate.id}/attachments/${attachmentId}/parse`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidate', candidate.id] });
-      queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidate.id] });
-      notifications.show({ color: 'teal', message: 'Resume parsing queued' });
-    },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not parse resume', message: error.message }),
-  });
+  const { upload, parseResume, setPreview, previewModal } = useCandidateFiles(candidate.id);
   const linkedIn = safeWebUrl(candidate.linkedInUrl);
+  const skills = candidate.resumeSkills.slice(0, 12);
 
   return (
-    <aside className="record-rail candidate-rail" aria-label="Candidate details">
-      <RailGroup title="Contact">
-        <dl className="facts-grid rail-facts">
-          <Fact label="Email">
-            <a href={`mailto:${candidate.email}`}>{candidate.email}</a>
-          </Fact>
-          <Fact label="Phone">{candidate.phone ?? <Missing />}</Fact>
-          <Fact label="Location">{candidate.location ?? <Missing />}</Fact>
-          {linkedIn && (
-            <Fact label="LinkedIn">
-              <a href={linkedIn} target="_blank" rel="noopener noreferrer">
-                Open profile
-              </a>
-            </Fact>
-          )}
-        </dl>
+    <aside className="flex min-w-0 flex-col gap-5" aria-label="Candidate details">
+      <RailGroup title="Contact details">
+        <DescriptionList
+          items={[
+            {
+              label: 'Email',
+              value: (
+                <a href={`mailto:${candidate.email}`} className={linkClass}>
+                  {candidate.email}
+                </a>
+              ),
+            },
+            { label: 'Phone', value: candidate.phone ?? <Missing /> },
+            { label: 'Location', value: candidate.location ?? <Missing /> },
+            ...(linkedIn
+              ? [
+                  {
+                    label: 'LinkedIn',
+                    value: (
+                      <a
+                        href={linkedIn}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={linkClass}
+                      >
+                        Open profile
+                      </a>
+                    ),
+                  },
+                ]
+              : []),
+            { label: 'Source', value: candidate.source },
+            { label: 'Added', value: formatDate(candidate.createdAt) },
+            { label: 'Updated', value: formatRelative(candidate.updatedAt) },
+            ...(candidate.resumeParsedAt
+              ? [{ label: 'Resume read', value: formatRelative(candidate.resumeParsedAt) }]
+              : []),
+          ]}
+        />
       </RailGroup>
+
+      <NextInterview applicationIds={candidate.applications.map((app) => app.id)} />
+
+      {skills.length > 0 && (
+        <RailGroup title="Skills">
+          <div className="flex flex-wrap gap-1.5">
+            {skills.map((skill) => (
+              <Badge key={skill}>{skill}</Badge>
+            ))}
+          </div>
+        </RailGroup>
+      )}
 
       <CandidateCustomFields candidate={candidate} canEdit={canUpload} />
 
@@ -86,59 +203,62 @@ export function CandidateRail({
         title="Documents"
         action={
           canUpload && (
-            <FileButton onChange={(file) => file && upload.mutate(file)} accept=".pdf,.doc,.docx">
-              {(props) => (
-                <button
-                  type="button"
-                  className="text-action"
-                  {...props}
-                  disabled={upload.isPending}
-                >
-                  {upload.isPending ? 'Uploading…' : 'Upload'}
-                </button>
-              )}
+            <FileButton
+              variant="link"
+              size="sm"
+              leftIcon={<Upload />}
+              accept=".pdf,.doc,.docx"
+              onFile={(file) => upload.mutate(file)}
+              disabled={upload.isPending}
+            >
+              {upload.isPending ? 'Uploading…' : 'Upload'}
             </FileButton>
           )
         }
       >
         {candidate.attachments.length === 0 ? (
-          <p className="rail-empty">No resume or documents yet.</p>
+          <p className="text-sm text-fg-subtle">No resume or documents yet.</p>
         ) : (
-          <ul className="rail-files">
+          <ul className="space-y-3">
             {candidate.attachments.map((attachment) => (
-              <li key={attachment.id}>
-                <span className="rail-file-name">{attachment.originalFileName}</span>
-                <span className="rail-file-meta">
-                  {Math.ceil(attachment.length / 1024)} KB · {parseLabel(attachment)}
-                </span>
-                <span className="text-actions">
-                  {attachment.contentType === 'application/pdf' && (
-                    <button
-                      type="button"
-                      className="text-action"
-                      onClick={() =>
-                        setPreview({ id: attachment.id, name: attachment.originalFileName })
-                      }
-                    >
-                      Preview
-                    </button>
-                  )}
-                  <a className="text-action" href={`/api/attachments/${attachment.id}`}>
-                    Download
-                  </a>
-                  {canUpload &&
-                    (attachment.parseStatus === 'Failed' ||
-                      attachment.parseStatus === 'NeedsOcr') && (
-                      <button
-                        type="button"
-                        className="text-action"
-                        disabled={parseResume.isPending}
-                        onClick={() => parseResume.mutate(attachment.id)}
+              <li key={attachment.id} className="flex items-start gap-3">
+                <FileText className="mt-0.5 size-4 shrink-0 text-fg-subtle" aria-hidden />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-medium text-fg">
+                    {attachment.originalFileName}
+                  </p>
+                  <p className="text-xs text-fg-subtle">
+                    {Math.ceil(attachment.length / 1024)} KB · {parseLabel(attachment)}
+                  </p>
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm">
+                    {attachment.contentType === 'application/pdf' && (
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() =>
+                          setPreview({ id: attachment.id, name: attachment.originalFileName })
+                        }
                       >
-                        Retry reading
-                      </button>
+                        Preview
+                      </Button>
                     )}
-                </span>
+                    <Button variant="link" size="sm" asChild>
+                      <a href={`/api/attachments/${attachment.id}`}>Download</a>
+                    </Button>
+                    {canUpload &&
+                      (attachment.parseStatus === 'Failed' ||
+                        attachment.parseStatus === 'NeedsOcr') && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          disabled={parseResume.isPending}
+                          onClick={() => parseResume.mutate(attachment.id)}
+                        >
+                          Retry reading
+                        </Button>
+                      )}
+                  </div>
+                </div>
               </li>
             ))}
           </ul>
@@ -147,32 +267,7 @@ export function CandidateRail({
 
       {canUpload && <PotentialDuplicates candidateId={candidate.id} />}
 
-      <RailGroup title="Record">
-        <dl className="facts-grid rail-facts">
-          <Fact label="Source">{candidate.source}</Fact>
-          <Fact label="Added">{formatDate(candidate.createdAt)}</Fact>
-          <Fact label="Updated">{formatRelative(candidate.updatedAt)}</Fact>
-          {candidate.resumeParsedAt && (
-            <Fact label="Resume read">{formatRelative(candidate.resumeParsedAt)}</Fact>
-          )}
-        </dl>
-      </RailGroup>
-
-      <Modal
-        opened={preview !== null}
-        onClose={() => setPreview(null)}
-        title={preview?.name}
-        size="xl"
-        centered
-      >
-        {preview && (
-          <iframe
-            title={`Preview ${preview.name}`}
-            src={`/api/attachments/${preview.id}?inline=true`}
-            style={{ width: '100%', height: '75vh', border: 0 }}
-          />
-        )}
-      </Modal>
+      {previewModal}
     </aside>
   );
 }

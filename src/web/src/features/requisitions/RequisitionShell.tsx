@@ -1,26 +1,41 @@
 'use client';
 
-import { Select } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { IconBriefcase } from '@tabler/icons-react';
+import {
+  ChevronDown,
+  ClipboardList,
+  FileText,
+  Globe,
+  Kanban,
+  LayoutDashboard,
+  ListChecks,
+  Settings,
+  UserPlus,
+  Users,
+  UsersRound,
+} from 'lucide-react';
 import { api } from '@/api';
-import { StatusBadge } from '@/components/ui/Badges';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { type Crumb, DetailHeader } from '@/components/ui/PageHeaders';
-import { PageTabs } from '@/components/ui/PageTabs';
+import {
+  Badge,
+  Button,
+  Card,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  PageHeader,
+  SkeletonRows,
+  toast,
+  type Crumb,
+} from '@/components/ui';
+import { StatusBadge } from '@/components/status';
+import { SectionNav, SidebarLayout, type SectionGroup } from '@/components/layout/SectionLayout';
 import { humanize } from '@/lib/format';
 import type { RequisitionDetail } from '@/types';
-import { useCanManage, useRequisition } from './requisition-data';
+import { statusOptions, useBoard, useCanManage, useRequisition } from './requisition-data';
 import { RequisitionApproval } from './RequisitionApproval';
-
-// Opening goes through approval when the organization asks for it, so Open is not offered then.
-function statusOptions(current: string, approvalRequired?: boolean) {
-  if (current === 'PendingApproval') return ['PendingApproval', 'Draft', 'Cancelled'];
-  const all = ['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled'];
-  return current === 'Draft' && approvalRequired ? all.filter((item) => item !== 'Open') : all;
-}
 
 export function RequisitionShell({
   id,
@@ -32,8 +47,9 @@ export function RequisitionShell({
   children: React.ReactNode;
 }) {
   const queryClient = useQueryClient();
-  const pathname = usePathname();
+  const pathname = usePathname() ?? '';
   const details = useRequisition(id, initialData);
+  const board = useBoard(id);
   const canManage = useCanManage(details.data);
   const statusMutation = useMutation({
     mutationFn: (status: string) =>
@@ -41,14 +57,9 @@ export function RequisitionShell({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-      notifications.show({ color: 'teal', message: 'Job status updated' });
+      toast.success('Job status updated');
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not change the job status',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not change the job status', error.message),
   });
 
   const approvalRequired = useQuery({
@@ -58,23 +69,54 @@ export function RequisitionShell({
     retry: false,
   }).data?.required;
 
-  if (!details.data) return <LoadingBlock rows={5} />;
+  if (!details.data)
+    return (
+      <Card>
+        <SkeletonRows rows={5} />
+      </Card>
+    );
   const requisition = details.data;
-  const base = `/requisitions/${id}`;
-  const tabs = [
-    { label: 'Pipeline', href: base },
-    { label: 'Role', href: `${base}/details` },
-    { label: 'Interview kits', href: `${base}/kits`, count: requisition.interviewKits.length },
-    ...(canManage ? [{ label: 'Settings', href: `${base}/settings` }] : []),
+  const base = `/jobs/${id}`;
+  const candidates = board.data?.stages.reduce((sum, s) => sum + s.applications.length, 0);
+  const groups: SectionGroup[] = [
+    {
+      items: [
+        { label: 'Overview', href: base, icon: LayoutDashboard, exact: true },
+        { label: 'Pipeline', href: `${base}/pipeline`, icon: Kanban },
+        { label: 'Candidates', href: `${base}/candidates`, icon: Users, count: candidates },
+      ],
+    },
+    {
+      label: 'The job',
+      items: [
+        { label: 'Details', href: `${base}/details`, icon: FileText },
+        { label: 'Requirements', href: `${base}/requirements`, icon: ListChecks },
+        {
+          label: 'Interview kits',
+          href: `${base}/kits`,
+          icon: ClipboardList,
+          count: requisition.interviewKits.length,
+        },
+        { label: 'Job posting', href: `${base}/posting`, icon: Globe },
+      ],
+    },
+    {
+      label: 'People',
+      items: [
+        { label: 'Hiring team', href: `${base}/team`, icon: UsersRound },
+        ...(canManage ? [{ label: 'Settings', href: `${base}/settings`, icon: Settings }] : []),
+      ],
+    },
   ];
+  const sections = groups.flatMap((group) => group.items);
 
-  // The trail follows the URL: Jobs / this job / the tab / a kit / Edit.
+  // The trail follows the URL: Jobs / this job / the section / a kit / Edit.
   const crumbs: Crumb[] = [
-    { label: 'Jobs', href: '/requisitions', icon: <IconBriefcase size={14} aria-hidden /> },
+    { label: 'Jobs', href: '/jobs' },
     { label: requisition.title, href: base },
   ];
   const [tab, kitId, action] = pathname.slice(base.length + 1).split('/');
-  const tabCrumb = tabs.find((item) => item.href === `${base}/${tab}`);
+  const tabCrumb = tab ? sections.find((item) => item.href === `${base}/${tab}`) : undefined;
   if (tabCrumb) crumbs.push({ label: tabCrumb.label, href: tabCrumb.href });
   if (tab === 'kits' && kitId === 'new') {
     crumbs.push({ label: 'New kit', href: `${base}/kits/new` });
@@ -83,37 +125,60 @@ export function RequisitionShell({
     crumbs.push({ label: kit?.name ?? 'Kit', href: `${base}/kits/${kitId}` });
     if (action === 'edit') crumbs.push({ label: 'Edit', href: `${base}/kits/${kitId}/edit` });
   }
-  crumbs[crumbs.length - 1].current = true;
 
   return (
     <>
-      <DetailHeader
-        crumbs={crumbs}
-        title={requisition.title}
-        // Managers change the status in the control on the right, so the badge would repeat it.
-        badges={canManage ? undefined : <StatusBadge status={requisition.status} />}
-        subtitle={`${requisition.code} · ${requisition.department} · ${requisition.location} (${requisition.workMode})`}
+      <PageHeader
+        breadcrumbs={crumbs}
+        title={
+          <span className="flex flex-wrap items-center gap-3">
+            {requisition.title}
+            <StatusBadge status={requisition.status} />
+          </span>
+        }
+        description={
+          <span className="flex flex-wrap items-center gap-2">
+            <Badge variant="outline" size="sm">
+              {requisition.code}
+            </Badge>
+            {requisition.department} · {requisition.location} · {requisition.workMode}
+          </span>
+        }
         actions={
           canManage && (
-            <Select
-              aria-label="Job status"
-              value={requisition.status}
-              onChange={(value) => value && statusMutation.mutate(value)}
-              data={statusOptions(requisition.status, approvalRequired).map((value) => ({
-                value,
-                label: humanize(value),
-              }))}
-              w={160}
-              allowDeselect={false}
-            />
+            <>
+              <Menu>
+                <MenuTrigger asChild>
+                  <Button
+                    variant="secondary"
+                    rightIcon={<ChevronDown />}
+                    loading={statusMutation.isPending}
+                  >
+                    Change status
+                  </Button>
+                </MenuTrigger>
+                <MenuContent>
+                  {statusOptions(requisition.status, approvalRequired).map((value) => (
+                    <MenuItem key={value} onSelect={() => statusMutation.mutate(value)}>
+                      {humanize(value)}
+                    </MenuItem>
+                  ))}
+                </MenuContent>
+              </Menu>
+              <Button asChild>
+                <Link href={`/candidates?job=${id}`}>
+                  <UserPlus />
+                  Find candidates
+                </Link>
+              </Button>
+            </>
           )
         }
       />
 
       <RequisitionApproval id={id} status={requisition.status} canManage={canManage} />
 
-      <PageTabs items={tabs} />
-      {children}
+      <SidebarLayout nav={<SectionNav groups={groups} title="Job" />}>{children}</SidebarLayout>
     </>
   );
 }

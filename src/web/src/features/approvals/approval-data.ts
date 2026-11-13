@@ -1,6 +1,6 @@
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import { toast } from '@/components/ui';
 
 export interface PendingApproval {
   id: string;
@@ -71,14 +71,9 @@ export function useDecideApproval(onDone?: () => void) {
       }),
     onSuccess: ({ message }) => {
       invalidate();
-      notifications.show({ color: 'teal', message });
+      toast.success(message);
       onDone?.();
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not save your decision',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not save your decision', error.message),
   });
 }

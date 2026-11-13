@@ -1,10 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Group, Modal, Select, SimpleGrid, Stack, TextInput } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Button, Input, Modal, Select, toast } from '@/components/ui';
 import type { InterviewKit } from '@/types';
 import type { Interview, ModalProps } from './application-types';
 
@@ -43,8 +42,9 @@ export function InterviewModal({
     onSuccess: () => {
       onSaved();
       onClose();
+      toast.success(interview ? 'Interview updated' : 'Interview scheduled');
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save the interview', error.message),
   });
   const selectKit = (value: string | null) => {
     setKitId(value);
@@ -56,8 +56,22 @@ export function InterviewModal({
       opened={opened}
       onClose={onClose}
       title={interview ? 'Edit interview' : 'Schedule interview'}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!title || !startsAt || !endsAt || !interviewers}
+            loading={mutation.isPending}
+            onClick={() => mutation.mutate()}
+          >
+            {interview ? 'Save and sync' : 'Schedule'}
+          </Button>
+        </>
+      }
     >
-      <Stack>
+      <div className="space-y-4">
         <Select
           label="Interview kit"
           placeholder="Choose a structured kit"
@@ -69,50 +83,38 @@ export function InterviewModal({
             label: `${kit.name} · ${kit.durationMinutes} min`,
           }))}
         />
-        <TextInput
+        <Input
           label="Interview name"
           value={title}
           onChange={(event) => setTitle(event.currentTarget.value)}
         />
-        <SimpleGrid cols={{ base: 1, xs: 2 }}>
-          <TextInput
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input
             type="datetime-local"
             label="Starts"
             value={startsAt}
             onChange={(event) => setStartsAt(event.currentTarget.value)}
           />
-          <TextInput
+          <Input
             type="datetime-local"
             label="Ends"
             value={endsAt}
             onChange={(event) => setEndsAt(event.currentTarget.value)}
           />
-        </SimpleGrid>
-        <TextInput
+        </div>
+        <Input
           label="Interviewers"
           description="Comma-separated work emails"
           value={interviewers}
           onChange={(event) => setInterviewers(event.currentTarget.value)}
         />
-        <TextInput
+        <Input
           label="Meeting link"
           description="Leave blank to create Teams or Google Meet when configured."
           value={meetingLink}
           onChange={(event) => setMeetingLink(event.currentTarget.value)}
         />
-        <Group justify="flex-end">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button
-            disabled={!title || !startsAt || !endsAt || !interviewers}
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            {interview ? 'Save and sync' : 'Schedule'}
-          </Button>
-        </Group>
-      </Stack>
+      </div>
     </Modal>
   );
 }

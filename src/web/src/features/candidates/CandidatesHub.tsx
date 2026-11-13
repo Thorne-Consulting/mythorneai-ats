@@ -1,59 +1,142 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { Button, Menu } from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconChevronDown, IconFileImport, IconPlus, IconUpload } from '@tabler/icons-react';
+import { useState, type ReactNode } from 'react';
+import {
+  Bookmark,
+  ChevronDown,
+  CircleCheck,
+  CircleDot,
+  CircleSlash,
+  CircleX,
+  Download,
+  FileText,
+  History,
+  Plus,
+  Sheet,
+  Users,
+  UsersRound,
+} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
-import { PageHeader } from '@/components/ui/PageHeaders';
+import {
+  Badge,
+  Button,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+  PageHeader,
+} from '@/components/ui';
+import { SectionNav, SidebarLayout, type SectionGroup } from '@/components/layout/SectionLayout';
 import { ResumeImportModal } from '@/features/talent/ResumeImportModal';
 import { CreateCandidateModal } from './CreateCandidateModal';
 import { ImportCandidatesModal } from './ImportCandidatesModal';
+import { STATUS_SEGMENTS } from './candidate-filters';
 
-/** Candidates: the page header with import and add, around the one list of everyone. */
+const STATUS_ICONS = {
+  Active: CircleDot,
+  Hired: CircleCheck,
+  Rejected: CircleX,
+  Withdrawn: CircleSlash,
+};
+
+/**
+ * Candidates: the page header with import and add, and a second sidebar of segments (by status,
+ * talent pools, recently viewed, the user's saved views) around the list.
+ */
 export function CandidatesHub({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
-  const [createOpened, create] = useDisclosure();
-  const [csvOpened, csv] = useDisclosure();
-  const [resumeOpened, resume] = useDisclosure();
+  const [open, setOpen] = useState<'create' | 'csv' | 'resume' | null>(null);
+  const close = () => setOpen(null);
   const staff = ['Admin', 'Recruiter'].includes(user.role);
   const canImport = staff && (user.permissions.includes('import') || user.role === 'Admin');
+  const savedViews = useQuery({
+    queryKey: ['saved-views', 'talent'],
+    queryFn: () =>
+      api.get<{ id: string; name: string; paramsJson: string }[]>('/api/saved-views?area=talent'),
+    enabled: staff,
+  });
+
+  const groups: SectionGroup[] = [
+    {
+      items: [
+        { href: '/candidates', label: 'All candidates', icon: Users, exact: true },
+        ...STATUS_SEGMENTS.map(({ slug, status }) => ({
+          href: `/candidates/${slug}`,
+          label: status,
+          icon: STATUS_ICONS[status],
+        })),
+      ],
+    },
+    {
+      label: 'Lists',
+      items: [
+        {
+          href: '/candidates/talent-pools',
+          label: 'Talent pools',
+          icon: UsersRound,
+          badge: (
+            <Badge tone="amber" size="sm">
+              Preview
+            </Badge>
+          ),
+        },
+        { href: '/candidates/recent', label: 'Recently viewed', icon: History },
+      ],
+    },
+    ...(savedViews.data?.length
+      ? [
+          {
+            label: 'Saved views',
+            items: savedViews.data.map((view) => ({
+              href: `/candidates/views/${view.id}`,
+              label: view.name,
+              icon: Bookmark,
+            })),
+          },
+        ]
+      : []),
+  ];
 
   return (
     <>
       <PageHeader
         title="Candidates"
+        description="Your talent, all in one place. Discover, review, and move great people forward."
         actions={
           staff && (
             <>
               {canImport && (
-                <Menu position="bottom-end" width={220}>
-                  <Menu.Target>
-                    <Button variant="default" rightSection={<IconChevronDown size={15} />}>
-                      Import
+                <Menu>
+                  <MenuTrigger asChild>
+                    <Button variant="secondary" leftIcon={<Download />} rightIcon={<ChevronDown />}>
+                      Import candidates
                     </Button>
-                  </Menu.Target>
-                  <Menu.Dropdown>
-                    <Menu.Item leftSection={<IconFileImport size={16} />} onClick={resume.open}>
+                  </MenuTrigger>
+                  <MenuContent>
+                    <MenuItem icon={<FileText />} onSelect={() => setOpen('resume')}>
                       From a resume
-                    </Menu.Item>
-                    <Menu.Item leftSection={<IconUpload size={16} />} onClick={csv.open}>
+                    </MenuItem>
+                    <MenuItem icon={<Sheet />} onSelect={() => setOpen('csv')}>
                       From a CSV file
-                    </Menu.Item>
-                  </Menu.Dropdown>
+                    </MenuItem>
+                  </MenuContent>
                 </Menu>
               )}
-              <Button leftSection={<IconPlus size={16} />} onClick={create.open}>
+              <Button leftIcon={<Plus />} onClick={() => setOpen('create')}>
                 Add candidate
               </Button>
             </>
           )
         }
       />
-      <div className="candidates-hub">{children}</div>
-      <CreateCandidateModal opened={createOpened} onClose={create.close} />
-      <ImportCandidatesModal opened={csvOpened} onClose={csv.close} />
-      <ResumeImportModal opened={resumeOpened} onClose={resume.close} />
+      <SidebarLayout nav={<SectionNav title="Segments" groups={groups} />}>
+        {children}
+      </SidebarLayout>
+      <CreateCandidateModal opened={open === 'create'} onClose={close} />
+      <ImportCandidatesModal opened={open === 'csv'} onClose={close} />
+      <ResumeImportModal opened={open === 'resume'} onClose={close} />
     </>
   );
 }

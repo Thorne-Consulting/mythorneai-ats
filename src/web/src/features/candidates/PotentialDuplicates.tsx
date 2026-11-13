@@ -22,16 +22,21 @@ export function PotentialDuplicates({ candidateId }: { candidateId: string }) {
 
   return (
     <RailGroup title="Possible duplicates">
-      <p className="rail-note">
+      <p className="mb-3 text-sm text-fg-subtle">
         Check these before creating another record. Nothing is merged on its own.
       </p>
-      <ul className="rail-list">
+      <ul className="space-y-2.5">
         {duplicates.data.map((duplicate) => (
-          <li key={duplicate.id}>
-            <Link href={`/candidates/${duplicate.id}`}>{duplicate.name}</Link>
-            <span className="rail-file-meta">
+          <li key={duplicate.id} className="min-w-0">
+            <Link
+              href={`/candidates/${duplicate.id}`}
+              className="text-base font-medium text-accent-foreground hover:underline"
+            >
+              {duplicate.name}
+            </Link>
+            <p className="truncate text-xs text-fg-subtle">
               {[duplicate.currentTitle ?? duplicate.email, ...duplicate.reasons].join(' · ')}
-            </span>
+            </p>
           </li>
         ))}
       </ul>

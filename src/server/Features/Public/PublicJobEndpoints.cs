@@ -87,7 +87,7 @@ public static partial class PublicEndpoints
         });
 
         api.MapPost("/jobs/{id:guid}/applications", async (
-            Guid id, PublicApplyRequest request, AtsDbContext db, CancellationToken ct) =>
+            Guid id, PublicApplyRequest request, AtsDbContext db, IHostEnvironment environment, CancellationToken ct) =>
         {
             if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName) || !LooksLikeEmail(request.Email))
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["application"] = ["First name, last name, and a valid email are required."] });
@@ -115,11 +115,11 @@ public static partial class PublicEndpoints
                 db.Applications.Add(application);
             }
             application.ApplicationAnswersMarkdown = Clean(request.AnswersMarkdown) ?? application.ApplicationAnswersMarkdown;
-            return await SaveVerificationAsync(application, emailAddress, job.Title, db, ct);
+            return await SaveVerificationAsync(application, emailAddress, job.Title, db, environment, ct);
         });
 
         api.MapPost("/jobs/{id:guid}/applications/resume", async (
-            Guid id, HttpRequest request, AtsDbContext db, LocalFileStore files, CancellationToken ct) =>
+            Guid id, HttpRequest request, AtsDbContext db, LocalFileStore files, IHostEnvironment environment, CancellationToken ct) =>
         {
             var form = await request.ReadFormAsync(ct);
             var firstName = form["firstName"].ToString().Trim(); var lastName = form["lastName"].ToString().Trim();
@@ -149,16 +149,16 @@ public static partial class PublicEndpoints
             db.Attachments.Add(attachment); db.ResumeParseJobs.Add(new ResumeParseJob { AttachmentId = attachment.Id });
             try
             {
-                var result = await SaveVerificationAsync(application, emailAddress, job.Title, db, ct);
+                var result = await SaveVerificationAsync(application, emailAddress, job.Title, db, environment, ct);
                 return result;
             }
             catch { files.Delete(stored.StoredName); throw; }
         }).Accepts<PublicResumeApplyRequest>("multipart/form-data");
     }
 
-    private static async Task<IResult> SaveVerificationAsync(Application application, string emailAddress, string jobTitle, AtsDbContext db, CancellationToken ct)
+    private static async Task<IResult> SaveVerificationAsync(Application application, string emailAddress, string jobTitle, AtsDbContext db, IHostEnvironment environment, CancellationToken ct)
     {
-        var code = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
+        var code = CandidateCodes.New(emailAddress, environment);
         application.VerificationCodeHash = Hash(code); application.VerificationExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15); application.VerificationAttempts = 0; application.LastActivityAt = DateTimeOffset.UtcNow;
         db.EmailOutbox.Add(new EmailOutboxItem
         {

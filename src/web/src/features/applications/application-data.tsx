@@ -1,19 +1,25 @@
 'use client';
 
-import { IconAlertTriangle, IconWifiOff } from '@tabler/icons-react';
+import { AlertTriangle, WifiOff } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '@/api';
+import { Button, Card, EmptyState } from '@/components/ui';
 import type { ApplicationDetailResponse } from '@/types';
-import { EmptyState } from '@/components/ui/Cards';
 
 export function OfflineNotice({ onRetry }: { onRetry: () => void }) {
   return (
-    <EmptyState
-      icon={IconWifiOff}
-      title="You appear to be offline"
-      actionLabel="Try again"
-      onAction={onRetry}
-    />
+    <Card>
+      <EmptyState
+        icon={WifiOff}
+        title="You appear to be offline"
+        description="Check your connection, then try again."
+        action={
+          <Button variant="secondary" onClick={onRetry}>
+            Try again
+          </Button>
+        }
+      />
+    </Card>
   );
 }
 
@@ -21,14 +27,19 @@ export function OfflineNotice({ onRetry }: { onRetry: () => void }) {
 export function LoadError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const missing = error instanceof ApiError && error.status === 404;
   return (
-    <EmptyState
-      icon={IconAlertTriangle}
-      title={
-        missing ? 'This application is no longer available' : 'Could not load this application'
-      }
-      actionLabel="Try again"
-      onAction={onRetry}
-    />
+    <Card>
+      <EmptyState
+        icon={AlertTriangle}
+        title={
+          missing ? 'This application is no longer available' : 'Could not load this application'
+        }
+        action={
+          <Button variant="secondary" onClick={onRetry}>
+            Try again
+          </Button>
+        }
+      />
+    </Card>
   );
 }
 

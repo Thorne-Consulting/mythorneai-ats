@@ -1,7 +1,5 @@
 'use client';
 
-import './plate.css';
-
 import { type ReactNode, useMemo } from 'react';
 
 import type { Value } from 'platejs';
@@ -98,9 +96,7 @@ export function DocumentEditor({
   /** Show the document exactly as it will look, with nothing editable. */
   readOnly?: boolean;
 }) {
-  const hint = templates.length
-    ? 'Type # for a template, / for a block'
-    : 'Type / for a block';
+  const hint = templates.length ? 'Type # for a template, / for a block' : 'Type / for a block';
   const editor = usePlateEditor({
     readOnly,
     plugins: [

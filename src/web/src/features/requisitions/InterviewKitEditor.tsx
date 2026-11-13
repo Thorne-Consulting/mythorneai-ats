@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, NumberInput } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconCircleCheck, IconCircleDashed } from '@tabler/icons-react';
+import { CircleCheck, CircleDashed } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
+import { Button, Card, NumberInput, toast } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { DocumentEditor } from '@/components/plate/document-editor';
 import type { InterviewKit } from '@/types';
 import { kitBlocks, kitTemplates, kitToMarkdown, parseKit } from './interview-kit-doc';
@@ -24,7 +24,7 @@ export function InterviewKitEditor({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [duration, setDuration] = useState<number | string>(existing?.durationMinutes ?? 60);
+  const [duration, setDuration] = useState<number | ''>(existing?.durationMinutes ?? 60);
   const [content, setContent] = useState(existing ? kitToMarkdown(existing) : '');
   const kit = parseKit(content);
   const verb = existing ? 'saved' : 'created';
@@ -55,15 +55,10 @@ export function InterviewKitEditor({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', requisitionId] });
-      notifications.show({ color: 'teal', message: `Interview kit ${verb}` });
-      router.push(`/requisitions/${requisitionId}/kits`);
+      toast.success(`Interview kit ${verb}`);
+      router.push(`/jobs/${requisitionId}/kits`);
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: `Could not save the kit`,
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not save the kit', error.message),
   });
 
   const durationOk = Number(duration) >= 15 && Number(duration) <= 480;
@@ -75,49 +70,68 @@ export function InterviewKitEditor({
   const ready = checks.every((item) => item.done);
 
   return (
-    <article className="kit-doc">
-      <aside className="kit-rail" aria-label="Create this kit">
-        <p className="kit-rail-title">{existing ? 'Before you save' : 'Before you create'}</p>
+    <article className="grid items-start gap-5 xl:grid-cols-[1fr_260px]">
+      {/* The checklist comes first on narrow screens, beside the page on wide ones. */}
+      <Card className="flex flex-col gap-4 p-4 xl:sticky xl:top-4 xl:col-start-2 xl:row-start-1">
+        <p className="text-base font-semibold text-fg">
+          {existing ? 'Before you save' : 'Before you create'}
+        </p>
         <NumberInput
           label="Duration"
           min={15}
           max={480}
           step={15}
-          suffix=" min"
+          rightSection="min"
           value={duration}
-          onChange={setDuration}
-          error={!durationOk || undefined}
-          className="kit-rail-duration"
-          size="sm"
+          onValueChange={setDuration}
+          error={durationOk ? undefined : 'Between 15 and 480 minutes'}
         />
-        <ul className="kit-rail-list">
+        <ul className="flex flex-col gap-2">
           {checks.map((item) => (
-            <li key={item.label} data-done={item.done || undefined}>
-              {item.done ? <IconCircleCheck size={16} /> : <IconCircleDashed size={16} />}
+            <li
+              key={item.label}
+              className={cn(
+                'flex items-center gap-2 text-sm',
+                item.done ? 'text-fg' : 'text-fg-subtle',
+              )}
+            >
+              {item.done ? (
+                <CircleCheck className="size-4 text-tone-green-dot" aria-hidden />
+              ) : (
+                <CircleDashed className="size-4" aria-hidden />
+              )}
               {item.label}
+              <span className="sr-only">{item.done ? '(done)' : '(to do)'}</span>
             </li>
           ))}
         </ul>
-        <Button loading={mutation.isPending} disabled={!ready} onClick={() => mutation.mutate()}>
-          {existing ? 'Save changes' : 'Create kit'}
-        </Button>
-        <Button
-          className="kit-rail-cancel"
-          variant="subtle"
-          color="gray"
-          size="xs"
-          onClick={() => router.push(`/requisitions/${requisitionId}/kits`)}
-        >
-          Cancel
-        </Button>
-      </aside>
+        <div className="flex flex-col gap-2">
+          <Button
+            loading={mutation.isPending}
+            disabled={!ready}
+            onClick={() => mutation.mutate()}
+            fullWidth
+          >
+            {existing ? 'Save changes' : 'Create kit'}
+          </Button>
+          <Button
+            variant="quiet"
+            size="sm"
+            onClick={() => router.push(`/jobs/${requisitionId}/kits`)}
+          >
+            Cancel
+          </Button>
+        </div>
+      </Card>
 
-      <DocumentEditor
-        value={content}
-        onChange={setContent}
-        templates={kitTemplates}
-        blocks={kitBlocks}
-      />
+      <Card className="min-w-0 px-6 py-5 xl:col-start-1 xl:row-start-1">
+        <DocumentEditor
+          value={content}
+          onChange={setContent}
+          templates={kitTemplates}
+          blocks={kitBlocks}
+        />
+      </Card>
     </article>
   );
 }

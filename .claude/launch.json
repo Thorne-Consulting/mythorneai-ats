@@ -4,8 +4,23 @@
     {
       "name": "ats-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "src/web", "run", "dev"],
+      "runtimeArgs": [
+        "--prefix",
+        "src/web",
+        "run",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "ats-api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": [
+        "run",
+        "--project",
+        "src/server/MyThorneAI.Ats.Api.csproj"
+      ],
+      "port": 5080
     }
   ]
 }

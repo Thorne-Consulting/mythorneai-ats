@@ -34,16 +34,8 @@ import {
   usePlateEditor,
   type PlateElementProps,
 } from 'platejs/react';
-import { ActionIcon, Group, Paper, Tooltip } from '@mantine/core';
-import {
-  IconBlockquote,
-  IconBold,
-  IconH1,
-  IconH2,
-  IconH3,
-  IconItalic,
-  IconUnderline,
-} from '@tabler/icons-react';
+import { Bold, Heading1, Heading2, Heading3, Italic, TextQuote, Underline } from 'lucide-react';
+import { IconButton } from '@/components/ui';
 
 const emptyValue = (): Value => [{ type: 'p', children: [{ text: '' }] }];
 
@@ -53,7 +45,11 @@ function Heading({ as, ...props }: PlateElementProps & { as: 'h1' | 'h2' | 'h3' 
 
 function TableElement({ children, ...props }: PlateElementProps) {
   return (
-    <PlateElement as="table" className="doc-table" {...props}>
+    <PlateElement
+      as="table"
+      className="my-3 w-full border-collapse text-sm [&_td]:border [&_td]:border-border [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-2 [&_th]:py-1 [&_th]:text-left [&_th]:font-medium"
+      {...props}
+    >
       <tbody>{children}</tbody>
     </PlateElement>
   );
@@ -67,7 +63,7 @@ function Quote(props: PlateElementProps) {
   return (
     <PlateElement
       as="blockquote"
-      style={{ borderLeft: '2px solid var(--mantine-color-indigo-5)', paddingLeft: 16, margin: 0 }}
+      className="border-l-2 border-primary pl-4 text-fg-muted"
       {...props}
     />
   );
@@ -117,13 +113,13 @@ export function PlateMarkdownEditor({
   const toolbar = useMemo(
     () =>
       [
-        ['Bold', IconBold, () => editor.tf.bold.toggle()],
-        ['Italic', IconItalic, () => editor.tf.italic.toggle()],
-        ['Underline', IconUnderline, () => editor.tf.underline.toggle()],
-        ['Heading 1', IconH1, () => editor.tf.h1.toggle()],
-        ['Heading 2', IconH2, () => editor.tf.h2.toggle()],
-        ['Heading 3', IconH3, () => editor.tf.h3.toggle()],
-        ['Quote', IconBlockquote, () => editor.tf.blockquote.toggle()],
+        ['Bold', Bold, () => editor.tf.bold.toggle()],
+        ['Italic', Italic, () => editor.tf.italic.toggle()],
+        ['Underline', Underline, () => editor.tf.underline.toggle()],
+        ['Heading 1', Heading1, () => editor.tf.h1.toggle()],
+        ['Heading 2', Heading2, () => editor.tf.h2.toggle()],
+        ['Heading 3', Heading3, () => editor.tf.h3.toggle()],
+        ['Quote', TextQuote, () => editor.tf.blockquote.toggle()],
       ] as const,
     [editor],
   );
@@ -131,35 +127,30 @@ export function PlateMarkdownEditor({
   const save = (nextValue: Value) => onChange(serializeMd(editor, { value: nextValue }));
 
   return (
-    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-      <Group
-        justify="space-between"
-        gap="xs"
-        p="xs"
-        style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
-      >
-        <Group gap={4}>
+    <div className="overflow-hidden rounded-md border border-input bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle p-2">
+        <div className="flex gap-1">
           {toolbar.map(([label, Icon, action]) => (
-            <Tooltip label={label} key={label}>
-              <ActionIcon
-                variant="subtle"
-                aria-label={label}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={action}
-              >
-                <Icon size={16} />
-              </ActionIcon>
-            </Tooltip>
+            <IconButton
+              key={label}
+              label={label}
+              variant="quiet"
+              size="sm"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={action}
+            >
+              <Icon />
+            </IconButton>
           ))}
-        </Group>
+        </div>
         {header}
-      </Group>
+      </div>
       <Plate editor={editor} onChange={({ value: nextValue }) => save(nextValue)}>
         <PlateContent
           placeholder={placeholder}
-          style={{ minHeight: 240, padding: '18px 20px', outline: 'none' }}
+          className="min-h-60 px-5 py-4 text-base text-fg outline-none [&_h1]:mt-3 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-2 [&_h3]:text-lg [&_h3]:font-semibold [&_p]:my-1"
         />
       </Plate>
-    </Paper>
+    </div>
   );
 }

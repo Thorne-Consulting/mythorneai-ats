@@ -1,24 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import {
-  Badge,
-  Button,
-  FileInput,
-  Group,
-  Modal,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Text,
-  TextInput,
-} from '@mantine/core';
-import { useForm } from '@mantine/form';
-import { notifications } from '@mantine/notifications';
-import { IconFileText, IconSparkles, IconUpload } from '@tabler/icons-react';
+import { Sparkles, Upload } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
+import { Badge, Button, FileDrop, Input, Modal, toast } from '@/components/ui';
 import type { ResumeParsePreview } from '@/types';
 
 interface ImportForm {
@@ -35,22 +22,24 @@ const initialValues: ImportForm = {
   source: 'Resume import',
 };
 
+function validate(values: ImportForm) {
+  const errors: Partial<Record<keyof ImportForm, string>> = {};
+  if (!values.firstName.trim()) errors.firstName = 'Required';
+  if (!values.lastName.trim()) errors.lastName = 'Required';
+  if (!/^\S+@\S+\.\S+$/.test(values.email)) errors.email = 'Enter a valid email';
+  if (!values.source.trim()) errors.source = 'Required';
+  return errors;
+}
+
 // Only identity can be typed over here. Everything the resume says is parsed and stays read-only,
 // so nobody can make a candidate look stronger than their resume.
 export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<ResumeParsePreview | null>(null);
+  const [values, setValues] = useState<ImportForm>(initialValues);
+  const [errors, setErrors] = useState<ReturnType<typeof validate>>({});
   const router = useRouter();
   const queryClient = useQueryClient();
-  const form = useForm<ImportForm>({
-    initialValues,
-    validate: {
-      firstName: (value) => (value.trim() ? null : 'Required'),
-      lastName: (value) => (value.trim() ? null : 'Required'),
-      email: (value) => (/^\S+@\S+\.\S+$/.test(value) ? null : 'Enter a valid email'),
-      source: (value) => (value.trim() ? null : 'Required'),
-    },
-  });
   const parse = useMutation({
     mutationFn: async (resume: File) => {
       const data = new FormData();
@@ -59,141 +48,146 @@ export function ResumeImportModal({ opened, onClose }: { opened: boolean; onClos
     },
     onSuccess: (result) => {
       setPreview(result);
-      form.setValues({
+      setValues({
         firstName: result.form.basics.firstName ?? '',
         lastName: result.form.basics.lastName ?? '',
         email: result.form.basics.email ?? '',
         source: 'Resume import',
       });
     },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not parse resume', message: error.message }),
+    onError: (error: Error) => toast.error('Could not parse resume', error.message),
   });
   const importResume = useMutation({
-    mutationFn: async (values: ImportForm) => {
+    mutationFn: async (form: ImportForm) => {
       if (!file) throw new Error('Choose a resume first.');
       const data = new FormData();
       data.append('file', file);
-      Object.entries(values).forEach(([key, value]) => data.append(key, value));
+      Object.entries(form).forEach(([key, value]) => data.append(key, value));
       return api.form<{ candidateId: string; candidateName: string }>('/api/resumes/import', data);
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['talent-search'] });
       queryClient.invalidateQueries({ queryKey: ['candidates'] });
-      notifications.show({ color: 'teal', message: `${result.candidateName} was added` });
+      toast.success(`${result.candidateName} was added`);
       resetAndClose();
       router.push(`/candidates/${result.candidateId}`);
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not import resume',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not import resume', error.message),
   });
 
   const chooseFile = (nextFile: File | null) => {
     setFile(nextFile);
     setPreview(null);
-    form.setValues(initialValues);
+    setValues(initialValues);
+    setErrors({});
     parse.reset();
     if (nextFile) parse.mutate(nextFile);
   };
   const resetAndClose = () => {
     setFile(null);
     setPreview(null);
-    form.reset();
+    setValues(initialValues);
+    setErrors({});
     parse.reset();
     importResume.reset();
     onClose();
   };
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const found = validate(values);
+    setErrors(found);
+    if (Object.keys(found).length === 0) importResume.mutate(values);
+  };
+  const field = (key: keyof ImportForm) => ({
+    value: values[key],
+    error: errors[key],
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = event.currentTarget.value;
+      setValues((current) => ({ ...current, [key]: value }));
+    },
+  });
   const basics = preview?.form.basics;
 
   return (
-    <Modal opened={opened} onClose={resetAndClose} title="Import a resume" size="lg">
-      <form onSubmit={form.onSubmit((values) => importResume.mutate(values))}>
-        <Stack gap="lg">
-          <Text size="sm" c="dimmed">
-            Upload a PDF or DOCX. The resume is parsed into the candidate&apos;s profile; you only
-            confirm who they are.
-          </Text>
-          <FileInput
-            label="Resume"
-            placeholder="Choose PDF or DOCX"
-            accept=".pdf,.docx"
-            value={file}
-            onChange={chooseFile}
-            clearable
-            required
-            leftSection={<IconFileText size={16} />}
-          />
-          {parse.isPending && (
-            <Paper withBorder radius="md" p="md" aria-live="polite">
-              <Group gap="sm">
-                <IconSparkles size={18} />
-                <div>
-                  <Text size="sm" fw={650}>
-                    Reading the resume
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    Contact details, experience, education and skills.
-                  </Text>
-                </div>
-              </Group>
-            </Paper>
-          )}
-          {preview && basics && (
-            <>
-              <Group justify="space-between" align="flex-start">
-                <div>
-                  <Text fw={650}>Confirm the candidate</Text>
-                  <Text size="sm" c="dimmed">
-                    {[basics.city, basics.region].filter(Boolean).join(', ') || 'No location found'}
-                    {basics.phone ? ` · ${basics.phone}` : ''}
-                  </Text>
-                </div>
-                <Badge variant="light" color="gray">
-                  {preview.form.work.length} jobs · {preview.form.education.length} schools ·{' '}
-                  {preview.form.skills.length} skills
-                </Badge>
-              </Group>
-              <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                <TextInput label="First name" required {...form.getInputProps('firstName')} />
-                <TextInput label="Last name" required {...form.getInputProps('lastName')} />
-                <TextInput label="Email" type="email" required {...form.getInputProps('email')} />
-                <TextInput label="Source" required {...form.getInputProps('source')} />
-              </SimpleGrid>
-              {preview.form.work.length > 0 && (
-                <Text size="sm">
-                  <b>Experience found:</b>{' '}
-                  {preview.form.work
-                    .slice(0, 4)
-                    .map((job) => `${job.title} at ${job.company}`)
-                    .join('; ')}
-                </Text>
-              )}
-            </>
-          )}
-          <Group justify="space-between" mt="sm">
-            <Text size="xs" c="dimmed" maw={430}>
-              Parsed data supports search and review. It never makes or recommends a hiring
-              decision.
-            </Text>
-            <Group gap="sm">
-              <Button variant="default" onClick={resetAndClose}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                leftSection={<IconUpload size={16} />}
-                disabled={!preview}
-                loading={importResume.isPending}
-              >
-                Add candidate
-              </Button>
-            </Group>
-          </Group>
-        </Stack>
+    <Modal
+      opened={opened}
+      onClose={resetAndClose}
+      title="Import a resume"
+      description="Upload a PDF or DOCX. The resume is parsed into the candidate's profile; you only confirm who they are."
+      size="lg"
+      footer={
+        <>
+          <p className="mr-auto max-w-[430px] text-xs text-fg-subtle">
+            Parsed data supports search and review. It never makes or recommends a hiring decision.
+          </p>
+          <Button variant="secondary" onClick={resetAndClose}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="resume-import"
+            leftIcon={<Upload />}
+            disabled={!preview}
+            loading={importResume.isPending}
+          >
+            Add candidate
+          </Button>
+        </>
+      }
+    >
+      <form id="resume-import" onSubmit={submit} noValidate className="flex flex-col gap-5">
+        <FileDrop
+          file={file}
+          onFile={chooseFile}
+          accept=".pdf,.docx"
+          label="Drop a resume here or browse"
+        />
+        {parse.isPending && (
+          <div
+            className="flex items-center gap-3 rounded-lg border border-border px-4 py-3"
+            aria-live="polite"
+          >
+            <Sparkles className="size-[18px] text-tone-blue-dot" aria-hidden />
+            <div>
+              <p className="text-base font-semibold text-fg">Reading the resume</p>
+              <p className="text-xs text-fg-subtle">
+                Contact details, experience, education and skills.
+              </p>
+            </div>
+          </div>
+        )}
+        {preview && basics && (
+          <>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-md font-semibold text-fg">Confirm the candidate</p>
+                <p className="text-sm text-fg-subtle">
+                  {[basics.city, basics.region].filter(Boolean).join(', ') || 'No location found'}
+                  {basics.phone ? ` · ${basics.phone}` : ''}
+                </p>
+              </div>
+              <Badge>
+                {preview.form.work.length} jobs · {preview.form.education.length} schools ·{' '}
+                {preview.form.skills.length} skills
+              </Badge>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="First name" required {...field('firstName')} />
+              <Input label="Last name" required {...field('lastName')} />
+              <Input label="Email" type="email" required {...field('email')} />
+              <Input label="Source" required {...field('source')} />
+            </div>
+            {preview.form.work.length > 0 && (
+              <p className="text-sm text-fg">
+                <b>Experience found:</b>{' '}
+                {preview.form.work
+                  .slice(0, 4)
+                  .map((job) => `${job.title} at ${job.company}`)
+                  .join('; ')}
+              </p>
+            )}
+          </>
+        )}
       </form>
     </Modal>
   );

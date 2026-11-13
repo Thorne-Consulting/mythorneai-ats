@@ -1,8 +1,8 @@
 'use client';
 
-import { Text } from '@mantine/core';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { Card, SkeletonRows } from '@/components/ui';
 import { InterviewKitEditor } from './InterviewKitEditor';
+import { KitGone } from './InterviewKitView';
 import { useRequisition } from './requisition-data';
 
 /** Loads a saved kit, then hands it to the same document editor used to create one. */
@@ -14,8 +14,13 @@ export function EditInterviewKit({
   kitId: string;
 }) {
   const job = useRequisition(requisitionId);
-  if (!job.data) return <LoadingBlock rows={4} />;
+  if (!job.data)
+    return (
+      <Card>
+        <SkeletonRows rows={4} />
+      </Card>
+    );
   const existing = job.data.interviewKits.find((kit) => kit.id === kitId);
-  if (!existing) return <Text c="dimmed">This kit no longer exists.</Text>;
+  if (!existing) return <KitGone kitsHref={`/jobs/${requisitionId}/kits`} />;
   return <InterviewKitEditor key={existing.id} requisitionId={requisitionId} existing={existing} />;
 }

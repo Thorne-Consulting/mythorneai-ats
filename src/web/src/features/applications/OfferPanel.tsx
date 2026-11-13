@@ -1,22 +1,29 @@
 'use client';
 
 import { useState } from 'react';
-import { Alert, Box, Button, Group, Stack, Text, Textarea } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api, ApiError } from '@/api';
-import { SectionCard } from '@/components/ui/Cards';
+import { StatusBadge } from '@/components/status';
+import {
+  Alert,
+  Button,
+  Card,
+  CardBody,
+  CardHeader,
+  ConfirmDialog,
+  Textarea,
+  toast,
+} from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 import type { ApprovalView } from '@/features/approvals/approval-data';
 import { useInvalidateApprovals } from '@/features/approvals/approval-data';
 import {
   ApprovalTimeline,
   ApproverPicker,
-  ConfirmModal,
   DecideControls,
 } from '@/features/approvals/ApprovalParts';
 
-type OfferStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'Sent' | 'Withdrawn';
+export type OfferStatus = 'Draft' | 'PendingApproval' | 'Approved' | 'Sent' | 'Withdrawn';
 interface OfferResponse {
   offer: {
     id: string;
@@ -31,8 +38,26 @@ interface OfferResponse {
   sequential: boolean;
 }
 
-const fail = (title: string) => (error: Error) =>
-  notifications.show({ color: 'red', title, message: error.message });
+/** Shared by the panel and the record's right rail (same cache entry). */
+export function useOffer(applicationId: string) {
+  return useQuery({
+    queryKey: ['offer', applicationId],
+    queryFn: () => api.get<OfferResponse>(`/api/applications/${applicationId}/offer`),
+    retry: false,
+  });
+}
+
+const fail = (title: string) => (error: Error) => toast.error(title, error.message);
+
+const descriptions: Record<OfferStatus, string> = {
+  Draft: 'Write a note, choose who approves, then submit.',
+  PendingApproval: 'Waiting for approval. Nothing has been sent to the candidate.',
+  Approved: 'Everyone approved. You can send the acceptance email.',
+  Sent: 'The candidate has been told they are accepted.',
+  Withdrawn: '',
+};
+
+type Action = 'send' | 'reverse' | 'withdraw';
 
 /** Acceptance: draft, approvals, send. Hides itself for people who cannot see it. */
 export function OfferPanel({
@@ -47,17 +72,13 @@ export function OfferPanel({
   canManage: boolean;
 }) {
   const invalidate = useInvalidateApprovals();
-  const query = useQuery({
-    queryKey: ['offer', applicationId],
-    queryFn: () => api.get<OfferResponse>(`/api/applications/${applicationId}/offer`),
-    retry: false,
-  });
+  const query = useOffer(applicationId);
   const [note, setNote] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<'send' | 'reverse' | 'withdraw' | null>(null);
+  const [confirm, setConfirm] = useState<Action | null>(null);
   const done = (message: string) => () => {
     invalidate();
     setConfirm(null);
-    notifications.show({ color: 'teal', message });
+    toast.success(message);
   };
 
   const create = useMutation({
@@ -84,7 +105,7 @@ export function OfferPanel({
     onError: fail('Could not submit the acceptance'),
   });
   const act = useMutation({
-    mutationFn: (input: { id: string; action: 'send' | 'reverse' | 'withdraw' }) =>
+    mutationFn: (input: { id: string; action: Action }) =>
       api.post(`/api/offers/${input.id}/${input.action}`),
     onSuccess: (_, input) =>
       done(
@@ -104,13 +125,14 @@ export function OfferPanel({
     // 404 means this person has nothing to do here; anything else deserves a retry.
     if (query.error instanceof ApiError && query.error.status === 404) return null;
     return (
-      <SectionCard title="Acceptance">
-        <Group p="lg">
-          <Button variant="light" onClick={() => query.refetch()}>
+      <Card>
+        <CardHeader title="Acceptance" description="Could not load the acceptance." />
+        <CardBody>
+          <Button variant="soft" onClick={() => query.refetch()}>
             Try again
           </Button>
-        </Group>
-      </SectionCard>
+        </CardBody>
+      </Card>
     );
   }
   if (!query.data) return null;
@@ -121,46 +143,40 @@ export function OfferPanel({
   const rejected = approvals.filter((item) => item.decision === 'Rejected');
   if (!live && (!canManage || applicationStatus !== 'Active')) return null;
 
-  const descriptions: Record<OfferStatus, string> = {
-    Draft: 'Write a note, choose who approves, then submit.',
-    PendingApproval: 'Waiting for approval. Nothing has been sent to the candidate.',
-    Approved: 'Everyone approved. You can send the acceptance email.',
-    Sent: 'The candidate has been told they are accepted.',
-    Withdrawn: '',
-  };
-  const withdrawButton = canManage && live && live.status !== 'Sent' && (
-    <Button variant="subtle" color="gray" size="xs" onClick={() => setConfirm('withdraw')}>
-      Withdraw acceptance
-    </Button>
-  );
+  // The dialog swallows the rejection; onError above already told the user.
+  const run = (action: Action) => () =>
+    live
+      ? act.mutateAsync({ id: live.id, action }).then(
+          () => undefined,
+          () => undefined,
+        )
+      : undefined;
 
   return (
     <>
-      <SectionCard title="Acceptance">
-        <Stack gap="md" p="lg">
+      <Card>
+        <CardHeader
+          title="Acceptance"
+          description={
+            live
+              ? descriptions[live.status]
+              : `Start when you are ready to accept ${candidateName}.`
+          }
+          action={live && <StatusBadge status={live.status} />}
+        />
+        <CardBody className="space-y-4">
           {!live && (
-            <Group>
-              <Button variant="default" loading={create.isPending} onClick={() => create.mutate()}>
-                Start acceptance
-              </Button>
-            </Group>
+            <Button variant="secondary" loading={create.isPending} onClick={() => create.mutate()}>
+              Start acceptance
+            </Button>
           )}
 
           {live?.status === 'Draft' && (
             <>
               {rejected.map((item) => (
-                <Alert
-                  key={item.id}
-                  color="red"
-                  variant="light"
-                  title={`${item.approverName} rejected this`}
-                >
-                  <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                    {item.comment}
-                  </Text>
-                  <Text size="sm" mt={4}>
-                    Fix what they raised, then submit again.
-                  </Text>
+                <Alert key={item.id} tone="danger" title={`${item.approverName} rejected this`}>
+                  <p className="whitespace-pre-wrap">{item.comment}</p>
+                  <p className="mt-1">Fix what they raised, then submit again.</p>
                 </Alert>
               ))}
               {canManage ? (
@@ -169,7 +185,6 @@ export function OfferPanel({
                     label="Note for approvers"
                     description="Why this person, and anything the approvers should know."
                     minRows={3}
-                    autosize
                     value={note ?? live.note}
                     onChange={(event) => setNote(event.currentTarget.value)}
                   />
@@ -186,112 +201,86 @@ export function OfferPanel({
                   />
                 </>
               ) : (
-                <Text size="sm" c="dimmed">
-                  The recruiter is still preparing this.
-                </Text>
+                <p className="text-sm text-fg-subtle">The recruiter is still preparing this.</p>
               )}
             </>
           )}
 
-          {live?.status === 'PendingApproval' && (
+          {(live?.status === 'PendingApproval' || live?.status === 'Approved') && (
             <>
               {live.note && <NoteBlock note={live.note} by={live.createdBy} />}
-              <Box mx="calc(var(--mantine-spacing-lg) * -1)">
-                <ApprovalTimeline approvals={approvals} />
-              </Box>
-              {mine && <DecideControls approvalId={mine.id} subject={`Accept ${candidateName}`} />}
-            </>
-          )}
-
-          {live?.status === 'Approved' && (
-            <>
-              {live.note && <NoteBlock note={live.note} by={live.createdBy} />}
-              <Box mx="calc(var(--mantine-spacing-lg) * -1)">
-                <ApprovalTimeline approvals={approvals} />
-              </Box>
-              {canManage && (
-                <Group>
-                  <Button onClick={() => setConfirm('send')}>Send acceptance email</Button>
-                </Group>
+              <ApprovalTimeline approvals={approvals} />
+              {live.status === 'PendingApproval' && mine && (
+                <DecideControls approvalId={mine.id} subject={`Accept ${candidateName}`} />
+              )}
+              {live.status === 'Approved' && canManage && (
+                <Button onClick={() => setConfirm('send')}>Send acceptance email</Button>
               )}
             </>
           )}
 
           {live?.status === 'Sent' && (
             <>
-              <Text size="sm">
+              <p className="text-base text-fg">
                 Sent{live.sentAt ? ` on ${formatDateTime(live.sentAt)}` : ''}. {candidateName} is
                 marked Hired.
-              </Text>
+              </p>
               {canManage && (
-                <Group>
-                  <Button
-                    variant="subtle"
-                    color="gray"
-                    size="xs"
-                    onClick={() => setConfirm('reverse')}
-                  >
-                    Reverse
-                  </Button>
-                </Group>
+                <Button variant="quiet" size="xs" onClick={() => setConfirm('reverse')}>
+                  Reverse
+                </Button>
               )}
             </>
           )}
-          {withdrawButton && <Group>{withdrawButton}</Group>}
-        </Stack>
-      </SectionCard>
+          {canManage && live && live.status !== 'Sent' && (
+            <div>
+              <Button variant="quiet" size="xs" onClick={() => setConfirm('withdraw')}>
+                Withdraw acceptance
+              </Button>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {live && (
         <>
-          <ConfirmModal
+          <ConfirmDialog
             opened={confirm === 'send'}
             onClose={() => setConfirm(null)}
             title="Send the acceptance email?"
             confirmLabel="Send email and mark Hired"
-            loading={act.isPending}
-            onConfirm={() => act.mutate({ id: live.id, action: 'send' })}
-          >
-            <Stack gap="xs">
-              <Text size="sm">Two things happen right away:</Text>
-              <Text size="sm">
-                1. {candidateName} gets a plain email: you have been accepted, and the team will
-                contact you shortly.
-              </Text>
-              <Text size="sm">2. The application moves to Hired.</Text>
-              <Text size="sm" c="dimmed">
-                The email cannot be unsent.
-              </Text>
-            </Stack>
-          </ConfirmModal>
-          <ConfirmModal
+            confirmVariant="primary"
+            onConfirm={run('send')}
+            message={
+              <div className="space-y-2">
+                <p>Two things happen right away:</p>
+                <ol className="list-decimal space-y-1 pl-5">
+                  <li>
+                    {candidateName} gets a plain email: you have been accepted, and the team will
+                    contact you shortly.
+                  </li>
+                  <li>The application moves to Hired.</li>
+                </ol>
+                <p className="text-fg-subtle">The email cannot be unsent.</p>
+              </div>
+            }
+          />
+          <ConfirmDialog
             opened={confirm === 'reverse'}
             onClose={() => setConfirm(null)}
             title="Reverse this acceptance?"
             confirmLabel="Reverse acceptance"
-            color="red"
-            loading={act.isPending}
-            onConfirm={() => act.mutate({ id: live.id, action: 'reverse' })}
-          >
-            <Text size="sm">
-              Use this if {candidateName} falls through. The application goes back to the stage it
-              was in before. This does not unsend the email they already got, so you may want to
-              message them yourself.
-            </Text>
-          </ConfirmModal>
-          <ConfirmModal
+            onConfirm={run('reverse')}
+            message={`Use this if ${candidateName} falls through. The application goes back to the stage it was in before. This does not unsend the email they already got, so you may want to message them yourself.`}
+          />
+          <ConfirmDialog
             opened={confirm === 'withdraw'}
             onClose={() => setConfirm(null)}
             title="Withdraw this acceptance?"
             confirmLabel="Withdraw"
-            color="red"
-            loading={act.isPending}
-            onConfirm={() => act.mutate({ id: live.id, action: 'withdraw' })}
-          >
-            <Text size="sm">
-              Nothing has been sent to the candidate. Any approvals so far are dropped, and you can
-              start a new acceptance later.
-            </Text>
-          </ConfirmModal>
+            onConfirm={run('withdraw')}
+            message="Nothing has been sent to the candidate. Any approvals so far are dropped, and you can start a new acceptance later."
+          />
         </>
       )}
     </>
@@ -300,13 +289,9 @@ export function OfferPanel({
 
 function NoteBlock({ note, by }: { note: string; by: string }) {
   return (
-    <Box>
-      <Text size="xs" c="dimmed" fw={600}>
-        Note from {by.split('@')[0]}
-      </Text>
-      <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-        {note}
-      </Text>
-    </Box>
+    <div className="rounded-lg bg-muted p-4">
+      <p className="text-xs font-medium text-fg-subtle">Note from {by.split('@')[0]}</p>
+      <p className="mt-1 whitespace-pre-wrap text-base text-fg">{note}</p>
+    </div>
   );
 }

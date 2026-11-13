@@ -1,20 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import {
-  Autocomplete,
-  Checkbox,
-  MultiSelect,
-  NumberInput,
-  Radio,
-  Select,
-  Stack,
-  Textarea,
-  TextInput,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import {
+  Autocomplete,
+  Card,
+  Checkbox,
+  Input,
+  MultiSelect,
+  NumberInput,
+  RadioGroup,
+  Select,
+  Textarea,
+  toast,
+} from '@/components/ui';
 import type { RequisitionWithSettings } from './requirements-types';
 
 type DirectoryUser = { email: string; displayName: string; role: string };
@@ -56,7 +57,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save', error.message),
   });
 
   // Every change saves straight away; there is no Save button.
@@ -93,8 +94,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
       queryClient.invalidateQueries({ queryKey: ['requisitions'] });
     },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not save', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save', error.message),
   });
   const saveDetailsIfChanged = (next: Details) => {
     if (JSON.stringify(next) !== detailsKey) saveDetails.mutate(next);
@@ -116,126 +116,46 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
   });
   const pick = (key: 'workMode' | 'employmentType') => ({
     value: details[key],
-    allowDeselect: false,
     onChange: (value: string | null) => value && changeDetails({ ...details, [key]: value }),
   });
   const person = (key: 'ownerEmail' | 'recruiterEmail') => ({
     value: details[key],
     onChange: (value: string) => setDetails({ ...details, [key]: value }),
     onOptionSubmit: (value: string) => changeDetails({ ...details, [key]: value }),
-    onBlur: () => saveDetailsIfChanged(details),
   });
   const people = (role: string) =>
     (directory.data ?? [])
       .filter((user) => user.role === role || user.role === 'Admin')
       .map((user) => ({ value: user.email, label: `${user.displayName} · ${user.email}` }));
 
-  const visibilityControls = (
-    <Stack gap="lg">
-      <Radio.Group
-        aria-label="Who can see this job"
-        value={value.isConfidential ? 'confidential' : 'team'}
-        onChange={(next) => change({ ...value, isConfidential: next === 'confidential' })}
-      >
-        <Stack gap="sm">
-          <Radio value="team" label="Everyone who can see jobs" description="The usual setting." />
-          <Radio
-            value="confidential"
-            label="Confidential"
-            description="The owner, the recruiter and the people below."
-          />
-        </Stack>
-      </Radio.Group>
-      <MultiSelect
-        label="Also give access to"
-        description="Read access to the job and its applications."
-        placeholder={value.viewerEmails.length ? '' : 'Search by name or email'}
-        searchable
-        data={options}
-        value={value.viewerEmails}
-        onChange={(viewerEmails) => change({ ...value, viewerEmails })}
-      />
-    </Stack>
-  );
-  const selfServiceControls = (
-    <Stack gap="md">
-      <Checkbox
-        label="Reschedule or cancel their interview"
-        checked={value.allowCandidateReschedule}
-        onChange={(event) =>
-          change({ ...value, allowCandidateReschedule: event.currentTarget.checked })
-        }
-      />
-      <Checkbox
-        label="Withdraw their application"
-        checked={value.allowCandidateWithdraw}
-        onChange={(event) =>
-          change({ ...value, allowCandidateWithdraw: event.currentTarget.checked })
-        }
-      />
-    </Stack>
-  );
-  const visibilityBlock = (
-    <section className="settings-block">
-      <div>
-        <h2 className="settings-title">Who can see this job</h2>
-        <p className="settings-copy">
-          A confidential job is hidden from everyone except the owner, the recruiter and the people
-          you add here.
-        </p>
-        <p className="settings-status" aria-live="polite">
-          {status}
-        </p>
-      </div>
-      {visibilityControls}
-    </section>
-  );
-  const selfServiceBlock = (
-    <section className="settings-block">
-      <div>
-        <h2 className="settings-title">Candidate self-service</h2>
-        <p className="settings-copy">
-          What candidates can do on their own, from the portal and the links in their emails.
-        </p>
-      </div>
-      {selfServiceControls}
-    </section>
-  );
-
   return (
-    <div className="settings-page">
-      <section className="settings-block">
-        <div>
-          <h2 className="settings-title">The job</h2>
-          <p className="settings-copy">
-            What candidates and your team see. Changes show on the job page and posting.
-          </p>
-          <p className="settings-status" aria-live="polite">
-            {detailsStatus}
-          </p>
-        </div>
-        <div className="settings-fields">
-          <TextInput className="settings-wide" label="Job title" {...text('title')} />
-          <TextInput label="Team" {...text('department')} />
-          <TextInput label="Location" {...text('location')} />
+    <div className="flex flex-col gap-5">
+      <Block
+        title="The job"
+        copy="What candidates and your team see. Changes show on the job page and posting."
+        status={detailsStatus}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Input className="sm:col-span-2" label="Job title" {...text('title')} />
+          <Input label="Team" {...text('department')} />
+          <Input label="Location" {...text('location')} />
           <Select label="Work mode" data={WORK_MODES} {...pick('workMode')} />
           <Select label="Employment type" data={EMPLOYMENT_TYPES} {...pick('employmentType')} />
           <NumberInput
             label="Openings"
             min={1}
             value={details.openings}
-            onChange={(openings) => setDetails({ ...details, openings: Number(openings) || 1 })}
+            onValueChange={(openings) =>
+              setDetails({ ...details, openings: Number(openings) || 1 })
+            }
             onBlur={() => saveDetailsIfChanged(details)}
           />
-          <TextInput type="date" label="Target start" {...text('targetStartDate')} />
+          <Input type="date" label="Target start" {...text('targetStartDate')} />
         </div>
-      </section>
-      <section className="settings-block">
-        <div>
-          <h2 className="settings-title">People</h2>
-          <p className="settings-copy">Who owns the hire, and who runs the process.</p>
-        </div>
-        <div className="settings-fields">
+      </Block>
+      <Block title="People" copy="Who owns the hire, and who runs the process.">
+        {/* Typed emails save when you leave the field (blur bubbles from the input). */}
+        <div className="grid gap-4 sm:grid-cols-2" onBlur={() => saveDetailsIfChanged(details)}>
           <Autocomplete
             label="Hiring manager"
             data={people('HiringManager')}
@@ -247,16 +167,88 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
             {...person('recruiterEmail')}
           />
         </div>
-      </section>
-      <section className="settings-block">
-        <div>
-          <h2 className="settings-title">About the role</h2>
-          <p className="settings-copy">The summary shown on the Role tab.</p>
+      </Block>
+      <Block title="About the role" copy="The summary shown on the Details tab.">
+        <Textarea minRows={4} aria-label="About the role" {...text('description')} />
+      </Block>
+      <Block
+        title="Who can see this job"
+        copy="A confidential job is hidden from everyone except the owner, the recruiter and the people you add here."
+        status={status}
+      >
+        <div className="flex flex-col gap-5">
+          <RadioGroup
+            aria-label="Who can see this job"
+            value={value.isConfidential ? 'confidential' : 'team'}
+            onValueChange={(next) => change({ ...value, isConfidential: next === 'confidential' })}
+            options={[
+              {
+                value: 'team',
+                label: 'Everyone who can see jobs',
+                description: 'The usual setting.',
+              },
+              {
+                value: 'confidential',
+                label: 'Confidential',
+                description: 'The owner, the recruiter and the people below.',
+              },
+            ]}
+          />
+          <MultiSelect
+            label="Also give access to"
+            description="Read access to the job and its applications."
+            placeholder={value.viewerEmails.length ? '' : 'Search by name or email'}
+            data={options}
+            value={value.viewerEmails}
+            onChange={(viewerEmails) => change({ ...value, viewerEmails })}
+          />
         </div>
-        <Textarea autosize minRows={4} aria-label="About the role" {...text('description')} />
-      </section>
-      {visibilityBlock}
-      {selfServiceBlock}
+      </Block>
+      <Block
+        title="Candidate self-service"
+        copy="What candidates can do on their own, from the portal and the links in their emails."
+      >
+        <div className="flex flex-col gap-3">
+          <Checkbox
+            label="Reschedule or cancel their interview"
+            checked={value.allowCandidateReschedule}
+            onCheckedChange={(checked) => change({ ...value, allowCandidateReschedule: checked })}
+          />
+          <Checkbox
+            label="Withdraw their application"
+            checked={value.allowCandidateWithdraw}
+            onCheckedChange={(checked) => change({ ...value, allowCandidateWithdraw: checked })}
+          />
+        </div>
+      </Block>
     </div>
+  );
+}
+
+/** One settings group: what it does on the left, the controls on the right. */
+function Block({
+  title,
+  copy,
+  status,
+  children,
+}: {
+  title: string;
+  copy: string;
+  status?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="grid gap-5 p-5 md:grid-cols-[240px_1fr]">
+      <div>
+        <h2 className="text-lg font-semibold text-fg">{title}</h2>
+        <p className="mt-1 text-sm text-fg-subtle">{copy}</p>
+        {status && (
+          <p className="mt-2 text-xs text-fg-subtle" aria-live="polite">
+            {status}
+          </p>
+        )}
+      </div>
+      <div className="min-w-0">{children}</div>
+    </Card>
   );
 }
