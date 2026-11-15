@@ -1,116 +1,153 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, ClipboardCheck } from 'lucide-react';
 import { api } from '@/api';
-import { Button, Card, CellStack, EmptyState, PageHeader } from '@/components/ui';
-import { DataTable, type Column } from '@/components/data-table/DataTable';
-import type { DashboardData } from '@/types';
-import { prepHref } from './interview-links';
+import { RecommendationBadge } from '@/components/status';
+import { Button, Card, EmptyState, PageHeader, SkeletonRows, Tabs } from '@/components/ui';
+import { cn } from '@/lib/cn';
+import { formatDate } from '@/lib/format';
 
-type Due = DashboardData['scorecardsDue'][number];
-// ponytail: the dashboard endpoint returns the oldest 10; a dedicated endpoint if people owe more.
-const LIMIT = 10;
+interface QueueItem {
+  id: string;
+  applicationId: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  candidateName: string;
+  requisitionTitle: string;
+  submittedAt?: string | null;
+  recommendation?: string | null;
+}
+interface Queue {
+  counts: { due: number; submitted: number };
+  reminderDays: number;
+  items: QueueItem[];
+}
 
-const scorecardHref = (row: Due) =>
+const scorecardHref = (row: QueueItem) =>
   `/applications/${row.applicationId}/scorecards?interview=${row.id}`;
-const daysSince = (value: string) =>
-  Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 86_400_000));
 
-const columns: Column<Due>[] = [
-  {
-    id: 'candidate',
-    header: 'Candidate',
-    hideable: false,
-    cell: (row) => <CellStack primary={row.candidateName} secondary={row.requisitionTitle} />,
-    sortValue: (row) => row.candidateName,
-  },
-  { id: 'title', header: 'Interview', cell: (row) => row.title, sortValue: (row) => row.title },
-  {
-    id: 'waiting',
-    header: 'Waiting',
-    align: 'right',
-    cell: (row) => {
-      const days = daysSince(row.endsAt);
-      return (
-        <span className={days >= 2 ? 'font-medium text-tone-amber-fg tnum' : 'tnum'}>
-          {days === 0 ? 'Today' : `${days} day${days === 1 ? '' : 's'}`}
-        </span>
-      );
-    },
-    sortValue: (row) => daysSince(row.endsAt),
-  },
-  {
-    id: 'action',
-    header: <span className="sr-only">Action</span>,
-    label: 'Action',
-    align: 'right',
-    hideable: false,
-    cell: (row) => (
-      <Button asChild size="sm" variant="secondary" onClick={(event) => event.stopPropagation()}>
-        <Link href={scorecardHref(row)}>Write scorecard</Link>
-      </Button>
-    ),
-  },
-];
+/** "Ended 5 hours ago", tinted once it passes the organization's reminder point. */
+function Waiting({ endsAt, reminderDays }: { endsAt: string; reminderDays: number }) {
+  const hours = Math.floor((Date.now() - new Date(endsAt).getTime()) / 3_600_000);
+  if (hours < 0) return <span className="text-sm text-fg-muted">In progress</span>;
+  const days = Math.floor(hours / 24);
+  const text =
+    hours < 1
+      ? 'Ended just now'
+      : hours < 24
+        ? `Ended ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`
+        : `Ended ${days} ${days === 1 ? 'day' : 'days'} ago`;
+  const late = hours >= reminderDays * 24;
+  return (
+    <span
+      className={cn(
+        'text-sm tnum',
+        late ? 'font-medium text-tone-amber-fg' : 'text-fg-muted',
+        hours >= reminderDays * 48 && 'text-tone-red-fg',
+      )}
+    >
+      {text}
+    </span>
+  );
+}
 
-/** Interviews you sat on that still need your scorecard, oldest first. */
+/** Interviews you were on: the ones that still need your scorecard, and the ones you sent. */
 export function FeedbackQueue() {
-  const router = useRouter();
+  const [tab, setTab] = useState<'due' | 'submitted'>('due');
   const query = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.get<DashboardData>('/api/dashboard'),
+    queryKey: ['my-scorecards', tab],
+    queryFn: () => api.get<Queue>(`/api/me/scorecards?status=${tab}`),
   });
-  const due = query.data?.scorecardsDue ?? [];
+  const counts = query.data?.counts;
+  const items = query.data?.items ?? [];
+
   return (
     <>
       <PageHeader
         breadcrumbs={[{ label: 'Interviews', href: '/interviews' }, { label: 'My feedback' }]}
         title="My feedback"
-        description="Interviews you were on that still need your scorecard, oldest first."
+        description="Write your scorecard soon after each interview, while it is fresh."
       />
-      <Card className="px-4 pb-2">
-        <DataTable
-          data={due}
-          columns={columns}
-          getRowId={(row) => row.id}
-          viewKey="interviews-feedback"
-          loading={query.isLoading}
-          noun="interview"
-          onRowOpen={(row) => router.push(prepHref(row))}
-          rowLabel={(row) => `Open ${row.title} with ${row.candidateName}`}
-          empty={
-            query.isError ? (
-              <EmptyState
-                compact
-                title="Could not load your scorecards"
-                action={
-                  <Button variant="secondary" size="sm" onClick={() => query.refetch()}>
-                    Try again
-                  </Button>
-                }
-              />
-            ) : (
-              <EmptyState
-                compact
-                icon={CheckCircle2}
-                title="You are all caught up"
-                description="New interviews show up here after they start."
-                action={
-                  <Button asChild variant="secondary" size="sm">
-                    <Link href="/interviews">See upcoming interviews</Link>
-                  </Button>
-                }
-              />
-            )
-          }
+      <Card>
+        <Tabs
+          aria-label="Feedback"
+          value={tab}
+          onValueChange={(value) => setTab(value as 'due' | 'submitted')}
+          items={[
+            { value: 'due', label: 'Needs feedback', count: counts?.due },
+            { value: 'submitted', label: 'Submitted', count: counts?.submitted },
+          ]}
+          className="px-5 pt-2"
         />
-        {due.length >= LIMIT && (
-          <p className="px-1 py-2 text-xs text-fg-subtle">
-            Showing your oldest {LIMIT}. Submit these and the next ones appear.
-          </p>
+        {query.isPending ? (
+          <SkeletonRows rows={4} className="p-5" />
+        ) : query.isError ? (
+          <EmptyState
+            compact
+            title="Could not load your scorecards"
+            description="Check your connection, then try again."
+            action={
+              <Button variant="secondary" size="sm" onClick={() => query.refetch()}>
+                Try again
+              </Button>
+            }
+          />
+        ) : items.length === 0 ? (
+          tab === 'due' ? (
+            <EmptyState
+              compact
+              icon={CheckCircle2}
+              title="You are all caught up"
+              description="Interviews show up here once they start."
+              action={
+                <Button asChild variant="secondary" size="sm">
+                  <Link href="/interviews">See upcoming interviews</Link>
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              compact
+              icon={ClipboardCheck}
+              title="No scorecards yet"
+              description="Scorecards you submit are kept here, so you can find them later."
+            />
+          )
+        ) : (
+          <ul className="divide-y divide-border-subtle">
+            {items.map((row) => (
+              <li key={row.id}>
+                <Link
+                  href={scorecardHref(row)}
+                  className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-muted focus-visible:bg-accent focus-visible:outline-none"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-base font-medium text-fg">{row.candidateName}</p>
+                    <p className="mt-0.5 truncate text-sm text-fg-muted">
+                      {row.title} · {row.requisitionTitle}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-3">
+                    {row.recommendation ? (
+                      <>
+                        <span className="text-sm text-fg-subtle">
+                          {formatDate(row.submittedAt ?? undefined)}
+                        </span>
+                        <RecommendationBadge recommendation={row.recommendation} />
+                      </>
+                    ) : (
+                      <Waiting endsAt={row.endsAt} reminderDays={query.data.reminderDays || 2} />
+                    )}
+                  </div>
+                  <ChevronRight className="size-4 shrink-0 text-fg-subtle" aria-hidden />
+                </Link>
+              </li>
+            ))}
+          </ul>
         )}
       </Card>
     </>

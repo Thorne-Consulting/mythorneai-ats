@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useSyncExternalStore, useEffect, useRef, useState, type RefObject } from 'react';
 
 /** Value that only updates after `delay` ms without changes (search boxes). */
 export function useDebouncedValue<T>(value: T, delay = 250): T {
@@ -81,4 +81,18 @@ export function useLocalStorageState<T>(key: string, initial: T) {
     } catch {}
   }, [key, value, ready]);
   return [value, setValue] as const;
+}
+
+const noSubscribe = () => () => {};
+/**
+ * False while React hydrates server HTML, true afterwards. Use it for values only the browser has
+ * at first render (cached counts filled before a Suspense boundary hydrates), so they appear right
+ * after hydration instead of causing a mismatch.
+ */
+export function useHydrated() {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
 }

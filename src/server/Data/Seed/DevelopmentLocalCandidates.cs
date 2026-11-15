@@ -28,7 +28,7 @@ public static partial class SeedData
         await db.Approvals.Where(x => offerIds.Contains(x.SubjectId)).ExecuteDeleteAsync(ct);
         await db.Offers.Where(x => offerIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
         await db.ApplicationMessages.Where(x => appIds.Contains(x.ApplicationId)).ExecuteDeleteAsync(ct);
-        await db.Notes.Where(x => appIds.Contains(x.ApplicationId)).ExecuteDeleteAsync(ct);
+        await db.Notes.Where(x => x.ApplicationId != null && appIds.Contains(x.ApplicationId.Value)).ExecuteDeleteAsync(ct);
         await db.StageTransitions.Where(x => appIds.Contains(x.ApplicationId)).ExecuteDeleteAsync(ct);
         await db.EmailOutbox.Where(x => x.ApplicationId != null && appIds.Contains(x.ApplicationId.Value)).ExecuteDeleteAsync(ct);
         await db.Applications.Where(x => appIds.Contains(x.Id)).ExecuteDeleteAsync(ct);
@@ -246,7 +246,18 @@ public static partial class SeedData
             {
                 ApplicationId = oliviaApp.Id,
                 Status = OfferStatus.Sent,
-                Note = "Base salary $145,000 · Start date in 4 weeks · Hybrid, 2 days in office",
+                Note = "Strong panel. Pay matches the band for the level.",
+                BaseSalary = 145000m,
+                StartDate = DateOnly.FromDateTime(now.AddDays(28).UtcDateTime),
+                EmploymentType = "Full-time",
+                WorkMode = "Hybrid",
+                Location = "Seattle, WA",
+                Bonus = "10% yearly target",
+                ExpiresOn = DateOnly.FromDateTime(now.AddDays(4).UtcDateTime),
+                ExpiresAt = new DateTimeOffset(now.AddDays(5).UtcDateTime.Date, TimeSpan.Zero),
+                // The evaluation area's letter, as it reads once sent (frozen, details filled in).
+                LetterSent =
+                    $"Dear Olivia,\n\nWe are delighted to offer you the position of **{Job(1).Title}**. Everyone you met enjoyed getting to know you, and we would love to have you on the team.\n\n## Your offer\n\n- **Base salary:** USD 145,000 per year\n- **Bonus:** 10% yearly target\n- **Start date:** {now.AddDays(28):MMMM d, yyyy}\n- **Role:** Full-time, Hybrid, Seattle, WA\n\n## Next steps\n\nTo accept, choose **Accept offer** on this page. If anything here raises a question, message us and we will get back to you quickly.\n\nSincerely,\n\nRiley Recruiter",
                 CreatedBy = "recruiter@example.test",
                 CreatedAt = now.AddDays(-2),
                 UpdatedAt = now.AddDays(-1),

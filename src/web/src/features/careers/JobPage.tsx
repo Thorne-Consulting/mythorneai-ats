@@ -1,210 +1,106 @@
-'use client';
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Link2, SearchX, Share2 } from 'lucide-react';
-import {
-  Alert,
-  Breadcrumbs,
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  EmptyState,
-  IconButton,
-  SkeletonRows,
-  toast,
-} from '@/components/ui';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { Card, CardBody } from '@/components/ui';
 import { JobPostingView } from '@/components/careers/JobPostingView';
-import { JobMeta } from './CareersBoard';
-import {
-  publicFetch,
-  PublicError,
-  useCompany,
-  type PublicJob,
-  type PublicJobPage,
-} from './public-api';
-import { parseQuestions } from './questions';
+import { jobPath, metaParts, postedText } from './jobs';
+import type { PublicJob } from './public-api';
+import { typeLabel } from './questions';
+import { ApplyBar, ApplyCard } from './ShareActions';
 
-export function useJob(id: string) {
-  return useQuery({
-    queryKey: ['public', 'job', id],
-    queryFn: () =>
-      publicFetch<PublicJob>(
-        `/public/jobs/${id}`,
-        {},
-        'Something went wrong on our side. Please try again.',
-      ),
-  });
-}
-
-/** Job missing, closed or failed to load: say which, and where to go next. */
-export function JobUnavailable({ error, onRetry }: { error: Error; onRetry: () => void }) {
-  if (error instanceof PublicError && error.status === 404)
-    return (
-      <Card>
-        <EmptyState
-          icon={SearchX}
-          title="This job is no longer open"
-          description="It may have been filled. See the jobs that are still open."
-          action={
-            <Button asChild>
-              <Link href="/careers">See open jobs</Link>
-            </Button>
-          }
-        />
-      </Card>
-    );
-  return (
-    <Alert
-      tone="danger"
-      title="We could not load this job"
-      action={
-        <Button variant="secondary" size="sm" onClick={onRetry}>
-          Try again
-        </Button>
-      }
-    >
-      {error.message}
-    </Alert>
-  );
-}
-
-export function JobPage({ id }: { id: string }) {
-  const company = useCompany();
-  const job = useJob(id);
-  const others = useQuery({
-    queryKey: ['public', 'jobs', 'others'],
-    queryFn: () => publicFetch<PublicJobPage>('/public/jobs?limit=6'),
-  });
-  const [canShare, setCanShare] = useState(false);
-  useEffect(() => setCanShare(typeof navigator.share === 'function'), []);
-
-  if (job.isPending)
-    return (
-      <Card>
-        <SkeletonRows rows={6} />
-      </Card>
-    );
-  if (job.isError) return <JobUnavailable error={job.error} onRetry={() => job.refetch()} />;
-
-  const posting = job.data;
-  const questions = parseQuestions(posting.applicationQuestionsMarkdown);
-  const otherRoles = (others.data?.items ?? []).filter((j) => j.id !== id).slice(0, 5);
-  const applyHref = `/careers/${id}/apply`;
-
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success('Link copied');
-    } catch {
-      toast.error('Could not copy the link', 'Copy it from the address bar instead.');
-    }
-  }
+/**
+ * A job as applicants see it, rendered on the server: the posting, what the form will ask, a few
+ * more jobs from the same team, and an apply card that stays in view.
+ */
+export function JobPage({
+  job,
+  related,
+  totalOpen,
+}: {
+  job: PublicJob;
+  /** Other open jobs in the same department. */
+  related: PublicJob[];
+  totalOpen: number;
+}) {
+  const questions = job.questions ?? [];
+  const applyHref = `${jobPath(job)}/apply`;
+  const posted = postedText(job.postedAt);
 
   return (
     <div className="pb-24 lg:pb-0">
-      <Breadcrumbs items={[{ label: 'Open jobs', href: '/careers' }]} className="mb-4" />
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="min-w-0 space-y-8">
-          <JobPostingView job={posting} company={company} />
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <Link
+          href="/careers"
+          className="inline-flex items-center gap-1.5 rounded-sm text-sm font-medium text-accent-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <ArrowLeft className="size-4" aria-hidden /> All jobs
+        </Link>
+        {posted && <p className="text-sm text-fg-subtle lg:hidden">{posted}</p>}
+      </div>
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="min-w-0 space-y-10">
+          <JobPostingView job={job} pay={job.salary?.text} />
           {questions.length > 0 && (
             <section aria-labelledby="job-questions" className="max-w-[68ch] space-y-3">
               <h2 id="job-questions" className="text-lg font-semibold text-fg">
                 What we will ask you
               </h2>
               <p className="text-base text-fg-muted">
-                Along with your contact details and resume, the application asks:
+                Along with your contact details and resume, the form asks:
               </p>
               <ul className="list-disc space-y-1.5 pl-5 text-base text-fg">
                 {questions.map((q) => (
-                  <li key={q.text}>{q.text}</li>
+                  <li key={q.id}>
+                    {q.label}
+                    <span className="text-fg-subtle">
+                      {' '}
+                      ({typeLabel(q.type).toLowerCase()}
+                      {q.required ? ', required' : ''})
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {related.length > 0 && (
+            <section aria-labelledby="related-jobs" className="max-w-[68ch] space-y-3">
+              <h2 id="related-jobs" className="text-lg font-semibold text-fg">
+                More jobs in {job.department}
+              </h2>
+              <ul className="divide-y divide-border-subtle rounded-xl border border-border-subtle bg-card">
+                {related.map((other) => (
+                  <li key={other.id}>
+                    <Link
+                      href={jobPath(other)}
+                      className="flex flex-col gap-0.5 px-4 py-3 transition-colors hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                    >
+                      <span className="font-medium text-fg">{other.title}</span>
+                      <span className="text-sm text-fg-muted">{metaParts(other)[0]}</span>
+                    </Link>
+                  </li>
                 ))}
               </ul>
             </section>
           )}
         </div>
 
-        <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-          <Card className="hidden lg:block">
-            <CardBody className="space-y-4 pt-5">
-              <div>
-                <p className="text-lg font-semibold text-fg">Interested?</p>
-                <p className="mt-1 text-sm text-fg-subtle">
-                  Applying takes a few steps. We email you a code to confirm it is really you.
-                </p>
-              </div>
-              <Button asChild size="lg" fullWidth>
-                <Link href={applyHref}>Apply for this job</Link>
-              </Button>
-              <div className="flex gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  leftIcon={<Link2 />}
-                  onClick={copyLink}
-                  className="flex-1"
-                >
-                  Copy link
-                </Button>
-                {canShare && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    leftIcon={<Share2 />}
-                    className="flex-1"
-                    onClick={() =>
-                      navigator
-                        .share({ title: posting.title, url: window.location.href })
-                        .catch(() => {})
-                    }
-                  >
-                    Share
-                  </Button>
-                )}
-              </div>
-            </CardBody>
-          </Card>
-
-          {otherRoles.length > 0 && (
-            <Card className="overflow-hidden">
-              <CardHeader title="Other open jobs" />
-              <ul className="border-t border-border-subtle">
-                {otherRoles.map((role) => (
-                  <li key={role.id} className="border-b border-border-subtle last:border-b-0">
-                    <Link
-                      href={`/careers/${role.id}`}
-                      className="block space-y-1.5 px-5 py-3 transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                    >
-                      <span className="block text-base font-medium text-fg">{role.title}</span>
-                      <JobMeta job={role} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <div className="border-t border-border-subtle px-5 py-3">
-                <Link
-                  href="/careers"
-                  className="inline-flex items-center gap-1 text-sm font-medium text-accent-foreground hover:underline"
-                >
-                  All open jobs <ArrowRight className="size-4" aria-hidden />
-                </Link>
-              </div>
+        <aside className="hidden lg:block">
+          <div className="space-y-4 lg:sticky lg:top-6">
+            <Card>
+              <CardBody className="pt-5">
+                <ApplyCard title={job.title} applyHref={applyHref} posted={posted} />
+              </CardBody>
             </Card>
-          )}
+            <Link
+              href="/careers"
+              className="inline-flex items-center gap-1 px-1 text-sm font-medium text-accent-foreground hover:underline"
+            >
+              All {totalOpen} open {totalOpen === 1 ? 'job' : 'jobs'}{' '}
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
         </aside>
       </div>
-
-      {/* Mobile: the apply action stays in reach while reading. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t border-border-subtle bg-card px-4 py-3 shadow-pop lg:hidden">
-        <Button asChild size="lg" className="flex-1">
-          <Link href={applyHref}>Apply for this job</Link>
-        </Button>
-        <IconButton size="lg" label="Copy link to this job" onClick={copyLink}>
-          <Link2 />
-        </IconButton>
-      </div>
+      <ApplyBar title={job.title} applyHref={applyHref} />
     </div>
   );
 }

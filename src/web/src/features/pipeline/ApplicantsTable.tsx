@@ -27,6 +27,10 @@ export function ApplicantsTable({
   stageIds,
   loading,
   empty,
+  toolbar,
+  selected,
+  onSelectedChange,
+  bulkActions,
 }: {
   stages: BoardStage[];
   viewKey: string;
@@ -35,6 +39,12 @@ export function ApplicantsTable({
   stageIds?: string[];
   loading?: boolean;
   empty?: ReactNode;
+  /** Left of the column and export tools, on the same row. */
+  toolbar?: ReactNode;
+  /** Application ids; pass with `onSelectedChange` to let people select rows. */
+  selected?: string[];
+  onSelectedChange?: (ids: string[]) => void;
+  bulkActions?: ReactNode;
 }) {
   const router = useRouter();
   // Debounced so the table (keyed on it to reset paging) doesn't remount on every keystroke.
@@ -57,11 +67,19 @@ export function ApplicantsTable({
     {
       id: 'stage',
       header: 'Stage',
-      cell: (app) => <StageBadge stage={app.stageName} size="sm" />,
+      cell: (app) => (
+        <StageBadge stage={app.stageName} type={app.stageType} color={app.stageColor} size="sm" />
+      ),
       sortValue: (app) => order.get(app.stageId),
       csv: (app) => app.stageName,
     },
-    { id: 'source', header: 'Source', cell: (app) => app.source, sortValue: (app) => app.source },
+    {
+      id: 'source',
+      header: 'Source',
+      className: 'whitespace-nowrap',
+      cell: (app) => app.source,
+      sortValue: (app) => app.source,
+    },
     {
       id: 'rating',
       header: 'Rating',
@@ -117,16 +135,31 @@ export function ApplicantsTable({
   ];
   return (
     <DataTable
-      key={`${q}|${stageIds?.join(',')}`}
+      // Filters send paging back to page 1 without remounting, so the toolbar keeps focus.
+      resetPageKey={`${q}|${stageIds?.join(',')}`}
+      toolbar={toolbar}
       viewKey={viewKey}
       exportName={exportName}
       noun="candidate"
       data={rows}
       columns={columns}
       getRowId={(app) => app.id}
+      selectable={!!onSelectedChange}
+      selected={selected}
+      onSelectedChange={onSelectedChange}
+      bulkActions={bulkActions}
       loading={loading}
       onRowOpen={(app) => router.push(`/applications/${app.id}`)}
       rowLabel={(app) => `Open ${app.candidateName}`}
+      card={(app) => (
+        <div className="flex items-start justify-between gap-3">
+          <CellStack
+            primary={app.candidateName}
+            secondary={[app.currentTitle, app.source].filter(Boolean).join(' · ')}
+          />
+          <StageBadge stage={app.stageName} type={app.stageType} color={app.stageColor} size="sm" />
+        </div>
+      )}
       empty={
         empty ?? (
           <EmptyState

@@ -12,6 +12,14 @@ public sealed class LocalFileStore
         ".doc",
         ".docx",
     };
+
+    // Pictures only where a caller asks for them (portfolios, logos); resumes stay documents.
+    private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+    };
     private readonly string _rootPath;
 
     public LocalFileStore(IConfiguration configuration, IHostEnvironment environment)
@@ -25,18 +33,29 @@ public sealed class LocalFileStore
 
     public async Task<(string StoredName, string ContentType)> SaveValidatedAsync(
         IFormFile file,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool allowImages = false
     )
     {
         await using var input = file.OpenReadStream();
-        return await SaveValidatedAsync(input, file.FileName, file.Length, cancellationToken);
+        return await SaveValidatedAsync(
+            input,
+            file.FileName,
+            file.Length,
+            cancellationToken,
+            allowImages
+        );
     }
+
+    public static bool IsImage(string fileName) =>
+        ImageExtensions.Contains(Path.GetExtension(fileName));
 
     public async Task<(string StoredName, string ContentType)> SaveValidatedAsync(
         Stream input,
         string fileName,
         long length,
-        CancellationToken cancellationToken
+        CancellationToken cancellationToken,
+        bool allowImages = false
     )
     {
         if (length is <= 0 or > 10 * 1024 * 1024)
@@ -44,8 +63,13 @@ public sealed class LocalFileStore
         if (!input.CanSeek)
             throw new InvalidDataException("The file stream must support seeking.");
         var extension = Path.GetExtension(fileName);
-        if (!AllowedExtensions.Contains(extension))
-            throw new InvalidDataException("Only PDF, DOC, and DOCX files are accepted.");
+        var image = allowImages && ImageExtensions.Contains(extension);
+        if (!AllowedExtensions.Contains(extension) && !image)
+            throw new InvalidDataException(
+                allowImages
+                    ? "Only PDF, Word (DOC or DOCX), PNG and JPEG files are accepted."
+                    : "Only PDF, DOC, and DOCX files are accepted."
+            );
 
         if (!await HasExpectedSignatureAsync(input, extension, cancellationToken))
             throw new InvalidDataException("The file content does not match its extension.");
@@ -67,6 +91,8 @@ public sealed class LocalFileStore
             ".pdf" => "application/pdf",
             ".doc" => "application/msword",
             ".docx" => "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".png" => "image/png",
+            ".jpg" or ".jpeg" => "image/jpeg",
             _ => "application/octet-stream",
         };
         return (storedName, contentType);
@@ -116,6 +142,13 @@ public sealed class LocalFileStore
             FileOptions.Asynchronous | FileOptions.SequentialScan
         );
 
+    /// <summary>The file's place on disk, for tools that need a path (ffmpeg). The name is checked.</summary>
+    public string FullPath(string storedName) => SafePath(storedName);
+
+    /// <summary>Stored files whose names start with <paramref name="prefix"/>.</summary>
+    public IEnumerable<FileInfo> Files(string prefix) =>
+        new DirectoryInfo(_rootPath).EnumerateFiles(prefix + "*");
+
     public void Delete(string storedName)
     {
         var path = SafePath(storedName);
@@ -144,6 +177,18 @@ public sealed class LocalFileStore
 
         if (extension.Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             return header.AsSpan(0, 5).SequenceEqual("%PDF-"u8);
+
+        if (extension.Equals(".png", StringComparison.OrdinalIgnoreCase))
+            return read >= 8
+                && header
+                    .AsSpan()
+                    .SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+
+        if (
+            extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase)
+        )
+            return header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF;
 
         if (extension.Equals(".doc", StringComparison.OrdinalIgnoreCase))
             return read >= 8

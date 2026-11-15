@@ -60,7 +60,7 @@ const PURPOSES: Record<string, string> = {
   'extract-requirements': 'Reading job requirements',
   'interview-questions': 'Suggesting interview questions',
   'job-fit': 'Scoring fit for a job',
-  'resume-profile': 'Reading a resume',
+  'parse-resume': 'Reading a resume',
   'search-filters': 'Turning a search into filters',
   'summarize-interview': 'Summarizing an interview',
   'transcribe-recording': 'Turning a recording into text',

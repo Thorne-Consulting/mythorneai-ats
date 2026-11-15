@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   ArrowDown,
   ArrowRight,
   ArrowUp,
-  Bell,
   Briefcase,
   CalendarDays,
   CheckCircle2,
@@ -22,52 +20,45 @@ import {
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
 import {
+  Badge,
   Button,
   Card,
   CardHeader,
   CardLink,
-  CellStack,
   Drawer,
   EmptyState,
   IconButton,
   IconDisc,
   PageHeader,
   Progress,
+  SegmentedControl,
   SkeletonRows,
   StatCard,
+  SortableList,
   StatGrid,
   Switch,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-  Table,
   Tabs,
-  Tooltip,
+  toast,
+  toneDot,
   type Tone,
 } from '@/components/ui';
 import { DonutChart } from '@/components/ui/chart';
-import { StageBadge, stageTone } from '@/components/status';
+import { PipelineBar } from '@/components/pipeline/PipelineBar';
+import { stageTone, stageTypes } from '@/components/status';
+import { canManageWorkspace, useAbility } from '@/lib/ability';
+import { cn } from '@/lib/cn';
 import { usePendingApprovals } from '@/features/approvals/approval-data';
 import {
   buildNotifications,
   useDoneNotifications,
   type NotificationItem,
 } from '@/features/notifications/notification-items';
-import { formatRelative } from '@/lib/format';
 import { useLocalStorageState } from '@/lib/hooks';
-import { rowLinkProps } from '@/lib/row-link-props';
 import type { DashboardData, RequisitionSummary } from '@/types';
+import { ActivityList } from './ActivityList';
 import { InterviewerHome } from './InterviewerHome';
-import {
-  WIDGETS,
-  defaultLayout,
-  moveWidget,
-  normalizeLayout,
-  type WidgetId,
-  type WidgetLayout,
-} from './widget-layout';
+import { useDashboardLayout } from './dashboard-layout';
+import { WIDGETS, defaultLayout, moveWidget, type WidgetId } from './widget-layout';
 
 function greeting() {
   const hour = new Date().getHours();
@@ -109,12 +100,19 @@ const widgetSpan: Record<WidgetId, string> = {
 const time = (value: string) =>
   new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
+export type Period = 'week' | 'month' | 'quarter';
+const periodDays: Record<Period, number> = { week: 7, month: 30, quarter: 90 };
+
 export function DashboardPage({ initialData }: { initialData: DashboardData }) {
   const user = useCurrentUser();
+  const ability = useAbility();
+  const [period, setPeriod] = useLocalStorageState<Period>('ats-dashboard-period', 'month');
   const query = useQuery({
-    queryKey: ['dashboard'],
-    queryFn: () => api.get<DashboardData>('/api/dashboard'),
-    initialData,
+    queryKey: ['dashboard', period],
+    queryFn: () => api.get<DashboardData>(`/api/dashboard?period=${period}`),
+    // The server page loads the default period.
+    initialData: period === 'month' ? initialData : undefined,
+    placeholderData: (previous) => previous,
   });
   const firstName = user.displayName.split(' ')[0];
 
@@ -124,22 +122,42 @@ export function DashboardPage({ initialData }: { initialData: DashboardData }) {
         <SkeletonRows rows={6} />
       </Card>
     );
-  if (user.role === 'Interviewer')
+  // People without jobs (interviewers) get their interviews and feedback, not the team view.
+  if (!ability.can('read', 'Job'))
     return <InterviewerHome data={query.data} firstName={firstName} greeting={greeting()} />;
-  return <TeamDashboard data={query.data} firstName={firstName} />;
+  return (
+    <TeamDashboard
+      data={query.data}
+      firstName={firstName}
+      period={period}
+      onPeriodChange={setPeriod}
+    />
+  );
 }
 
-function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: string }) {
+function TeamDashboard({
+  data,
+  firstName,
+  period,
+  onPeriodChange,
+}: {
+  data: DashboardData;
+  firstName: string;
+  period: Period;
+  onPeriodChange: (period: Period) => void;
+}) {
   const user = useCurrentUser();
   const [tab, setTab] = useLocalStorageState<'mine' | 'team'>(
     'ats-dashboard-tab',
     user.role === 'HiringManager' ? 'mine' : 'team',
   );
-  const [stored, setStored] = useLocalStorageState<WidgetLayout>(
-    `ats-dashboard-layout:${user.role}`,
-    defaultLayout(user.role),
-  );
-  const layout = normalizeLayout(stored, user.role);
+  const { layout: stored, setLayout: setStored } = useDashboardLayout(user.role);
+  const ability = useAbility();
+  // Cards you may not see (setup steps, the sources report) stay out of the grid and Customize.
+  const allowed = (id: WidgetId) =>
+    (id !== 'setup' || canManageWorkspace(ability)) &&
+    (id !== 'sources' || ability.can('read', 'Report'));
+  const layout = { ...stored, order: stored.order.filter(allowed) };
   const [customizing, setCustomizing] = useState(false);
   const approvals = usePendingApprovals();
   const [done] = useDoneNotifications();
@@ -160,13 +178,25 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
               })}
             </p>
             {tab === 'team' && (
-              <Button
-                variant="secondary"
-                leftIcon={<SlidersHorizontal />}
-                onClick={() => setCustomizing(true)}
-              >
-                Customize
-              </Button>
+              <>
+                <SegmentedControl
+                  aria-label="Period"
+                  value={period}
+                  onValueChange={(value) => onPeriodChange(value as Period)}
+                  items={[
+                    { value: 'week', label: '7 days' },
+                    { value: 'month', label: '30 days' },
+                    { value: 'quarter', label: '90 days' },
+                  ]}
+                />
+                <Button
+                  variant="secondary"
+                  leftIcon={<SlidersHorizontal />}
+                  onClick={() => setCustomizing(true)}
+                >
+                  Customize
+                </Button>
+              </>
             )}
           </>
         }
@@ -185,11 +215,24 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
       {tab === 'mine' ? (
         <MyWork data={data} needs={needs} />
       ) : (
-        <div className="grid grid-flow-row-dense grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-3">
+        <div className="grid grid-flow-row-dense grid-cols-[minmax(0,1fr)] items-start gap-4 lg:grid-cols-3">
           {layout.order
             .filter((id) => !layout.hidden.includes(id))
             .map((id) => (
-              <Widget key={id} id={id} data={data} needs={needs} />
+              <Widget
+                key={id}
+                id={id}
+                data={data}
+                needs={needs}
+                period={period}
+                onHideSetup={() => {
+                  setStored({ ...layout, hidden: [...layout.hidden, 'setup'] });
+                  toast.success(
+                    'Setup steps hidden',
+                    'Bring them back from Customize at the top of the dashboard.',
+                  );
+                }}
+              />
             ))}
         </div>
       )}
@@ -198,7 +241,7 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
         opened={customizing}
         onClose={() => setCustomizing(false)}
         title="Customize dashboard"
-        description="Pick which cards show on the Team tab, and in what order. Only this browser remembers your choice."
+        description="Pick which cards show on the Team tab. Drag a card, or use the arrows, to change the order."
         size="sm"
         footer={
           <>
@@ -209,9 +252,16 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
           </>
         }
       >
-        <ol className="divide-y divide-border-subtle rounded-lg border border-border-subtle">
-          {layout.order.map((id, index) => (
-            <li key={id} className="flex items-center gap-2 py-2 pr-2 pl-3">
+        <SortableList
+          id="dashboard-cards"
+          items={layout.order}
+          getKey={(id) => id}
+          getLabel={(id) => WIDGETS[id]}
+          onReorder={(order) => setStored({ ...layout, order })}
+          itemClassName="py-1.5 pr-2 pl-1"
+          renderItem={(id, handle, index) => (
+            <div className="flex items-center gap-2">
+              {handle}
               <Switch
                 className="flex-1"
                 label={WIDGETS[id]}
@@ -243,9 +293,9 @@ function TeamDashboard({ data, firstName }: { data: DashboardData; firstName: st
               >
                 <ArrowDown />
               </IconButton>
-            </li>
-          ))}
-        </ol>
+            </div>
+          )}
+        />
       </Drawer>
     </>
   );
@@ -264,7 +314,7 @@ function MyWork({ data, needs }: { data: DashboardData; needs: NotificationItem[
     queryKey: ['interviews', 'mine', range.from],
     queryFn: () =>
       api.get<CalendarInterview[]>(
-        `/api/interviews?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`,
+        `/api/interviews?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&status=Scheduled`,
       ),
   });
   const jobs = useQuery({
@@ -282,15 +332,7 @@ function MyWork({ data, needs }: { data: DashboardData; needs: NotificationItem[
 
   return (
     <div className="flex flex-col gap-4">
-      <StatGrid>
-        <StatCard
-          href="/notifications"
-          icon={Bell}
-          tone={needs.length ? 'amber' : 'green'}
-          label="Waiting on you"
-          value={needs.length}
-          hint={needs.length ? 'Oldest decisions first' : 'All caught up'}
-        />
+      <StatGrid className="sm:grid-cols-3 xl:grid-cols-3">
         <StatCard
           href="/notifications"
           icon={PencilLine}
@@ -377,23 +419,27 @@ function Widget({
   id,
   data,
   needs,
+  period,
+  onHideSetup,
 }: {
   id: WidgetId;
   data: DashboardData;
   needs: NotificationItem[];
+  period: Period;
+  onHideSetup: () => void;
 }) {
   const span = widgetSpan[id];
   switch (id) {
     case 'stats':
       return <StatsWidget data={data} className={span} />;
     case 'setup':
-      return <SetupWidget className={span} />;
+      return <SetupWidget className={span} onHide={onHideSetup} />;
     case 'pipeline':
       return <PipelineWidget data={data} className={span} />;
     case 'sources':
-      return <SourcesWidget className={span} />;
+      return <SourcesWidget className={span} period={period} />;
     case 'recent':
-      return <RecentWidget data={data} className={span} />;
+      return <ActivityWidget className={span} />;
     case 'jobs':
       return <JobsWidget data={data} className={span} />;
     case 'upcoming':
@@ -419,8 +465,18 @@ function Widget({
   }
 }
 
+/** "↑ 3 versus the 30 days before", or nothing when there is no change. */
+function trendOf(now: number | undefined, before: number | undefined, days: number) {
+  if (now === undefined || before === undefined || now === before) return undefined;
+  return {
+    direction: now > before ? ('up' as const) : ('down' as const),
+    text: `${Math.abs(now - before)} versus the ${days} days before`,
+    good: now > before,
+  };
+}
+
 function StatsWidget({ data, className }: { data: DashboardData; className: string }) {
-  const hires = data.jobs.reduce((sum, job) => sum + job.hired, 0);
+  const days = data.period ?? 30;
   return (
     <StatGrid className={className}>
       <StatCard
@@ -436,12 +492,17 @@ function StatsWidget({ data, className }: { data: DashboardData; className: stri
         tone="violet"
         label="Active candidates"
         value={data.activeCandidates}
+        hint={
+          data.applied !== undefined
+            ? `${data.applied} applied in the last ${days} days`
+            : undefined
+        }
       />
       <StatCard
         href="/interviews"
         icon={CalendarDays}
         tone="green"
-        label="Interviews scheduled"
+        label="Interviews"
         value={data.interviewsThisWeek}
         hint="Next 7 days"
       />
@@ -450,99 +511,192 @@ function StatsWidget({ data, className }: { data: DashboardData; className: stri
         icon={Trophy}
         tone="amber"
         label="Hires"
-        value={hires}
-        hint="On open jobs"
+        value={data.hires ?? 0}
+        hint={`Last ${days} days`}
+        trend={trendOf(data.hires, data.hiresBefore, days)}
       />
     </StatGrid>
   );
 }
 
-function SetupWidget({ className }: { className: string }) {
-  const user = useCurrentUser();
+/**
+ * The admin's setup steps. Once most are done it folds to one line; "Hide for now" takes it off
+ * the dashboard (saved with the account; Customize brings it back).
+ */
+function SetupWidget({ className, onHide }: { className: string; onHide: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  // Only rendered for people who manage the workspace (see TeamDashboard).
   const checklist = useQuery({
     queryKey: ['admin', 'setup-checklist'],
     queryFn: () => api.get<Step[]>('/api/admin/setup-checklist'),
-    enabled: user.role === 'Admin',
     retry: false,
   });
   const steps = checklist.data ?? [];
   const pending = steps.filter((step) => !step.done);
   if (pending.length === 0) return null;
+  const done = steps.length - pending.length;
+  // Folded once three quarters are done, unless opened.
+  const folded = done / steps.length >= 0.75 && !expanded;
   return (
     <Card className={className}>
       <CardHeader
         title="Finish setting up"
-        description={`${steps.length - pending.length} of ${steps.length} done`}
+        description={`${done} of ${steps.length} done`}
+        action={
+          <div className="flex items-center gap-1">
+            {done / steps.length >= 0.75 && (
+              <Button variant="quiet" size="sm" onClick={() => setExpanded(!expanded)}>
+                {expanded
+                  ? 'Show less'
+                  : `Show ${pending.length === 1 ? 'the last step' : `${pending.length} steps`}`}
+              </Button>
+            )}
+            <Button variant="quiet" size="sm" onClick={onHide}>
+              Hide for now
+            </Button>
+          </div>
+        }
       />
-      <div className="px-5 pb-2">
-        <Progress
-          value={steps.length - pending.length}
-          max={steps.length}
-          size="sm"
-          label="Setup progress"
-        />
+      <div className={cn('px-5', folded ? 'pb-5' : 'pb-2')}>
+        <Progress value={done} max={steps.length} size="sm" label="Setup progress" />
       </div>
-      <ul className="divide-y divide-border-subtle">
-        {pending.map((step) => (
-          <li key={step.key}>
-            <Link
-              href={step.href}
-              className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="block text-base font-medium text-fg">{step.title}</span>
-                <span className="block text-xs text-fg-subtle">{step.detail}</span>
-              </span>
-              <span className="text-sm font-medium text-accent-foreground">Set up</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {!folded && (
+        <ul className="divide-y divide-border-subtle">
+          {pending.map((step) => (
+            <li key={step.key}>
+              <Link
+                href={step.href}
+                className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block text-base font-medium text-fg">{step.title}</span>
+                  <span className="block text-xs text-fg-subtle">{step.detail}</span>
+                </span>
+                <span className="text-sm font-medium text-accent-foreground">Set up</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }
 
+/** Share of people who went on from one step to the next, or null with nobody to count. */
+const conversion = (from?: number, to?: number) =>
+  from && to !== undefined ? Math.round((to / from) * 100) : null;
+
 function PipelineWidget({ data, className }: { data: DashboardData; className: string }) {
+  const days = data.period ?? 30;
+  // Hired shows the hires in the period; the other steps show who is there now.
+  const steps = data.pipeline.map((step) =>
+    step.type === 'Hired' ? { ...step, count: data.hires ?? 0 } : step,
+  );
+  const total = steps.reduce((sum, step) => sum + step.count, 0);
+  const most = Math.max(1, ...steps.map((step) => step.count));
+  // Each step opens the people behind its number; hires open the hires report.
+  const stepHref = (type?: string) =>
+    type === 'Hired' ? '/reports/hires' : `/candidates/active?stageType=${type}&openJobs=true`;
+  const focus = 'focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none';
   return (
     <Card className={className}>
       <CardHeader
         title="Hiring pipeline"
+        description={`Active people on open jobs. Percentages: of those who applied in the last ${days} days, how many went on to the next step.`}
         action={<CardLink href="/pipeline">View pipeline</CardLink>}
       />
       <div className="px-5 pb-5">
-        {data.pipeline.length === 0 ? (
+        {total === 0 ? (
           <p className="text-sm text-fg-subtle">No active applications yet.</p>
         ) : (
-          <ol className="flex gap-1.5 overflow-x-auto pb-1">
-            {data.pipeline.map((stage, index) => {
-              const tone = stageTone(stage.stage);
-              return (
-                <li key={stage.stage} className="flex min-w-[118px] flex-1 items-center gap-1.5">
-                  {index > 0 && (
-                    <ArrowRight className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
-                  )}
-                  <div className="flex flex-1 flex-col items-center gap-1.5 rounded-lg border border-border-subtle bg-muted px-3 py-4 text-center">
-                    <IconDisc icon={stageIcons[tone]} tone={tone} size="md" />
-                    <span className="w-full truncate text-sm font-medium text-fg">
-                      {stage.stage}
-                    </span>
-                    <span className="text-2xl font-bold text-fg tnum">{stage.count}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
+          <>
+            <ol className="hidden items-center gap-1 sm:flex">
+              {steps.map((step, index) => {
+                const tone = stageTone(step.type);
+                const rate = index > 0 ? conversion(steps[index - 1].reached, step.reached) : null;
+                return (
+                  <Fragment key={step.stage}>
+                    {index > 0 && (
+                      <li
+                        aria-hidden={rate === null}
+                        className="flex w-9 shrink-0 flex-col items-center text-2xs text-fg-subtle tnum"
+                      >
+                        <ArrowRight className="size-3.5" aria-hidden />
+                        {rate !== null && (
+                          <span title="Went on from the step before">
+                            {rate}%<span className="sr-only"> went on to {step.stage}</span>
+                          </span>
+                        )}
+                      </li>
+                    )}
+                    <li className="min-w-0 flex-1">
+                      <Link
+                        href={stepHref(step.type)}
+                        aria-label={`${step.stage}: ${step.count}. Show them`}
+                        className={cn(
+                          'flex flex-col items-center gap-1.5 rounded-lg border border-border-subtle bg-muted px-2 py-4 text-center transition-colors hover:border-border hover:bg-accent',
+                          focus,
+                        )}
+                      >
+                        <IconDisc icon={stageIcons[tone]} tone={tone} size="md" />
+                        <span className="w-full truncate text-sm font-medium text-fg">
+                          {step.stage}
+                        </span>
+                        <span className="text-2xl font-bold text-fg tnum">{step.count}</span>
+                      </Link>
+                    </li>
+                  </Fragment>
+                );
+              })}
+            </ol>
+            <ul className="flex flex-col gap-2.5 sm:hidden">
+              {steps.map((step, index) => {
+                const rate = index > 0 ? conversion(steps[index - 1].reached, step.reached) : null;
+                return (
+                  <li key={step.stage}>
+                    <Link
+                      href={stepHref(step.type)}
+                      className={cn(
+                        '-mx-2 grid grid-cols-[88px_1fr_auto] items-center gap-3 rounded-md px-2 py-1 hover:bg-accent',
+                        focus,
+                      )}
+                    >
+                      <span className="truncate text-sm text-fg">{step.stage}</span>
+                      <span className="h-2 overflow-hidden rounded-full bg-secondary">
+                        <span
+                          className={cn('block h-full rounded-full', toneDot(stageTone(step.type)))}
+                          // Dynamic share of the largest step.
+                          style={{ width: `${(step.count / most) * 100}%` }}
+                        />
+                      </span>
+                      <span className="text-right text-sm font-semibold text-fg tnum">
+                        {step.count}
+                        {rate !== null && (
+                          <span className="ml-1.5 text-2xs font-normal text-fg-subtle">
+                            {rate}%
+                          </span>
+                        )}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
         )}
       </div>
     </Card>
   );
 }
 
-function SourcesWidget({ className }: { className: string }) {
-  // Needs the reports permission; the card simply stays hidden without it.
+function SourcesWidget({ className, period }: { className: string; period: Period }) {
+  const range =
+    period === 'week'
+      ? `from=${new Date(Date.now() - 6 * 86_400_000).toISOString().slice(0, 10)}`
+      : `range=${period === 'quarter' ? '90d' : '30d'}`;
   const sources = useQuery({
-    queryKey: ['report', 'sources', 'dashboard'],
-    queryFn: () => api.get<SourcesReport>('/api/reports/sources'),
+    queryKey: ['report', 'sources', 'dashboard', period],
+    queryFn: () => api.get<SourcesReport>(`/api/reports/sources?${range}`),
     retry: false,
   });
   const slices = (sources.data?.rows ?? [])
@@ -553,7 +707,7 @@ function SourcesWidget({ className }: { className: string }) {
     <Card className={className}>
       <CardHeader
         title="Candidate sources"
-        description="All applications"
+        description={`Applications in the last ${periodDays[period]} days`}
         action={<CardLink href="/reports/sources">View report</CardLink>}
       />
       <div className="px-5 pb-5">
@@ -568,57 +722,26 @@ function SourcesWidget({ className }: { className: string }) {
   );
 }
 
-function RecentWidget({ data, className }: { data: DashboardData; className: string }) {
-  const router = useRouter();
+function ActivityWidget({ className }: { className: string }) {
+  const [scope, setScope] = useLocalStorageState<'mine' | 'all'>('ats-dashboard-activity', 'all');
   return (
     <Card className={className}>
       <CardHeader
-        title="Recent candidates"
-        action={<CardLink href="/candidates">View all candidates</CardLink>}
+        title="Recent activity"
+        action={
+          <SegmentedControl
+            aria-label="Whose jobs"
+            size="sm"
+            value={scope}
+            onValueChange={(value) => setScope(value as 'mine' | 'all')}
+            items={[
+              { value: 'mine', label: 'My jobs' },
+              { value: 'all', label: 'All' },
+            ]}
+          />
+        }
       />
-      {data.recentApplications.length === 0 ? (
-        <EmptyState
-          compact
-          icon={Users}
-          title="No candidates yet"
-          description="Applications show up here as soon as people apply."
-        />
-      ) : (
-        <div className="px-2 pb-2">
-          <Table>
-            <THead>
-              <tr>
-                <TH>Candidate</TH>
-                <TH>Job</TH>
-                <TH>Stage</TH>
-                <TH align="right">Last activity</TH>
-              </tr>
-            </THead>
-            <TBody>
-              {data.recentApplications.map((item) => (
-                <TR
-                  key={item.id}
-                  interactive
-                  {...rowLinkProps(`Open ${item.candidateName}`, () =>
-                    router.push(`/applications/${item.id}`),
-                  )}
-                >
-                  <TD>
-                    <CellStack primary={item.candidateName} secondary={item.candidateTitle} />
-                  </TD>
-                  <TD className="text-fg-muted">{item.requisitionTitle}</TD>
-                  <TD>
-                    <StageBadge stage={item.stage} />
-                  </TD>
-                  <TD align="right" className="whitespace-nowrap text-fg-subtle tnum">
-                    {formatRelative(item.lastActivityAt)}
-                  </TD>
-                </TR>
-              ))}
-            </TBody>
-          </Table>
-        </div>
-      )}
+      <ActivityList scope={scope} take={8} />
     </Card>
   );
 }
@@ -626,7 +749,29 @@ function RecentWidget({ data, className }: { data: DashboardData; className: str
 function JobsWidget({ data, className }: { data: DashboardData; className: string }) {
   return (
     <Card className={className}>
-      <CardHeader title="Open jobs" action={<CardLink href="/jobs">All jobs</CardLink>} />
+      <CardHeader
+        title="Open jobs"
+        description={
+          <span className="flex flex-wrap gap-x-3 gap-y-1">
+            {stageTypes
+              .filter((type) => !['Hired', 'Other'].includes(type.value))
+              .map((type) => (
+                <span key={type.value} className="flex items-center gap-1.5">
+                  <span
+                    aria-hidden
+                    className={cn('size-2 rounded-full', toneDot(stageTone(type.value)))}
+                  />
+                  {type.label}
+                </span>
+              ))}
+          </span>
+        }
+        action={
+          <CardLink href="/jobs">
+            {data.jobs.length > 8 ? `All ${data.jobs.length} jobs` : 'All jobs'}
+          </CardLink>
+        }
+      />
       {data.jobs.length === 0 ? (
         <EmptyState
           compact
@@ -641,7 +786,7 @@ function JobsWidget({ data, className }: { data: DashboardData; className: strin
         />
       ) : (
         <ul className="divide-y divide-border-subtle border-t border-border-subtle">
-          {data.jobs.map((job) => {
+          {data.jobs.slice(0, 8).map((job) => {
             const active = job.stages.reduce((sum, stage) => sum + stage.count, 0);
             return (
               <li key={job.id}>
@@ -660,11 +805,16 @@ function JobsWidget({ data, className }: { data: DashboardData; className: strin
                       {job.hired} of {job.openings} hired
                     </span>
                   </span>
-                  <StageBar stages={job.stages} total={active} />
+                  <PipelineBar stages={job.stages} className="col-span-2 sm:col-span-1" />
                   <span className="col-start-2 row-start-1 text-right sm:col-start-3">
                     <span className="block text-md font-semibold text-fg tnum">{active}</span>
                     <span className="block text-2xs text-fg-subtle">
-                      {job.newToday > 0 ? `${job.newToday} new today` : 'active'}
+                      active
+                      {job.newToday > 0 && (
+                        <Badge tone="blue" size="sm" className="ml-1">
+                          {job.newToday} new
+                        </Badge>
+                      )}
                     </span>
                   </span>
                 </Link>
@@ -777,39 +927,5 @@ function dayLabel(value: string) {
   tomorrow.setDate(today.getDate() + 1);
   if (date.toDateString() === today.toDateString()) return 'Today';
   if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
-  return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' });
-}
-
-/** Where a job's active applicants sit, left to right through the pipeline. */
-function StageBar({
-  stages,
-  total,
-}: {
-  stages: Array<{ name: string; count: number }>;
-  total: number;
-}) {
-  const label = stages.map((stage) => `${stage.name} ${stage.count}`).join(', ');
-  return (
-    <span
-      className="col-span-2 flex h-2 gap-0.5 overflow-hidden rounded-full bg-secondary sm:col-span-1"
-      role="img"
-      aria-label={`Candidates by stage: ${label}`}
-    >
-      {total > 0 &&
-        stages.map((stage, index) =>
-          stage.count === 0 ? null : (
-            <Tooltip key={stage.name} label={`${stage.name}: ${stage.count}`}>
-              <span
-                className="h-full bg-primary"
-                style={{
-                  flexGrow: stage.count,
-                  // One hue, deepening as people move further through the pipeline.
-                  opacity: 0.35 + (0.65 * (index + 1)) / stages.length,
-                }}
-              />
-            </Tooltip>
-          ),
-        )}
-    </span>
-  );
+  return date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }

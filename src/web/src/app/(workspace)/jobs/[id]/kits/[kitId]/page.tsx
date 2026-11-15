@@ -1,6 +1,6 @@
-import { InterviewKitView } from '@/features/requisitions/InterviewKitView';
+import { InterviewKitPage } from '@/features/requisitions/EditInterviewKit';
 
 export default async function Page({ params }: { params: Promise<{ id: string; kitId: string }> }) {
   const { id, kitId } = await params;
-  return <InterviewKitView requisitionId={id} kitId={kitId} />;
+  return <InterviewKitPage requisitionId={id} kitId={kitId} />;
 }

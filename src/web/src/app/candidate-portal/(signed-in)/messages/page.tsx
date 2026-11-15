@@ -1,5 +1,5 @@
-import { PortalMessages } from '@/features/candidate-portal/PortalHubs';
+import { PortalInbox } from '@/features/candidate-portal/PortalHubs';
 
 export default function Page() {
-  return <PortalMessages />;
+  return <PortalInbox />;
 }

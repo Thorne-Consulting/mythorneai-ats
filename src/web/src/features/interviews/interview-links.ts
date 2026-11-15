@@ -1,17 +1,18 @@
-/** The interviewer's prep page. There is no GET by interview id, so it carries its application. */
-export const prepHref = (item: { id: string; applicationId: string }) =>
-  `/interviews/${item.id}?application=${item.applicationId}`;
-
-export type CalendarInterview = {
-  id: string;
-  applicationId: string;
-  title: string;
-  startsAt: string;
-  endsAt: string;
-  candidateName: string;
-  requisitionTitle: string;
-  interviewerEmails: string[];
-};
-
 export type InterviewView = 'day' | 'week' | 'month' | 'agenda';
 export const INTERVIEW_VIEWS: InterviewView[] = ['day', 'week', 'month', 'agenda'];
+
+/** The scheduler: for an application (and a round), to reschedule an interview, or from a calendar day. */
+export function scheduleHref(
+  options: {
+    application?: string;
+    kit?: string;
+    interview?: string;
+    date?: string;
+  } = {},
+) {
+  const params = new URLSearchParams(
+    Object.entries(options).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
+  const query = params.toString();
+  return `/interviews/schedule${query ? `?${query}` : ''}`;
+}

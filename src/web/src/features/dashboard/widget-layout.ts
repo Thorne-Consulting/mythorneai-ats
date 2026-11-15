@@ -6,7 +6,7 @@ export const WIDGETS = {
   waiting: 'Waiting on you',
   pipeline: 'Hiring pipeline',
   sources: 'Candidate sources',
-  recent: 'Recent candidates',
+  recent: 'Recent activity',
   jobs: 'Open jobs',
   upcoming: 'Coming up',
 } as const;
@@ -26,7 +26,7 @@ export function defaultLayout(role: string): WidgetLayout {
       hidden: [],
     };
   return {
-    order: ['stats', 'setup', 'pipeline', 'sources', 'recent', 'upcoming', 'jobs', 'waiting'],
+    order: ['stats', 'waiting', 'setup', 'pipeline', 'sources', 'recent', 'upcoming', 'jobs'],
     hidden: [],
   };
 }

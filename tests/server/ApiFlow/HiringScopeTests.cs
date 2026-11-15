@@ -109,6 +109,7 @@ public sealed partial class ApiFlowTests
         );
         managerAttempt.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
 
+        await StartInterviewAsync(interviewId, cancellationToken);
         var firstSubmission = await interviewer.PostAsJsonAsync(
             $"/api/interviews/{interviewId}/scorecards",
             new

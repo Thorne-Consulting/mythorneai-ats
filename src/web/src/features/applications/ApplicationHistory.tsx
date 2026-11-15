@@ -13,6 +13,7 @@ import {
   Timeline,
   type Tone,
 } from '@/components/ui';
+import { workflowStepRow } from '@/components/workflow/workflow-activity';
 import { formatDateTime, humanize } from '@/lib/format';
 import { LoadError } from './application-data';
 import { useApplicationExtras } from './application-extras';
@@ -25,10 +26,32 @@ const ACTIONS: Record<string, string> = {
   ApprovalRejected: 'Approval rejected',
   AcceptanceSent: 'Acceptance email sent',
   AcceptanceReversed: 'Hire undone',
+  OfferSent: 'Offer sent',
+  OfferAccepted: 'Offer accepted. Hired',
+  OfferDeclined: 'Offer declined',
+  OfferReopenedForEdit: 'Offer terms reopened for changes',
+  HireUndone: 'Hire undone',
+  DecisionRecorded: 'Decision recorded',
+  Reopened: 'Application reopened',
+  ScorecardReminderSent: 'Scorecard reminder sent',
+  ScorecardCorrected: 'Correction added to a scorecard',
   MessageSent: 'Message sent to the candidate',
   WithdrawnByCandidate: 'Candidate withdrew their application',
   InterviewCancelledExternally: 'Interview cancelled from the calendar',
   StageChanged: 'Stage changed',
+  AssessmentSent: 'Assessment sent',
+  AssessmentStarted: 'Candidate started the assessment',
+  AssessmentSubmitted: 'Candidate submitted the assessment',
+  AssessmentTimeRanOut: 'Assessment time ran out',
+  AssessmentReminderSent: 'Assessment reminder sent',
+  AssessmentDeadlineChanged: 'Assessment deadline changed',
+  AssessmentRetakeSent: 'Assessment retake sent',
+  AssessmentRevoked: 'Assessment link revoked',
+  AssessmentResultRecorded: 'Assessment result recorded',
+  AssessmentResultRemoved: 'Assessment result removed',
+  AssessmentPassed: 'Assessment passed',
+  AssessmentFailed: 'Assessment not passed',
+  AssessmentGradingReopened: 'Assessment grading reopened',
   BulkStageChanged: 'Stage changed for several applicants at once',
   NoteAdded: 'Note added',
   InterviewScheduled: 'Interview scheduled',
@@ -77,6 +100,7 @@ export function ApplicationHistory({ id }: { id: string }) {
         icon: <Clock />,
         title: ACTIONS[event.action] ?? humanize(event.action),
         body: event.actorEmail,
+        ...(workflowStepRow(event) ?? {}),
       })),
     ...emails.map((email) => {
       const badge = emailBadge(email.status, email.deliveryStatus);

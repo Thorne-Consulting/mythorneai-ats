@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { createContext, useContext, useId, useLayoutEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { LucideIcon } from 'lucide-react';
@@ -48,14 +48,15 @@ export function SectionNav({
   const pathname = usePathname() ?? '';
   const router = useRouter();
   const active = activeHref(pathname, groups);
+  const selectId = useId();
   return (
     <>
       <div className="lg:hidden">
-        <label className="sr-only" htmlFor="section-nav-select">
+        <label className="sr-only" htmlFor={selectId}>
           Section
         </label>
         <select
-          id="section-nav-select"
+          id={selectId}
           value={active ?? ''}
           onChange={(e) => router.push(e.currentTarget.value)}
           className="h-[38px] w-full rounded-md border border-input bg-card px-3 text-base text-fg"
@@ -122,7 +123,14 @@ export function SectionNav({
   );
 }
 
-/** Content with a sticky second sidebar on the left. */
+/**
+ * Lets the app shell know a section nav is on screen, so it can shrink its own sidebar to icons.
+ * The shell gives a counter; the visual collapse itself is CSS (`data-section-nav`), so a full page
+ * load paints the right width straight away.
+ */
+export const SectionNavPresence = createContext<((delta: 1 | -1) => void) | null>(null);
+
+/** Content with a sticky second sidebar on the left. The app sidebar collapses to icons beside it. */
 export function SidebarLayout({
   nav,
   children,
@@ -134,9 +142,25 @@ export function SidebarLayout({
   className?: string;
   navWidth?: string;
 }) {
+  const announce = useContext(SectionNavPresence);
+  useLayoutEffect(() => {
+    announce?.(1);
+    return () => announce?.(-1);
+  }, [announce]);
   return (
-    <div className={cn('flex flex-col gap-6 lg:flex-row lg:items-start', className)}>
-      <aside className={cn('w-full shrink-0 lg:sticky lg:top-[101px]', navWidth)}>{nav}</aside>
+    <div
+      data-section-nav=""
+      className={cn('flex flex-col gap-6 lg:flex-row lg:items-start', className)}
+    >
+      {/* Sticky and scrollable, so every item stays reachable on a short screen. */}
+      <aside
+        className={cn(
+          'w-full shrink-0 lg:sticky lg:top-[101px] lg:max-h-[calc(100dvh-101px)] lg:overflow-y-auto lg:pb-6',
+          navWidth,
+        )}
+      >
+        {nav}
+      </aside>
       <div className="min-w-0 flex-1">{children}</div>
     </div>
   );

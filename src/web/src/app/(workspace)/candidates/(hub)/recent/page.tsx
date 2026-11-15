@@ -1,5 +1,6 @@
-import { RecentCandidates } from '@/features/candidates/RecentCandidates';
+import { redirect } from 'next/navigation';
 
+// Recently viewed profiles live in the search palette (⌘K) now.
 export default function Page() {
-  return <RecentCandidates />;
+  redirect('/candidates');
 }

@@ -384,3 +384,43 @@
     opacity: 0;
   }
 }
+
+/*
+ * Printing one part of a page ("Download PDF" on an offer letter): mark it `print-region`. Everything
+ * that neither holds it nor sits inside it is hidden, its ancestors lose their chrome, and it prints
+ * as dark text on white in either theme.
+ */
+@media print {
+  body:has(.print-region) *:not(:has(.print-region)):not(.print-region):not(.print-region *) {
+    display: none !important;
+  }
+  body:has(.print-region),
+  body:has(.print-region) *:has(.print-region) {
+    background: #fff !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    position: static !important;
+    display: block !important;
+  }
+  .print-region {
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+    color: #1c1917 !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .print-region * {
+    color: #1c1917 !important;
+    border-color: #e7e5e4 !important;
+  }
+  @page {
+    margin: 18mm 20mm;
+  }
+}

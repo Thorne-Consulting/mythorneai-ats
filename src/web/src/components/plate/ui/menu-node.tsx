@@ -4,9 +4,13 @@ import * as React from 'react';
 
 import type { PlateEditor, PlateElementProps } from 'platejs/react';
 
+import { toggleCodeBlock } from '@platejs/code-block';
+import { toggleList } from '@platejs/list';
 import { deserializeMd } from '@platejs/markdown';
-import { type TComboboxInputElement } from 'platejs';
+import { KEYS, type TComboboxInputElement } from 'platejs';
 import { PlateElement } from 'platejs/react';
+
+import { pickImage } from './image-node';
 
 import {
   InlineCombobox,
@@ -24,6 +28,11 @@ export interface EditorTemplate {
   hint?: string;
   markdown?: string;
   block?: 'p' | 'h1' | 'h2' | 'h3' | 'blockquote';
+  list?: 'disc' | 'decimal' | 'todo';
+  /** Anything else, on the (now empty) line. */
+  run?: (editor: PlateEditor) => void;
+  /** Offered only when the editor has this plugin (for example pictures). */
+  plugin?: string;
 }
 
 export const BASIC_BLOCKS: EditorTemplate[] = [
@@ -32,10 +41,20 @@ export const BASIC_BLOCKS: EditorTemplate[] = [
   { label: 'Heading 2', hint: 'A section', block: 'h2' },
   { label: 'Heading 3', hint: 'A sub-section', block: 'h3' },
   { label: 'Quote', hint: 'Set a passage apart', block: 'blockquote' },
+  { label: 'Bulleted list', hint: 'Or type - and a space', list: 'disc' },
+  { label: 'Numbered list', hint: 'Or type 1. and a space', list: 'decimal' },
+  { label: 'To-do list', hint: 'Or type [] and a space', list: 'todo' },
   {
     label: 'Table',
     hint: 'Three columns; Tab in the last cell adds a row',
     markdown: '|   |   |   |\n| --- | --- | --- |\n|   |   |   |',
+  },
+  { label: 'Code block', hint: 'Or type ``` on a new line', run: toggleCodeBlock },
+  {
+    label: 'Picture',
+    hint: 'PNG, JPEG, GIF or WebP, up to 5 MB',
+    run: pickImage,
+    plugin: KEYS.img,
   },
 ];
 
@@ -47,7 +66,8 @@ export const MenuItemsContext = React.createContext<{
 
 // Markdown carries no column widths, and Plate falls back to 120px a column. Short columns (a
 // "Weight" of 3) keep the width their text needs; the long ones share what is left of the page.
-const PAGE_WIDTH = 860;
+// ponytail: a fixed width that fits the kit editor at 1280px and up; narrower pages scroll the table.
+const PAGE_WIDTH = 760;
 const SHORT_COLUMN = 160;
 
 type Node = { type?: string; text?: string; children?: Node[]; colSizes?: number[] };
@@ -82,6 +102,14 @@ function insertItem(editor: PlateEditor, item: EditorTemplate) {
   const entry = editor.api.block();
   if (!entry) return;
   const [, path] = entry;
+  if (item.run) {
+    item.run(editor);
+    return;
+  }
+  if (item.list) {
+    toggleList(editor, { listStyleType: item.list });
+    return;
+  }
   if (item.block) {
     editor.tf.setNodes({ type: item.block }, { at: path });
     return;
@@ -113,18 +141,20 @@ function MenuInput({
         <InlineComboboxEmpty>Nothing matches</InlineComboboxEmpty>
         <InlineComboboxGroup>
           <InlineComboboxGroupLabel>{label}</InlineComboboxGroupLabel>
-          {items.map((item) => (
-            <InlineComboboxItem
-              key={item.label}
-              value={item.label}
-              label={item.label}
-              className="h-auto flex-col items-start gap-0 py-1.5"
-              onClick={() => insertItem(editor, item)}
-            >
-              <span>{item.label}</span>
-              {item.hint && <span className="text-muted-foreground text-xs">{item.hint}</span>}
-            </InlineComboboxItem>
-          ))}
+          {items
+            .filter((item) => !item.plugin || editor.plugins[item.plugin])
+            .map((item) => (
+              <InlineComboboxItem
+                key={item.label}
+                value={item.label}
+                label={item.label}
+                className="h-auto flex-col items-start gap-0 py-1.5"
+                onClick={() => insertItem(editor, item)}
+              >
+                <span>{item.label}</span>
+                {item.hint && <span className="text-muted-foreground text-xs">{item.hint}</span>}
+              </InlineComboboxItem>
+            ))}
         </InlineComboboxGroup>
       </InlineComboboxContent>
     </InlineCombobox>

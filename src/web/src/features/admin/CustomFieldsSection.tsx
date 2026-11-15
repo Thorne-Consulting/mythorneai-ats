@@ -8,24 +8,27 @@ import {
   Button,
   Card,
   CardHeader,
+  ConfirmDialog,
   DescriptionList,
   EmptyState,
   IconButton,
   Input,
-  NumberInput,
   Select,
   TagsInput,
   toast,
 } from '@/components/ui';
-import { formatDate } from '@/lib/format';
+import { keyFromLabel } from '@/features/candidates/custom-field-key';
+import {
+  CUSTOM_FIELD_TYPES,
+  CustomFieldInput,
+  customFieldText,
+  hasOptions,
+  type CustomFieldDefinition,
+  type CustomFieldValue,
+} from '@/features/candidates/custom-fields';
 import { SettingsLoading, SettingsSection, useDraft } from './settings-shared';
 
-export interface CustomFieldDefinition {
-  key: string;
-  label: string;
-  type: 'text' | 'number' | 'date' | 'select';
-  options: string[];
-}
+export type { CustomFieldDefinition };
 
 const KEY = /^[a-z0-9][a-z0-9_-]{0,39}$/;
 
@@ -44,21 +47,21 @@ export function CustomFieldsSection() {
   );
 }
 
-const TYPES = [
-  { value: 'text', label: 'Text' },
-  { value: 'number', label: 'Number' },
-  { value: 'date', label: 'Date' },
-  { value: 'select', label: 'Pick one from a list' },
-];
-const SAMPLE: Record<CustomFieldDefinition['type'], string> = {
+const TYPES = CUSTOM_FIELD_TYPES;
+const SAMPLE: Record<CustomFieldDefinition['type'], CustomFieldValue> = {
   text: 'Sample answer',
   number: '30',
   date: '2026-12-01',
   select: '',
+  multiselect: [],
+  url: 'https://example.com',
 };
 
 function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved: () => void }) {
   const { draft, replace, dirty, reset } = useDraft(source);
+  const [removing, setRemoving] = useState<number | null>(null);
+  // A saved field's key never changes: stored answers and imports point at it.
+  const saved = new Set(source.map((field) => field.key));
   const keys = draft.map((x) => x.key);
   const errors = draft.map((field, index) =>
     !KEY.test(field.key)
@@ -67,7 +70,7 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
         ? 'Each key must be different.'
         : !field.label.trim()
           ? 'Give this field a label.'
-          : field.type === 'select' && field.options.length === 0
+          : hasOptions(field) && field.options.length === 0
             ? 'Add at least one option.'
             : null,
   );
@@ -81,7 +84,19 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
     onError: (error: Error) => toast.error('Could not save fields', error.message),
   });
   const update = (index: number, patch: Partial<CustomFieldDefinition>) =>
-    replace(draft.map((field, i) => (i === index ? { ...field, ...patch } : field)));
+    replace(
+      draft.map((field, i) => {
+        if (i !== index) return field;
+        const next = { ...field, ...patch };
+        // New fields take their key from the label.
+        if (patch.label !== undefined && !saved.has(field.key))
+          next.key = keyFromLabel(
+            patch.label,
+            draft.filter((_, j) => j !== index).map((x) => x.key),
+          );
+        return next;
+      }),
+    );
   const add = () => replace([...draft, { key: '', label: '', type: 'text', options: [] }]);
 
   return (
@@ -89,7 +104,7 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
       <SettingsSection
         id="candidate-fields"
         title="Extra fields"
-        description="The key is a short name that never changes. We use it when you import or export candidates."
+        description="Questions you ask every candidate, shown on their record. A field's key is made from its label when you add it and never changes after you save."
         action={
           <Button
             variant="secondary"
@@ -115,22 +130,27 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
         ) : (
           <ul className="-my-4 divide-y divide-border-subtle">
             {draft.map((field, index) => (
-              <li key={index} className="flex flex-wrap items-start gap-3 py-4">
+              <li
+                key={index}
+                className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 py-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_13rem_auto]"
+              >
                 <Input
                   inset
                   label="Label"
                   value={field.label}
                   onChange={(event) => update(index, { label: event.currentTarget.value })}
-                  className="min-w-40 flex-1"
+                  error={dirty ? (errors[index] ?? undefined) : undefined}
+                  className="col-start-1 min-w-0"
                 />
                 <Input
                   inset
                   label="Key"
-                  placeholder="notice-period"
+                  placeholder="Made from the label"
                   value={field.key}
-                  onChange={(event) => update(index, { key: event.currentTarget.value })}
-                  error={dirty ? (errors[index] ?? undefined) : undefined}
-                  className="min-w-40 flex-1"
+                  readOnly
+                  aria-readonly
+                  title={saved.has(field.key) ? 'Saved keys never change.' : undefined}
+                  className="col-start-1 min-w-0 sm:col-start-2 [&_input]:text-fg-muted"
                 />
                 <Select
                   inset
@@ -140,31 +160,46 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
                   onChange={(value) =>
                     update(index, { type: (value ?? 'text') as CustomFieldDefinition['type'] })
                   }
-                  className="w-full sm:w-52"
+                  className="col-start-1 min-w-0 sm:col-start-3"
                 />
-                {field.type === 'select' && (
+                <IconButton
+                  variant="danger-quiet"
+                  className="col-start-2 row-start-1 mt-2.5 sm:col-start-4"
+                  label={`Remove field ${field.label || index + 1}`}
+                  onClick={() =>
+                    saved.has(field.key)
+                      ? setRemoving(index)
+                      : replace(draft.filter((_, i) => i !== index))
+                  }
+                >
+                  <Trash2 />
+                </IconButton>
+                {hasOptions(field) && (
                   <TagsInput
                     label="Options"
                     description="Press Enter after each one."
                     value={field.options}
                     onChange={(value) => update(index, { options: value })}
-                    className="min-w-52 flex-1"
+                    className="col-start-1 min-w-0 sm:col-span-3"
                   />
                 )}
-                <IconButton
-                  variant="danger-quiet"
-                  className="mt-2.5"
-                  label={`Remove field ${field.label || index + 1}`}
-                  onClick={() => replace(draft.filter((_, i) => i !== index))}
-                >
-                  <Trash2 />
-                </IconButton>
               </li>
             ))}
           </ul>
         )}
       </SettingsSection>
       <FieldPreview fields={draft} />
+      <ConfirmDialog
+        opened={removing !== null}
+        onClose={() => setRemoving(null)}
+        onConfirm={() => {
+          replace(draft.filter((_, i) => i !== removing));
+          setRemoving(null);
+        }}
+        title={`Remove “${removing !== null ? draft[removing]?.label : ''}”?`}
+        message="When you save, every candidate's answer to this field is removed too."
+        confirmLabel="Remove field"
+      />
     </div>
   );
 }
@@ -174,11 +209,17 @@ function Editor({ source, onSaved }: { source: CustomFieldDefinition[]; onSaved:
  * CandidateCustomFields shows them, from the unsaved draft.
  */
 function FieldPreview({ fields }: { fields: CustomFieldDefinition[] }) {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, CustomFieldValue>>({});
   const shown = fields.filter((field) => field.label.trim());
   const value = (field: CustomFieldDefinition) =>
-    values[field.key] ?? (field.type === 'select' ? (field.options[0] ?? '') : SAMPLE[field.type]);
-  const set = (key: string, next: string) => setValues((current) => ({ ...current, [key]: next }));
+    values[field.key] ??
+    (field.type === 'select'
+      ? (field.options[0] ?? '')
+      : field.type === 'multiselect'
+        ? field.options.slice(0, 2)
+        : SAMPLE[field.type]);
+  const set = (key: string, next: CustomFieldValue) =>
+    setValues((current) => ({ ...current, [key]: next }));
   return (
     <Card className="xl:sticky xl:top-[101px]">
       <CardHeader
@@ -195,44 +236,22 @@ function FieldPreview({ fields }: { fields: CustomFieldDefinition[] }) {
                 Details
               </p>
               <DescriptionList
-                items={shown.map((field) => {
-                  const v = value(field);
-                  return {
-                    label: field.label,
-                    value: !v ? '—' : field.type === 'date' ? formatDate(v) : v,
-                  };
-                })}
+                items={shown.map((field) => ({
+                  label: field.label,
+                  value: customFieldText(field, value(field)) || '—',
+                }))}
               />
             </div>
             <div className="flex flex-col gap-4 rounded-lg bg-muted p-3">
               <p className="text-xs text-fg-subtle">When someone edits them</p>
-              {shown.map((field, index) =>
-                field.type === 'select' ? (
-                  <Select
-                    key={index}
-                    label={field.label}
-                    clearable
-                    data={field.options}
-                    value={value(field) || null}
-                    onChange={(next) => set(field.key, next ?? '')}
-                  />
-                ) : field.type === 'number' ? (
-                  <NumberInput
-                    key={index}
-                    label={field.label}
-                    value={value(field) === '' ? '' : Number(value(field))}
-                    onValueChange={(next) => set(field.key, next === '' ? '' : String(next))}
-                  />
-                ) : (
-                  <Input
-                    key={index}
-                    type={field.type === 'date' ? 'date' : 'text'}
-                    label={field.label}
-                    value={value(field)}
-                    onChange={(event) => set(field.key, event.currentTarget.value)}
-                  />
-                ),
-              )}
+              {shown.map((field, index) => (
+                <CustomFieldInput
+                  key={index}
+                  field={field}
+                  value={value(field)}
+                  onChange={(next) => set(field.key, next)}
+                />
+              ))}
             </div>
           </>
         )}

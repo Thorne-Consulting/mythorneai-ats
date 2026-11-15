@@ -1,10 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { AlertTriangle, WifiOff } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ApiError, api } from '@/api';
 import { Button, Card, EmptyState } from '@/components/ui';
 import type { ApplicationDetailResponse } from '@/types';
+import type { ApplicationData } from './application-types';
 
 export function OfflineNotice({ onRetry }: { onRetry: () => void }) {
   return (
@@ -25,14 +27,28 @@ export function OfflineNotice({ onRetry }: { onRetry: () => void }) {
 
 /** Every route on this surface needs somewhere to land when the load fails. */
 export function LoadError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
-  const missing = error instanceof ApiError && error.status === 404;
+  // A deleted or forbidden application will not come back, so offer a way out instead of a retry.
+  if (error instanceof ApiError && error.status === 404)
+    return (
+      <Card>
+        <EmptyState
+          icon={AlertTriangle}
+          title="This application is no longer available"
+          description="It may have been deleted, or you no longer have access to its job."
+          action={
+            <Button asChild variant="secondary">
+              <Link href="/candidates">Back to candidates</Link>
+            </Button>
+          }
+        />
+      </Card>
+    );
   return (
     <Card>
       <EmptyState
         icon={AlertTriangle}
-        title={
-          missing ? 'This application is no longer available' : 'Could not load this application'
-        }
+        title="Could not load this application"
+        description="Check your connection, then try again."
         action={
           <Button variant="secondary" onClick={onRetry}>
             Try again
@@ -46,8 +62,9 @@ export function LoadError({ error, onRetry }: { error: unknown; onRetry: () => v
 export function useApplication(id: string, initialData?: ApplicationDetailResponse) {
   return useQuery({
     queryKey: ['application', id],
-    queryFn: () => api.get<ApplicationDetailResponse>(`/api/applications/${id}`),
-    initialData,
+    queryFn: () => api.get<ApplicationData>(`/api/applications/${id}`),
+    // The server render fetched the same endpoint, so it has every field ApplicationData names.
+    initialData: initialData as ApplicationData | undefined,
     refetchInterval: (current) =>
       current.state.data?.application.interviews.some((item) =>
         ['Queued', 'RetryScheduled', 'CancellationQueued'].includes(item.calendarStatus),
@@ -66,6 +83,3 @@ export function useInvalidateApplication(id: string) {
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
   };
 }
-
-export const canManageRole = (role: string) =>
-  ['Admin', 'Recruiter', 'HiringManager'].includes(role);

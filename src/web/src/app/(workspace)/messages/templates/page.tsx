@@ -1,5 +1,10 @@
-import { TemplatesPage } from '@/features/preview/messages/TemplatesPage';
+import { Suspense } from 'react';
+import { TemplatesPage } from '@/features/templates/TemplatesPage';
 
 export default function Page() {
-  return <TemplatesPage />;
+  return (
+    <Suspense>
+      <TemplatesPage />
+    </Suspense>
+  );
 }

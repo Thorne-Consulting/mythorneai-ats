@@ -16,6 +16,10 @@ public sealed partial class ResumeTextExtractor(LocalResumeOcr ocr)
     private const int MaxFileBytes = 10 * 1024 * 1024;
     private const int MaxExtractedCharacters = 250_000;
 
+    /// <summary>PDF and Word (.docx) files are read; legacy .doc and everything else are not.</summary>
+    public static bool CanRead(string fileName) =>
+        Path.GetExtension(fileName).ToLowerInvariant() is ".pdf" or ".docx";
+
     public async Task<string> ExtractAsync(Stream stream, string fileName, CancellationToken cancellationToken)
     {
         if (!stream.CanRead)

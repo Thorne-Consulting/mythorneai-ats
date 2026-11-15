@@ -1,5 +1,10 @@
-import { MessagesPage } from '@/features/preview/MessagesPage';
+import { Suspense } from 'react';
+import { InboxPage } from '@/features/messages/InboxPage';
 
 export default function Page() {
-  return <MessagesPage />;
+  return (
+    <Suspense>
+      <InboxPage />
+    </Suspense>
+  );
 }

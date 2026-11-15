@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlaskConical, LogIn, RotateCcw } from 'lucide-react';
 import { Avatar, Badge, Button, Card, ConfirmDialog, toast } from '@/components/ui';
 import { errorText, OFFLINE, postJson } from '@/features/careers/public-api';
-import { writeToken } from './portal';
 
 type LocalCandidate = { email: string; name: string; latest: string | null; applications: number };
 type Listing = { code: string; candidates: LocalCandidate[] };
@@ -14,7 +13,7 @@ type Listing = { code: string; candidates: LocalCandidate[] };
  * their starting state. Renders nothing in production builds or when the API is not in
  * Development (the endpoints are not mapped there).
  */
-export function DevCandidatesPanel({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
+export function DevCandidatesPanel({ onSignedIn }: { onSignedIn: () => Promise<unknown> }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -42,8 +41,9 @@ export function DevCandidatesPanel({ onSignedIn }: { onSignedIn: () => Promise<v
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: listing!.code }),
       });
+      // The answer sets the session cookie; loading the portal picks it up.
       if (!response.ok) toast.error('Could not sign in', await errorText(response, 'Try again.'));
-      else if (writeToken((await response.json()).token)) await onSignedIn();
+      else await onSignedIn();
     } catch (error) {
       toast.error('Could not sign in', error instanceof Error ? error.message : OFFLINE);
     }

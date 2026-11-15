@@ -14,5 +14,7 @@ export default async function Page({
     ).toString();
     redirect(`/reports/${encodeURIComponent(report)}${qs ? `?${qs}` : ''}`);
   }
+  // No Suspense boundary of its own: the page hydrates with the Reports nav, so both read the
+  // report catalog at the same moment and the server and browser render the same text.
   return <ReportsOverview />;
 }

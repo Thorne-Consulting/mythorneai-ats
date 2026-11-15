@@ -1,65 +1,33 @@
 'use client';
 
 import { useState } from 'react';
-import { MailX } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import {
-  Alert,
-  Button,
-  DescriptionList,
-  Input,
-  Modal,
-  NumberInput,
-  Select,
-  toast,
-} from '@/components/ui';
-import { formatDate } from '@/lib/format';
+import { Button, DescriptionList, Modal, toast } from '@/components/ui';
+import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail } from '@/types';
-import { Missing, RailGroup } from './Rail';
-
-/** Fields the API returns that the shared CandidateDetail type doesn't list yet. */
-export type CandidateExtras = { customFieldsJson?: string | null; emailBounced?: boolean };
-
-interface Definition {
-  key: string;
-  label: string;
-  type: 'text' | 'number' | 'date' | 'select';
-  options: string[];
-}
-
-function parseValues(json?: string | null): Record<string, string> {
-  try {
-    const parsed = json ? JSON.parse(json) : {};
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
-  } catch {
-    return {};
-  }
-}
-
-export function EmailBouncedAlert() {
-  return (
-    <Alert tone="warning" icon={MailX} title="Email bounced">
-      Emails to this address bounced, so we’ve stopped sending. Check the address.
-    </Alert>
-  );
-}
+import {
+  CustomFieldInput,
+  customFieldText,
+  isEmptyValue,
+  parseCustomValues,
+  useCustomFields,
+  type CustomFieldValue,
+} from './custom-fields';
+import { RailGroup } from './Rail';
 
 export function CandidateCustomFields({
   candidate,
   canEdit,
 }: {
-  candidate: CandidateDetail & CandidateExtras;
+  candidate: CandidateDetail;
   canEdit: boolean;
 }) {
   const [opened, setOpened] = useState(false);
-  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<Record<string, CustomFieldValue>>({});
   const queryClient = useQueryClient();
-  const definitions = useQuery({
-    queryKey: ['custom-fields'],
-    queryFn: () => api.get<Definition[]>('/api/custom-fields'),
-  });
-  const values = parseValues(candidate.customFieldsJson);
+  const definitions = useCustomFields();
+  const values = parseCustomValues(candidate.customFieldsJson);
   const save = useMutation({
     mutationFn: () => api.put(`/api/candidates/${candidate.id}/custom-fields`, { values: draft }),
     onSuccess: () => {
@@ -70,33 +38,53 @@ export function CandidateCustomFields({
     onError: (error: Error) => toast.error('Could not save the details', error.message),
   });
   const fields = definitions.data ?? [];
-  if (fields.length === 0) return null;
-  const show = (field: Definition) => {
-    const value = values[field.key];
-    if (!value) return <Missing />;
-    return field.type === 'date' ? formatDate(value) : value;
-  };
+  // Only filled-in fields show; empty ones wait behind "Add details".
+  const filled = fields.filter((field) => !isEmptyValue(values[field.key]));
+  if (fields.length === 0 || (filled.length === 0 && !canEdit)) return null;
   const edit = () => {
     setDraft(Object.fromEntries(fields.map((field) => [field.key, values[field.key] ?? ''])));
     setOpened(true);
   };
-  const set = (key: string, value: string) => setDraft((current) => ({ ...current, [key]: value }));
+  const set = (key: string, value: CustomFieldValue) =>
+    setDraft((current) => ({ ...current, [key]: value }));
 
   return (
     <>
       <RailGroup
         title="Details"
         action={
-          canEdit && (
+          canEdit &&
+          filled.length > 0 && (
             <Button variant="link" size="sm" onClick={edit}>
               Edit
             </Button>
           )
         }
       >
-        <DescriptionList
-          items={fields.map((field) => ({ label: field.label, value: show(field) }))}
-        />
+        {filled.length > 0 ? (
+          <DescriptionList
+            items={filled.map((field) => ({
+              label: field.label,
+              value:
+                field.type === 'url' && safeWebUrl(String(values[field.key])) ? (
+                  <a
+                    href={safeWebUrl(String(values[field.key]))}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-accent-foreground hover:underline"
+                  >
+                    {customFieldText(field, values[field.key])}
+                  </a>
+                ) : (
+                  customFieldText(field, values[field.key])
+                ),
+            }))}
+          />
+        ) : (
+          <Button variant="link" size="sm" onClick={edit}>
+            Add details
+          </Button>
+        )}
       </RailGroup>
       <Modal
         opened={opened}
@@ -114,37 +102,14 @@ export function CandidateCustomFields({
         }
       >
         <div className="flex flex-col gap-4">
-          {fields.map((field) =>
-            field.type === 'select' ? (
-              <Select
-                key={field.key}
-                label={field.label}
-                clearable
-                data={field.options}
-                value={draft[field.key] || null}
-                onChange={(value) => set(field.key, value ?? '')}
-              />
-            ) : field.type === 'number' ? (
-              <NumberInput
-                key={field.key}
-                label={field.label}
-                value={
-                  draft[field.key] === '' || draft[field.key] === undefined
-                    ? ''
-                    : Number(draft[field.key])
-                }
-                onValueChange={(value) => set(field.key, value === '' ? '' : String(value))}
-              />
-            ) : (
-              <Input
-                key={field.key}
-                type={field.type === 'date' ? 'date' : 'text'}
-                label={field.label}
-                value={draft[field.key] ?? ''}
-                onChange={(event) => set(field.key, event.currentTarget.value)}
-              />
-            ),
-          )}
+          {fields.map((field) => (
+            <CustomFieldInput
+              key={field.key}
+              field={field}
+              value={draft[field.key]}
+              onChange={(value) => set(field.key, value)}
+            />
+          ))}
         </div>
       </Modal>
     </>

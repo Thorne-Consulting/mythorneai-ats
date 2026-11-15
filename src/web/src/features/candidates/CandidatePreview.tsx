@@ -196,7 +196,12 @@ export function CandidatePreview({
                       {app.requisitionTitle}
                     </Link>
                     {app.status === 'Active' ? (
-                      <StageBadge stage={app.stage} size="sm" />
+                      <StageBadge
+                        stage={app.stage}
+                        type={app.stageType}
+                        color={app.stageColor}
+                        size="sm"
+                      />
                     ) : (
                       <StatusBadge status={app.status} size="sm" />
                     )}

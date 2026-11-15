@@ -12,6 +12,10 @@ namespace MyThorneAI.Ats.Api.Api;
 
 public static partial class AtsEndpoints
 {
+    // Access to a job comes from its hiring team (RequisitionMember): anyone on the team sees it,
+    // its hiring managers and recruiters change it. Teams (departments) limit a recruiter to their
+    // departments and let a hiring manager see the open jobs there too. Confidential jobs stay with
+    // their team. The web app gets the same rules from Abilities.RulesFor; change both together.
     private static IQueryable<Requisition> ScopeRequisitions(
         IQueryable<Requisition> query,
         ClaimsPrincipal principal
@@ -20,16 +24,18 @@ public static partial class AtsEndpoints
         if (principal.IsInRole(nameof(UserRole.Admin)))
             return query;
         var email = principal.Email();
-        // Confidential jobs are visible only to their owner, recruiter and named viewers (admins aside).
+        var teams = principal.Departments();
+        var anyTeam = teams.Length == 0;
         if (principal.IsInRole(nameof(UserRole.Recruiter)))
             return query.Where(x =>
-                !x.IsConfidential
-                || x.OwnerEmail == email
-                || x.RecruiterEmail == email
-                || x.ViewerEmails.Contains(email)
+                (!x.IsConfidential && (anyTeam || teams.Contains(x.Department)))
+                || x.Members.Any(m => m.User!.Email == email)
             );
         if (principal.IsInRole(nameof(UserRole.HiringManager)))
-            return query.Where(x => x.OwnerEmail == email || x.RecruiterEmail == email || x.ViewerEmails.Contains(email));
+            return query.Where(x =>
+                x.Members.Any(m => m.User!.Email == email)
+                || (!anyTeam && !x.IsConfidential && teams.Contains(x.Department))
+            );
         return query.Where(x =>
             x.Applications.Any(a => a.Interviews.Any(i => i.InterviewerEmails.Contains(email)))
         );
@@ -43,31 +49,54 @@ public static partial class AtsEndpoints
         if (principal.IsInRole(nameof(UserRole.Admin)))
             return query;
         var email = principal.Email();
+        var teams = principal.Departments();
+        var anyTeam = teams.Length == 0;
         if (principal.IsInRole(nameof(UserRole.Recruiter)))
             return query.Where(x =>
-                !x.Requisition!.IsConfidential
-                || x.Requisition.OwnerEmail == email
-                || x.Requisition.RecruiterEmail == email
-                || x.Requisition.ViewerEmails.Contains(email)
+                (
+                    !x.Requisition!.IsConfidential
+                    && (anyTeam || teams.Contains(x.Requisition.Department))
+                )
+                || x.Requisition!.Members.Any(m => m.User!.Email == email)
             );
         if (principal.IsInRole(nameof(UserRole.HiringManager)))
             return query.Where(x =>
-                x.Requisition!.OwnerEmail == email
-                || x.Requisition.RecruiterEmail == email
-                || x.Requisition.ViewerEmails.Contains(email)
+                x.Requisition!.Members.Any(m => m.User!.Email == email)
+                || (
+                    !anyTeam
+                    && !x.Requisition.IsConfidential
+                    && teams.Contains(x.Requisition.Department)
+                )
             );
         return query.Where(x => x.Interviews.Any(i => i.InterviewerEmails.Contains(email)));
     }
 
+    /// <summary>
+    /// Whether someone may change a job and move its candidates. Members (with their users) load
+    /// with every job (auto-included, see RequisitionAccessConfiguration), so every caller gets the
+    /// whole team; the first hiring manager and recruiter mirrors stay as a fallback.
+    /// </summary>
     internal static bool CanManage(Requisition requisition, ClaimsPrincipal principal)
     {
         if (principal.IsInRole(nameof(UserRole.Admin)))
             return true;
-        // Named viewers can see a job (ScopeRequisitions); only its owner and recruiter can change it.
         var email = principal.Email();
-        var manages = requisition.OwnerEmail == email || requisition.RecruiterEmail == email;
+        var manages =
+            requisition.OwnerEmail == email
+            || requisition.RecruiterEmail == email
+            || requisition.Members.Any(m =>
+                m.Role is RequisitionRole.HiringManager or RequisitionRole.Recruiter
+                && string.Equals(m.User?.Email, email, StringComparison.OrdinalIgnoreCase)
+            );
         if (principal.IsInRole(nameof(UserRole.Recruiter)))
-            return !requisition.IsConfidential || manages;
+        {
+            var teams = principal.Departments();
+            return manages
+                || (
+                    !requisition.IsConfidential
+                    && (teams.Length == 0 || teams.Contains(requisition.Department))
+                );
+        }
         return principal.IsInRole(nameof(UserRole.HiringManager)) && manages;
     }
 
@@ -118,8 +147,7 @@ public static partial class AtsEndpoints
     private static bool LooksLikeEmail(string? value) =>
         !string.IsNullOrWhiteSpace(value) && value.Contains('@') && value.Length <= 320;
 
-    private static bool IsHiredStage(PipelineStage stage) =>
-        stage.IsTerminal && stage.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase);
+    private static bool IsHiredStage(PipelineStage stage) => stage.Type == StageType.Hired;
 
     private static string? Clean(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();

@@ -21,6 +21,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={roboto.variable} suppressHydrationWarning>
       <head>
+        {/* Must run inline before first paint (no theme flash). next/script beforeInteractive is
+            queued until Next boots, which flashes; keep this plain script. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>

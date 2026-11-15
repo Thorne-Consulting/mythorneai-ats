@@ -48,8 +48,8 @@ public static partial class SeedData
                 DefaultApproverEmails = ["manager@example.test", "admin@example.test"],
             });
             db.PipelineTemplates.AddRange(
-                new PipelineTemplate { Name = "Standard hiring", IsDefault = true, StageNames = ["New", "Review", "Interview", "Booked", "Offer handoff"] },
-                new PipelineTemplate { Name = "Engineering with technical screen", StageNames = ["New", "Review", "Recruiter screen", "Technical screen", "Panel interview", "Booked", "Offer handoff"] }
+                new PipelineTemplate { Name = "Standard hiring", IsDefault = true, Stages = StageRules.DefaultTemplate(), StageNames = [.. StageRules.DefaultTemplate().Select(x => x.Name)] },
+                new PipelineTemplate { Name = "Engineering with technical screen", Stages = StageRules.EngineeringTemplate(), StageNames = [.. StageRules.EngineeringTemplate().Select(x => x.Name)] }
             );
             db.CustomFieldDefinitions.AddRange(
                 new CustomFieldDefinition { Key = "notice-period", Label = "Notice period", Type = "select", Options = ["Immediate", "2 weeks", "1 month", "2 months or more"], SortOrder = 0 },
@@ -71,71 +71,8 @@ public static partial class SeedData
         await EnsureLocalPortalCandidatesAsync(db, cancellationToken);
     }
 
-    private static readonly string[] StageColors =
-        ["gray", "blue", "violet", "indigo", "orange", "cyan", "grape", "teal", "pink", "yellow", "lime", "red"];
-
-    // Custom pipelines: the named stages in order, then a terminal "Hired".
-    public static List<PipelineStage> CreateStages(Guid requisitionId, IEnumerable<string> names)
-    {
-        var stages = names
-            .Select((name, index) => new PipelineStage
-            {
-                RequisitionId = requisitionId,
-                Name = name,
-                SortOrder = index,
-                Color = StageColors[index % StageColors.Length],
-            })
-            .ToList();
-        stages.Add(new PipelineStage { RequisitionId = requisitionId, Name = "Hired", SortOrder = stages.Count, Color = "green", IsTerminal = true });
-        return stages;
-    }
-
     public static List<PipelineStage> CreateDefaultStages(Guid requisitionId) =>
-        [
-            new()
-            {
-                RequisitionId = requisitionId,
-                Name = "New",
-                SortOrder = 0,
-                Color = "gray",
-            },
-            new()
-            {
-                RequisitionId = requisitionId,
-                Name = "Review",
-                SortOrder = 1,
-                Color = "blue",
-            },
-            new()
-            {
-                RequisitionId = requisitionId,
-                Name = "Interview",
-                SortOrder = 2,
-                Color = "violet",
-            },
-            new()
-            {
-                RequisitionId = requisitionId,
-                Name = "Booked",
-                SortOrder = 3,
-                Color = "indigo",
-            },
-            new()
-            {
-                RequisitionId = requisitionId,
-                Name = "Offer handoff",
-                SortOrder = 4,
-                Color = "orange",
-            },
-            new()
-            {
-                RequisitionId = requisitionId,
-                Name = "Hired",
-                SortOrder = 5,
-                Color = "green",
-                IsTerminal = true,
-            },
-        ];
+        StageRules.FromTemplate(requisitionId, StageRules.DefaultTemplate());
 
     private sealed record DevelopmentJobs(
         Requisition Engineering,

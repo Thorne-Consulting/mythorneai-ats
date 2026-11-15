@@ -1,24 +1,55 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
-import { Card, CardHeader } from '@/components/ui';
-
+import { Briefcase, ChevronRight, Plus } from 'lucide-react';
+import { Button, Card, CardHeader, EmptyState } from '@/components/ui';
 import { StageBadge, StatusBadge } from '@/components/status';
-import { formatDate } from '@/lib/format';
+import { formatDate, formatRelative } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
+import { ApplyModal } from './ApplyModal';
 
 /** Where this person is in hiring: one line per application, the whole line a link. */
 export function CandidateApplications({
-  applications,
+  candidate,
+  canApply,
 }: {
-  applications: CandidateDetail['applications'];
+  candidate: CandidateDetail;
+  canApply: boolean;
 }) {
+  const [opened, setOpened] = useState(false);
+  const applications = candidate.applications;
   return (
     <Card>
-      <CardHeader title="Applications" />
+      <CardHeader
+        title="Applications"
+        action={
+          canApply &&
+          applications.length > 0 && (
+            <Button variant="link" size="sm" leftIcon={<Plus />} onClick={() => setOpened(true)}>
+              Add to a job
+            </Button>
+          )
+        }
+      />
       {applications.length === 0 ? (
-        <p className="px-5 pb-5 text-base text-fg-subtle">Not in any job yet.</p>
+        <div className="px-5 pb-5">
+          <EmptyState
+            compact
+            icon={Briefcase}
+            title="Not in any job yet"
+            description={
+              canApply ? 'Add them to a job to start tracking their progress.' : undefined
+            }
+            action={
+              canApply && (
+                <Button variant="secondary" leftIcon={<Plus />} onClick={() => setOpened(true)}>
+                  Add to a job
+                </Button>
+              )
+            }
+          />
+        </div>
       ) : (
         <ul className="divide-y divide-border-subtle border-t border-border-subtle">
           {applications.map((application) => (
@@ -32,18 +63,23 @@ export function CandidateApplications({
                     {application.requisitionTitle}
                   </span>
                   <span className="block truncate text-xs text-fg-subtle">
-                    {application.requisitionCode} · applied {formatDate(application.appliedAt)}
+                    {application.requisitionCode} · applied {formatDate(application.appliedAt)} ·
+                    last activity {formatRelative(application.lastActivityAt)}
                   </span>
                 </span>
                 {application.status === 'Active' ? (
-                  <StageBadge stage={application.stage} />
+                  <StageBadge
+                    stage={application.stage}
+                    type={application.stageType}
+                    color={application.stageColor}
+                  />
                 ) : (
-                  <>
+                  <span className="flex items-center gap-2">
                     <span className="hidden text-sm text-fg-subtle sm:inline">
-                      {application.stage}
+                      at {application.stage}
                     </span>
                     <StatusBadge status={application.status} />
-                  </>
+                  </span>
                 )}
                 <ChevronRight className="size-4 shrink-0 text-fg-subtle" aria-hidden />
               </Link>
@@ -51,6 +87,12 @@ export function CandidateApplications({
           ))}
         </ul>
       )}
+      <ApplyModal
+        candidateId={candidate.id}
+        candidate={candidate}
+        opened={opened}
+        onClose={() => setOpened(false)}
+      />
     </Card>
   );
 }

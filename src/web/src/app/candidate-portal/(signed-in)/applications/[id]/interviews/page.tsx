@@ -1,5 +1,6 @@
-import { ApplicationInterviewsTab } from '@/features/candidate-portal/ApplicationFrame';
+import { redirect } from 'next/navigation';
 
-export default function Page() {
-  return <ApplicationInterviewsTab />;
+// The interviews now sit on the application page itself.
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  redirect(`/candidate-portal/applications/${(await params).id}#interviews`);
 }

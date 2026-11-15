@@ -171,7 +171,7 @@ function ScorecardsDueCard({ items }: { items: DashboardData['scorecardsDue'] })
               </span>
               <Button asChild size="sm" variant="soft">
                 <Link
-                  href={`/applications/${item.applicationId}/interviews?scorecard=${item.id}`}
+                  href={`/applications/${item.applicationId}/scorecards?interview=${item.id}`}
                   aria-label={`Write scorecard for ${item.candidateName}, ${item.title}`}
                 >
                   Write scorecard

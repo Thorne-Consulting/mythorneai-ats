@@ -1,12 +1,5 @@
-import { InterviewPrep } from '@/features/interviews/InterviewPrep';
+import { InterviewOverview } from '@/features/interviews/InterviewOverview';
 
-export default async function Page({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<{ application?: string }>;
-}) {
-  const [{ id }, { application }] = await Promise.all([params, searchParams]);
-  return <InterviewPrep id={id} applicationId={application} />;
+export default function Page() {
+  return <InterviewOverview />;
 }

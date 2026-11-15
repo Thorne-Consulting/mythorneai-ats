@@ -1,6 +1,6 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Tabs as TabsPrimitive } from 'radix-ui';
@@ -109,8 +109,17 @@ export function LinkTabs({
       t.exact ? pathname === t.href : pathname === t.href || pathname.startsWith(`${t.href}/`),
     )
     .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+  const nav = useRef<HTMLElement>(null);
+  // On a phone the strip scrolls sideways: bring the current tab into view, without moving the page.
+  useEffect(() => {
+    const strip = nav.current;
+    const tab = strip?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!strip || !tab || strip.scrollWidth <= strip.clientWidth) return;
+    const offset = tab.getBoundingClientRect().left - strip.getBoundingClientRect().left;
+    strip.scrollLeft += offset - (strip.clientWidth - tab.offsetWidth) / 2;
+  }, [active]);
   return (
-    <nav aria-label={ariaLabel} className={cn(listClasses[variant], className)}>
+    <nav ref={nav} aria-label={ariaLabel} className={cn(listClasses[variant], className)}>
       {items.map((t) => (
         <Link
           key={t.href}

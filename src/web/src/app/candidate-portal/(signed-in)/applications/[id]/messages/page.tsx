@@ -1,5 +1,6 @@
-import { ApplicationMessagesTab } from '@/features/candidate-portal/ApplicationFrame';
+import { redirect } from 'next/navigation';
 
-export default function Page() {
-  return <ApplicationMessagesTab />;
+// Messages and copies of our emails are one conversation in the Inbox.
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  redirect(`/candidate-portal/messages/${(await params).id}`);
 }

@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from 'react';
+import type { HTMLAttributes, ReactNode, Ref } from 'react';
 import { Clock3 } from 'lucide-react';
 import { Avatar } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -14,7 +14,15 @@ export type CandidateCardProps = HTMLAttributes<HTMLDivElement> & {
   owner?: string | null;
   /** Right side of the name row, e.g. an AI match score. */
   aside?: ReactNode;
+  /** Laid over the avatar, for example a selection checkbox shown on hover. */
+  leading?: ReactNode;
+  /** Colours the time line: amber past the stage's target, red past twice the target. */
+  timeTone?: 'amber' | 'red' | null;
+  /** Right side of the footer, for example "2 scorecards owed". Replaces the owner avatar. */
+  footerEnd?: ReactNode;
+  selected?: boolean;
   dragging?: boolean;
+  ref?: Ref<HTMLDivElement>;
 };
 
 /** Figma pipeline card: avatar + name + source, a detail line, then time-in-stage and owner. */
@@ -25,6 +33,10 @@ export function CandidateCard({
   timeInStage,
   owner,
   aside,
+  leading,
+  timeTone,
+  footerEnd,
+  selected,
   dragging,
   className,
   ...props
@@ -32,16 +44,20 @@ export function CandidateCard({
   return (
     <div
       className={cn(
-        'flex flex-col gap-2.5 rounded-[9px] border border-border-subtle bg-card p-3 shadow-card transition-[box-shadow,transform]',
+        'group/card flex flex-col gap-2.5 rounded-[9px] border border-border-subtle bg-card p-3 shadow-card transition-[box-shadow,transform]',
         props.onClick && 'cursor-pointer hover:border-border hover:shadow-pop',
         props.draggable && 'cursor-grab active:cursor-grabbing',
+        selected && 'border-primary/50 bg-accent',
         dragging && 'rotate-1 opacity-60',
         className,
       )}
       {...props}
     >
       <div className="flex items-center gap-2.5">
-        <Avatar name={name} size="md" />
+        <span className="relative flex shrink-0">
+          <Avatar name={name} size="md" />
+          {leading && <span className="absolute inset-0 flex">{leading}</span>}
+        </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-fg">{name}</p>
           {subtitle && <p className="mt-0.5 truncate text-xs text-fg-subtle">{subtitle}</p>}
@@ -49,9 +65,15 @@ export function CandidateCard({
         {aside}
       </div>
       {detail && <p className="text-xs text-fg-muted">{detail}</p>}
-      {(timeInStage || owner) && (
-        <div className="flex items-center justify-between border-t border-border-subtle pt-2">
-          <span className="flex items-center gap-1.5 text-2xs text-fg-subtle">
+      {(timeInStage || owner || footerEnd) && (
+        <div className="flex items-center justify-between gap-2 border-t border-border-subtle pt-2">
+          <span
+            className={cn(
+              'flex items-center gap-1.5 text-2xs text-fg-subtle',
+              timeTone === 'amber' && 'font-medium text-tone-amber-fg',
+              timeTone === 'red' && 'font-medium text-tone-red-fg',
+            )}
+          >
             {timeInStage && (
               <>
                 <Clock3 className="size-3" aria-hidden />
@@ -59,7 +81,7 @@ export function CandidateCard({
               </>
             )}
           </span>
-          {owner && <Avatar name={owner} size="xs" tone="blue" />}
+          {footerEnd ?? (owner && <Avatar name={owner} size="xs" tone="blue" />)}
         </div>
       )}
     </div>

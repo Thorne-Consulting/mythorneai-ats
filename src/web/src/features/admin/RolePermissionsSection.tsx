@@ -1,356 +1,670 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Briefcase,
   CalendarCheck,
+  Check,
   ChevronRight,
+  Copy,
+  Minus,
+  Plus,
   ShieldAlert,
   ShieldCheck,
+  Trash2,
   UserPlus,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 import { api } from '@/api';
+import { useCurrentUser } from '@/auth';
 import {
-  Alert,
   Avatar,
   Badge,
   Button,
   Card,
   CardHeader,
-  EmptyState,
   CellStack,
+  EmptyState,
+  Input,
+  MenuItem,
+  Modal,
+  RadioGroup,
+  RowActions,
+  Select,
   SkeletonRows,
   Switch,
-  TBody,
-  TD,
-  TH,
-  THead,
-  TR,
-  Table,
+  Textarea,
   toast,
 } from '@/components/ui';
-import type { Role } from '@/types';
-import { ROLE_LABELS, ROLE_SLUG, roleFromSlug, useAdminUsers } from './admin-data';
+import { cn } from '@/lib/cn';
+import {
+  roleKeyFromSlug,
+  roleSlug,
+  useAdminUsers,
+  useRoleOptions,
+  useRoles,
+  type RoleInfo,
+} from './admin-data';
+import {
+  ALL_PERMISSIONS,
+  JOB_SCOPES,
+  PERMISSION_TEXT,
+  jobScopeOf,
+  setJobScope,
+  summarizePermissions,
+  togglePermission,
+  type JobScope,
+  type Permission,
+} from './role-permissions';
+import { SettingsHeader } from './SettingsShell';
 import { SettingsLoading, SettingsSection, useDraft } from './settings-shared';
 
-interface RolePermissions {
-  available: string[];
-  roles: Record<string, string[]>;
+const SCOPE_ICONS: Record<JobScope, LucideIcon> = {
+  interviews: CalendarCheck,
+  jobs: Users,
+  all_jobs: Briefcase,
+};
+const iconFor = (role: RoleInfo) =>
+  role.permissions.includes('workspace') ? ShieldCheck : SCOPE_ICONS[jobScopeOf(role.permissions)];
+const people = (n: number) => `${n} ${n === 1 ? 'member' : 'members'}`;
+
+function useRefreshRoles() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: ['admin', 'roles'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+    queryClient.invalidateQueries({ queryKey: ['audit'] });
+  };
 }
 
-const DESCRIPTIONS: Record<string, { label: string; text: string }> = {
-  reports: { label: 'Reports', text: 'See hiring reports and export them.' },
-  import: { label: 'Import', text: 'Add many candidates at once from a spreadsheet (CSV) file.' },
-  templates: { label: 'Templates', text: 'Edit the wording of emails sent to candidates.' },
-};
-const ROLE_CARDS: Record<Role, { icon: LucideIcon; text: string }> = {
-  Admin: { icon: ShieldCheck, text: 'Workspace and security' },
-  Recruiter: { icon: Briefcase, text: 'All recruiting activity' },
-  HiringManager: { icon: Users, text: 'Their own jobs and candidates' },
-  Interviewer: { icon: CalendarCheck, text: 'Only interviews assigned to them' },
-};
-const roleLabel = (role: string) => ROLE_LABELS[role as Role] ?? role;
-const permLabel = (p: string) => DESCRIPTIONS[p]?.label ?? p;
-
+/** /settings/roles: the four built-in roles, then the ones your team made from them. */
 export function RolePermissionsSection() {
-  const queryClient = useQueryClient();
-  const query = useQuery({
-    queryKey: ['role-permissions'],
-    queryFn: () => api.get<RolePermissions>('/api/admin/role-permissions'),
-  });
+  const roles = useRoles();
+  const [from, setFrom] = useState<RoleInfo | null>(null);
+  const [creating, setCreating] = useState(false);
+  // From a role: duplicate it. Without one: a new role that starts from Hiring manager.
+  const open = (role: RoleInfo | null) => {
+    setFrom(role);
+    setCreating(true);
+  };
+  const builtIn = roles.data?.filter((r) => r.builtIn) ?? [];
+  const custom = roles.data?.filter((r) => !r.builtIn) ?? [];
   return (
     <>
-      <RoleCards />
-      {!query.data ? (
-        <SettingsLoading rows={3} />
-      ) : (
-        <Editor
-          source={query.data}
-          onSaved={() => queryClient.invalidateQueries({ queryKey: ['role-permissions'] })}
+      <SettingsHeader
+        actions={
+          <Button leftIcon={<Plus />} onClick={() => open(null)}>
+            New role
+          </Button>
+        }
+      />
+      <Card>
+        <CardHeader
+          title="Built-in roles"
+          description="These can’t be changed. Duplicate one to make your own version."
         />
-      )}
+        {!roles.data ? <SkeletonRows rows={4} /> : <RoleList roles={builtIn} onDuplicate={open} />}
+      </Card>
+      <Card>
+        <CardHeader
+          title="Your roles"
+          description="Roles your team made, for people who need something in between."
+        />
+        {!roles.data ? (
+          <SkeletonRows rows={2} />
+        ) : custom.length === 0 ? (
+          <EmptyState
+            compact
+            icon={ShieldCheck}
+            title="No roles of your own yet"
+            description="For example, a coordinator who schedules interviews on every job but doesn’t add candidates."
+            action={
+              <Button variant="secondary" leftIcon={<Plus />} onClick={() => open(null)}>
+                New role
+              </Button>
+            }
+          />
+        ) : (
+          <RoleList roles={custom} onDuplicate={open} />
+        )}
+      </Card>
+      <NewRoleModal
+        opened={creating}
+        from={from}
+        roles={roles.data ?? []}
+        onClose={() => setCreating(false)}
+      />
     </>
   );
 }
 
-function RoleCards() {
-  const users = useAdminUsers();
-  const count = (role: Role) => users.data?.filter((u) => u.role === role && u.isActive).length;
+function RoleList({
+  roles,
+  onDuplicate,
+}: {
+  roles: RoleInfo[];
+  onDuplicate: (role: RoleInfo) => void;
+}) {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {(Object.keys(ROLE_CARDS) as Role[]).map((role) => {
-        const { icon: Icon, text } = ROLE_CARDS[role];
-        const n = count(role);
+    <ul className="divide-y divide-border-subtle border-t border-border-subtle">
+      {roles.map((role) => {
+        const Icon = iconFor(role);
+        const href = `/settings/roles/${roleSlug(role.key)}`;
         return (
-          <Link
-            key={role}
-            href={`/admin/roles/${ROLE_SLUG[role]}`}
-            className="group rounded-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-          >
-            <Card className="h-full p-4 transition-colors group-hover:border-border">
-              <div className="flex items-start justify-between gap-3">
-                <Icon className="size-5 text-accent-foreground" strokeWidth={1.75} aria-hidden />
-                {n !== undefined && (
-                  <span className="text-xs text-fg-subtle tnum">
-                    {n} {n === 1 ? 'member' : 'members'}
-                  </span>
+          <li key={role.key} className="group flex items-center gap-2 pr-3 hover:bg-accent/50">
+            <Link
+              href={href}
+              className="flex min-w-0 flex-1 items-center gap-4 py-4 pl-5 focus-visible:bg-accent focus-visible:outline-none"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
+                <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1 font-medium text-fg">
+                  {role.name}
+                  <ChevronRight
+                    className="size-4 text-fg-subtle transition-transform group-hover:translate-x-0.5"
+                    aria-hidden
+                  />
+                </span>
+                <span className="block text-sm text-fg-muted">
+                  {summarizePermissions(role.permissions)}
+                </span>
+                {role.description && (
+                  <span className="mt-0.5 block text-xs text-fg-subtle">{role.description}</span>
                 )}
-              </div>
-              <p className="mt-3 flex items-center gap-1 text-md font-semibold text-fg">
-                {ROLE_LABELS[role]}
-                <ChevronRight
-                  className="size-4 text-fg-subtle transition-transform group-hover:translate-x-0.5"
-                  aria-hidden
-                />
-              </p>
-              <p className="mt-1 text-xs text-fg-subtle">{text}</p>
-            </Card>
-          </Link>
+              </span>
+              <span className="shrink-0 text-sm whitespace-nowrap text-fg-subtle tnum max-sm:hidden">
+                {people(role.members)}
+              </span>
+            </Link>
+            <RowActions label={`Actions for ${role.name}`}>
+              <MenuItem icon={<Copy />} onSelect={() => onDuplicate(role)}>
+                Duplicate
+              </MenuItem>
+            </RowActions>
+          </li>
         );
       })}
-    </div>
+    </ul>
   );
 }
 
-function Editor({ source, onSaved }: { source: RolePermissions; onSaved: () => void }) {
-  const { draft, replace, dirty, reset } = useDraft(source);
-  const changes = draft.available.reduce(
-    (n, p) =>
-      n +
-      Object.keys(draft.roles).filter(
-        (r) => draft.roles[r].includes(p) !== (source.roles[r] ?? []).includes(p),
-      ).length,
-    0,
-  );
-  const save = useMutation({
-    // The API reads the matrix from a field called "permissions".
-    mutationFn: () => api.put('/api/admin/role-permissions', { permissions: draft.roles }),
-    onSuccess: () => {
-      onSaved();
-      toast.success('Roles and permissions saved');
-    },
-    onError: (error: Error) => toast.error('Could not save permissions', error.message),
-  });
-  const toggle = (role: string, permission: string, on: boolean) =>
-    replace({
-      ...draft,
-      roles: {
-        ...draft.roles,
-        [role]: on
-          ? [...draft.roles[role], permission]
-          : draft.roles[role].filter((x) => x !== permission),
-      },
-    });
-  const roles = Object.keys(draft.roles);
+/** Name the new role and pick the role it starts from; then it opens to choose what it can do. */
+function NewRoleModal({
+  opened,
+  from,
+  roles,
+  onClose,
+}: {
+  opened: boolean;
+  from: RoleInfo | null;
+  roles: RoleInfo[];
+  onClose: () => void;
+}) {
   return (
-    <>
-      <Alert
-        tone="info"
-        icon={ShieldCheck}
-        title="Admin permissions are locked"
-        action={
-          changes > 0 ? (
-            <Badge tone="amber">
-              {changes} unsaved {changes === 1 ? 'change' : 'changes'}
-            </Badge>
-          ) : undefined
-        }
-      >
-        Admins always have full workspace access. To change someone’s role, edit them under Members.
-      </Alert>
-      <SettingsSection
-        id="roles"
-        title="Extra permissions"
-        description="Each role has its own basic access. Turn on extras for the roles that need them."
-        dirty={dirty}
-        saving={save.isPending}
-        onSave={() => save.mutate()}
-        onDiscard={reset}
-      >
-        <Table className="min-w-[640px]">
-          <THead>
-            <tr>
-              <TH>Permission</TH>
-              <TH>{ROLE_LABELS.Admin}</TH>
-              {roles.map((role) => (
-                <TH key={role}>{roleLabel(role)}</TH>
-              ))}
-            </tr>
-          </THead>
-          <TBody>
-            {draft.available.map((permission) => (
-              <TR key={permission}>
-                <TD>
-                  <p className="font-medium text-fg">{permLabel(permission)}</p>
-                  {DESCRIPTIONS[permission] && (
-                    <p className="mt-0.5 text-xs text-fg-subtle">{DESCRIPTIONS[permission].text}</p>
-                  )}
-                </TD>
-                <TD>
-                  <Switch
-                    checked
-                    disabled
-                    onCheckedChange={() => undefined}
-                    label="Always on"
-                    aria-label={`Admin: ${permLabel(permission)}, always on`}
-                  />
-                </TD>
-                {roles.map((role) => {
-                  const on = draft.roles[role].includes(permission);
-                  return (
-                    <TD key={role}>
-                      <Switch
-                        checked={on}
-                        onCheckedChange={(v) => toggle(role, permission, v)}
-                        label={on ? 'On' : 'Off'}
-                        aria-label={`${roleLabel(role)}: ${permLabel(permission)}`}
-                      />
-                    </TD>
-                  );
-                })}
-              </TR>
-            ))}
-          </TBody>
-        </Table>
-      </SettingsSection>
-    </>
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title={from ? `Duplicate ${from.name}` : 'New role'}
+      description="It starts with what the role you pick can do. Change it on the next page."
+    >
+      {opened && <NewRoleForm key={from?.key} from={from} roles={roles} onClose={onClose} />}
+    </Modal>
   );
 }
 
-/** /admin/roles/[role]: one role's extras as switches, and who has the role. */
-export function RoleDetail({ slug }: { slug: string }) {
-  const queryClient = useQueryClient();
-  const role = roleFromSlug(slug);
-  const query = useQuery({
-    queryKey: ['role-permissions'],
-    queryFn: () => api.get<RolePermissions>('/api/admin/role-permissions'),
+function NewRoleForm({
+  from,
+  roles,
+  onClose,
+}: {
+  from: RoleInfo | null;
+  roles: RoleInfo[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const refresh = useRefreshRoles();
+  const [name, setName] = useState(from ? `${from.name} (copy)` : '');
+  const [start, setStart] = useState(from?.key ?? 'HiringManager');
+  const [description, setDescription] = useState(from?.description ?? '');
+  const [submitted, setSubmitted] = useState(false);
+  const base = roles.find((r) => r.key === start);
+  const create = useMutation({
+    mutationFn: () =>
+      api.post<{ key: string }>('/api/admin/roles', {
+        name: name.trim(),
+        description: description.trim() || null,
+        permissions: base?.permissions ?? [],
+      }),
+    onSuccess: (result) => {
+      refresh();
+      onClose();
+      toast.success(
+        `Made the ${name.trim()} role`,
+        'Choose what it can do, then give it to people.',
+      );
+      router.push(`/settings/roles/${result.key}`);
+    },
+    onError: (e: Error) => toast.error('The role wasn’t made', e.message),
   });
+  return (
+    <form
+      className="flex flex-col gap-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setSubmitted(true);
+        if (name.trim()) create.mutate();
+      }}
+    >
+      <Input
+        label="Name"
+        value={name}
+        maxLength={60}
+        autoFocus
+        onChange={(e) => setName(e.currentTarget.value)}
+        error={submitted && !name.trim() ? 'Give the role a name.' : undefined}
+      />
+      <Select
+        label="Start from"
+        data={roles.map((r) => ({ value: r.key, label: r.name }))}
+        value={start}
+        onChange={(value) => value && setStart(value)}
+        description={base ? summarizePermissions(base.permissions) : undefined}
+      />
+      <Textarea
+        label="Description (optional)"
+        placeholder="For example: schedules interviews for every job"
+        rows={2}
+        maxLength={300}
+        value={description}
+        onChange={(e) => setDescription(e.currentTarget.value)}
+      />
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={create.isPending}>
+          Make role
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** /settings/roles/[role]: what a role can do (changeable for your own roles) and who has it. */
+export function RoleDetail({ slug }: { slug: string }) {
+  const key = roleKeyFromSlug(slug);
+  const roles = useRoles();
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const role = roles.data?.find((r) => r.key === key);
+  if (!roles.data) return <SettingsLoading rows={6} />;
   if (!role)
     return (
       <Card>
         <EmptyState
           icon={ShieldAlert}
           title="There is no such role"
-          description="Pick one of the four roles to see what it can do."
+          description="It may have been deleted. Pick a role from the list."
           action={
             <Button asChild variant="secondary">
-              <Link href="/admin/roles">All roles</Link>
+              <Link href="/settings/roles">All roles</Link>
             </Button>
           }
         />
       </Card>
     );
-  const { icon: Icon, text } = ROLE_CARDS[role];
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[1fr_320px]">
-      <div className="flex min-w-0 flex-col gap-5">
-        <Card className="flex items-start gap-3 p-4">
-          <Icon
-            className="mt-0.5 size-5 shrink-0 text-accent-foreground"
-            strokeWidth={1.75}
-            aria-hidden
-          />
-          <div>
-            <p className="font-medium text-fg">Basic access: {text.toLowerCase()}</p>
-            <p className="mt-0.5 text-sm text-fg-subtle">
-              {role === 'Admin'
-                ? 'Admins always have every permission. Nothing here can be turned off.'
-                : 'This role always has this. The extras below add to it.'}
-            </p>
-          </div>
-        </Card>
-        {!query.data ? (
-          <SettingsLoading rows={3} />
-        ) : (
-          <RoleEditor
-            role={role}
-            source={query.data}
-            onSaved={() => queryClient.invalidateQueries({ queryKey: ['role-permissions'] })}
-          />
-        )}
+    <>
+      <SettingsHeader
+        title={
+          <span className="inline-flex flex-wrap items-center gap-3">
+            {role.name}
+            {role.builtIn && <Badge tone="gray">Built-in</Badge>}
+          </span>
+        }
+        crumbs={[{ label: role.name }]}
+        actions={
+          <>
+            {!role.builtIn && (
+              <Button
+                variant="danger-quiet"
+                leftIcon={<Trash2 />}
+                onClick={() => setDeleting(true)}
+              >
+                Delete role
+              </Button>
+            )}
+            <Button variant="secondary" leftIcon={<Copy />} onClick={() => setCreating(true)}>
+              Duplicate
+            </Button>
+          </>
+        }
+      />
+      <div className="grid items-start gap-5 xl:grid-cols-[1fr_320px]">
+        <div className="flex min-w-0 flex-col gap-5">
+          {role.builtIn ? <BuiltInPermissions role={role} /> : <RoleEditor role={role} />}
+        </div>
+        <RoleMembers role={role} />
       </div>
-      <RoleMembers role={role} />
-    </div>
+      <NewRoleModal
+        opened={creating}
+        from={role}
+        roles={roles.data}
+        onClose={() => setCreating(false)}
+      />
+      {!role.builtIn && (
+        <DeleteRoleModal
+          opened={deleting}
+          role={role}
+          roles={roles.data}
+          onClose={() => setDeleting(false)}
+        />
+      )}
+    </>
   );
 }
 
-function RoleEditor({
-  role,
-  source,
-  onSaved,
-}: {
-  role: Role;
-  source: RolePermissions;
-  onSaved: () => void;
-}) {
-  const { draft, replace, dirty, reset } = useDraft(source);
-  const locked = role === 'Admin' || !(role in draft.roles);
-  const granted = draft.roles[role] ?? [];
+/** A built-in role: each capability with a tick or a dash, nothing to switch. */
+function BuiltInPermissions({ role }: { role: RoleInfo }) {
+  return (
+    <Card>
+      <CardHeader
+        title="What this role can do"
+        description="Built-in roles can’t be changed. Duplicate this one to make a version you can change."
+      />
+      <ul className="divide-y divide-border-subtle border-t border-border-subtle">
+        {ALL_PERMISSIONS.map((p) => {
+          const has = role.permissions.includes(p);
+          return (
+            <li key={p} className="flex items-start gap-3 px-5 py-3.5">
+              {has ? (
+                <Check className="mt-0.5 size-4 shrink-0 text-tone-green-fg" aria-hidden />
+              ) : (
+                <Minus className="mt-0.5 size-4 shrink-0 text-fg-subtle" aria-hidden />
+              )}
+              <span className="min-w-0">
+                <span className={cn('block text-base', has ? 'text-fg' : 'text-fg-subtle')}>
+                  {PERMISSION_TEXT[p].label}
+                  <span className="sr-only">{has ? ': included' : ': not included'}</span>
+                </span>
+                <span className="mt-0.5 block text-xs text-fg-subtle">
+                  {PERMISSION_TEXT[p].text}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="border-t border-border-subtle px-5 py-3.5 text-sm text-fg-subtle">
+        Everyone sees the interviews they are on and gives feedback on them.
+      </p>
+    </Card>
+  );
+}
+
+/** A role your team made: its name and every capability, saved together. */
+function RoleEditor({ role }: { role: RoleInfo }) {
+  const me = useCurrentUser();
+  const refresh = useRefreshRoles();
+  const users = useAdminUsers();
+  const source = {
+    name: role.name,
+    description: role.description ?? '',
+    permissions: role.permissions,
+  };
+  const { draft, set, dirty, reset } = useDraft(source);
+  const p = draft.permissions;
+  const workspace = p.includes('workspace');
+  const scope = jobScopeOf(p);
+  // The server refuses to take "manage the workspace" from your own role or the owner's.
+  const holders = (users.data ?? []).filter((u) => u.roleKey === role.key && u.isActive);
+  const locked =
+    role.permissions.includes('workspace') && holders.some((u) => u.id === me.id || u.isOwner);
   const save = useMutation({
-    mutationFn: () => api.put('/api/admin/role-permissions', { permissions: draft.roles }),
+    mutationFn: () =>
+      api.put(`/api/admin/roles/${role.key}`, {
+        name: draft.name.trim(),
+        description: draft.description.trim() || null,
+        permissions: draft.permissions,
+      }),
     onSuccess: () => {
-      onSaved();
-      toast.success(`${ROLE_LABELS[role]} permissions saved`);
+      refresh();
+      toast.success(
+        `Saved the ${draft.name.trim()} role`,
+        'It applies to everyone with the role right away.',
+      );
     },
-    onError: (error: Error) => toast.error('Could not save permissions', error.message),
+    onError: (e: Error) => toast.error('The role wasn’t saved', e.message),
   });
-  const toggle = (permission: string, on: boolean) =>
-    replace({
-      ...draft,
-      roles: {
-        ...draft.roles,
-        [role]: on ? [...granted, permission] : granted.filter((x) => x !== permission),
-      },
-    });
+  const toggle = (permission: Permission, on: boolean) =>
+    set({ permissions: togglePermission(p, permission, on) });
   return (
     <SettingsSection
-      id="role-permissions"
-      title="Extra permissions"
-      description={
-        role === 'Admin'
-          ? undefined
-          : locked
-            ? 'Always on for this role.'
-            : `${granted.length} of ${draft.available.length} turned on.`
-      }
+      id="role"
+      title="Name and what it can do"
+      description={summarizePermissions(p)}
       dirty={dirty}
       saving={save.isPending}
-      onSave={locked ? undefined : () => save.mutate()}
+      onSave={() => (draft.name.trim() ? save.mutate() : toast.error('Give the role a name.'))}
       onDiscard={reset}
     >
-      <div className="divide-y divide-border-subtle [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0">
-        {draft.available.map((permission) => (
-          <Switch
-            key={permission}
-            labelPosition="left"
-            label={permLabel(permission)}
-            description={DESCRIPTIONS[permission]?.text}
-            checked={locked || granted.includes(permission)}
-            disabled={locked}
-            onCheckedChange={(on) => toggle(permission, on)}
+      <div className="flex flex-col gap-6">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,240px)_1fr]">
+          <Input
+            label="Name"
+            value={draft.name}
+            maxLength={60}
+            onChange={(e) => set({ name: e.currentTarget.value })}
+            error={!draft.name.trim() ? 'Give the role a name.' : undefined}
           />
-        ))}
+          <Input
+            label="Description (optional)"
+            placeholder="For example: schedules interviews for every job"
+            maxLength={300}
+            value={draft.description}
+            onChange={(e) => set({ description: e.currentTarget.value })}
+          />
+        </div>
+
+        <Group title="Workspace">
+          <Switch
+            labelPosition="left"
+            label={PERMISSION_TEXT.workspace.label}
+            description={
+              locked
+                ? `${PERMISSION_TEXT.workspace.text} You can’t turn this off while you or the workspace owner have this role.`
+                : PERMISSION_TEXT.workspace.text
+            }
+            checked={workspace}
+            disabled={locked}
+            // On keeps the other choices underneath, so turning it off again restores them.
+            onCheckedChange={(on) =>
+              set({
+                permissions: on
+                  ? [...p.filter((x) => x !== 'workspace'), 'workspace']
+                  : togglePermission(p, 'workspace', false),
+              })
+            }
+          />
+        </Group>
+
+        {workspace ? (
+          <p className="rounded-lg bg-muted px-4 py-3 text-sm text-fg-muted">
+            People with this role can do everything, so there is nothing else to choose.
+          </p>
+        ) : (
+          <>
+            <Group title="Jobs">
+              <RadioGroup
+                aria-label="Which jobs they work on"
+                value={scope}
+                onValueChange={(value) => set({ permissions: setJobScope(p, value as JobScope) })}
+                options={JOB_SCOPES.map((s) => ({
+                  value: s.value,
+                  label: s.label,
+                  description: s.text,
+                }))}
+                className="gap-4"
+              />
+            </Group>
+
+            <Group title="Candidates">
+              {scope === 'interviews' ? (
+                <p className="text-sm text-fg-subtle">
+                  Adding candidates needs a role that works on jobs. Pick one under Jobs.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <Switch
+                    labelPosition="left"
+                    label={PERMISSION_TEXT.candidates.label}
+                    description={PERMISSION_TEXT.candidates.text}
+                    checked={p.includes('candidates')}
+                    onCheckedChange={(on) => toggle('candidates', on)}
+                  />
+                  {p.includes('candidates') && (
+                    <Switch
+                      labelPosition="left"
+                      label={PERMISSION_TEXT.import.label}
+                      description={PERMISSION_TEXT.import.text}
+                      checked={p.includes('import')}
+                      onCheckedChange={(on) => toggle('import', on)}
+                      className="border-l-2 border-border-subtle pl-4"
+                    />
+                  )}
+                </div>
+              )}
+            </Group>
+
+            <Group title="Reports and templates">
+              <div className="flex flex-col gap-4">
+                <Switch
+                  labelPosition="left"
+                  label={PERMISSION_TEXT.reports.label}
+                  description={PERMISSION_TEXT.reports.text}
+                  checked={p.includes('reports')}
+                  onCheckedChange={(on) => toggle('reports', on)}
+                />
+                {scope !== 'interviews' && (
+                  <Switch
+                    labelPosition="left"
+                    label={PERMISSION_TEXT.templates.label}
+                    description={PERMISSION_TEXT.templates.text}
+                    checked={p.includes('templates')}
+                    onCheckedChange={(on) => toggle('templates', on)}
+                  />
+                )}
+              </div>
+            </Group>
+          </>
+        )}
       </div>
     </SettingsSection>
   );
 }
 
-function RoleMembers({ role }: { role: Role }) {
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="border-t border-border-subtle pt-5">
+      <legend className="sr-only">{title}</legend>
+      <p aria-hidden className="mb-3 text-xs font-semibold tracking-wide text-fg-subtle uppercase">
+        {title}
+      </p>
+      {children}
+    </fieldset>
+  );
+}
+
+/** Deleting a role moves everyone who has it to another role first, in the same step. */
+function DeleteRoleModal({
+  opened,
+  role,
+  roles,
+  onClose,
+}: {
+  opened: boolean;
+  role: RoleInfo;
+  roles: RoleInfo[];
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const refresh = useRefreshRoles();
+  const holders = (useAdminUsers().data ?? []).filter((u) => u.roleKey === role.key);
+  const others = useRoleOptions().options.filter((o) => o.value !== role.key);
+  const [moveTo, setMoveTo] = useState<string | null>(null);
+  const remove = useMutation({
+    mutationFn: () =>
+      api.delete(
+        `/api/admin/roles/${role.key}${moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''}`,
+      ),
+    onSuccess: () => {
+      refresh();
+      onClose();
+      toast.success(`Deleted the ${role.name} role`);
+      router.push('/settings/roles');
+    },
+    onError: (e: Error) => toast.error('The role wasn’t deleted', e.message),
+  });
+  const needsMove = holders.length > 0;
+  const target = roles.find((r) => r.key === moveTo);
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      size="sm"
+      title={`Delete ${role.name}?`}
+      description={
+        needsMove
+          ? `${holders.length === 1 ? '1 person has' : `${holders.length} people have`} this role. Pick the role they get instead.`
+          : 'Nobody has this role. This can’t be undone.'
+      }
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            disabled={needsMove && !moveTo}
+            loading={remove.isPending}
+            onClick={() => remove.mutate()}
+          >
+            Delete role
+          </Button>
+        </>
+      }
+    >
+      {needsMove && (
+        <Select
+          label="Their new role"
+          placeholder="Pick a role"
+          data={others}
+          value={moveTo}
+          onChange={setMoveTo}
+          description={target ? summarizePermissions(target.permissions) : undefined}
+        />
+      )}
+    </Modal>
+  );
+}
+
+function RoleMembers({ role }: { role: RoleInfo }) {
   const users = useAdminUsers();
-  const members = (users.data ?? []).filter((u) => u.role === role);
+  const members = (users.data ?? []).filter((u) => u.roleKey === role.key);
   return (
     <Card>
       <CardHeader
         title="People with this role"
-        description={
-          users.data ? `${members.length} ${members.length === 1 ? 'person' : 'people'}` : undefined
-        }
+        description={users.data ? people(members.filter((m) => m.isActive).length) : undefined}
         action={
           <Button asChild variant="link" size="sm">
-            <Link href="/admin">Change roles</Link>
+            <Link href="/settings/members">Change roles</Link>
           </Button>
         }
       />
@@ -361,15 +675,20 @@ function RoleMembers({ role }: { role: Role }) {
           compact
           icon={UserPlus}
           title="Nobody has this role yet"
-          description="Give someone this role under Members."
+          description="Give it to someone under Members, or when you invite them."
         />
       ) : (
         <ul className="divide-y divide-border-subtle border-t border-border-subtle">
           {members.map((user) => (
-            <li key={user.email} className="flex items-center gap-3 px-5 py-3">
-              <Avatar name={user.displayName} size="sm" />
-              <CellStack primary={user.displayName} secondary={user.email} className="flex-1" />
-              {!user.isActive && <Badge tone="gray">Deactivated</Badge>}
+            <li key={user.id}>
+              <Link
+                href={`/settings/members?member=${user.id}`}
+                className="flex items-center gap-3 px-5 py-3 hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <Avatar name={user.displayName} tone={user.avatarTone ?? undefined} size="sm" />
+                <CellStack primary={user.displayName} secondary={user.email} className="flex-1" />
+                {!user.isActive && <Badge tone="gray">Access removed</Badge>}
+              </Link>
             </li>
           ))}
         </ul>

@@ -1,6 +1,7 @@
-import { EditInterviewKit } from '@/features/requisitions/EditInterviewKit';
+import { redirect } from 'next/navigation';
 
+// Kits are edited in place on their own page now; old links still work.
 export default async function Page({ params }: { params: Promise<{ id: string; kitId: string }> }) {
   const { id, kitId } = await params;
-  return <EditInterviewKit requisitionId={id} kitId={kitId} />;
+  redirect(`/jobs/${id}/kits/${kitId}`);
 }

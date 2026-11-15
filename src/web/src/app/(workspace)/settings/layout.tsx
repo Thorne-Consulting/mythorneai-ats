@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { MySettingsShell } from '@/features/admin/MySettings';
+import { SettingsShell } from '@/features/admin/SettingsShell';
 
 export default function Layout({ children }: { children: ReactNode }) {
-  return <MySettingsShell>{children}</MySettingsShell>;
+  return <SettingsShell>{children}</SettingsShell>;
 }

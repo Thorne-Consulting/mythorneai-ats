@@ -23,6 +23,11 @@
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
     <PackageReference Include="WorkOS.net" />
+    <PackageReference Include="EmailReplyParser" />
+    <PackageReference Include="Markdig" />
+    <PackageReference Include="Ical.Net" />
+    <PackageReference Include="ClosedXML" />
+    <PackageReference Include="FFMpegCore" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Data/Seed/Resumes/*" />

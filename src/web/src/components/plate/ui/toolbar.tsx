@@ -290,7 +290,13 @@ function withTooltip<T extends React.ElementType>(Component: T) {
       setMounted(true);
     }, []);
 
-    const component = <Component {...(props as React.ComponentProps<T>)} />;
+    // An icon-only button is named by its tooltip, so screen readers and tests can find it.
+    const label =
+      (props as { 'aria-label'?: string })['aria-label'] ??
+      (typeof tooltip === 'string' ? tooltip.replace(/\s*\(.*\)$/, '') : undefined);
+    const component = (
+      <Component {...({ ...props, 'aria-label': label } as React.ComponentProps<T>)} />
+    );
 
     if (tooltip && mounted) {
       return (

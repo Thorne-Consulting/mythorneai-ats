@@ -3,7 +3,9 @@ using MyThorneAI.Ats.Api.Domain;
 
 namespace MyThorneAI.Ats.Api.Data;
 
-public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbContext(options)
+// Partial: each feature area adds its DbSets in Data/AtsDbContext.<Area>.cs and its mapping as an
+// IEntityTypeConfiguration<T> class, picked up below. Keeps parallel work out of this file.
+public sealed partial class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbContext(options)
 {
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<Organization> Organizations => Set<Organization>();
@@ -441,5 +443,6 @@ public sealed class AtsDbContext(DbContextOptions<AtsDbContext> options) : DbCon
             entity.Property(x => x.Recipient).HasMaxLength(320);
             entity.Property(x => x.Subject).HasMaxLength(300);
         });
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AtsDbContext).Assembly);
     }
 }

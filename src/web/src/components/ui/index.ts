@@ -29,3 +29,5 @@ export * from './timeline';
 export * from './toast';
 export * from './split-view';
 export * from './wizard';
+export * from './emoji-picker';
+export * from './sortable-list';

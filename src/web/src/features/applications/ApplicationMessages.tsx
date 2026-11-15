@@ -1,187 +1,45 @@
 'use client';
 
-import { Fragment, useEffect, useRef, useState } from 'react';
-import { MessageSquare, Paperclip, Send, Type } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
-import { api } from '@/api';
-import { useCurrentUser } from '@/auth';
-import { ChatBubble, DayDivider } from '@/components/messages/Chat';
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  EmptyState,
-  IconButton,
-  Textarea,
-  toast,
-} from '@/components/ui';
-import { useApplicationExtras } from './application-extras';
-import { canManageRole, useInvalidateApplication } from './application-data';
+import { useRef } from 'react';
+import { MessageSquare } from 'lucide-react';
+import { Card, EmptyState } from '@/components/ui';
+import { useLiveThreads } from '@/features/messages/live';
+import { Thread, type ThreadHandle } from '@/features/messages/Thread';
+import { useAbility } from '@/lib/ability';
+import { useHotkeys } from '@/lib/hooks';
+import { useApplication } from './application-data';
 
-const MAX = 2000;
-
-function dayLabel(value: string) {
-  const date = new Date(value);
-  const label = date.toLocaleDateString(undefined, {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  });
-  return date.toDateString() === new Date().toDateString() ? `Today, ${label}` : label;
+/**
+ * The application's Messages tab: the same thread as the inbox, without the header (the record
+ * header already names the person) and without the details rail (the record has its own).
+ */
+export function ApplicationMessagesTab({ id }: { id: string }) {
+  const ability = useAbility();
+  // `canManage` is the server's answer for this application's job (CanManage), the same rule
+  // `can('update', asJob(job))` reads; the record header already loaded it.
+  const manages = useApplication(id).data?.canManage;
+  if (manages === undefined) return null;
+  if (!ability.can('read', 'Message') || !manages)
+    return (
+      <Card>
+        <EmptyState
+          icon={MessageSquare}
+          title="Messages are for the hiring team"
+          description="Ask the job’s recruiter if you need to see what was said."
+        />
+      </Card>
+    );
+  return <ManagedThread id={id} />;
 }
 
-const timeOf = (value: string) =>
-  new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-
-/** Thread between the hiring team and the candidate. Separate from private review notes. */
-export function ApplicationMessages({ id, canManage }: { id: string; canManage: boolean }) {
-  const { query, messages } = useApplicationExtras(id);
-  const invalidate = useInvalidateApplication(id);
-  const [body, setBody] = useState('');
-  const thread = useRef<HTMLDivElement>(null);
-  const unread = messages.filter((item) => item.fromCandidate && !item.readAt).length;
-  const application = query.data?.application;
-  const firstName = application?.candidateName.split(' ')[0] ?? 'the candidate';
-
-  const markRead = useMutation({
-    mutationFn: () => api.post(`/api/applications/${id}/messages/read`),
-    onSuccess: invalidate,
-  });
-  // Opening the page counts as reading the candidate's messages.
-  useEffect(() => {
-    if (canManage && unread > 0 && !markRead.isPending && !markRead.isSuccess) markRead.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canManage, unread]);
-
-  // Newest message at the bottom stays in view.
-  useEffect(() => {
-    thread.current?.scrollTo({ top: thread.current.scrollHeight });
-  }, [messages.length]);
-
-  const send = useMutation({
-    mutationFn: () => api.post(`/api/applications/${id}/messages`, { body }),
-    onSuccess: () => {
-      setBody('');
-      invalidate();
-      toast.success(
-        'Message sent',
-        'We emailed the candidate. They can reply from their candidate portal.',
-      );
-    },
-    onError: (error: Error) => toast.error('Could not send the message', error.message),
-  });
-
-  if (!canManage && messages.length === 0) return null;
+function ManagedThread({ id }: { id: string }) {
+  useLiveThreads();
+  const thread = useRef<ThreadHandle>(null);
+  useHotkeys([['r', () => thread.current?.focus()]]);
   return (
-    <Card className="flex flex-col overflow-hidden">
-      <div className="flex items-center gap-3 border-b border-border-subtle px-5 py-3.5">
-        {application && <Avatar name={application.candidateName} size="md" />}
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-base font-semibold text-fg">
-            {application
-              ? `Messages with ${application.candidateName}`
-              : 'Messages with the candidate'}
-          </h2>
-        </div>
-        {unread > 0 && (
-          <Badge tone="blue" dot>
-            {unread} new
-          </Badge>
-        )}
-      </div>
-
-      {messages.length === 0 ? (
-        <EmptyState
-          compact
-          icon={MessageSquare}
-          title="No messages yet"
-          description="Write the first one below."
-        />
-      ) : (
-        <div
-          ref={thread}
-          role="log"
-          aria-label="Messages"
-          tabIndex={0}
-          className="max-h-[min(60vh,640px)] space-y-3 overflow-y-auto px-5 py-4 outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-        >
-          {messages.map((item, index) => {
-            const day = dayLabel(item.createdAt);
-            const newDay = index === 0 || dayLabel(messages[index - 1].createdAt) !== day;
-            const author = item.fromCandidate ? null : (item.authorEmail ?? 'Hiring team');
-            return (
-              <Fragment key={item.id}>
-                {newDay && <DayDivider>{day}</DayDivider>}
-                <ChatBubble
-                  direction={item.fromCandidate ? 'in' : 'out'}
-                  time={author ? `${timeOf(item.createdAt)} · ${author}` : timeOf(item.createdAt)}
-                >
-                  <span className="whitespace-pre-wrap break-words">{item.body}</span>
-                </ChatBubble>
-              </Fragment>
-            );
-          })}
-        </div>
-      )}
-
-      {canManage && (
-        <form
-          className="space-y-2.5 border-t border-border-subtle px-5 py-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (body.trim()) send.mutate();
-          }}
-        >
-          <p className="text-xs text-fg-muted">They get this by email.</p>
-          <Textarea
-            aria-label="Message to the candidate"
-            placeholder={`Write your message to ${firstName}…`}
-            minRows={2}
-            maxLength={MAX}
-            value={body}
-            onChange={(event) => setBody(event.currentTarget.value)}
-          />
-          <div className="flex items-center gap-1">
-            {/* ponytail: the API sends plain-text email only; these light up when it takes attachments. */}
-            <IconButton
-              type="button"
-              variant="quiet"
-              size="sm"
-              label="Attach a file (not available yet)"
-              disabled
-            >
-              <Paperclip />
-            </IconButton>
-            <IconButton
-              type="button"
-              variant="quiet"
-              size="sm"
-              label="Formatting (not available yet)"
-              disabled
-            >
-              <Type />
-            </IconButton>
-            <span className="ml-2 text-xs text-fg-subtle tnum">
-              {body.length}/{MAX}
-            </span>
-            <Button
-              type="submit"
-              className="ml-auto"
-              leftIcon={<Send />}
-              loading={send.isPending}
-              disabled={!body.trim()}
-            >
-              Send message
-            </Button>
-          </div>
-        </form>
-      )}
+    // Fills the screen under the record header, so the composer is always in view.
+    <Card className="flex h-[75dvh] min-h-[420px] flex-col overflow-hidden lg:h-[calc(100dvh-24rem)]">
+      <Thread ref={thread} applicationId={id} header={false} />
     </Card>
   );
-}
-
-export function ApplicationMessagesTab({ id }: { id: string }) {
-  const user = useCurrentUser();
-  return <ApplicationMessages id={id} canManage={canManageRole(user.role)} />;
 }

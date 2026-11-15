@@ -17,6 +17,11 @@ public sealed record AiContext(
 
 public sealed class AiUnavailableException(string message) : InvalidOperationException(message);
 
+/// <summary>One stretch of speech, in seconds from the start. Speaker is a label like "A" when the model tells speakers apart.</summary>
+public sealed record TranscriptSegment(double Start, double End, string? Speaker, string Text);
+
+public sealed record DetailedTranscript(string Model, string Text, IReadOnlyList<TranscriptSegment> Segments);
+
 public interface IAiAssistant
 {
     bool IsConfigured { get; }
@@ -32,6 +37,14 @@ public interface IAiAssistant
     Task<float[]> EmbedAsync(string text, CancellationToken ct, AiContext? context = null);
 
     Task<string> TranscribeAsync(
+        Stream audio,
+        string fileName,
+        CancellationToken ct,
+        AiContext? context = null
+    );
+
+    /// <summary>A transcript with timestamps, and speaker labels when the configured model gives them.</summary>
+    Task<DetailedTranscript> TranscribeDetailedAsync(
         Stream audio,
         string fileName,
         CancellationToken ct,
@@ -151,6 +164,67 @@ public sealed class OpenAiAssistant(
             var text = document.RootElement.GetProperty("text").GetString() ?? "";
             await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[audio {fileName}]", text, 0, 0, clock, null);
             return text;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[audio {fileName}]", "", 0, 0, clock, exception.Message);
+            throw;
+        }
+    }
+
+    public async Task<DetailedTranscript> TranscribeDetailedAsync(
+        Stream audio,
+        string fileName,
+        CancellationToken ct,
+        AiContext? context = null
+    )
+    {
+        await ModelAsync(ct);
+        var model = configuration["OpenAI:TranscriptionModel"] ?? "whisper-1";
+        // whisper-1 gives timestamps (verbose_json); the diarize models add speakers; others give text only.
+        var format = model.Contains("diarize", StringComparison.OrdinalIgnoreCase)
+            ? "diarized_json"
+            : model.StartsWith("whisper", StringComparison.OrdinalIgnoreCase)
+                ? "verbose_json"
+                : "json";
+        using var request = Post("audio/transcriptions");
+        var form = new MultipartFormDataContent
+        {
+            { new StringContent(model), "model" },
+            { new StringContent(format), "response_format" },
+        };
+        if (format == "verbose_json")
+            form.Add(new StringContent("segment"), "timestamp_granularities[]");
+        if (format == "diarized_json")
+            form.Add(new StringContent("auto"), "chunking_strategy");
+        var file = new StreamContent(audio);
+        file.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        form.Add(file, "file", fileName);
+        request.Content = form;
+        var clock = Stopwatch.StartNew();
+        try
+        {
+            using var response = await http.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(ct));
+            var root = document.RootElement;
+            var text = root.TryGetProperty("text", out var value) ? value.GetString() ?? "" : "";
+            var segments =
+                root.TryGetProperty("segments", out var list) && list.ValueKind == JsonValueKind.Array
+                    ? list.EnumerateArray()
+                        .Select(x => new TranscriptSegment(
+                            x.GetProperty("start").GetDouble(),
+                            x.GetProperty("end").GetDouble(),
+                            x.TryGetProperty("speaker", out var speaker) ? speaker.GetString() : null,
+                            (x.GetProperty("text").GetString() ?? "").Trim()
+                        ))
+                        .Where(x => x.Text.Length > 0)
+                        .ToList()
+                    : [];
+            if (segments.Count == 0 && text.Length > 0)
+                segments.Add(new TranscriptSegment(0, root.TryGetProperty("duration", out var duration) ? duration.GetDouble() : 0, null, text.Trim()));
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, $"[audio {fileName}]", $"[{segments.Count} segments, {text.Length} characters]", 0, 0, clock, null);
+            return new DetailedTranscript(model, text, segments);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {

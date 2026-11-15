@@ -5,7 +5,16 @@ import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 import { cn } from '@/lib/cn';
 
 type ToastTone = 'success' | 'error' | 'info' | 'warning';
-type ToastItem = { id: number; tone: ToastTone; title: ReactNode; message?: ReactNode };
+type ToastAction = { label: string; onClick: () => void };
+/** Optional extras: a button such as Undo (clicking it closes the toast), and how long it stays. */
+export type ToastOptions = { action?: ToastAction; duration?: number };
+type ToastItem = {
+  id: number;
+  tone: ToastTone;
+  title: ReactNode;
+  message?: ReactNode;
+  action?: ToastAction;
+};
 
 // ponytail: module-level store, one Toaster per app. Upgrade to context if we ever need two.
 let items: ToastItem[] = [];
@@ -13,9 +22,16 @@ let nextId = 1;
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((l) => l());
 
-function push(tone: ToastTone, title: ReactNode, message?: ReactNode, duration = 5000) {
+function push(
+  tone: ToastTone,
+  title: ReactNode,
+  message?: ReactNode,
+  fallbackDuration = 5000,
+  options?: ToastOptions,
+) {
   const id = nextId++;
-  items = [...items.slice(-2), { id, tone, title, message }]; // at most 3 on screen
+  const duration = options?.duration ?? fallbackDuration;
+  items = [...items.slice(-2), { id, tone, title, message, action: options?.action }]; // at most 3 on screen
   emit();
   if (duration > 0) setTimeout(() => dismiss(id), duration);
   return id;
@@ -29,14 +45,20 @@ function dismiss(id: number) {
  * Show a transient message.
  *   toast.success('Saved')
  *   toast.error('Could not move the job', error.message)
+ *   toast.success('Moved to Review', undefined, { action: { label: 'Undo', onClick: undo }, duration: 10000 })
  */
 export const toast = Object.assign(
-  (title: ReactNode, message?: ReactNode) => push('info', title, message),
+  (title: ReactNode, message?: ReactNode, options?: ToastOptions) =>
+    push('info', title, message, 5000, options),
   {
-    success: (title: ReactNode, message?: ReactNode) => push('success', title, message),
-    error: (title: ReactNode, message?: ReactNode) => push('error', title, message, 8000),
-    warning: (title: ReactNode, message?: ReactNode) => push('warning', title, message),
-    info: (title: ReactNode, message?: ReactNode) => push('info', title, message),
+    success: (title: ReactNode, message?: ReactNode, options?: ToastOptions) =>
+      push('success', title, message, 5000, options),
+    error: (title: ReactNode, message?: ReactNode, options?: ToastOptions) =>
+      push('error', title, message, 8000, options),
+    warning: (title: ReactNode, message?: ReactNode, options?: ToastOptions) =>
+      push('warning', title, message, 5000, options),
+    info: (title: ReactNode, message?: ReactNode, options?: ToastOptions) =>
+      push('info', title, message, 5000, options),
     dismiss,
   },
 );
@@ -70,6 +92,18 @@ export function Toaster() {
             <p className="text-base font-medium text-fg">{t.title}</p>
             {t.message && <p className="mt-0.5 text-sm text-fg-muted">{t.message}</p>}
           </div>
+          {t.action && (
+            <button
+              type="button"
+              onClick={() => {
+                dismiss(t.id);
+                t.action!.onClick();
+              }}
+              className="-my-0.5 shrink-0 rounded-md px-2 py-0.5 text-sm font-semibold text-accent-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {t.action.label}
+            </button>
+          )}
           <button
             type="button"
             aria-label="Dismiss"

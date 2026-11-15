@@ -1,5 +1,6 @@
-import { ApplicationsHome } from '@/features/candidate-portal/ApplicationsHome';
+import { redirect } from 'next/navigation';
 
+// Home lists every application.
 export default function Page() {
-  return <ApplicationsHome />;
+  redirect('/candidate-portal/home');
 }

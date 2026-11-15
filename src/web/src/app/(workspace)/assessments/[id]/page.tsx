@@ -1,4 +1,4 @@
-import { AssessmentDetail } from '@/features/preview/assessments/AssessmentDetail';
+import { AssessmentDetail } from '@/features/assessments/AssessmentDetail';
 
 export default async function Page({
   params,
@@ -8,5 +8,5 @@ export default async function Page({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
-  return <AssessmentDetail id={id} initialTab={tab} />;
+  return <AssessmentDetail key={id} id={id} initialTab={tab} />;
 }

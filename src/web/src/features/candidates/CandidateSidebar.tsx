@@ -1,70 +1,110 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
-import { CalendarClock, FileText, Upload } from 'lucide-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarClock } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
-import {
-  Badge,
-  Button,
-  DescriptionList,
-  FileButton,
-  IconDisc,
-  Modal,
-  toast,
-} from '@/components/ui';
-import { formatDate, formatDateTime, formatRelative } from '@/lib/format';
+import { Button, CopyButton, DescriptionList, IconDisc, Modal, toast } from '@/components/ui';
+import { formatDate, formatDateTime } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
 import type { CandidateDetail } from '@/types';
-import { CandidateCustomFields, type CandidateExtras } from './CandidateCustomFields';
+import { CandidateCustomFields } from './CandidateCustomFields';
+import { editDetails } from './CandidateShell';
 import { PotentialDuplicates } from './PotentialDuplicates';
 import { Missing, RailGroup } from './Rail';
+import { CandidatePoolsCard } from './talent-pools';
 
 type Attachment = CandidateDetail['attachments'][number];
-type UpcomingInterview = {
-  id: string;
-  applicationId: string;
-  title: string;
-  startsAt: string;
-  requisitionTitle: string;
+
+export const KIND_LABELS: Record<string, string> = {
+  Resume: 'Resume',
+  CoverLetter: 'Cover letter',
+  Portfolio: 'Portfolio or work sample',
+  Other: 'Other',
 };
 
+/** "Read", "Being read", or what went wrong; other kinds of files are never read. */
 export function parseLabel(attachment: Attachment) {
+  if ((attachment.kind ?? 'Resume') !== 'Resume') return KIND_LABELS[attachment.kind!] ?? 'File';
   switch (attachment.parseStatus) {
     case 'Parsed':
-      return 'read';
+      return 'Read';
     case 'Pending':
     case 'Processing':
-      return 'being read';
+      return 'Being read';
     case 'NeedsOcr':
-      return 'scanned, so the text could not be read';
+      return 'Scanned image, no text to read';
     case 'Failed':
-      return 'could not be read';
+      return 'Could not be read';
     default:
-      return attachment.scanStatus === 'ValidationOnly'
-        ? 'file type checked'
-        : attachment.scanStatus;
+      return 'Not read';
   }
 }
 
 const linkClass = 'text-accent-foreground hover:underline';
 
-/** The next scheduled interview on any of this person's applications, from the calendar feed. */
-function NextInterview({ applicationIds }: { applicationIds: string[] }) {
-  const interviews = useQuery({
-    queryKey: ['interviews', 'upcoming'],
-    queryFn: () => {
-      const from = new Date();
-      // ponytail: looks 180 days ahead; widen if interviews get booked further out.
-      const to = new Date(from.getTime() + 180 * 86_400_000);
-      return api.get<UpcomingInterview[]>(
-        `/api/interviews?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+/** Preview a PDF in a dialog; the rail and the Files tab share it. */
+export function useFilePreview() {
+  const [preview, setPreview] = useState<{ id: string; name: string } | null>(null);
+  const previewModal = (
+    <Modal
+      opened={preview !== null}
+      onClose={() => setPreview(null)}
+      title={preview?.name ?? 'Preview'}
+      size="xl"
+    >
+      {preview && (
+        <iframe
+          title={`Preview ${preview.name}`}
+          src={`/api/attachments/${preview.id}?inline=true`}
+          className="h-[75vh] w-full rounded-md border-0"
+        />
+      )}
+    </Modal>
+  );
+  return { setPreview, previewModal };
+}
+
+/** Upload a file of a kind, and read a file again as the resume. */
+export function useCandidateFiles(candidateId: string) {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
+    queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidateId] });
+  };
+  const upload = useMutation({
+    mutationFn: ({ file, kind }: { file: File; kind: string }) => {
+      const body = new FormData();
+      body.append('file', file);
+      body.append('kind', kind);
+      return api.form(`/api/candidates/${candidateId}/attachments`, body);
+    },
+    onSuccess: (_result, { file, kind }) => {
+      refresh();
+      toast.success(
+        `${file.name} uploaded`,
+        kind === 'Resume' ? 'We are reading it into the profile.' : undefined,
       );
     },
+    onError: (error: Error, { file }) =>
+      toast.error(`Could not upload ${file.name}`, error.message),
   });
-  const next = interviews.data?.find((item) => applicationIds.includes(item.applicationId));
-  if (interviews.isError) return null;
+  const parseResume = useMutation({
+    mutationFn: (attachmentId: string) =>
+      api.post(`/api/candidates/${candidateId}/attachments/${attachmentId}/parse`),
+    onSuccess: () => {
+      refresh();
+      toast.success('Reading the resume', 'The profile updates when it is done.');
+    },
+    onError: (error: Error) => toast.error('Could not read the resume', error.message),
+  });
+  return { upload, parseResume, refresh };
+}
+
+function NextInterview({ candidate }: { candidate: CandidateDetail }) {
+  const next = candidate.nextInterview;
+  const active = candidate.applications.find((app) => app.status === 'Active');
   return (
     <RailGroup title="Next interview">
       {next ? (
@@ -82,189 +122,168 @@ function NextInterview({ applicationIds }: { applicationIds: string[] }) {
         </Link>
       ) : (
         <p className="text-sm text-fg-subtle">
-          {interviews.isLoading ? 'Checking the calendar…' : 'Nothing scheduled.'}
+          Nothing scheduled
+          {active && (
+            <>
+              {' · '}
+              <Link href={`/applications/${active.id}/interviews`} className={linkClass}>
+                Schedule
+              </Link>
+            </>
+          )}
         </p>
       )}
     </RailGroup>
   );
 }
 
-/** Upload, re-read and preview a candidate's documents (the rail and the Files tab share it). */
-export function useCandidateFiles(candidateId: string) {
-  const [preview, setPreview] = useState<{ id: string; name: string } | null>(null);
-  const queryClient = useQueryClient();
-  const upload = useMutation({
-    mutationFn: (file: File) => api.upload(`/api/candidates/${candidateId}/attachments`, file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
-      toast.success('Document uploaded', 'We will read it in a moment.');
-    },
-    onError: (error: Error) => toast.error('Could not upload the document', error.message),
-  });
-  const parseResume = useMutation({
-    mutationFn: (attachmentId: string) =>
-      api.post(`/api/candidates/${candidateId}/attachments/${attachmentId}/parse`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['candidate', candidateId] });
-      queryClient.invalidateQueries({ queryKey: ['candidate-resume', candidateId] });
-      toast.success('Reading the resume again');
-    },
-    onError: (error: Error) => toast.error('Could not read the resume', error.message),
-  });
-  const previewModal = (
-    <Modal
-      opened={preview !== null}
-      onClose={() => setPreview(null)}
-      title={preview?.name ?? 'Preview'}
-      size="xl"
-    >
-      {preview && (
-        <iframe
-          title={`Preview ${preview.name}`}
-          src={`/api/attachments/${preview.id}?inline=true`}
-          className="h-[75vh] w-full rounded-md border-0"
-        />
-      )}
-    </Modal>
-  );
-  return { upload, parseResume, setPreview, previewModal };
-}
-
 /**
- * The facts a recruiter looks up while reading the record: how to reach them, the next
- * interview, skills, custom details, then the files. Nothing here repeats the resume.
+ * The facts a recruiter looks up while reading the record: how to reach them, the resume file,
+ * the next interview and custom details. Skills, jobs and dates live in the main column.
  */
 export function CandidateRail({
   candidate,
   canUpload,
+  canEdit,
 }: {
-  candidate: CandidateDetail & CandidateExtras;
+  candidate: CandidateDetail;
   canUpload: boolean;
+  canEdit: boolean;
 }) {
-  const { upload, parseResume, setPreview, previewModal } = useCandidateFiles(candidate.id);
-  const linkedIn = safeWebUrl(candidate.linkedInUrl);
-  const skills = candidate.resumeSkills.slice(0, 12);
+  const { setPreview, previewModal } = useFilePreview();
+  const restricted = candidate.email === 'Restricted';
+  const links = [
+    ['LinkedIn', candidate.linkedInUrl],
+    ['GitHub', candidate.gitHubUrl],
+    ['Portfolio', candidate.portfolioUrl],
+  ]
+    .map(([label, url]) => [label, safeWebUrl(url ?? undefined)] as const)
+    .filter((entry): entry is readonly [string, string] => Boolean(entry[1]));
+  const resume = candidate.attachments.find((file) => file.id === candidate.resumeAttachmentId);
+  const withCopy = (content: ReactNode, value: string, label: string) => (
+    <span className="flex min-w-0 items-center gap-1">
+      <span className="min-w-0 truncate">{content}</span>
+      <CopyButton value={value} label={label} />
+    </span>
+  );
 
   return (
     <aside className="flex min-w-0 flex-col gap-5" aria-label="Candidate details">
-      <RailGroup title="Contact details">
+      <RailGroup
+        title="Contact"
+        action={
+          canEdit && (
+            <Button variant="link" size="sm" onClick={editDetails}>
+              Edit
+            </Button>
+          )
+        }
+      >
         <DescriptionList
           items={[
             {
               label: 'Email',
-              value: (
-                <a href={`mailto:${candidate.email}`} className={linkClass}>
-                  {candidate.email}
-                </a>
+              value: restricted ? (
+                <Missing>Only the hiring team can see this</Missing>
+              ) : (
+                withCopy(
+                  <a href={`mailto:${candidate.email}`} className={linkClass}>
+                    {candidate.email}
+                  </a>,
+                  candidate.email,
+                  'Copy email',
+                )
               ),
             },
-            { label: 'Phone', value: candidate.phone ?? <Missing /> },
-            ...(linkedIn
+            ...(!restricted
               ? [
                   {
-                    label: 'LinkedIn',
-                    value: (
-                      <a
-                        href={linkedIn}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={linkClass}
-                      >
-                        Open profile
-                      </a>
+                    label: 'Phone',
+                    value: candidate.phone ? (
+                      withCopy(
+                        <a href={`tel:${candidate.phone}`} className={linkClass}>
+                          {candidate.phone}
+                        </a>,
+                        candidate.phone,
+                        'Copy phone',
+                      )
+                    ) : (
+                      <Missing>Not set</Missing>
                     ),
                   },
                 ]
               : []),
-            { label: 'Source', value: candidate.source },
-            { label: 'Added', value: formatDate(candidate.createdAt) },
-            { label: 'Updated', value: formatRelative(candidate.updatedAt) },
-            ...(candidate.resumeParsedAt
-              ? [{ label: 'Resume read', value: formatRelative(candidate.resumeParsedAt) }]
+            ...(links.length
+              ? [
+                  {
+                    label: 'Links',
+                    value: (
+                      <span className="flex flex-wrap gap-x-3">
+                        {links.map(([label, url]) => (
+                          <a
+                            key={label}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={linkClass}
+                          >
+                            {label}
+                          </a>
+                        ))}
+                      </span>
+                    ),
+                  },
+                ]
               : []),
+            {
+              label: 'Resume',
+              value: resume ? (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="min-w-0 truncate">{resume.originalFileName}</span>
+                  {resume.contentType === 'application/pdf' ? (
+                    <Button
+                      variant="link"
+                      size="sm"
+                      onClick={() => setPreview({ id: resume.id, name: resume.originalFileName })}
+                    >
+                      Preview
+                    </Button>
+                  ) : (
+                    <Button variant="link" size="sm" asChild>
+                      <a href={`/api/attachments/${resume.id}`}>Download</a>
+                    </Button>
+                  )}
+                </span>
+              ) : (
+                <span className="text-fg-subtle">
+                  None yet
+                  {canUpload && (
+                    <>
+                      {' · '}
+                      <Link href={`/candidates/${candidate.id}/files`} className={linkClass}>
+                        Upload
+                      </Link>
+                    </>
+                  )}
+                </span>
+              ),
+            },
+            {
+              label: 'Source',
+              value: candidate.referrer
+                ? `${candidate.source}, referred by ${candidate.referrer.name}`
+                : candidate.source,
+            },
+            { label: 'Added', value: formatDate(candidate.createdAt) },
           ]}
         />
       </RailGroup>
 
-      <NextInterview applicationIds={candidate.applications.map((app) => app.id)} />
+      <NextInterview candidate={candidate} />
 
-      {skills.length > 0 && (
-        <RailGroup title="Skills">
-          <div className="flex flex-wrap gap-1.5">
-            {skills.map((skill) => (
-              <Badge key={skill}>{skill}</Badge>
-            ))}
-          </div>
-        </RailGroup>
-      )}
+      {canEdit && <CandidatePoolsCard candidate={candidate} />}
 
-      <CandidateCustomFields candidate={candidate} canEdit={canUpload} />
-
-      <RailGroup
-        title="Documents"
-        action={
-          canUpload && (
-            <FileButton
-              variant="link"
-              size="sm"
-              leftIcon={<Upload />}
-              accept=".pdf,.doc,.docx"
-              onFile={(file) => upload.mutate(file)}
-              disabled={upload.isPending}
-            >
-              {upload.isPending ? 'Uploading…' : 'Upload'}
-            </FileButton>
-          )
-        }
-      >
-        {candidate.attachments.length === 0 ? (
-          <p className="text-sm text-fg-subtle">No resume or documents yet.</p>
-        ) : (
-          <ul className="space-y-3">
-            {candidate.attachments.map((attachment) => (
-              <li key={attachment.id} className="flex items-start gap-3">
-                <FileText className="mt-0.5 size-4 shrink-0 text-fg-subtle" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-base font-medium text-fg">
-                    {attachment.originalFileName}
-                  </p>
-                  <p className="text-xs text-fg-subtle">
-                    {Math.ceil(attachment.length / 1024)} KB · {parseLabel(attachment)}
-                  </p>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-sm">
-                    {attachment.contentType === 'application/pdf' && (
-                      <Button
-                        variant="link"
-                        size="sm"
-                        onClick={() =>
-                          setPreview({ id: attachment.id, name: attachment.originalFileName })
-                        }
-                      >
-                        Preview
-                      </Button>
-                    )}
-                    <Button variant="link" size="sm" asChild>
-                      <a href={`/api/attachments/${attachment.id}`}>Download</a>
-                    </Button>
-                    {canUpload &&
-                      (attachment.parseStatus === 'Failed' ||
-                        attachment.parseStatus === 'NeedsOcr') && (
-                        <Button
-                          variant="link"
-                          size="sm"
-                          disabled={parseResume.isPending}
-                          onClick={() => parseResume.mutate(attachment.id)}
-                        >
-                          Try reading again
-                        </Button>
-                      )}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </RailGroup>
+      <CandidateCustomFields candidate={candidate} canEdit={canEdit} />
 
       {canUpload && <PotentialDuplicates candidateId={candidate.id} />}
 

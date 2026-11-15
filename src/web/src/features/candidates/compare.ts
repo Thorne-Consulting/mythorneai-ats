@@ -1,4 +1,4 @@
-/** Up to three distinct ids from `?ids=a,b,c`. */
+/** Up to four distinct ids from `?ids=a,b,c,d`. */
 export function compareIds(raw: string | undefined) {
   return [
     ...new Set(
@@ -7,7 +7,7 @@ export function compareIds(raw: string | undefined) {
         .map((id) => id.trim())
         .filter(Boolean),
     ),
-  ].slice(0, 3);
+  ].slice(0, 4);
 }
 
 /**
@@ -23,4 +23,9 @@ export function skillOverlap(lists: string[][]) {
   for (const [skill, count] of counts)
     if (count > 1) result.set(skill, count === lists.length ? 'all' : 'some');
   return result;
+}
+
+/** True when every cell of a compare row says the same thing (for "Show only differences"). */
+export function sameAcross(values: string[]) {
+  return values.length > 1 && values.every((value) => value === values[0]);
 }

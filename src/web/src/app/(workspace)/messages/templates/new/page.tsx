@@ -1,5 +1,10 @@
-import { TemplateEditor } from '@/features/preview/messages/TemplateEditor';
+import { Suspense } from 'react';
+import { TemplateEditorPage } from '@/features/templates/TemplateEditorPage';
 
 export default function Page() {
-  return <TemplateEditor />;
+  return (
+    <Suspense>
+      <TemplateEditorPage />
+    </Suspense>
+  );
 }

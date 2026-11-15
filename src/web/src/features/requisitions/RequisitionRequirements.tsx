@@ -170,7 +170,7 @@ export function RequisitionRequirements({
                 confirmed.minYears != null
                   ? `At least ${confirmed.minYears} years of experience`
                   : null,
-                confirmed.location || null,
+                confirmed.location ? `Based in ${confirmed.location}` : null,
               ]
                 .filter(Boolean)
                 .join(' · ') || 'No minimum experience or location'}

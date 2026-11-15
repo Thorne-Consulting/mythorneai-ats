@@ -1,11 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, CalendarDays, Clock, PlugZap, RotateCw } from 'lucide-react';
+import { PlugZap, RotateCw } from 'lucide-react';
 import { api } from '@/api';
-import { useCurrentUser } from '@/auth';
-import { Button, Card, IconDisc, StatCard, StatGrid, toast } from '@/components/ui';
-import { type IntegrationStatus, isAdmin } from './admin-data';
+import { useAbility } from '@/lib/ability';
+import { Badge, Button, Card, IconDisc, toast } from '@/components/ui';
+import { type IntegrationStatus } from './admin-data';
 import { SettingsLoading } from './settings-shared';
 
 const PROVIDER_LABEL: Record<IntegrationStatus['provider'], string> = {
@@ -14,13 +15,14 @@ const PROVIDER_LABEL: Record<IntegrationStatus['provider'], string> = {
   GoogleWorkspace: 'Google Workspace',
 };
 
+/** Where interview invites go for the whole workspace, and the ones that did not get there. */
 export function AdminIntegrations() {
-  const currentUser = useCurrentUser();
+  const ability = useAbility();
   const queryClient = useQueryClient();
   const integration = useQuery({
     queryKey: ['admin-integrations'],
     queryFn: () => api.get<IntegrationStatus>('/api/admin/integrations'),
-    enabled: isAdmin(currentUser.role),
+    enabled: ability.can('manage', 'Workspace'),
   });
   const retryFailed = useMutation({
     mutationFn: () => api.post<{ count: number }>('/api/admin/integrations/retry-failed'),
@@ -40,56 +42,55 @@ export function AdminIntegrations() {
   const provider = PROVIDER_LABEL[status.provider] ?? status.provider;
 
   return (
-    <>
-      <Card className="flex flex-wrap items-start gap-4 p-5">
-        <IconDisc icon={PlugZap} tone={status.enabled ? 'blue' : 'gray'} size="md" />
-        <div className="min-w-0 flex-1 basis-64">
+    <Card className="flex flex-wrap items-start gap-4 p-5">
+      <IconDisc icon={PlugZap} tone={status.enabled ? 'blue' : 'gray'} size="md" />
+      <div className="min-w-0 flex-1 basis-64 space-y-2">
+        <div>
           <h2 className="text-lg font-semibold text-fg">
-            {status.enabled ? provider : 'No calendar connected'}
+            {status.enabled ? provider : 'No workspace calendar'}
           </h2>
           <p className="mt-0.5 text-sm text-fg-subtle">
-            {status.enabled
-              ? `Interview invitations are added to ${provider} calendars.`
-              : 'Interviews show only in MyThorneAI.'}
+            {status.enabled ? (
+              `Interview invites are added to ${provider} calendars.`
+            ) : (
+              <>
+                Each person can connect their own calendar under{' '}
+                <Link
+                  href="/settings/availability"
+                  className="text-accent-foreground hover:underline"
+                >
+                  Calendar and hours
+                </Link>
+                . Without one, invites go out by email with a calendar file.
+              </>
+            )}
           </p>
         </div>
-      </Card>
-
-      <StatGrid className="xl:grid-cols-3">
-        <StatCard
-          icon={CalendarDays}
-          label="Calendar"
-          value={<span className="text-xl">{status.calendar}</span>}
-        />
-        <StatCard
-          icon={Clock}
-          tone="amber"
-          label="Invitations waiting to send"
-          value={status.pending}
-        />
-        <StatCard
-          icon={AlertTriangle}
-          tone={status.failed > 0 ? 'red' : 'green'}
-          label="Invitations that failed"
-          value={status.failed}
-          hint={status.failed ? 'Send them again below' : 'Nothing to resend'}
-        />
-      </StatGrid>
-
+        {(status.pending > 0 || status.failed > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {status.pending > 0 && (
+              <Badge tone="amber" size="sm">
+                {status.pending} waiting to send
+              </Badge>
+            )}
+            {status.failed > 0 && (
+              <Badge tone="red" size="sm">
+                {status.failed} failed
+              </Badge>
+            )}
+          </div>
+        )}
+      </div>
       {status.failed > 0 && (
-        <div>
-          <Button
-            variant="secondary"
-            leftIcon={<RotateCw />}
-            loading={retryFailed.isPending}
-            onClick={() => retryFailed.mutate()}
-          >
-            {status.failed === 1
-              ? 'Resend 1 failed invitation'
-              : `Resend ${status.failed} failed invitations`}
-          </Button>
-        </div>
+        <Button
+          variant="secondary"
+          leftIcon={<RotateCw />}
+          loading={retryFailed.isPending}
+          onClick={() => retryFailed.mutate()}
+        >
+          {status.failed === 1 ? 'Resend 1 invitation' : `Resend ${status.failed} invitations`}
+        </Button>
       )}
-    </>
+    </Card>
   );
 }

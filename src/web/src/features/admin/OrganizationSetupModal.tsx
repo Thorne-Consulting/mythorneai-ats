@@ -3,26 +3,20 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
-import { Button, Input, Modal, NumberInput, Switch, toast } from '@/components/ui';
+import { Button, Input, Modal, SearchSelect, TagsInput, toast } from '@/components/ui';
 
+const TIME_ZONES = Intl.supportedValuesOf('timeZone');
+
+/** The owner's first step: name the workspace, set its time zone and company domains. */
 export function OrganizationSetupModal({ opened }: { opened: boolean }) {
   const [name, setName] = useState('');
-  const [domains, setDomains] = useState('');
-  const [allowGoogleLogin, setAllowGoogleLogin] = useState(true);
-  const [allowMicrosoftLogin, setAllowMicrosoftLogin] = useState(true);
-  const [staleReminderDays, setStaleReminderDays] = useState<number | ''>(3);
+  const [timeZone, setTimeZone] = useState<string | null>(() =>
+    typeof Intl === 'undefined' ? null : Intl.DateTimeFormat().resolvedOptions().timeZone,
+  );
+  const [domains, setDomains] = useState<string[]>([]);
   const update = useMutation({
     mutationFn: () =>
-      api.put('/api/organization', {
-        name,
-        allowedEmailDomains: domains
-          .split(',')
-          .map((value) => value.trim())
-          .filter(Boolean),
-        allowGoogleLogin,
-        allowMicrosoftLogin,
-        staleReminderDays: Number(staleReminderDays) || 3,
-      }),
+      api.put('/api/organization', { name: name.trim(), timeZone, allowedEmailDomains: domains }),
     onSuccess: () => window.location.reload(),
     onError: (error: Error) => toast.error('Could not save', error.message),
   });
@@ -42,7 +36,6 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
     >
       <div className="flex flex-col gap-4">
         <Input
-          inset
           label="Workspace name"
           placeholder="Acme Recruiting"
           value={name}
@@ -52,40 +45,21 @@ export function OrganizationSetupModal({ opened }: { opened: boolean }) {
           }}
           autoFocus
         />
-        <Input
-          inset
+        <SearchSelect
+          label="Time zone"
+          description="Reminders and quiet hours use this time zone."
+          placeholder="Search time zones"
+          data={TIME_ZONES}
+          value={timeZone}
+          onChange={setTimeZone}
+        />
+        <TagsInput
           label="Company email domains"
-          description="Only people with these email domains can sign in. Separate them with commas, for example acme.com, acme.org."
+          description="Only email addresses at these domains can sign in. Leave it empty to allow anyone you invite. Press Enter after each one, for example acme.com."
           placeholder="acme.com"
           value={domains}
-          onChange={(event) => setDomains(event.currentTarget.value)}
+          onChange={setDomains}
         />
-        <NumberInput
-          inset
-          label="Remind about stuck applications after (days)"
-          description="The recruiter and candidate get a reminder after this many days with no activity."
-          value={staleReminderDays}
-          min={1}
-          max={30}
-          step={1}
-          onValueChange={setStaleReminderDays}
-        />
-        <div className="divide-y divide-border-subtle rounded-lg border border-border-subtle px-4">
-          <Switch
-            className="py-3"
-            labelPosition="left"
-            label="Allow Google sign-in"
-            checked={allowGoogleLogin}
-            onCheckedChange={setAllowGoogleLogin}
-          />
-          <Switch
-            className="py-3"
-            labelPosition="left"
-            label="Allow Microsoft sign-in"
-            checked={allowMicrosoftLogin}
-            onCheckedChange={setAllowMicrosoftLogin}
-          />
-        </div>
       </div>
     </Modal>
   );

@@ -1,4 +1,4 @@
-import { HelpPage } from '@/features/preview/HelpPage';
+import { HelpPage } from '@/features/help/HelpPage';
 
 export default function Page() {
   return <HelpPage />;

@@ -1,4 +1,4 @@
-import { ResultReview } from '@/features/preview/assessments/ResultReview';
+import { ResultReview } from '@/features/assessments/ResultReview';
 
 export default async function Page({
   params,

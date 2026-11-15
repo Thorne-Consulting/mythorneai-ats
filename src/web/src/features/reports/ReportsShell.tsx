@@ -1,53 +1,17 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Bookmark, LayoutDashboard, Lock, Wand2 } from 'lucide-react';
-import { ApiError, api } from '@/api';
+import { Bookmark, LayoutDashboard, Lock, Mail, Users } from 'lucide-react';
+import { ApiError } from '@/api';
 import { SectionNav, SidebarLayout, type SectionGroup } from '@/components/layout/SectionLayout';
-import { Badge, Card, EmptyState, PageHeader } from '@/components/ui';
-import { ALL_REPORTS, REPORT_GROUPS, queryString } from './report-data';
+import { Card, EmptyState, PageHeader } from '@/components/ui';
+import { GROUP_ORDER, savedViewHref } from './report-data';
+import { useReportCatalog, useReportViews } from './queries';
 
-export interface ReportInfo {
-  key: string;
-  title: string;
-}
-export interface SavedReportView {
-  id: string;
-  name: string;
-  paramsJson: string;
-}
-
-export function useReportCatalog() {
-  return useQuery({
-    queryKey: ['reports'],
-    queryFn: () => api.get<ReportInfo[]>('/api/reports'),
-    retry: false,
-  });
-}
-
-export function useSavedReportViews() {
-  return useQuery({
-    queryKey: ['saved-views', 'reports'],
-    queryFn: () => api.get<SavedReportView[]>('/api/saved-views?area=reports'),
-  });
-}
-
-/** Where a saved view opens: its report's route with the saved filters in the URL. */
-export function savedViewHref(view: SavedReportView) {
-  try {
-    const { report, ...filters } = JSON.parse(view.paramsJson) as Record<string, string>;
-    const qs = queryString(filters);
-    return `/reports/${report ?? ''}${qs ? `?${qs}` : ''}`;
-  } catch {
-    return '/reports';
-  }
-}
-
-/** Reports area: grouped second sidebar beside every report, the builder and the overview. */
+/** Reports area: grouped second sidebar beside every report, the overview and saved views. */
 export function ReportsShell({ children }: { children: ReactNode }) {
   const catalog = useReportCatalog();
-  const views = useSavedReportViews();
+  const views = useReportViews();
 
   if (catalog.error instanceof ApiError && catalog.error.status === 403)
     return (
@@ -63,44 +27,51 @@ export function ReportsShell({ children }: { children: ReactNode }) {
       </>
     );
 
-  const known = new Set(ALL_REPORTS.map((report) => report.key));
-  const other = (catalog.data ?? []).filter((report) => !known.has(report.key));
+  const reports = catalog.data ?? [];
+  const mine = (views.data ?? []).filter((view) => view.mine);
+  const shared = (views.data ?? []).filter((view) => !view.mine);
   const groups: SectionGroup[] = [
-    { items: [{ href: '/reports', label: 'Overview', icon: LayoutDashboard, exact: true }] },
-    ...REPORT_GROUPS.map((group) => ({
-      label: group.label,
-      items: group.reports.map((report) => ({
-        href: `/reports/${report.key}`,
-        label: report.title,
-      })),
-    })),
-    ...(other.length
-      ? [
-          {
-            label: 'Other',
-            items: other.map((report) => ({ href: `/reports/${report.key}`, label: report.title })),
-          },
-        ]
-      : []),
     {
-      label: 'Custom',
       items: [
-        {
-          href: '/reports/builder',
-          label: 'Report builder',
-          icon: Wand2,
-          badge: <Badge tone="amber">Preview</Badge>,
-        },
+        { href: '/reports', label: 'Overview', icon: LayoutDashboard, exact: true },
+        { href: '/reports/subscriptions', label: 'Scheduled emails', icon: Mail },
       ],
     },
-    ...((views.data?.length ?? 0) > 0
+    ...[
+      ...GROUP_ORDER,
+      ...new Set(reports.map((report) => report.group).filter((g) => !GROUP_ORDER.includes(g))),
+    ]
+      .map((group) => ({
+        label: group,
+        items: reports
+          .filter((report) => report.group === group)
+          .map((report) => ({
+            href: `/reports/${report.key}`,
+            label: report.title,
+            match: report.key === 'velocity' ? ['/reports/time-in-stage'] : undefined,
+          })),
+      }))
+      .filter((group) => group.items.length > 0),
+    ...(mine.length
       ? [
           {
             label: 'Saved views',
-            items: views.data!.map((view) => ({
-              href: savedViewHref(view),
+            items: mine.map((view) => ({
+              href: savedViewHref(view.paramsJson, view.id),
               label: view.name,
               icon: Bookmark,
+            })),
+          },
+        ]
+      : []),
+    ...(shared.length
+      ? [
+          {
+            label: 'Shared with me',
+            items: shared.map((view) => ({
+              href: savedViewHref(view.paramsJson, view.id),
+              label: view.name,
+              icon: Users,
             })),
           },
         ]

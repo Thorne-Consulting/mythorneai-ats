@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Briefcase, CalendarDays, MapPin, Users } from 'lucide-react';
+import { Banknote, Briefcase, CalendarDays, MapPin, Users } from 'lucide-react';
+import { RichText } from '@/components/rich-text';
 import { Badge } from '@/components/ui';
 import { formatDate, humanize } from '@/lib/format';
 
@@ -23,15 +24,17 @@ export function JobPostingView({
   job,
   action,
   company,
+  pay,
+  emptyDescription,
 }: {
   job: JobPosting;
   action?: ReactNode;
   company?: string | null;
+  /** The pay range as people read it, when the team shows it on the posting. */
+  pay?: string | null;
+  /** Shown instead of the description while there is none (a quieter line for previews). */
+  emptyDescription?: string;
 }) {
-  const paragraphs = (job.description ?? '')
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean);
   return (
     <article className="space-y-6">
       <header className="space-y-3">
@@ -45,6 +48,11 @@ export function JobPostingView({
             {job.location} · {humanize(job.workMode)}
           </Badge>
           <Badge tone="gray">{humanize(job.employmentType)}</Badge>
+          {pay && (
+            <Badge tone="green" icon={<Banknote />}>
+              {pay}
+            </Badge>
+          )}
           {job.openings && job.openings > 1 && (
             <Badge tone="green" icon={<Users />}>
               {job.openings} openings
@@ -58,19 +66,18 @@ export function JobPostingView({
         </div>
         {action}
       </header>
-      <section
-        aria-label="About the role"
-        className="max-w-[68ch] space-y-4 text-md leading-relaxed text-fg"
-      >
-        {paragraphs.length ? (
-          paragraphs.map((p, i) => (
-            <p key={i} className="whitespace-pre-wrap">
-              {p}
-            </p>
-          ))
-        ) : (
-          <p className="text-fg-subtle">No description has been added yet.</p>
-        )}
+      <section aria-label="About the role" className="max-w-[68ch]">
+        <RichText
+          markdown={job.description}
+          className="text-md"
+          empty={
+            emptyDescription ? (
+              <p className="text-sm text-fg-subtle">{emptyDescription}</p>
+            ) : (
+              <p className="text-md text-fg-subtle">No description has been added yet.</p>
+            )
+          }
+        />
       </section>
     </article>
   );

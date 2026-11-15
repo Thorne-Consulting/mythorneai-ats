@@ -20,10 +20,36 @@ public sealed record OutboundCalendarEvent(
     DateTimeOffset EndsAt,
     string TimeZone,
     string? ExistingMeetingLink,
-    IReadOnlyCollection<string> AttendeeEmails
-);
+    IReadOnlyCollection<string> AttendeeEmails,
+    string? OrganizerEmail = null,
+    string? MeetingType = null,
+    string? Location = null
+)
+{
+    /// <summary>
+    /// Whether this calendar ("Google" or "Microsoft") should make the video room: only when there is
+    /// no link yet and the meeting type asks for that provider's room (any room on older rows).
+    /// </summary>
+    public bool CreatesMeetingOn(string provider) =>
+        string.IsNullOrWhiteSpace(ExistingMeetingLink)
+        && MeetingType switch
+        {
+            null => true,
+            Domain.MeetingTypes.GoogleMeet => provider == "Google",
+            Domain.MeetingTypes.Teams => provider == "Microsoft",
+            _ => false,
+        };
 
-public sealed record CalendarDeliveryResult(string ExternalId, string? MeetingLink);
+    /// <summary>What the invite shows as the place: the link, else the address or phone number.</summary>
+    public string? Place => ExistingMeetingLink ?? Location;
+}
+
+/// <summary>The event as the calendar holds it. OrganizerEmail is set for personal calendars.</summary>
+public sealed record CalendarDeliveryResult(
+    string ExternalId,
+    string? MeetingLink,
+    string? OrganizerEmail = null
+);
 
 public sealed class DisabledWorkplaceIntegration : IWorkplaceIntegration
 {

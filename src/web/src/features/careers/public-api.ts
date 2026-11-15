@@ -1,6 +1,4 @@
-'use client';
-
-import { useQuery } from '@tanstack/react-query';
+import type { PublicQuestion } from './questions';
 
 /**
  * Calls to the public API (`/public/...`, rewritten to the API by Next). No workspace session and
@@ -17,12 +15,39 @@ export type PublicJob = {
   employmentType: string;
   workMode: string;
   openings: number;
-  description: string;
-  applicationQuestionsMarkdown: string;
+  postedAt: string;
+  updatedAt: string;
+  /** Only on a single job (`GET /public/jobs/{id}`), not in the list. */
+  description?: string;
   targetStartDate?: string | null;
+  /** Typed questions for the apply page (never their knockout answers). */
+  questions?: PublicQuestion[];
+  /** Only when the team shows the pay on the posting. */
+  salary?: {
+    min: number | null;
+    max: number | null;
+    currency: string;
+    period: string;
+    text: string | null;
+  } | null;
+  place?: {
+    city: string | null;
+    region: string | null;
+    country: string | null;
+    remoteCountries: string[];
+  };
 };
 
 export type PublicJobPage = { items: PublicJob[]; total: number; offset: number; limit: number };
+
+export type Facet = { value: string; count: number };
+/** Every value with open jobs, with how many, for the board filters. */
+export type PublicFacets = {
+  total: number;
+  departments: Facet[];
+  locations: Facet[];
+  workModes: Facet[];
+};
 
 export class PublicError extends Error {
   constructor(
@@ -73,13 +98,3 @@ export const postJson = (path: string, body: unknown, fallback?: string) =>
     { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
     fallback,
   );
-
-/** Company name for the public chrome ("Acme careers"). */
-export function useCompany() {
-  return useQuery({
-    queryKey: ['public', 'organization'],
-    queryFn: () => publicFetch<{ name?: string | null }>('/public/organization'),
-    staleTime: Infinity,
-    select: (data) => data?.name ?? null,
-  }).data;
-}

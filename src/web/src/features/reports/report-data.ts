@@ -1,86 +1,166 @@
-// Pure report helpers: the catalog grouping, URL filters and the builder's aggregation.
+// Pure report helpers: filters in the URL, drill-downs, saved views and number formatting.
 // No '@/…' imports so `report-data.check.mjs` can run it with plain node.
 
 export type Cell = string | number | null;
+export type Drill = Record<string, string>;
 
+/** Everything a report URL can carry. Empty strings mean "not set". */
 export interface Filters {
   requisitionId: string;
+  department: string;
   source: string;
+  recruiter: string;
+  range: string;
   from: string;
   to: string;
+  groupBy: string;
 }
-export const NO_FILTERS: Filters = { requisitionId: '', source: '', from: '', to: '' };
+export const FILTER_KEYS: (keyof Filters)[] = [
+  'requisitionId',
+  'department',
+  'source',
+  'recruiter',
+  'range',
+  'from',
+  'to',
+  'groupBy',
+];
+export const NO_FILTERS: Filters = {
+  requisitionId: '',
+  department: '',
+  source: '',
+  recruiter: '',
+  range: '',
+  from: '',
+  to: '',
+  groupBy: '',
+};
 
-export interface ReportMeta {
+export interface ReportInfo {
   key: string;
   title: string;
-  blurb: string;
+  group: string;
+  description: string;
+  /** What the date filter applies to: applied, hired or interview. */
+  dateField: string;
+  breakdowns: string[];
+}
+export interface ReportStat {
+  label: string;
+  value: string;
+  hint?: string | null;
+  number?: number | null;
+  drill?: Drill | null;
+  lowerIsBetter?: boolean;
+}
+export interface ReportChart {
+  kind: 'bar' | 'stacked' | 'line' | 'donut' | 'funnel' | 'scatter';
+  title: string;
+  columns: string[];
+  rows: Cell[][];
+  caption?: string | null;
+  drill?: (Drill | null)[] | null;
+  tones?: string[] | null;
+  compare?: boolean;
+  report?: string | null;
+}
+export interface ReportSection {
+  key: string;
+  title: string;
+  description: string;
+  columns: string[];
+  rows: Cell[][];
+  rowDrill: (Drill | null)[];
+  action?: 'remind-stuck' | 'remind-scorecards' | null;
+}
+export interface ReportTable {
+  key: string;
+  title: string;
+  description: string;
+  columns: string[];
+  rows: Cell[][];
+  note?: string | null;
+  stats?: ReportStat[] | null;
+  charts?: ReportChart[] | null;
+  rowDrill?: (Drill | null)[] | null;
+  sections?: ReportSection[] | null;
+  hiddenColumns?: string[] | null;
+  groupBy?: string | null;
+  organization?: string | null;
+  period?: string | null;
 }
 
+/** Report groups in the order the nav shows them. */
+export const GROUP_ORDER = ['Pipeline', 'Speed', 'Sources', 'Team', 'People'];
+
 /**
- * How the API's report keys are grouped in the Reports sidebar. Titles match the API catalog;
- * a key the API adds later lands in "Other" until it is placed here.
+ * Report names for places that can't wait for the API catalog (the command search).
+ * The Reports nav reads the catalog from the API; keep these titles in step with ReportEngine.Catalog.
  */
-export const REPORT_GROUPS: { label: string; reports: ReportMeta[] }[] = [
+export const REPORT_GROUPS: { label: string; reports: { key: string; title: string }[] }[] = [
   {
     label: 'Pipeline',
     reports: [
-      {
-        key: 'funnel',
-        title: 'Hiring funnel',
-        blurb: 'How many applications reach each stage and move on to the next.',
-      },
-      {
-        key: 'hires',
-        title: 'Hires',
-        blurb: 'Everyone you hired, with the details payroll and HR need.',
-      },
+      { key: 'funnel', title: 'Hiring funnel' },
+      { key: 'velocity', title: 'Pipeline velocity' },
+      { key: 'rejections', title: 'Rejection reasons' },
     ],
   },
-  {
-    label: 'Speed',
-    reports: [
-      {
-        key: 'time-to-hire',
-        title: 'Time to hire and fill',
-        blurb: 'Days from application to hire, and from opening a job to filling it.',
-      },
-      {
-        key: 'time-in-stage',
-        title: 'Time in each stage',
-        blurb: 'Where applications wait longest before moving on.',
-      },
-    ],
-  },
+  { label: 'Speed', reports: [{ key: 'time-to-hire', title: 'Time to hire and fill' }] },
   {
     label: 'Sources',
     reports: [
-      {
-        key: 'sources',
-        title: 'Source effectiveness',
-        blurb: 'Where applications come from and which sources lead to hires.',
-      },
-      {
-        key: 'ai-outcomes',
-        title: 'AI fit versus outcome',
-        blurb: 'Whether candidates the AI scored higher actually got further.',
-      },
+      { key: 'sources', title: 'Source quality' },
+      { key: 'ai-outcomes', title: 'AI fit versus outcome' },
     ],
   },
   {
     label: 'Team',
     reports: [
-      {
-        key: 'interviewers',
-        title: 'Interviewer load and feedback',
-        blurb: 'Who interviews the most, and how fast they send scorecards.',
-      },
+      { key: 'interviewers', title: 'Interviewer load and feedback' },
+      { key: 'offers', title: 'Offer acceptance' },
     ],
   },
+  { label: 'People', reports: [{ key: 'hires', title: 'Hires' }] },
 ];
 
-export const ALL_REPORTS = REPORT_GROUPS.flatMap((group) => group.reports);
-export const reportMeta = (key: string) => ALL_REPORTS.find((report) => report.key === key);
+export const BREAKDOWN_LABELS: Record<string, string> = {
+  job: 'Job',
+  department: 'Department',
+  source: 'Source',
+  recruiter: 'Recruiter',
+  month: 'Month',
+  stage: 'Stage reached',
+};
+
+export const RANGES = [
+  { value: '30d', label: 'the last 30 days' },
+  { value: '90d', label: 'the last 90 days' },
+  { value: 'quarter', label: 'this quarter' },
+  { value: 'year', label: 'this year' },
+  { value: 'custom', label: 'between dates' },
+];
+
+const VERBS: Record<string, string> = {
+  applied: 'Applied',
+  hired: 'Hired',
+  interview: 'Interviewed',
+  offer: 'Offer sent',
+};
+
+/** "Applied in the last 30 days", "Hired this quarter", "Interviewed at any time". */
+export function rangeOptionLabel(dateField: string, range: string) {
+  const verb = VERBS[dateField] ?? 'Applied';
+  const option = RANGES.find((r) => r.value === range);
+  if (!option) return `${verb} at any time`;
+  return `${verb} ${option.value.endsWith('d') ? 'in ' : ''}${option.label}`;
+}
+
+export function filtersFrom(search: { get(name: string): string | null }): Filters {
+  const filters = { ...NO_FILTERS };
+  for (const key of FILTER_KEYS) filters[key] = search.get(key) ?? '';
+  return filters;
+}
 
 /** Query string for the report API and report URLs; empty values are left out. */
 export function queryString(values: Partial<Filters> & Record<string, string | undefined>) {
@@ -89,52 +169,121 @@ export function queryString(values: Partial<Filters> & Record<string, string | u
   return params.toString();
 }
 
+/**
+ * The filters for a drill-down: the report's filters with the drill keys on top. A drill that sets
+ * dates replaces the whole date filter. The breakdown never applies to a list of applications.
+ */
+export function withDrill(filters: Filters, drill: Drill): Record<string, string> {
+  const base: Record<string, string> = { ...filters, groupBy: '' };
+  if ('range' in drill || 'from' in drill || 'to' in drill) {
+    base.range = '';
+    base.from = '';
+    base.to = '';
+  }
+  const merged = { ...base, ...drill };
+  return Object.fromEntries(Object.entries(merged).filter(([, value]) => value));
+}
+
+/** "Reached interview (%)" is a percent column: shown as "Reached interview" with "%" on each cell. */
+export function percentColumn(name: string) {
+  return name.endsWith(' (%)')
+    ? { header: name.slice(0, -4), percent: true }
+    : { header: name, percent: false };
+}
+
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(T.*)?$/;
 export const isIsoDate = (cell: Cell) => typeof cell === 'string' && ISO_DATE.test(cell);
 
-/** A column is a metric when it holds numbers and nothing but numbers or blanks. */
-export function columnKinds(rows: Cell[][], width: number) {
-  const dimensions: number[] = [];
-  const metrics: number[] = [];
-  for (let column = 0; column < width; column++) {
-    const cells = rows.map((row) => row[column]).filter((cell) => cell !== null && cell !== '');
-    if (cells.length > 0 && cells.every((cell) => typeof cell === 'number')) metrics.push(column);
-    else dimensions.push(column);
-  }
-  return { dimensions, metrics };
+export function formatNumber(value: number, percent = false) {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded.toLocaleString('en-US')}${percent ? '%' : ''}`;
 }
-
-export type Aggregate = 'count' | 'sum' | 'avg' | 'max';
 
 /**
- * Group rows by one column and reduce a metric column. Dates group by month. `metric` null (or
- * `count`) counts rows. Groups keep first-seen order, which keeps time series in order.
+ * Change against the previous period, worded for a person, and whether it is good news. A rate
+ * (`percent`) changes in points: 50% to 60% is "+10 points", not "+20%".
  */
-export function aggregate(
-  rows: Cell[][],
-  dimension: number,
-  metric: number | null,
-  how: Aggregate,
-): { name: string; value: number }[] {
-  const groups = new Map<string, number[]>();
-  for (const row of rows) {
-    const raw = row[dimension];
-    const name =
-      raw === null || raw === ''
-        ? 'Unknown'
-        : isIsoDate(raw)
-          ? String(raw).slice(0, 7)
-          : String(raw);
-    const value = metric === null ? 1 : row[metric];
-    if (!groups.has(name)) groups.set(name, []);
-    if (typeof value === 'number') groups.get(name)!.push(value);
-  }
-  return [...groups].map(([name, values]) => {
-    let value: number;
-    if (how === 'count' || metric === null) value = values.length;
-    else if (how === 'sum') value = values.reduce((sum, v) => sum + v, 0);
-    else if (how === 'max') value = values.length ? Math.max(...values) : 0;
-    else value = values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
-    return { name, value: Math.round(value * 10) / 10 };
-  });
+export function delta(
+  value: number | null | undefined,
+  previous: number | null | undefined,
+  lowerIsBetter = false,
+  percent = false,
+): { direction: 'up' | 'down' | 'flat'; text: string; good: boolean } | null {
+  if (value == null || previous == null) return null;
+  const change = value - previous;
+  if (Math.abs(change) < 0.05) return { direction: 'flat', text: 'No change', good: true };
+  const direction = change > 0 ? 'up' : 'down';
+  const sign = change > 0 ? '+' : '−';
+  // From zero a percentage means nothing, so say how many more.
+  const text = percent
+    ? `${sign}${formatNumber(Math.abs(change))} ${Math.abs(change) === 1 ? 'point' : 'points'}`
+    : previous === 0
+      ? `${sign}${formatNumber(Math.abs(change))}`
+      : `${sign}${Math.round(Math.abs(change / previous) * 100)}%`;
+  return { direction, text, good: lowerIsBetter ? change < 0 : change > 0 };
 }
+
+/** A saved view's parameters: the report and the filters that are set. */
+export function viewParams(report: string, filters: Filters) {
+  const params: Record<string, string> = { report };
+  for (const key of FILTER_KEYS) if (filters[key]) params[key] = filters[key];
+  return JSON.stringify(params);
+}
+
+export function parseView(paramsJson: string): { report: string; filters: Filters } | null {
+  try {
+    const { report, ...rest } = JSON.parse(paramsJson) as Record<string, string>;
+    if (!report) return null;
+    const filters = { ...NO_FILTERS };
+    for (const key of FILTER_KEYS) filters[key] = rest[key] ?? '';
+    return { report, filters };
+  } catch {
+    return null;
+  }
+}
+
+/** Where a saved view opens: its report with the saved filters, and the view's id to mark it. */
+export function savedViewHref(paramsJson: string, id?: string) {
+  const view = parseView(paramsJson);
+  if (!view) return '/reports';
+  const qs = queryString({ ...view.filters, view: id });
+  return `/reports/${view.report}${qs ? `?${qs}` : ''}`;
+}
+
+export function sameFilters(a: Filters, b: Filters) {
+  return FILTER_KEYS.every((key) => a[key] === b[key]);
+}
+
+/** Ready-made views from the old report builder: a standard report, broken down one way. */
+export const BUILT_IN_VIEWS: {
+  id: string;
+  name: string;
+  report: string;
+  filters: Partial<Filters>;
+}[] = [
+  {
+    id: 'hires-department',
+    name: 'Hires by department',
+    report: 'hires',
+    filters: { groupBy: 'department' },
+  },
+  { id: 'hires-month', name: 'Hires per month', report: 'hires', filters: { groupBy: 'month' } },
+  {
+    id: 'time-department',
+    name: 'Time to hire by department',
+    report: 'time-to-hire',
+    filters: { groupBy: 'department' },
+  },
+  {
+    id: 'funnel-source',
+    name: 'Funnel by source',
+    report: 'funnel',
+    filters: { groupBy: 'source' },
+  },
+  {
+    id: 'rejections-stage',
+    name: 'Reasons by stage',
+    report: 'rejections',
+    filters: { groupBy: 'stage' },
+  },
+];

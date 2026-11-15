@@ -6,12 +6,12 @@ import {
   Bell,
   Briefcase,
   CalendarPlus,
+  History,
   Keyboard,
   LineChart,
   Moon,
   Plus,
   Search,
-  Settings,
   User,
   UserPlus,
   type LucideIcon,
@@ -19,23 +19,34 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { api } from '@/api';
-import { useCurrentUser } from '@/auth';
 import { Kbd, Modal } from '@/components/ui';
 import { CreateCandidateModal } from '@/features/candidates/CreateCandidateModal';
+import { RECENT_KEY, type RecentCandidate } from '@/features/candidates/recent';
 import { fuzzyScore } from '@/features/dashboard/fuzzy-match';
 import { REPORT_GROUPS } from '@/features/reports/report-data';
 import { useDebouncedValue, useHotkeys } from '@/lib/hooks';
 import { cn } from '@/lib/cn';
+import { humanize } from '@/lib/format';
 import { setTheme } from '@/lib/theme';
-import { canPostJobs, primaryNav, supportNav } from './nav';
+import { settingsGroups } from '@/features/admin/settings-registry';
+import { primaryNav, supportNav } from './nav';
+import { useAbility } from '@/lib/ability';
+import { useSavePreferences } from '@/features/admin/preferences';
 
 type SearchResult = {
-  requisitions: Array<{ id: string; code: string; title: string }>;
-  candidates: Array<{ id: string; name: string; email: string }>;
+  requisitions: Array<{ id: string; code: string; title: string; status?: string }>;
+  candidates: Array<{
+    id: string;
+    name: string;
+    email: string;
+    currentTitle?: string | null;
+    currentJob?: string | null;
+    stage?: string | null;
+  }>;
 };
 type Item = {
   key: string;
-  group: 'Actions' | 'Go to' | 'Candidates' | 'Jobs';
+  group: 'Recent' | 'Actions' | 'Go to' | 'Candidates' | 'Jobs';
   title: string;
   meta?: string;
   icon: LucideIcon;
@@ -73,27 +84,20 @@ export function ShortcutList({ className }: { className?: string }) {
   );
 }
 
-// Workspace settings sections (admins), mirroring the settings sidebar.
-const SETTINGS: [string, string][] = [
-  ['/admin', 'Members'],
-  ['/admin/roles', 'Roles and permissions'],
-  ['/admin/invitations', 'Invitations'],
-  ['/admin/approvals', 'Approvals'],
-  ['/admin/reminders', 'Reminders'],
-  ['/admin/notifications', 'Team notifications'],
-  ['/admin/portal', 'Candidate portal'],
-  ['/admin/email', 'Candidate email'],
-  ['/admin/pipelines', 'Pipelines'],
-  ['/admin/fields', 'Candidate fields'],
-  ['/admin/templates', 'Posting templates'],
-  ['/admin/email-templates', 'Email templates'],
-  ['/admin/integrations', 'Calendar'],
-  ['/admin/webhooks', 'Webhooks'],
-  ['/admin/ai-settings', 'AI assistance'],
-  ['/admin/audit', 'Activity history'],
-  ['/admin/sso', 'Single sign-on'],
-  ['/admin/workflows', 'Automated workflows'],
-];
+/** The 5 candidates opened most recently in this browser (kept by the candidate profile). */
+function recentCandidates(opened: boolean): RecentCandidate[] {
+  if (!opened) return [];
+  try {
+    return (JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') as RecentCandidate[]).slice(0, 5);
+  } catch {
+    return [];
+  }
+}
+
+/** Opens the keyboard shortcuts sheet from anywhere (the account menu, Help). */
+export function openShortcuts() {
+  window.dispatchEvent(new Event('ats:shortcuts'));
+}
 
 /** Header search field (Figma: 44px, pale pill on navy). Opens the palette. */
 export function SearchTrigger({ onOpen, className }: { onOpen: () => void; className?: string }) {
@@ -117,7 +121,8 @@ export function SearchTrigger({ onOpen, className }: { onOpen: () => void; class
 /** The palette: search people and jobs, or run an action. Also owns the global "?" shortcut sheet. */
 export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const router = useRouter();
-  const user = useCurrentUser();
+  const ability = useAbility();
+  const savePreferences = useSavePreferences().mutate;
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -127,6 +132,11 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
     ['?', () => setShortcutsOpen(true)],
     ['shift+?', () => setShortcutsOpen(true)],
   ]);
+  useEffect(() => {
+    const show = () => setShortcutsOpen(true);
+    window.addEventListener('ats:shortcuts', show);
+    return () => window.removeEventListener('ats:shortcuts', show);
+  }, []);
   const results = useQuery({
     queryKey: ['search', debounced],
     queryFn: () => api.get<SearchResult>(`/api/search?q=${encodeURIComponent(debounced)}`),
@@ -134,9 +144,8 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
   });
 
   const actions = useMemo<Item[]>(() => {
-    const staff = ['Admin', 'Recruiter'].includes(user.role);
     const list: Item[] = [];
-    if (canPostJobs(user))
+    if (ability.can('create', 'Job'))
       list.push({
         key: 'new-job',
         group: 'Actions',
@@ -145,7 +154,7 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
         icon: Plus,
         href: '/jobs/new',
       });
-    if (staff)
+    if (ability.can('create', 'Candidate'))
       list.push({
         key: 'new-candidate',
         group: 'Actions',
@@ -154,7 +163,7 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
         icon: UserPlus,
         run: () => setAddCandidate(true),
       });
-    if (user.role !== 'Interviewer')
+    if (ability.can('schedule', 'Interview'))
       list.push({
         key: 'schedule',
         group: 'Actions',
@@ -170,7 +179,11 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
         title: 'Turn dark mode on or off',
         keywords: 'theme light dark appearance',
         icon: Moon,
-        run: () => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'),
+        run: () => {
+          const theme = document.documentElement.classList.contains('dark') ? 'light' : 'dark';
+          setTheme(theme);
+          savePreferences({ theme });
+        },
       },
       {
         key: 'shortcuts',
@@ -181,7 +194,7 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
         run: () => setShortcutsOpen(true),
       },
     );
-    for (const item of [...primaryNav(user), ...supportNav(user)])
+    for (const item of [...primaryNav(ability), ...supportNav(ability)])
       list.push({
         key: `go-${item.href}`,
         group: 'Go to',
@@ -198,11 +211,8 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
       icon: Bell,
       href: '/notifications',
     });
-    if (user.permissions.includes('reports'))
-      for (const report of [
-        ...REPORT_GROUPS.flatMap((g) => g.reports),
-        { key: 'builder', title: 'Report builder' },
-      ])
+    if (ability.can('read', 'Report'))
+      for (const report of REPORT_GROUPS.flatMap((g) => g.reports))
         list.push({
           key: `go-report-${report.key}`,
           group: 'Go to',
@@ -212,28 +222,20 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
           icon: LineChart,
           href: `/reports/${report.key}`,
         });
-    if (user.role === 'Admin')
-      for (const [href, label] of SETTINGS)
+    // Every settings page this person can open, from the same registry as the settings rail.
+    for (const group of settingsGroups(ability))
+      for (const page of group.pages)
         list.push({
-          key: `go-${href}`,
+          key: `go-${page.href}`,
           group: 'Go to',
-          title: label,
-          meta: 'Settings',
-          keywords: `settings admin ${href}`, // ponytail: the path keeps old names (audit, sso) findable
-          icon: Settings,
-          href,
+          title: page.title ?? page.label,
+          meta: `Settings · ${group.label}`,
+          keywords: `settings ${page.label} ${page.keywords ?? ''}`,
+          icon: page.icon,
+          href: page.href,
         });
-    else
-      list.push({
-        key: 'go-my-settings',
-        group: 'Go to',
-        title: 'My settings',
-        keywords: 'profile account',
-        icon: Settings,
-        href: '/settings/profile',
-      });
     return list;
-  }, [user]);
+  }, [ability, savePreferences]);
 
   const items = useMemo<Item[]>(() => {
     const q = query.trim();
@@ -251,7 +253,18 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
           .sort((a, b) => b.score - a.score)
           .slice(0, 6)
           .map((m) => m.item)
-      : actions.filter((item) => item.group === 'Actions');
+      : [
+          // An empty palette leads with the people you opened last, then the actions.
+          ...recentCandidates(opened).map((c) => ({
+            key: `r-${c.id}`,
+            group: 'Recent' as const,
+            href: `/candidates/${c.id}`,
+            title: c.name,
+            meta: c.title ?? undefined,
+            icon: History,
+          })),
+          ...actions.filter((item) => item.group === 'Actions'),
+        ];
     const searching = debounced.trim().length >= 2;
     return [
       ...matched,
@@ -260,7 +273,14 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
         group: 'Candidates' as const,
         href: `/candidates/${c.id}`,
         title: c.name,
-        meta: c.email,
+        // "Data analyst · Interview on Platform engineer", or the email when nothing else is known.
+        meta:
+          [
+            c.currentTitle,
+            c.currentJob && (c.stage ? `${c.stage} on ${c.currentJob}` : c.currentJob),
+          ]
+            .filter(Boolean)
+            .join(' · ') || c.email,
         icon: User,
       })),
       ...(searching ? (results.data?.requisitions ?? []) : []).map((r) => ({
@@ -268,11 +288,11 @@ export function CommandSearch({ opened, onClose }: { opened: boolean; onClose: (
         group: 'Jobs' as const,
         href: `/jobs/${r.id}`,
         title: r.title,
-        meta: `Job · ${r.code}`,
+        meta: `Job · ${r.code}${r.status ? ` · ${humanize(r.status)}` : ''}`,
         icon: Briefcase,
       })),
     ];
-  }, [actions, query, debounced, results.data]);
+  }, [actions, query, debounced, results.data, opened]);
 
   useEffect(() => setActive(0), [query]);
   useEffect(() => {

@@ -4,6 +4,8 @@ import { WIDGETS, defaultLayout, moveWidget, normalizeLayout } from './widget-la
 
 for (const role of ['Admin', 'Recruiter', 'HiringManager'])
   assert.deepEqual([...defaultLayout(role).order].sort(), Object.keys(WIDGETS).sort(), role);
+// What needs the admin comes right after the key numbers.
+assert.equal(defaultLayout('Admin').order[1], 'waiting');
 
 assert.deepEqual(moveWidget(['stats', 'jobs', 'waiting'], 'jobs', -1), [
   'jobs',

@@ -44,6 +44,7 @@ import {
   CountBadge,
   DescriptionList,
   Drawer,
+  EmojiPicker,
   EmptyState,
   Eyebrow,
   FileDrop,
@@ -100,11 +101,12 @@ import { DonutChart, FunnelBars, LineChart } from '@/components/ui/chart';
 import { Board, BoardColumn } from '@/components/pipeline/BoardColumn';
 import { CandidateCard } from '@/components/pipeline/CandidateCard';
 import { WeekCalendar, weekOf } from '@/components/calendar/WeekCalendar';
-import { ChatBubble, ConversationRow, DayDivider } from '@/components/messages/Chat';
-import { WorkflowArrow, WorkflowNode } from '@/components/workflow/WorkflowNode';
+import { ChatBubble, ConversationRow, DayDivider, FileCard } from '@/components/messages/Chat';
+import { StepCard } from '@/components/workflow/StepNode';
 import { setTheme, useTheme } from '@/lib/theme';
 import { stageTone, StatusBadge } from '@/components/status';
 import { cn } from '@/lib/cn';
+import { EditorDemos } from './EditorDemos';
 import { LayoutDemos } from './LayoutDemos';
 
 const sections = [
@@ -121,6 +123,7 @@ const sections = [
   ['charts', 'Charts'],
   ['patterns', 'Product patterns'],
   ['layouts', 'Layouts and flows'],
+  ['editors', 'Rich text'],
   ['ux', 'UX concept'],
 ] as const;
 
@@ -904,7 +907,7 @@ export function Gallery() {
               />
             </StatGrid>
             <Demo label="Stage and status badges (one source of truth: components/status)">
-              {['Applied', 'Screening', 'Interview', 'Offer', 'Hired', 'Rejected'].map((s) => (
+              {['Applied', 'Screen', 'Interview', 'Offer', 'Hired', 'Other'].map((s) => (
                 <Badge key={s} tone={stageTone(s)} dot>
                   {s}
                 </Badge>
@@ -1221,6 +1224,9 @@ export function Gallery() {
                   preview="Happy to share more details."
                   time="Oct 13"
                   unread
+                  starred
+                  hasFiles
+                  viaEmail
                 />
               </Card>
               <Card className="space-y-3 p-5">
@@ -1231,47 +1237,56 @@ export function Gallery() {
                 <ChatBubble direction="in" time="9:42 AM">
                   Thank you! Looking forward to it.
                 </ChatBubble>
+                <ChatBubble
+                  direction="in"
+                  footer="9:44 AM · by email"
+                  files={<FileCard name="portfolio.pdf" size="2.4 MB" href="#" />}
+                >
+                  Here is my portfolio.
+                </ChatBubble>
+                <div className="flex items-center gap-2 text-xs text-fg-subtle">
+                  Emoji picker: <EmojiPicker onPick={(emoji) => toast(`Picked ${emoji}`)} />
+                </div>
               </Card>
             </div>
-            <Demo
-              label="Workflow stages (click to select)"
-              className="flex-nowrap overflow-x-auto pb-2"
-            >
-              {[
-                {
-                  icon: CalendarCheck,
-                  kind: 'Trigger',
-                  title: 'When interviewed',
-                  description: 'Candidate enters Interviewed',
-                  meta: 'Any interview type',
-                },
-                {
-                  icon: GitBranch,
-                  kind: 'Condition',
-                  title: 'Accepted',
-                  description: 'Hiring decision is Accepted',
-                  meta: 'Continue only when matched',
-                },
-                {
-                  icon: CheckCircle2,
-                  kind: 'Approval',
-                  title: 'Confirmation',
-                  description: 'Recruiter confirms the decision',
-                  meta: 'Wait for manual confirmation',
-                },
-                {
-                  icon: Mail,
-                  kind: 'Action',
-                  title: 'Send email',
-                  description: 'Send the acceptance email',
-                  meta: 'To candidate · Send immediately',
-                },
-              ].map((n, i, all) => (
-                <div key={n.kind} className="flex items-center">
-                  <div className="w-56">
-                    <WorkflowNode {...n} selected={node === i} onClick={() => setNode(i)} />
-                  </div>
-                  {i < all.length - 1 && <WorkflowArrow />}
+            <Demo label="Workflow steps (click to select)" className="flex-col items-center gap-0">
+              {(
+                [
+                  {
+                    icon: CalendarCheck,
+                    tone: 'trigger',
+                    eyebrow: 'Starts when',
+                    title: 'Interview finished',
+                    summary: 'An interview is marked done · any job',
+                  },
+                  {
+                    icon: GitBranch,
+                    tone: 'logic',
+                    eyebrow: 'Check',
+                    title: 'Yes or no check',
+                    summary: 'Rating greater than “3”',
+                  },
+                  {
+                    icon: CheckCircle2,
+                    tone: 'action',
+                    eyebrow: 'Action',
+                    title: 'Add tag',
+                    summary: 'Tag “Strong runner-up”',
+                  },
+                  {
+                    icon: Mail,
+                    tone: 'action',
+                    eyebrow: 'Action',
+                    title: 'Send email',
+                    summary: 'To the candidate: “Thanks for your time”',
+                  },
+                ] as const
+              ).map((n, i, all) => (
+                <div key={n.title} className="flex flex-col items-center">
+                  <button type="button" className="rounded-xl" onClick={() => setNode(i)}>
+                    <StepCard {...n} selected={node === i} />
+                  </button>
+                  {i < all.length - 1 && <span aria-hidden className="h-8 w-px bg-fg-subtle" />}
                 </div>
               ))}
             </Demo>
@@ -1287,8 +1302,17 @@ export function Gallery() {
           </Section>
 
           <Section
-            id="ux"
+            id="editors"
             n={14}
+            title="Rich text"
+            description="One editor kit and one read-only renderer. Everything is stored as Markdown."
+          >
+            <EditorDemos />
+          </Section>
+
+          <Section
+            id="ux"
+            n={15}
             title="UX concept"
             description="How screens are put together. The same rules live in src/web/CLAUDE.md."
           >
@@ -1367,7 +1391,7 @@ function DemoBoard() {
       name: 'Andrea Santos',
       source: 'Referral',
       detail: 'Phone screen · Today, 4:00 PM',
-      stage: 'Screening',
+      stage: 'Screen',
       time: '2 days',
     },
     {
@@ -1398,7 +1422,7 @@ function DemoBoard() {
   const [drag, setDrag] = useState<string | null>(null);
   return (
     <Board className="w-full">
-      {['Applied', 'Screening', 'Interview', 'Offer', 'Hired'].map((stage) => {
+      {['Applied', 'Screen', 'Interview', 'Offer', 'Hired'].map((stage) => {
         const items = cards.filter((c) => c.stage === stage);
         return (
           <BoardColumn

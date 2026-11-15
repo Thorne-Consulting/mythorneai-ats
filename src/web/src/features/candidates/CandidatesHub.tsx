@@ -9,30 +9,26 @@ import {
   CircleSlash,
   CircleX,
   Download,
-  FileText,
-  History,
+  Files,
+  Layers,
+  Pin,
   Plus,
   Sheet,
+  UserPlus,
   Users,
   UsersRound,
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
 import { useCurrentUser } from '@/auth';
-import {
-  Badge,
-  Button,
-  Menu,
-  MenuContent,
-  MenuItem,
-  MenuTrigger,
-  PageHeader,
-} from '@/components/ui';
+import { useAbility } from '@/lib/ability';
+import { Button, Menu, MenuContent, MenuItem, MenuTrigger, PageHeader } from '@/components/ui';
 import { SectionNav, SidebarLayout, type SectionGroup } from '@/components/layout/SectionLayout';
-import { ResumeImportModal } from '@/features/talent/ResumeImportModal';
+import { ManyResumesModal } from '@/features/talent/ManyResumesModal';
 import { CreateCandidateModal } from './CreateCandidateModal';
 import { ImportCandidatesModal } from './ImportCandidatesModal';
-import { STATUS_SEGMENTS } from './candidate-filters';
+import { STATUS_SEGMENTS, type SavedViewRow, type SegmentCounts } from './candidate-filters';
+import { useTalentPools } from './talent-pools';
 
 const STATUS_ICONS = {
   Active: CircleDot,
@@ -42,58 +38,86 @@ const STATUS_ICONS = {
 };
 
 /**
- * Candidates: the page header with import and add, and a second sidebar of segments (by status,
- * talent pools, recently viewed, the user's saved views) around the list.
+ * Candidates: the page header with import and add, and a second sidebar of segments (by status),
+ * saved views (yours and the team's) and talent pools, each with a count.
  */
 export function CandidatesHub({ children }: { children: ReactNode }) {
   const user = useCurrentUser();
-  const [open, setOpen] = useState<'create' | 'csv' | 'resume' | null>(null);
+  const [open, setOpen] = useState<'create' | 'csv' | 'resumes' | null>(null);
   const close = () => setOpen(null);
-  const staff = ['Admin', 'Recruiter'].includes(user.role);
-  const canImport = staff && (user.permissions.includes('import') || user.role === 'Admin');
+  const ability = useAbility();
+  // Talent pools and people in no job belong to whoever keeps the candidate records.
+  const staff = ability.can('update', 'Candidate');
+  const canAdd = ability.can('create', 'Candidate');
+  const canImport = ability.can('import', 'Candidate');
   const savedViews = useQuery({
     queryKey: ['saved-views', 'talent'],
-    queryFn: () =>
-      api.get<{ id: string; name: string; paramsJson: string }[]>('/api/saved-views?area=talent'),
-    enabled: staff,
+    queryFn: () => api.get<SavedViewRow[]>('/api/saved-views?area=talent'),
+    enabled: ability.can('create', 'Application'),
+  });
+  const pools = useTalentPools(staff);
+  const mine = savedViews.data?.filter((view) => view.mine || view.pinned) ?? [];
+  const team = savedViews.data?.filter((view) => !view.mine && !view.pinned) ?? [];
+  const viewItem = (view: SavedViewRow) => ({
+    href: `/candidates/views/${view.id}`,
+    label: view.name,
+    icon: view.pinned ? Pin : view.shared ? UsersRound : Bookmark,
+    count: counts.data?.views[view.id],
+  });
+  // One call for every segment's count; the list refreshes it after any change to people.
+  const counts = useQuery({
+    queryKey: ['candidates', 'counts'],
+    queryFn: () => api.get<SegmentCounts>('/api/candidates/counts'),
   });
 
   const groups: SectionGroup[] = [
     {
       items: [
-        { href: '/candidates', label: 'All candidates', icon: Users, exact: true },
-        ...STATUS_SEGMENTS.map(({ slug, status }) => ({
-          href: `/candidates/${slug}`,
-          label: status,
-          icon: STATUS_ICONS[status],
-        })),
-      ],
-    },
-    {
-      label: 'Lists',
-      items: [
         {
-          href: '/candidates/talent-pools',
-          label: 'Talent pools',
-          icon: UsersRound,
-          badge: (
-            <Badge tone="amber" size="sm">
-              Preview
-            </Badge>
-          ),
+          href: '/candidates',
+          label: 'All candidates',
+          icon: Users,
+          exact: true,
+          count: counts.data?.all,
         },
-        { href: '/candidates/recent', label: 'Recently viewed', icon: History },
+        ...STATUS_SEGMENTS.map(({ slug, status, label, count }) => ({
+          href: `/candidates/${slug}`,
+          label,
+          icon: STATUS_ICONS[status],
+          count: counts.data?.[count],
+        })),
+        ...(staff
+          ? [
+              {
+                href: '/candidates/not-in-a-job',
+                label: 'Not in a job',
+                icon: UserPlus,
+                count: counts.data?.noJob,
+              },
+            ]
+          : []),
       ],
     },
-    ...(savedViews.data?.length
+    ...(mine.length ? [{ label: 'Your views', items: mine.map(viewItem) }] : []),
+    ...(team.length ? [{ label: 'Team views', items: team.map(viewItem) }] : []),
+    ...(staff
       ? [
           {
-            label: 'Saved views',
-            items: savedViews.data.map((view) => ({
-              href: `/candidates/views/${view.id}`,
-              label: view.name,
-              icon: Bookmark,
-            })),
+            label: 'Talent pools',
+            items: [
+              ...(pools.data ?? []).map((pool) => ({
+                href: `/candidates/pools/${pool.id}`,
+                label: pool.name,
+                icon: Layers,
+                count: counts.data?.pools[pool.id] ?? 0,
+              })),
+              {
+                href: '/candidates/talent-pools',
+                label: pools.data?.length ? 'All pools' : 'Make a pool',
+                icon: pools.data?.length ? UsersRound : Plus,
+                exact: true,
+              },
+            ],
           },
         ]
       : []),
@@ -104,7 +128,7 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
       <PageHeader
         title="Candidates"
         actions={
-          staff && (
+          canAdd && (
             <>
               {canImport && (
                 <Menu>
@@ -114,11 +138,13 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
                     </Button>
                   </MenuTrigger>
                   <MenuContent>
-                    <MenuItem icon={<FileText />} onSelect={() => setOpen('resume')}>
-                      From a resume
-                    </MenuItem>
+                    {user.aiEnabled && (
+                      <MenuItem icon={<Files />} onSelect={() => setOpen('resumes')}>
+                        Many resumes
+                      </MenuItem>
+                    )}
                     <MenuItem icon={<Sheet />} onSelect={() => setOpen('csv')}>
-                      From a spreadsheet (CSV)
+                      Spreadsheet (CSV or Excel)
                     </MenuItem>
                   </MenuContent>
                 </Menu>
@@ -133,7 +159,7 @@ export function CandidatesHub({ children }: { children: ReactNode }) {
       <SidebarLayout nav={<SectionNav title="Browse" groups={groups} />}>{children}</SidebarLayout>
       <CreateCandidateModal opened={open === 'create'} onClose={close} />
       <ImportCandidatesModal opened={open === 'csv'} onClose={close} />
-      <ResumeImportModal opened={open === 'resume'} onClose={close} />
+      <ManyResumesModal opened={open === 'resumes'} onClose={close} />
     </>
   );
 }

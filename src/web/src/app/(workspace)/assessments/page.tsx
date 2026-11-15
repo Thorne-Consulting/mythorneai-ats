@@ -1,5 +1,10 @@
-import { AssessmentsPage } from '@/features/preview/AssessmentsPage';
+import { Suspense } from 'react';
+import { AssessmentsHome } from '@/features/assessments/AssessmentsHome';
 
 export default function Page() {
-  return <AssessmentsPage />;
+  return (
+    <Suspense>
+      <AssessmentsHome />
+    </Suspense>
+  );
 }

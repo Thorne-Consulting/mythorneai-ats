@@ -1,32 +1,70 @@
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
+import { createLoader, type SearchParams } from 'nuqs/server';
 import { serverApiGet } from '@/lib/server-api';
 import type { CandidateListPage } from '@/types';
-import { BLANK, candidateParams, viewState, type Filters } from './candidate-filters';
+import type { TalentPool } from './talent-pools';
+import {
+  BLANK,
+  candidateParams,
+  filterParsers,
+  filterUrlKeys,
+  listParsers,
+  routeFilters,
+  viewState,
+  type Filters,
+  type SavedViewRow,
+} from './candidate-filters';
 import { CandidatesList, type ListStart } from './CandidatesList';
 
-/** Server side of a list segment: fetch the first page the client will ask for, then hand over. */
-async function render(filters: Filters, rest: Omit<ListStart, 'initialData' | 'initialFilters'>) {
-  const people = await serverApiGet<CandidateListPage>(
-    `/api/candidates?${candidateParams(filters, 1)}`,
+const loadFilters = createLoader(filterParsers, { urlKeys: filterUrlKeys });
+const loadList = createLoader(listParsers);
+type Props = { searchParams: Promise<SearchParams> };
+
+/** True when the address bar carries any list filter. */
+function hasUrlFilters(params: SearchParams) {
+  const keys = Object.keys(filterParsers).map(
+    (key) => filterUrlKeys[key as keyof typeof filterUrlKeys] ?? key,
   );
-  return <CandidatesList initialData={people} initialFilters={filters} {...rest} />;
+  return keys.some((key) => params[key] !== undefined);
 }
 
-/** /candidates and the status segments. `?job=` (from a job or the pipeline) ranks for that job. */
-export function statusPage(status: string | null) {
-  return async function Page({ searchParams }: { searchParams: Promise<{ job?: string }> }) {
-    const { job } = await searchParams;
-    return render({ ...BLANK, status, jobId: job ?? null }, { rank: Boolean(job) });
+/** Server side of a list segment or view: fetch the first page the client will ask for, then hand over. */
+async function render(
+  base: Filters,
+  params: SearchParams,
+  rest: Omit<ListStart, 'initialData' | 'baseFilters'>,
+) {
+  const filters: Filters = hasUrlFilters(params)
+    ? { ...loadFilters(params), ...routeFilters(base) }
+    : base;
+  const { page } = loadList(params);
+  const people = await serverApiGet<CandidateListPage>(
+    `/api/candidates?${candidateParams(filters, page)}`,
+  );
+  return <CandidatesList initialData={people} baseFilters={base} {...rest} />;
+}
+
+/** /candidates, the status segments and "Not in a job". */
+export function statusPage(status: string | null, hasApplications: boolean | null = null) {
+  return async function Page({ searchParams }: Props) {
+    const params = await searchParams;
+    return render({ ...BLANK, status, hasApplications }, params, {});
   };
 }
 
-/** /candidates/views/[viewId]: one of the user's saved views. */
-export async function savedViewPage(viewId: string) {
-  const views = await serverApiGet<{ id: string; name: string; paramsJson: string }[]>(
-    '/api/saved-views?area=talent',
-  );
+/** /candidates/views/[viewId]: a saved view, yours or the team's. A deleted view goes back to the list. */
+export async function savedViewPage(viewId: string, searchParams: Promise<SearchParams>) {
+  const views = await serverApiGet<SavedViewRow[]>('/api/saved-views?area=talent');
   const view = views.find((item) => item.id === viewId);
-  if (!view) notFound();
+  if (!view) redirect('/candidates?missingView=1');
   const { filters, describe } = viewState(view.paramsJson);
-  return render(filters, { initialDescribe: describe, view: { id: view.id, name: view.name } });
+  return render(filters, await searchParams, { initialDescribe: describe, view });
+}
+
+/** /candidates/pools/[poolId]: everyone in a talent pool, in the same list. */
+export async function poolPage(poolId: string, searchParams: Promise<SearchParams>) {
+  const pools = await serverApiGet<TalentPool[]>('/api/talent-pools');
+  const pool = pools.find((item) => item.id === poolId);
+  if (!pool) redirect('/candidates/talent-pools?missingPool=1');
+  return render({ ...BLANK, poolId, sort: 'added' }, await searchParams, { pool });
 }

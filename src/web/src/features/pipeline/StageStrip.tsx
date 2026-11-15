@@ -13,7 +13,7 @@ export function StageStrip({
   selected,
   onChange,
 }: {
-  stages: { id: string; name: string; count: number }[];
+  stages: { id: string; name: string; count: number; type?: string; color?: string | null }[];
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
@@ -27,7 +27,7 @@ export function StageStrip({
     <div
       role="group"
       aria-label="Filter by stage"
-      className="-mx-1 flex gap-1.5 overflow-x-auto px-1 py-0.5 scrollbar-hide"
+      className="-mx-1 flex max-w-full min-w-0 gap-1.5 overflow-x-auto px-1 py-0.5 scrollbar-hide"
     >
       <button
         type="button"
@@ -52,7 +52,7 @@ export function StageStrip({
           >
             <span
               aria-hidden
-              className={cn('size-2 rounded-full', toneDot(stageTone(stage.name)))}
+              className={cn('size-2 rounded-full', toneDot(stageTone(stage.type, stage.color)))}
             />
             {stage.name}
             <span className="text-xs text-fg-subtle tnum">{stage.count}</span>

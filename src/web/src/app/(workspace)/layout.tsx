@@ -14,10 +14,15 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     return <LoginPage unavailable />;
   }
 
-  const navCollapsed = (await cookies()).get('ats-nav-collapsed')?.value === '1';
+  const jar = await cookies();
+  const navCollapsed = jar.get('ats-nav-collapsed')?.value === '1';
+  // Beside a section nav the sidebar starts as icons, unless the person opened it there.
+  const sectionNavCollapsed = jar.get('ats-nav-collapsed-section')?.value !== '0';
   return (
     <AuthProvider user={user}>
-      <AppShell navCollapsed={navCollapsed}>{children}</AppShell>
+      <AppShell navCollapsed={navCollapsed} sectionNavCollapsed={sectionNavCollapsed}>
+        {children}
+      </AppShell>
     </AuthProvider>
   );
 }

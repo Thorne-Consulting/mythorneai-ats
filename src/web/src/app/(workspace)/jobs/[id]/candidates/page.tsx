@@ -1,6 +1,7 @@
-import { JobCandidates } from '@/features/requisitions/JobSections';
+import { redirect } from 'next/navigation';
 
+// The candidates table is the Pipeline tab's List view.
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <JobCandidates id={id} />;
+  redirect(`/jobs/${id}/pipeline?view=list`);
 }

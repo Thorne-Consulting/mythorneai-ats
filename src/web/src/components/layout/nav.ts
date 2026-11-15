@@ -11,7 +11,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import type { User } from '@/types';
+import type { AppAbility } from '@/lib/ability';
 
 export type NavItem = {
   label: string;
@@ -22,40 +22,57 @@ export type NavItem = {
 };
 
 /**
- * Sidebar destinations, in Figma order, filtered by role. `preview` marks screens that run on
- * sample data until their backend exists.
+ * Sidebar destinations, in Figma order, from what this person may do. `preview` marks screens that
+ * run on sample data until their backend exists.
  */
-export function primaryNav(user: User): NavItem[] {
-  const dashboard: NavItem = { label: 'Dashboard', href: '/', icon: House, match: ['/approvals'] };
-  const candidates: NavItem = {
-    label: 'Candidates',
-    href: '/candidates',
-    icon: Users,
-    match: ['/applications'],
-  };
-  const interviews: NavItem = { label: 'Interviews', href: '/interviews', icon: CalendarDays };
-  if (user.role === 'Interviewer') return [dashboard, interviews, candidates];
-  const items: NavItem[] = [
-    dashboard,
-    { label: 'Jobs', href: '/jobs', icon: Briefcase },
-    candidates,
-    { label: 'Pipeline', href: '/pipeline', icon: BarChart3 },
-    interviews,
-    { label: 'Assessments', href: '/assessments', icon: FileText, preview: true },
+export function primaryNav(ability: AppAbility): NavItem[] {
+  const items: (NavItem & { allowed: boolean })[] = [
+    { label: 'Dashboard', href: '/', icon: House, match: ['/approvals'], allowed: true },
+    { label: 'Jobs', href: '/jobs', icon: Briefcase, allowed: ability.can('read', 'Job') },
+    {
+      label: 'Candidates',
+      href: '/candidates',
+      icon: Users,
+      match: ['/applications'],
+      allowed: ability.can('read', 'Candidate'),
+    },
+    { label: 'Pipeline', href: '/pipeline', icon: BarChart3, allowed: ability.can('read', 'Job') },
+    {
+      label: 'Interviews',
+      href: '/interviews',
+      icon: CalendarDays,
+      allowed: ability.can('read', 'Interview'),
+    },
+    {
+      label: 'Assessments',
+      href: '/assessments',
+      icon: FileText,
+      allowed: ability.can('read', 'Assessment'),
+    },
+    { label: 'Reports', href: '/reports', icon: LineChart, allowed: ability.can('read', 'Report') },
+    {
+      label: 'Messages',
+      href: '/messages',
+      icon: MessageSquareMore,
+      allowed: ability.can('read', 'Message'),
+    },
   ];
-  if (user.permissions.includes('reports'))
-    items.push({ label: 'Reports', href: '/reports', icon: LineChart });
-  items.push({ label: 'Messages', href: '/messages', icon: MessageSquareMore, preview: true });
-  return items;
+  return items.filter((item) => item.allowed).map(({ allowed: _, ...item }) => item);
 }
 
-export function supportNav(user: User): NavItem[] {
-  const settings: NavItem =
-    user.role === 'Admin'
-      ? { label: 'Settings', href: '/admin', icon: Settings, match: ['/settings'] }
-      : { label: 'Settings', href: '/settings/profile', icon: Settings, match: ['/settings'] };
+export function supportNav(ability: AppAbility): NavItem[] {
+  const settings: NavItem = {
+    label: 'Settings',
+    href: settingsHome(ability),
+    icon: Settings,
+    match: ['/settings'],
+  };
   return [settings, { label: 'Help', href: '/help', icon: CircleHelp }];
 }
+
+/** Where "Settings" opens: Members for people who manage the workspace, else their profile. */
+export const settingsHome = (ability: AppAbility) =>
+  ability.can('manage', 'Workspace') ? '/settings/members' : '/settings/profile';
 
 export function isActive(pathname: string, item: NavItem) {
   const prefixes = [item.href, ...(item.match ?? [])];
@@ -63,6 +80,3 @@ export function isActive(pathname: string, item: NavItem) {
     ? pathname === '/' || (item.match ?? []).some((p) => pathname.startsWith(p))
     : prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
-
-export const canPostJobs = (user: User) =>
-  ['Admin', 'Recruiter', 'HiringManager'].includes(user.role);

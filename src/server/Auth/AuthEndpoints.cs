@@ -5,12 +5,14 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
+using MyThorneAI.Ats.Api.Api;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
+using MyThorneAI.Ats.Api.Infrastructure;
 using WorkOS;
 
 namespace MyThorneAI.Ats.Api.Auth;
@@ -44,12 +46,21 @@ public static partial class AuthExtensions
             endpoints
                 .MapGet(
                     "/auth/login",
-                    (HttpContext context, string? returnUrl, WorkOSClient client, IDataProtectionProvider protection) =>
+                    (
+                        HttpContext context,
+                        string? returnUrl,
+                        WorkOSClient client,
+                        IDataProtectionProvider protection
+                    ) =>
                     {
                         var nonce = RandomNumberGenerator.GetHexString(32);
                         var state = protection
                             .CreateProtector("Internal.Ats.WorkOS.LoginState")
-                            .Protect(JsonSerializer.Serialize(new WorkOSLoginState(SafeReturnUrl(returnUrl), nonce)));
+                            .Protect(
+                                JsonSerializer.Serialize(
+                                    new WorkOSLoginState(SafeReturnUrl(returnUrl), nonce)
+                                )
+                            );
                         context.Response.Cookies.Append(
                             "ats.workos.login-state",
                             nonce,
@@ -90,7 +101,7 @@ public static partial class AuthExtensions
                     ) =>
                     {
                         if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
-                            return Results.BadRequest(new { message = "The WorkOS login response is incomplete." });
+                            return Results.Redirect("/login?error=state");
 
                         WorkOSLoginState loginState;
                         try
@@ -98,16 +109,18 @@ public static partial class AuthExtensions
                             var json = protection
                                 .CreateProtector("Internal.Ats.WorkOS.LoginState")
                                 .Unprotect(state);
-                            loginState = JsonSerializer.Deserialize<WorkOSLoginState>(json)
+                            loginState =
+                                JsonSerializer.Deserialize<WorkOSLoginState>(json)
                                 ?? throw new InvalidOperationException();
                         }
-                        catch (CryptographicException)
+                        catch (Exception exception)
+                            when (exception
+                                    is CryptographicException
+                                        or JsonException
+                                        or InvalidOperationException
+                            )
                         {
-                            return Results.BadRequest(new { message = "The WorkOS login state is invalid." });
-                        }
-                        catch (JsonException)
-                        {
-                            return Results.BadRequest(new { message = "The WorkOS login state is invalid." });
+                            return Results.Redirect("/login?error=state");
                         }
 
                         var expectedNonce = context.Request.Cookies["ats.workos.login-state"];
@@ -120,47 +133,132 @@ public static partial class AuthExtensions
                                 System.Text.Encoding.UTF8.GetBytes(loginState.Nonce)
                             )
                         )
-                            return Results.BadRequest(new { message = "The WorkOS login state is invalid." });
+                            return Results.Redirect("/login?error=state");
 
                         try
                         {
-                            var authentication = await client.UserManagement.AuthenticateWithCodeAsync(
-                                new AuthenticateWithCodeOptions
-                                {
-                                    Code = code,
-                                    IpAddress = context.Connection.RemoteIpAddress?.ToString(),
-                                    UserAgent = context.Request.Headers.UserAgent.ToString(),
-                                },
-                                cancellationToken: cancellationToken
-                            );
-                            var (user, error) = await FindOrProvisionAtsUserAsync(
+                            var authentication =
+                                await client.UserManagement.AuthenticateWithCodeAsync(
+                                    new AuthenticateWithCodeOptions
+                                    {
+                                        Code = code,
+                                        IpAddress = context.Connection.RemoteIpAddress?.ToString(),
+                                        UserAgent = context.Request.Headers.UserAgent.ToString(),
+                                    },
+                                    cancellationToken: cancellationToken
+                                );
+                            var email = authentication.User.Email;
+                            var method = $"{authentication.AuthenticationMethod}";
+                            var organization = await db
+                                .Organizations.AsNoTracking()
+                                .SingleOrDefaultAsync(cancellationToken);
+                            if (!MethodAllowed(organization, method))
+                            {
+                                await DenySignInAsync(db, email, "method");
+                                return Results.Redirect(Refused("method", loginState.ReturnUrl));
+                            }
+                            var (user, error, requestId) = await FindOrProvisionAtsUserAsync(
                                 db,
                                 context.RequestServices.GetRequiredService<IConfiguration>(),
-                                authentication.User.Email,
+                                email,
                                 authentication.User.Name
                             );
                             if (user is null)
-                                return Results.Redirect($"/login?error={Uri.EscapeDataString(error ?? "Access denied.")}");
+                            {
+                                await DenySignInAsync(db, email, error ?? "not_invited");
+                                var token = requestId is { } id
+                                    ? "&request="
+                                        + Uri.EscapeDataString(
+                                            protection
+                                                .CreateProtector(AccessRequestPurpose)
+                                                .Protect(id.ToString())
+                                        )
+                                    : "";
+                                return Results.Redirect(
+                                    Refused(error ?? "not_invited", loginState.ReturnUrl) + token
+                                );
+                            }
 
+                            if (
+                                await SsoRequiredAsync(
+                                    client,
+                                    organization,
+                                    user.Email,
+                                    method,
+                                    cancellationToken
+                                )
+                            )
+                            {
+                                await DenySignInAsync(db, email, "sso");
+                                return Results.Redirect(Refused("sso", loginState.ReturnUrl));
+                            }
+
+                            await CompleteSignInAsync(db, user, method);
                             await context.SignInAsync(
                                 CookieAuthenticationDefaults.AuthenticationScheme,
-                                CreatePrincipal(user, "WorkOS")
+                                await CreatePrincipalAsync(db, user, "WorkOS")
                             );
                             return Results.Redirect(loginState.ReturnUrl);
                         }
                         catch (WorkOS.ApiException)
                         {
-                            return Results.Redirect("/login?error=WorkOS%20authentication%20failed");
+                            return Results.Redirect(Refused("provider", loginState.ReturnUrl));
                         }
                     }
                 )
                 .ExcludeFromDescription();
         }
 
+        // The /login page's "add a note" for someone whose sign-in became an access request.
+        endpoints
+            .MapPost(
+                "/auth/access-request",
+                async (
+                    AccessRequestNote request,
+                    IDataProtectionProvider protection,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    Guid id;
+                    try
+                    {
+                        id = Guid.Parse(
+                            protection
+                                .CreateProtector(AccessRequestPurpose)
+                                .Unprotect(request.Token)
+                        );
+                    }
+                    catch (Exception exception)
+                        when (exception is CryptographicException or FormatException)
+                    {
+                        return Results.BadRequest(
+                            new
+                            {
+                                message = "This link has expired. Sign in again to ask for access.",
+                            }
+                        );
+                    }
+                    var pending = await db.AccessRequests.SingleOrDefaultAsync(
+                        x => x.Id == id && x.Status == AccessRequestStatus.Pending,
+                        ct
+                    );
+                    if (pending is null)
+                        return Results.NotFound();
+                    pending.Note = request.Note?.Trim() is { Length: > 0 } note
+                        ? note[..Math.Min(note.Length, 1000)]
+                        : null;
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                }
+            )
+            .RequireRateLimiting("public-candidate")
+            .ExcludeFromDescription();
+
         endpoints
             .MapPost(
                 "/api/auth/logout",
-                async (HttpContext context, IAntiforgery antiforgery) =>
+                async (HttpContext context, IAntiforgery antiforgery, AtsDbContext db) =>
                 {
                     try
                     {
@@ -173,6 +271,13 @@ public static partial class AuthExtensions
                         );
                     }
 
+                    var email = context.User.Email();
+                    var userId = await db
+                        .Users.Where(x => x.Email == email)
+                        .Select(x => x.Id)
+                        .FirstOrDefaultAsync();
+                    Audit.Add(db, email, "User", userId, "SignedOut");
+                    await db.SaveChangesAsync();
                     await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
                     return Results.NoContent();
                 }
@@ -185,30 +290,55 @@ public static partial class AuthExtensions
                 async (
                     ClaimsPrincipal principal,
                     AtsDbContext db,
+                    IConfiguration configuration,
+                    MyThorneAI.Ats.Api.Infrastructure.IAiAssistant ai,
                     CancellationToken cancellationToken
                 ) =>
                 {
                     var email = principal.Email();
                     var user = await db
                         .Users.AsNoTracking()
+                        .Include(x => x.CustomRole)
                         .SingleOrDefaultAsync(x => x.Email == email, cancellationToken);
-                    var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
-                    return user is null
-                        ? Results.Unauthorized()
-                        : Results.Ok(
-                            new
-                            {
-                                user.Id,
+                    if (user is null)
+                        return Results.Unauthorized();
+                    var organization = await db
+                        .Organizations.AsNoTracking()
+                        .SingleOrDefaultAsync(cancellationToken);
+                    return Results.Ok(
+                        new
+                        {
+                            user.Id,
+                            user.Email,
+                            user.DisplayName,
+                            // The built-in role this one behaves like (personal defaults read it), and its name.
+                            Role = user.Role.ToString(),
+                            RoleName = Permissions.RoleName(user),
+                            user.Departments,
+                            user.AvatarTone,
+                            user.TimeZone,
+                            OrganizationName = organization?.Name,
+                            // The employer's square icon from the careers site brand, if they set one.
+                            WorkspaceIconUrl = CareerSites.ImageUrl(
+                                await CareerSites.FindAsync(db, cancellationToken),
+                                CareerSites.Icon
+                            ),
+                            OrganizationTimeZone = organization?.TimeZone,
+                            OrganizationSetupCompleted = organization?.SetupCompleted ?? false,
+                            IsOrganizationOwner = organization?.OwnerEmail == user.Email,
+                            // What this person may do, as CASL rules. The web app hides everything else.
+                            Rules = Abilities.RulesFor(
+                                Permissions.For(principal),
                                 user.Email,
-                                user.DisplayName,
-                                Role = user.Role.ToString(),
-                                user.Department,
-                                OrganizationName = organization?.Name,
-                                OrganizationSetupCompleted = organization?.SetupCompleted ?? false,
-                                IsOrganizationOwner = organization?.OwnerEmail == user.Email,
-                                Permissions = (await Permissions.ForAsync(db, principal, cancellationToken)).Order().ToArray(),
-                            }
-                        );
+                                user.Departments
+                            ),
+                            Preferences = MyPreferences.Parse(user.PreferencesJson),
+                            // AI controls show only when the server has a key and the organization has AI on.
+                            AiEnabled = ai.IsConfigured && (organization?.AiEnabled ?? true),
+                            SupportEmail = configuration["Support:Email"],
+                            ChangelogUrl = configuration["Support:ChangelogUrl"],
+                        }
+                    );
                 }
             )
             .RequireAuthorization();
@@ -243,18 +373,17 @@ public static partial class AuthExtensions
                 ) =>
                 {
                     var email = request.Email.Trim().ToLowerInvariant();
-                    var user = await db
-                        .Users.AsNoTracking()
-                        .SingleOrDefaultAsync(
-                            x => x.Email == email && x.IsActive,
-                            cancellationToken
-                        );
+                    var user = await db.Users.SingleOrDefaultAsync(
+                        x => x.Email == email && x.IsActive,
+                        cancellationToken
+                    );
                     if (user is null)
                         return Results.Unauthorized();
+                    await CompleteSignInAsync(db, user, "Development");
 
                     await context.SignInAsync(
                         CookieAuthenticationDefaults.AuthenticationScheme,
-                        CreatePrincipal(user, "Development")
+                        await CreatePrincipalAsync(db, user, "Development")
                     );
                     return Results.NoContent();
                 }
@@ -262,6 +391,30 @@ public static partial class AuthExtensions
         }
 
         return endpoints;
+    }
+
+    /// <summary>
+    /// Whether this sign-in must be refused because the workspace requires single sign-on for the
+    /// person's verified company domain and they used something else. The owner is always let in,
+    /// so a broken identity provider can't lock the workspace.
+    /// </summary>
+    private static async Task<bool> SsoRequiredAsync(
+        WorkOSClient client,
+        MyThorneAI.Ats.Api.Domain.Organization? organization,
+        string email,
+        string method,
+        CancellationToken ct
+    )
+    {
+        if (
+            organization is not { RequireSso: true, WorkOsOrganizationId: { } orgId }
+            || method.Equals("SSO", StringComparison.OrdinalIgnoreCase)
+            || email.Equals(organization.OwnerEmail, StringComparison.OrdinalIgnoreCase)
+        )
+            return false;
+        var domain = email.Split('@').Last().ToLowerInvariant();
+        var domains = await AtsEndpoints.VerifiedDomainsAsync(client, orgId, ct);
+        return domains.Any(x => x.Domain == domain && x.State == "Verified");
     }
 
     // "//evil.com" is a well-formed *relative* URI that starts with '/', so the
@@ -276,7 +429,15 @@ public static partial class AuthExtensions
             ? returnUrl
             : "/";
 
+    // Back to the sign-in page with the reason, keeping where the person was going.
+    private static string Refused(string code, string returnUrl) =>
+        $"/login?error={code}&returnUrl={Uri.EscapeDataString(returnUrl)}";
+
+    private const string AccessRequestPurpose = "Internal.Ats.AccessRequest";
+
     private sealed record DevLoginRequest(string Email);
+
+    private sealed record AccessRequestNote(string Token, string? Note);
 
     private sealed record WorkOSLoginState(string ReturnUrl, string Nonce);
 }

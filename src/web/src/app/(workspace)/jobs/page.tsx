@@ -1,8 +1,8 @@
 import { RequisitionsPage } from '@/features/requisitions/RequisitionsPage';
+import type { JobListItem } from '@/features/requisitions/requirements-types';
 import { serverApiGet } from '@/lib/server-api';
-import type { RequisitionSummary } from '@/types';
 
 export default async function Page() {
-  const requisitions = await serverApiGet<RequisitionSummary[]>('/api/requisitions');
+  const requisitions = await serverApiGet<JobListItem[]>('/api/requisitions');
   return <RequisitionsPage initialData={requisitions} />;
 }

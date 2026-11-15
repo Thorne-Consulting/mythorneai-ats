@@ -11,6 +11,7 @@ import {
   Line,
   Pie,
   PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Scatter,
   ScatterChart as RScatterChart,
@@ -30,8 +31,80 @@ export const chartColors = [
   'var(--chart-5)',
   'var(--chart-6)',
 ];
-export type Series = { key: string; label?: string; color?: string };
+/** `dashed` draws a comparison series (the previous period). `unit` follows the value in tooltips. */
+export type Series = {
+  key: string;
+  label?: string;
+  color?: string;
+  dashed?: boolean;
+  unit?: string;
+};
 type Row = Record<string, string | number | null>;
+/** A target or pass mark drawn across the chart. */
+export type Reference = { x?: number | string; y?: number; label?: string };
+/** Called with the row index when a bar, point or slice is clicked (drill-down). */
+export type OnSelect = (index: number) => void;
+
+const indexOf = (state: { activeTooltipIndex?: unknown } | null | undefined) => {
+  const value = Number(state?.activeTooltipIndex);
+  return state?.activeTooltipIndex == null || Number.isNaN(value) ? null : value;
+};
+
+function references(items: Reference[] | undefined) {
+  return items?.map((r, i) => (
+    <ReferenceLine
+      key={i}
+      x={r.x}
+      y={r.y}
+      stroke="var(--fg-subtle)"
+      strokeDasharray="4 4"
+      label={
+        r.label
+          ? { value: r.label, position: 'insideTopRight', fill: 'var(--fg-muted)', fontSize: 11 }
+          : undefined
+      }
+    />
+  ));
+}
+
+/** Wrap a category label onto at most two lines, so long names never run off the chart. */
+export function wrapLabel(text: string, perLine: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/)) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length <= perLine || !line) line = next;
+    else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length <= 2)
+    return lines.map((l) => (l.length > perLine ? `${l.slice(0, perLine - 1)}…` : l));
+  const second = lines.slice(1).join(' ');
+  return [lines[0], second.length > perLine ? `${second.slice(0, perLine - 1)}…` : second];
+}
+
+function CategoryTick(props: {
+  x?: number | string;
+  y?: number | string;
+  payload?: { value?: unknown };
+  perLine: number;
+}) {
+  const text = String(props.payload?.value ?? '');
+  const lines = wrapLabel(text, props.perLine);
+  return (
+    <text x={props.x} y={props.y} textAnchor="end" fill="var(--fg-subtle)" fontSize={11}>
+      <title>{text}</title>
+      {lines.map((line, i) => (
+        <tspan key={i} x={props.x} dy={i === 0 ? (lines.length > 1 ? -2 : 4) : 12}>
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
 
 const axis = {
   stroke: 'var(--fg-subtle)',
@@ -47,7 +120,7 @@ function TooltipBox({
   label,
 }: {
   active?: boolean;
-  payload?: { name?: string; value?: number | string; color?: string }[];
+  payload?: { name?: string; value?: number | string; color?: string; unit?: ReactNode }[];
   label?: ReactNode;
 }) {
   if (!active || !payload?.length) return null;
@@ -58,7 +131,10 @@ function TooltipBox({
         <p key={i} className="flex items-center gap-2 text-fg-muted">
           <span className="size-2 rounded-full" style={{ background: p.color }} />
           {p.name}
-          <span className="ml-auto pl-3 font-medium text-fg tnum">{p.value}</span>
+          <span className="ml-auto pl-3 font-medium text-fg tnum">
+            {p.value}
+            {p.unit}
+          </span>
         </p>
       ))}
     </div>
@@ -71,10 +147,17 @@ export function ChartLegend({ series, className }: { series: Series[]; className
     <ul className={cn('flex flex-wrap gap-x-4 gap-y-1 text-2xs text-fg-muted', className)}>
       {series.map((s, i) => (
         <li key={s.key} className="flex items-center gap-1.5">
-          <span
-            className="size-2 rounded-full"
-            style={{ background: s.color ?? chartColors[i % chartColors.length] }}
-          />
+          {s.dashed ? (
+            <span
+              className="w-3 border-t-2 border-dashed"
+              style={{ borderColor: s.color ?? chartColors[i % chartColors.length] }}
+            />
+          ) : (
+            <span
+              className="size-2 rounded-full"
+              style={{ background: s.color ?? chartColors[i % chartColors.length] }}
+            />
+          )}
           {s.label ?? s.key}
         </li>
       ))}
@@ -83,6 +166,11 @@ export function ChartLegend({ series, className }: { series: Series[]; className
 }
 
 const color = (s: Series, i: number) => s.color ?? chartColors[i % chartColors.length];
+/** The value axis shows a unit (such as %) only when every series uses it. */
+const sharedUnit = (series: Series[]) =>
+  series.length > 0 && series.every((s) => s.unit && s.unit === series[0].unit)
+    ? series[0].unit
+    : undefined;
 
 /** Line chart over a category axis. `area` adds the soft fill under the first series. */
 export function LineChart({
@@ -92,6 +180,8 @@ export function LineChart({
   height = 220,
   area = true,
   legend = true,
+  onSelect,
+  references: refs,
 }: {
   data: Row[];
   dataKey: string;
@@ -99,12 +189,21 @@ export function LineChart({
   height?: number;
   area?: boolean;
   legend?: boolean;
+  onSelect?: OnSelect;
+  references?: Reference[];
 }) {
   return (
     <div>
       {legend && series.length > 1 && <ChartLegend series={series} className="mb-2" />}
       <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart data={data} margin={{ top: 6, right: 8, bottom: 0, left: -18 }}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 6, right: 8, bottom: 0, left: -18 }}
+          onClick={
+            onSelect ? (state) => indexOf(state) !== null && onSelect(indexOf(state)!) : undefined
+          }
+          style={onSelect ? { cursor: 'pointer' } : undefined}
+        >
           <defs>
             <linearGradient id="area-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.12} />
@@ -112,8 +211,8 @@ export function LineChart({
             </linearGradient>
           </defs>
           <CartesianGrid vertical={false} {...grid} />
-          <XAxis dataKey={dataKey} {...axis} />
-          <YAxis allowDecimals={false} {...axis} />
+          <XAxis dataKey={dataKey} minTickGap={14} {...axis} />
+          <YAxis allowDecimals={false} unit={sharedUnit(series)} {...axis} />
           <RTooltip content={<TooltipBox />} cursor={{ stroke: 'var(--border)' }} />
           {area && series[0] && (
             <Area
@@ -125,15 +224,22 @@ export function LineChart({
               tooltipType="none"
             />
           )}
+          {references(refs)}
           {series.map((s, i) => (
             <Line
               key={s.key}
               type="monotone"
               dataKey={s.key}
               name={s.label ?? s.key}
+              unit={s.unit}
               stroke={color(s, i)}
-              strokeWidth={2}
-              dot={data.length <= 16 ? { r: 2.5, strokeWidth: 0, fill: color(s, i) } : false}
+              strokeWidth={s.dashed ? 1.5 : 2}
+              strokeDasharray={s.dashed ? '5 4' : undefined}
+              dot={
+                !s.dashed && data.length <= 16
+                  ? { r: 2.5, strokeWidth: 0, fill: color(s, i) }
+                  : false
+              }
               activeDot={{ r: 4 }}
             />
           ))}
@@ -152,6 +258,8 @@ export function BarChart({
   horizontal,
   stacked,
   legend = true,
+  onSelect,
+  references: refs,
 }: {
   data: Row[];
   dataKey: string;
@@ -160,8 +268,14 @@ export function BarChart({
   horizontal?: boolean;
   stacked?: boolean;
   legend?: boolean;
+  onSelect?: OnSelect;
+  references?: Reference[];
 }) {
   const h = height ?? (horizontal ? Math.max(160, data.length * 34 + 40) : 220);
+  // Category labels down the left get the width they need, up to two lines of 22 characters.
+  const longest = Math.max(4, ...data.map((d) => String(d[dataKey] ?? '').length));
+  const perLine = Math.min(22, longest);
+  const labelWidth = Math.round(perLine * 6.2 + 12);
   return (
     <div>
       {legend && series.length > 1 && <ChartLegend series={series} className="mb-2" />}
@@ -170,25 +284,38 @@ export function BarChart({
           data={data}
           layout={horizontal ? 'vertical' : 'horizontal'}
           margin={{ top: 6, right: 8, bottom: 0, left: horizontal ? 0 : -18 }}
+          onClick={
+            onSelect ? (state) => indexOf(state) !== null && onSelect(indexOf(state)!) : undefined
+          }
+          style={onSelect ? { cursor: 'pointer' } : undefined}
         >
           <CartesianGrid vertical={!!horizontal} horizontal={!horizontal} {...grid} />
           {horizontal ? (
             <>
-              <XAxis type="number" allowDecimals={false} {...axis} />
-              <YAxis type="category" dataKey={dataKey} width={140} {...axis} />
+              <XAxis type="number" allowDecimals={false} unit={sharedUnit(series)} {...axis} />
+              <YAxis
+                type="category"
+                dataKey={dataKey}
+                width={labelWidth}
+                interval={0}
+                {...axis}
+                tick={<CategoryTick perLine={perLine} />}
+              />
             </>
           ) : (
             <>
-              <XAxis dataKey={dataKey} {...axis} />
-              <YAxis allowDecimals={false} {...axis} />
+              <XAxis dataKey={dataKey} minTickGap={8} {...axis} />
+              <YAxis allowDecimals={false} unit={sharedUnit(series)} {...axis} />
             </>
           )}
           <RTooltip content={<TooltipBox />} cursor={{ fill: 'var(--accent)' }} />
+          {references(refs)}
           {series.map((s, i) => (
             <Bar
               key={s.key}
               dataKey={s.key}
               name={s.label ?? s.key}
+              unit={s.unit}
               fill={color(s, i)}
               stackId={stacked ? 'a' : undefined}
               radius={stacked ? 0 : horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]}
@@ -210,12 +337,14 @@ export function DonutChart({
   centerLabel,
   size = 160,
   legend = true,
+  onSelect,
 }: {
   data: Slice[];
   centerValue?: ReactNode;
   centerLabel?: ReactNode;
   size?: number;
   legend?: boolean;
+  onSelect?: OnSelect;
 }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
   return (
@@ -234,6 +363,8 @@ export function DonutChart({
               stroke="var(--card)"
               strokeWidth={2}
               isAnimationActive={false}
+              onClick={onSelect ? (_, index) => onSelect(index) : undefined}
+              style={onSelect ? { cursor: 'pointer' } : undefined}
             >
               {data.map((d, i) => (
                 <Cell key={d.name} fill={d.color ?? chartColors[i % chartColors.length]} />
@@ -251,48 +382,86 @@ export function DonutChart({
       </div>
       {legend && (
         <ul className="min-w-40 flex-1 space-y-2.5">
-          {data.map((d, i) => (
-            <li key={d.name} className="flex items-center gap-2.5 text-sm">
-              <span
-                className="size-3 rounded-[3px]"
-                style={{ background: d.color ?? chartColors[i % chartColors.length] }}
-              />
-              <span className="flex-1 truncate text-fg-muted">{d.name}</span>
-              <span className="font-medium text-fg tnum">
-                {Math.round((d.value / total) * 100)}%
-              </span>
-            </li>
-          ))}
+          {data.map((d, i) => {
+            const body = (
+              <>
+                <span
+                  className="size-3 shrink-0 rounded-[3px]"
+                  style={{ background: d.color ?? chartColors[i % chartColors.length] }}
+                />
+                <span className="min-w-0 flex-1 text-left break-words text-fg-muted">{d.name}</span>
+                <span className="font-medium text-fg tnum">
+                  {Math.round((d.value / total) * 100)}%
+                </span>
+              </>
+            );
+            return (
+              <li key={d.name} className="text-sm">
+                {onSelect ? (
+                  <button
+                    type="button"
+                    onClick={() => onSelect(i)}
+                    className="-mx-1.5 flex w-[calc(100%+0.75rem)] items-center gap-2.5 rounded-md px-1.5 py-0.5 hover:bg-accent"
+                  >
+                    {body}
+                  </button>
+                ) : (
+                  <span className="flex items-center gap-2.5">{body}</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>
   );
 }
 
-/** Stage funnel as horizontal bars with count and share of the first stage (Figma "Hiring funnel"). */
-export function FunnelBars({ data, footer }: { data: Slice[]; footer?: ReactNode }) {
+/**
+ * Stage funnel as horizontal bars with count and share of the first stage (Figma "Hiring funnel").
+ * One hue: the empty track to the right of each bar is the drop-off. `onSelect` makes rows buttons.
+ */
+export function FunnelBars({
+  data,
+  footer,
+  onSelect,
+}: {
+  data: Slice[];
+  footer?: ReactNode;
+  onSelect?: OnSelect;
+}) {
   const top = data[0]?.value || 1;
   return (
-    <div className="space-y-3">
+    <div className="space-y-1">
       {data.map((d, i) => {
         const pct = (d.value / top) * 100;
-        return (
-          <div
-            key={d.name}
-            className="grid grid-cols-[88px_1fr_44px_36px] items-center gap-3 text-sm"
-          >
-            <span className="truncate text-fg-muted">{d.name}</span>
+        const row = (
+          <>
+            <span className="text-left leading-tight break-words text-fg-muted">{d.name}</span>
             <span className="h-5 overflow-hidden rounded-sm bg-muted">
               <span
                 className="block h-full rounded-sm"
-                style={{
-                  width: `${Math.max(pct, 2)}%`,
-                  background: d.color ?? chartColors[i % chartColors.length],
-                }}
+                style={{ width: `${Math.max(pct, 2)}%`, background: d.color ?? 'var(--chart-1)' }}
               />
             </span>
             <span className="text-right font-semibold text-fg tnum">{d.value}</span>
             <span className="text-right text-2xs text-fg-subtle tnum">{Math.round(pct)}%</span>
+          </>
+        );
+        const grid =
+          'grid w-full grid-cols-[minmax(4.5rem,8.5rem)_minmax(0,1fr)_auto_2.5rem] items-center gap-3 rounded-md py-1 text-sm';
+        return onSelect ? (
+          <button
+            key={d.name}
+            type="button"
+            onClick={() => onSelect(i)}
+            className={cn(grid, '-mx-1.5 w-[calc(100%+0.75rem)] px-1.5 hover:bg-accent')}
+          >
+            {row}
+          </button>
+        ) : (
+          <div key={d.name} className={grid}>
+            {row}
           </div>
         );
       })}
@@ -307,12 +476,14 @@ export function ScatterChart({
   yLabel,
   height = 240,
   xDomain,
+  onSelect,
 }: {
   data: { x: number; y: number }[];
   xLabel?: string;
   yLabel?: string;
   height?: number;
   xDomain?: [number, number];
+  onSelect?: OnSelect;
 }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -328,7 +499,12 @@ export function ScatterChart({
         <YAxis type="number" dataKey="y" name={yLabel} allowDecimals={false} {...axis} />
         <RTooltip content={<TooltipBox />} />
         <RLegend content={() => null} />
-        <Scatter data={data} fill="var(--chart-1)" />
+        <Scatter
+          data={data}
+          fill="var(--chart-1)"
+          onClick={onSelect ? (_, index) => onSelect(index) : undefined}
+          style={onSelect ? { cursor: 'pointer' } : undefined}
+        />
       </RScatterChart>
     </ResponsiveContainer>
   );

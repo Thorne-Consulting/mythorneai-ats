@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Copy, Sparkles } from 'lucide-react';
+import { Check, Copy, Plus, Sparkles } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
 import { Alert, Button, Drawer, IconButton, Spinner, toast } from '@/components/ui';
@@ -13,10 +13,16 @@ export function InterviewQuestions({
   applicationId,
   interviewKitId,
   candidateName,
+  onAdd,
+  added = [],
 }: {
   applicationId: string;
   interviewKitId?: string | null;
   candidateName: string;
+  /** In the interview room: put a question on my list for this interview. */
+  onAdd?: (question: string) => void;
+  /** Questions already on my list, so they show as added. */
+  added?: string[];
 }) {
   const [opened, setOpened] = useState(false);
   const [questions, setQuestions] = useState<Question[] | null>(null);
@@ -116,6 +122,20 @@ export function InterviewQuestions({
                       <p className="text-base text-fg">{item.question}</p>
                       {item.why && <p className="mt-0.5 text-xs text-fg-subtle">Why: {item.why}</p>}
                     </div>
+                    {onAdd && (
+                      <Button
+                        size="xs"
+                        variant={added.includes(item.question) ? 'quiet' : 'soft'}
+                        leftIcon={added.includes(item.question) ? <Check /> : <Plus />}
+                        disabled={added.includes(item.question)}
+                        onClick={() => {
+                          onAdd(item.question);
+                          toast.success('Added to your questions');
+                        }}
+                      >
+                        {added.includes(item.question) ? 'Added' : 'Add to my questions'}
+                      </Button>
+                    )}
                     <IconButton
                       variant="quiet"
                       size="sm"

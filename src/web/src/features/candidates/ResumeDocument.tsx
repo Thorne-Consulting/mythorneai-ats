@@ -3,6 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import { useCurrentUser } from '@/auth';
 import { Button, Card, CardBody, CardHeader, SkeletonRows, toast } from '@/components/ui';
 import { formatRelative } from '@/lib/format';
 import { safeWebUrl } from '@/lib/safe-url';
@@ -118,12 +119,18 @@ function Entry({
 export function ResumeDocument({
   candidateId,
   canReparse,
+  upload,
 }: {
   candidateId: string;
   canReparse: boolean;
+  /** An "Upload resume" button for the empty state. */
+  upload?: ReactNode;
 }) {
   const [compare, setCompare] = useState(false);
   const queryClient = useQueryClient();
+  // Reading needs AI; without it, "Read it again" can only fail the same way.
+  const user = useCurrentUser();
+  const canRead = canReparse && user.aiEnabled !== false;
   const query = useQuery({
     queryKey: ['candidate-resume', candidateId],
     queryFn: () => api.get<ResumeProfile>(`/api/candidates/${candidateId}/resume`),
@@ -165,12 +172,15 @@ export function ResumeDocument({
                   Open original
                 </a>
               </Button>
+              <Button variant="link" size="sm" asChild>
+                <a href={`/api/attachments/${attachment.id}`}>Download</a>
+              </Button>
               {profile?.parsedAt && (
                 <Button variant="link" size="sm" onClick={() => setCompare((on) => !on)}>
                   {compare ? 'Hide the original' : 'Compare with the original'}
                 </Button>
               )}
-              {canReparse && (
+              {canRead && attachment.parseStatus !== 'NeedsOcr' && (
                 <Button
                   variant="link"
                   size="sm"
@@ -191,7 +201,13 @@ export function ResumeDocument({
 
   if (query.isError) return shell(empty('Could not load the resume.'));
   if (!profile) return shell(<SkeletonRows rows={6} className="p-0" />);
-  if (!attachment) return shell(empty('No resume yet. Upload one under Documents.'));
+  if (!attachment)
+    return shell(
+      <div className="flex flex-col items-start gap-3">
+        {empty('No resume yet. Upload a PDF or Word document and we fill in the profile from it.')}
+        {upload}
+      </div>,
+    );
 
   const body = !profile.parsedAt ? (
     empty(
@@ -199,7 +215,9 @@ export function ResumeDocument({
         ? 'Reading the resume…'
         : attachment.parseStatus === 'NeedsOcr'
           ? 'This file is a scanned image, so we could not read any text. Upload a copy saved straight from Word or as a PDF.'
-          : (attachment.parseError ?? 'We have not read this file yet.'),
+          : attachment.parseStatus === 'Failed'
+            ? 'We could not read this file. Open the original to see it as it is.'
+            : 'We have not read this file yet.',
     )
   ) : (
     <Document profile={profile} />
@@ -209,7 +227,9 @@ export function ResumeDocument({
   return shell(
     <>
       {attachment.parseError && profile.parsedAt && (
-        <p className="mb-4 text-sm text-tone-amber-fg">{attachment.parseError}</p>
+        <p className="mb-4 text-sm text-tone-amber-fg" title={attachment.parseError}>
+          The last attempt to read this file failed, so this is from an earlier read.
+        </p>
       )}
       {compare ? (
         <div className="grid items-start gap-8 lg:grid-cols-2">

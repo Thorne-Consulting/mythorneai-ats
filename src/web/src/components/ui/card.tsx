@@ -133,7 +133,7 @@ export function StatCard({
     <>
       {icon && <IconDisc icon={icon} tone={tone} />}
       <div className="min-w-0 flex-1">
-        <p className="truncate text-base text-fg-muted">{label}</p>
+        <p className="line-clamp-2 text-base leading-snug text-fg-muted">{label}</p>
         <p className="mt-0.5 text-3xl font-bold text-fg tnum">{value}</p>
         {trend ? (
           <p
@@ -152,7 +152,7 @@ export function StatCard({
     </>
   );
   const classes = cn(
-    'flex min-h-[108px] items-center gap-5 rounded-xl border border-border-subtle bg-card px-4 py-4 shadow-card',
+    'flex min-h-[108px] items-center gap-4 rounded-xl border border-border-subtle bg-card px-4 py-4 shadow-card',
     href && 'transition-colors hover:border-border hover:bg-muted',
     className,
   );

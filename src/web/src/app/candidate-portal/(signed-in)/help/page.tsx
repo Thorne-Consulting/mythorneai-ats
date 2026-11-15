@@ -1,5 +1,6 @@
-import { PortalHelp } from '@/features/candidate-portal/PortalHubs';
+import { redirect } from 'next/navigation';
 
+// Help opens from "Need help?" in the footer and the account menu.
 export default function Page() {
-  return <PortalHelp />;
+  redirect('/candidate-portal/home');
 }

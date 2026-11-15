@@ -24,9 +24,9 @@ our data.
 | `src/styles.css`            | Design tokens (CSS variables, light + dark) and the Tailwind theme. The only place a hex value may appear.                                                                                           |
 | `src/components/ui/*`       | The component library. Generic, no API calls, no business words. Import from `@/components/ui`.                                                                                                      |
 | `src/components/status.tsx` | The single mapping from job/application/stage status to colour (`StatusBadge`, `StageBadge`, `stageTone`).                                                                                           |
-| `src/components/<area>/*`   | Composites used by several pages: `layout/` (AppShell), `pipeline/` (BoardColumn, CandidateCard), `calendar/` (WeekCalendar), `messages/` (ChatBubble, ConversationRow), `workflow/` (WorkflowNode). |
+| `src/components/<area>/*`   | Composites used by several pages: `layout/` (AppShell), `pipeline/` (BoardColumn, CandidateCard), `calendar/` (WeekCalendar), `messages/` (ChatBubble, ConversationRow), `workflow/` (StepCard). |
 | `src/features/<area>/*`     | Pages and feature components. They compose `ui` + composites and own data fetching.                                                                                                                  |
-| `src/features/preview/*`    | Screens without a backend yet, on sample data (see "Preview screens").                                                                                                                               |
+| `src/features/preview/*`    | Only if a screen ships before its backend (see "Preview screens"); empty today.                                                                                                                               |
 | `src/app/**/page.tsx`       | Thin route files. Fetch on the server if useful, render a feature component.                                                                                                                         |
 
 Before writing markup, look in `components/ui` and the gallery. If something is missing and will
@@ -55,9 +55,23 @@ Use the Tailwind names; they switch automatically in dark mode.
 
 ## Layout building blocks
 
-- **`SidebarLayout` + `SectionNav`** (`components/layout/SectionLayout.tsx`): second, grouped vertical
-  nav beside the content. Use it when an area has more than ~6 sub-pages or they fall into groups
-  (Settings, Reports, a job record, My settings). Never stack two rows of tabs.
+- **Record pages use tabs, not a second sidebar.** A job, candidate, application or interview has a
+  compact identity header with its main action and a ••• menu, then underline `LinkTabs`. Never put
+  a section nav beside a record: two sidebars squeeze the content.
+- **`SidebarLayout` + `SectionNav`** (`components/layout/SectionLayout.tsx`): a grouped vertical nav
+  for areas with many sub-pages (Reports). The app sidebar collapses to icons beside it on its own
+  (`data-section-nav`). Never stack two rows of tabs.
+- **Settings take over the sidebar.** Every settings page is registered once in
+  `features/admin/settings-registry.ts` (the rail, settings search, page headers and ⌘K read it).
+  A page renders `<SettingsHeader actions={…} />`; its save bar shows only while there are unsaved
+  changes.
+- **Rich text**: edit with `PlateMarkdownEditor` (a field) or `DocumentEditor` (a page) from
+  `components/editor` and `components/plate`; show stored Markdown with `RichText`
+  (`components/rich-text`). Pass `chips` for @people or {{details}}, and `images={false}` where
+  pictures do not belong. Never print Markdown as text.
+- **Shared flows**: the scheduler (`/interviews/schedule`, `components/scheduling`), bulk email
+  (`BulkEmailDrawer`), sending an assessment (`SendAssessmentModal`), and the reject dialog with its
+  reasons from Settings. Open these; do not build a second version.
 - **`DataTable`** (`components/data-table/DataTable.tsx`): every list of records. Give it `columns`
   (with `sortValue`/`csv` where useful), a `viewKey` so column choice, density and sort persist, the
   search/filters in `toolbar`, and `selectable` + `bulkActions` when bulk work makes sense.
@@ -70,7 +84,8 @@ Use the Tailwind names; they switch automatically in dark mode.
 - **Graphs**: workflows and other node graphs use React Flow (`@xyflow/react`), styled with tokens.
 - **`JobPostingView`** (`components/careers`): the one rendering of a job as applicants see it.
 
-The page-by-page reasoning for where each of these is used lives in `docs/ui-depth-plan.md`.
+Why each area looks the way it does, and what is still open, lives in `docs/product-audit.md` and
+`docs/audit/<area>.md`.
 
 ## Colour means something
 
@@ -85,15 +100,16 @@ closed, neutral. Get stage/status colours from `components/status.tsx`; never pi
    Settings, Help, Thorney). Pages render only their content.
 2. **PageHeader**: optional breadcrumbs, 28px bold title, one plain sentence saying what the page is
    for, actions on the right (secondary first, primary last, at most one primary).
-3. **StatGrid** of up to four `StatCard`s when the page has headline numbers.
+3. **StatGrid** of up to four `StatCard`s only when the numbers add something the page does not
+   already show. Prefer counts on tabs, pills and segments.
 4. **The main card(s)**. List pages: one `Card` holding `Tabs` with counts → toolbar (`SearchInput`
    left, `FilterSelect`s and "More filters" right) → `Table` → `Pagination`. Dashboards: a grid of
    `Card`s with `CardHeader` + "View all →" (`CardLink`).
-5. Record pages (candidate, application, job): identity header with stage badge and actions, then
-   a main column and a right rail (`lg:grid-cols-[1fr_340px]`) for contact details, next interview
-   and quick actions.
-6. Settings: breadcrumbs, underline `LinkTabs` for areas, `LinkTabs variant="pills"` for sub-pages,
-   cards and accordions for groups, a sticky "Discard / Save changes" pair when editing.
+5. Record pages (job, candidate, application, interview): identity header with status and actions,
+   underline tabs, then a main column. A right rail (`lg:grid-cols-[1fr_340px]`) appears on the
+   Overview tab only, so wide forms on other tabs get the full width.
+6. Settings: the settings rail replaces the app sidebar; cards and accordions for groups; a sticky
+   "Discard / Save changes" bar while editing.
 
 ## Component rules
 
@@ -122,7 +138,9 @@ closed, neutral. Get stage/status colours from `components/status.tsx`; never pi
 - Design for the person who is here once a month (the interviewer): every screen says what it is for
   and what to do next. Recruiters get density through tables and boards, not through clutter.
 - Access is enforced by the API; the UI hides what a role cannot do instead of showing disabled
-  dead ends. Interviewers see a reduced sidebar.
+  dead ends. Interviewers see a reduced sidebar. Check with `useAbility()` or `<Can>` from
+  `@/lib/ability` (rules the server sends on `/api/auth/me`), for example
+  `ability.can('update', asJob(job))`; never compare `user.role`.
 - Structured, comparable evaluation is the point: keep scorecards locked after submit, keep
   disposition reasons mandatory, never add shortcuts around them.
 - Optimistic updates (drag a card, toggle a switch) roll back with a `toast.error` on failure.
@@ -175,11 +193,10 @@ Show each piece of information in one place per screen.
 
 ## Preview screens (sample data)
 
-Assessments, the Messages inbox, Automated workflows, Single sign-on, Access requests,
-Invitations, Team access and the AI match column come from the Figma but have no backend yet. They
-live in `src/features/preview/`, read from typed sample data in that folder, and show a
-`<Badge tone="amber">Preview</Badge>` next to the title. When a backend lands, replace the sample
-module with a query and delete the badge.
+There are none today: every screen runs on the API. If a screen ever ships before its backend, it
+reads typed sample data from `src/features/preview/`, shows `<Badge tone="amber">Preview</Badge>`
+next to its title, and the badge goes when the backend lands. Never leave sample data behind a
+screen without the badge.
 
 ## Branding
 
