@@ -32,3 +32,5 @@ test-results/
 src/web/tsconfig.tsbuildinfo
 
 tmp/*
+# Git worktrees that Claude Code sessions create; each is a full copy of the repo.
+.claude/worktrees/
