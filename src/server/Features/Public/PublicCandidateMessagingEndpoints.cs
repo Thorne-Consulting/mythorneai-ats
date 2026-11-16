@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Contracts;
 using MyThorneAI.Ats.Api.Data;
@@ -15,7 +16,7 @@ public sealed record WithdrawRequest(string? Reason);
 
 public static partial class PublicEndpoints
 {
-    private static async Task<Guid?> CandidateIdFromTokenAsync(AtsDbContext db, string? token, CancellationToken ct) =>
+    internal static async Task<Guid?> CandidateIdFromTokenAsync(AtsDbContext db, string? token, CancellationToken ct) =>
         string.IsNullOrWhiteSpace(token)
             ? null
             : await db.CandidatePortalSessions
@@ -30,24 +31,26 @@ public static partial class PublicEndpoints
             CandidateMessageRequest request,
             [FromHeader(Name = "X-Candidate-Session")] string? token,
             AtsDbContext db,
+            IConfiguration configuration,
+            IHubContext<InboxHub> hub,
             CancellationToken ct) =>
         {
             var candidateId = await CandidateIdFromTokenAsync(db, token, ct);
             if (candidateId is null) return Results.Unauthorized();
             var body = request.Body?.Trim() ?? "";
-            if (body.Length is 0 or > 2000)
-                return Results.ValidationProblem(new Dictionary<string, string[]> { ["body"] = ["Write a message of up to 2,000 characters."] });
+            if (body.Length is 0 or > EmailInbound.MaxBody)
+                return Results.ValidationProblem(new Dictionary<string, string[]> { ["body"] = ["Write a message of up to 10,000 characters."] });
             var application = await db.Applications.Include(x => x.Candidate).Include(x => x.Requisition)
                 .SingleOrDefaultAsync(x => x.Id == applicationId && x.CandidateId == candidateId && x.Status != ApplicationStatus.PendingVerification, ct);
             if (application is null) return Results.NotFound();
-            db.ApplicationMessages.Add(new ApplicationMessage { ApplicationId = applicationId, FromCandidate = true, Body = body });
+            var message = new ApplicationMessage { ApplicationId = applicationId, FromCandidate = true, Body = body };
+            db.ApplicationMessages.Add(message);
             application.LastActivityAt = DateTimeOffset.UtcNow;
-            var name = $"{application.Candidate!.FirstName} {application.Candidate.LastName}";
-            QueueEmail(db, application.Requisition!.RecruiterEmail,
-                $"New message from {name} about {application.Requisition.Title}",
-                $"{name} wrote in the candidate portal:\n\n{body}\n\nReply from the application in the ATS.", applicationId);
-            await PipelineEvents.NotifyAsync(db, $"New message from {name} about {application.Requisition.Title}.", ct);
+            // A candidate writing again reopens a thread the team marked done.
+            application.ThreadDoneAt = null;
+            await EmailThreads.AlertTeamAsync(db, configuration, application, message, ct);
             await db.SaveChangesAsync(ct);
+            await hub.ThreadChangedAsync(applicationId, application.CandidateId);
             return Results.NoContent();
         });
 
@@ -55,13 +58,16 @@ public static partial class PublicEndpoints
             Guid applicationId,
             [FromHeader(Name = "X-Candidate-Session")] string? token,
             AtsDbContext db,
+            IHubContext<InboxHub> hub,
             CancellationToken ct) =>
         {
             var candidateId = await CandidateIdFromTokenAsync(db, token, ct);
             if (candidateId is null) return Results.Unauthorized();
-            await db.ApplicationMessages
+            var seen = await db.ApplicationMessages
                 .Where(x => x.ApplicationId == applicationId && !x.FromCandidate && x.ReadAt == null && x.Application!.CandidateId == candidateId)
                 .ExecuteUpdateAsync(u => u.SetProperty(x => x.ReadAt, DateTimeOffset.UtcNow), ct);
+            // The team sees "Seen" under their message.
+            if (seen > 0) await hub.ThreadChangedAsync(applicationId);
             return Results.NoContent();
         });
 
@@ -97,21 +103,31 @@ public static partial class PublicEndpoints
                 if (integration.IsEnabled || personalConnection)
                     db.IntegrationOutbox.Add(new IntegrationOutboxItem { Operation = IntegrationOperation.CancelCalendarEvent, EntityId = interview.Id });
                 foreach (var interviewer in interview.InterviewerEmails)
-                    QueueEmail(db, interviewer, $"Interview cancelled: {interview.Title}",
-                        "The candidate withdrew their application, so this interview is cancelled.", application.Id);
+                    await EmailTemplates.QueueAsync(db, "interview-team-update", application.RequisitionId, interviewer, new Dictionary<string, string>
+                    {
+                        ["title"] = "Cancelled",
+                        ["candidateName"] = $"{application.Candidate!.FirstName} {application.Candidate.LastName}",
+                        ["jobTitle"] = application.Requisition.Title,
+                        ["interviewDetails"] = $"{interview.Title}: the candidate withdrew their application, so this interview is cancelled.",
+                        ["link"] = Notify.AbsoluteLink(await db.Organizations.Select(x => x.PublicUrl).SingleOrDefaultAsync(ct), $"/interviews/{interview.Id}"),
+                    }, application.Id, ct);
             }
             var name = $"{application.Candidate!.FirstName} {application.Candidate.LastName}";
-            QueueEmail(db, application.Requisition.RecruiterEmail, $"{name} withdrew from {application.Requisition.Title}",
-                $"{name} withdrew their application.{(string.IsNullOrEmpty(reason) ? "" : $"\n\nTheir note: {reason}")}", application.Id);
-            QueueEmail(db, application.Candidate.Email, $"Your {application.Requisition.Title} application was withdrawn",
-                "We've withdrawn your application as you asked. Thank you for your time, and you're welcome to apply again in the future.", application.Id);
+            await Notify.AddAsync(db, [application.AssigneeEmail, .. await EmailThreads.RecruitersAsync(db, application.Requisition, ct)], new NotificationDraft(
+                NotificationKinds.CandidateWithdrew, $"{name} withdrew from {application.Requisition.Title}", $"/applications/{application.Id}",
+                Body: string.IsNullOrEmpty(reason) ? null : $"Their note: {reason}", ApplicationId: application.Id), ct);
+            await EmailTemplates.QueueAsync(db, "withdrawal-confirmed", application.RequisitionId, application.Candidate.Email, new Dictionary<string, string>
+            {
+                ["firstName"] = application.Candidate.FirstName,
+                ["jobTitle"] = application.Requisition.Title,
+            }, application.Id, ct);
             db.AuditEvents.Add(new AuditEvent
             {
                 EntityType = "Application", EntityId = application.Id.ToString(), Action = "WithdrawnByCandidate",
                 ActorEmail = application.Candidate.Email, Details = JsonSerializer.Serialize(new { reason }),
             });
             await PipelineEvents.OnMovedAsync(db, application, application.PipelineStageId, fromStatus, application.Candidate.Email, ct);
-            await PipelineEvents.NotifyAsync(db, $"{name} withdrew from {application.Requisition.Title}.", ct);
+            await PipelineEvents.NotifyAsync(db, $"{name} withdrew from {application.Requisition.Title}.", ct, TeamChannel.CandidateWithdrew, $"/applications/{application.Id}");
             await db.SaveChangesAsync(ct);
             return Results.NoContent();
         });

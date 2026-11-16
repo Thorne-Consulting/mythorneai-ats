@@ -2,6 +2,8 @@
 
 import { type PlateElementProps, PlateElement } from 'platejs/react';
 
+import { blockquoteClass } from './blockquote-node-static';
+
 export function BlockquoteElement(props: PlateElementProps) {
-  return <PlateElement as="blockquote" className="my-1 border-l-2 pl-6 italic" {...props} />;
+  return <PlateElement as="blockquote" className={blockquoteClass} {...props} />;
 }

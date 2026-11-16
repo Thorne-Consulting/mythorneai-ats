@@ -77,7 +77,7 @@ public static class ResumeProfileWriter
                 City = Clean(job.City),
                 Region = Clean(job.Region),
                 Country = Clean(job.Country),
-                IsRemote = job.IsRemote,
+                IsRemote = job.IsRemote ?? false,
                 StartYear = Year(job.Start?.Year),
                 StartMonth = Month(job.Start?.Month),
                 EndYear = Year(job.End?.Year),
@@ -110,7 +110,7 @@ public static class ResumeProfileWriter
             FieldNormalized = ResumeDerived.ParseEnum<FieldOfStudy>(entry.FieldNormalized),
             StartYear = Year(entry.StartYear),
             EndYear = Year(entry.EndYear),
-            IsInProgress = entry.InProgress,
+            IsInProgress = entry.InProgress ?? false,
             Gpa = entry.Gpa is > 0 and < 100 ? entry.Gpa : null,
             GpaScale = entry.GpaScale is > 0 and < 100 ? entry.GpaScale : null,
             Honors = Clean(entry.Honors),
@@ -230,15 +230,18 @@ public static class ResumeProfileWriter
         candidate.WillingToRelocate = basics.WillingToRelocate;
         candidate.OpenToRemote = basics.OpenToRemote;
         var links = basics.Links.Where(x => Uri.IsWellFormedUriString(WithScheme(x.Url), UriKind.Absolute)).ToList();
+        // Links and the current title also only fill gaps, so a recruiter's edits survive reading a new resume.
         candidate.LinkedInUrl ??= links.FirstOrDefault(x => Kind(x) == "linkedin")?.Url is { } linkedIn ? WithScheme(linkedIn) : null;
-        candidate.GitHubUrl = links.FirstOrDefault(x => Kind(x) == "github")?.Url is { } gitHub ? WithScheme(gitHub) : null;
-        candidate.PortfolioUrl = links.FirstOrDefault(x => Kind(x) == "portfolio")?.Url is { } portfolio ? WithScheme(portfolio) : null;
-        candidate.OtherUrls = links.Where(x => Kind(x) is not ("linkedin" or "github" or "portfolio")).Select(x => WithScheme(x.Url)).ToArray();
+        candidate.GitHubUrl ??= links.FirstOrDefault(x => Kind(x) == "github")?.Url is { } gitHub ? WithScheme(gitHub) : null;
+        candidate.PortfolioUrl ??= links.FirstOrDefault(x => Kind(x) == "portfolio")?.Url is { } portfolio ? WithScheme(portfolio) : null;
+        if (candidate.OtherUrls is not { Length: > 0 })
+            candidate.OtherUrls = links.Where(x => Kind(x) is not ("linkedin" or "github" or "portfolio")).Select(x => WithScheme(x.Url)).ToArray();
         candidate.ResumeSummary = Clean(basics.Summary);
 
         // Computed columns.
         var current = ResumeDerived.CurrentRole(roles);
-        candidate.CurrentTitle = current?.Title is { Length: > 0 } title ? title : candidate.CurrentTitle;
+        if (string.IsNullOrWhiteSpace(candidate.CurrentTitle))
+            candidate.CurrentTitle = Clean(current?.Title);
         candidate.CurrentEmployerId = current?.CompanyId;
         candidate.Seniority = ResumeDerived.OverallSeniority(roles);
         candidate.ResumeYearsExperience = ResumeDerived.YearsCovered(roles.Where(ResumeDerived.CountsAsExperience), date);

@@ -58,7 +58,8 @@ public sealed record ResumeWork(
     string? City,
     string? Region,
     string? Country,
-    bool IsRemote,
+    // ponytail: nullable because the model sometimes answers null instead of false; null reads as no.
+    bool? IsRemote,
     ResumeDate? Start,
     [property: Description("Null when the role is current (Present, Now, ongoing).")]
     ResumeDate? End,
@@ -83,7 +84,7 @@ public sealed record ResumeEducationEntry(
     int? StartYear,
     [property: Description("Graduation or expected graduation year.")]
     int? EndYear,
-    bool InProgress,
+    bool? InProgress,
     decimal? Gpa,
     [property: Description("The GPA scale, usually 4 or 5. Null if not stated.")]
     decimal? GpaScale,

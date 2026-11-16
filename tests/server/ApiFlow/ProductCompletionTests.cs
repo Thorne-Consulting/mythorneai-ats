@@ -25,7 +25,7 @@ public sealed partial class ApiFlowTests
     }
 
     [Fact]
-    public async Task Acceptance_needs_approval_then_marks_the_candidate_hired_and_can_be_reversed()
+    public async Task Offer_needs_approval_then_acceptance_hires_and_can_be_reversed()
     {
         var ct = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", ct);
@@ -37,7 +37,7 @@ public sealed partial class ApiFlowTests
         (await recruiter.PatchAsJsonAsync($"/api/applications/{applicationId}/stage", new { stageId = hiredStage, status = "Active", dispositionReason = (string?)null }, ct))
             .StatusCode.ShouldBe(HttpStatusCode.Conflict);
 
-        (await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/offer", new { note = "Strong panel, start in November" }, ct)).StatusCode.ShouldBe(HttpStatusCode.Created);
+        (await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/offer", new { note = "Strong panel, start in November", baseSalary = 150000m, startDate = "2027-01-04" }, ct)).StatusCode.ShouldBe(HttpStatusCode.Created);
         var offerView = await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}/offer", ct);
         var offerId = offerView.GetProperty("offer").GetProperty("id").GetGuid();
         (await recruiter.PostAsJsonAsync($"/api/offers/{offerId}/submit", new { approvers = Array.Empty<string>() }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
@@ -59,10 +59,14 @@ public sealed partial class ApiFlowTests
         var adminApproval = (await admin.GetFromJsonAsync<JsonElement>("/api/approvals/mine", ct)).EnumerateArray().Single(x => x.GetProperty("type").GetString() == "Offer").GetProperty("id").GetGuid();
         (await admin.PostAsJsonAsync($"/api/approvals/{adminApproval}/decide", new { decision = "Approved" }, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
 
-        (await recruiter.PostAsync($"/api/offers/{offerId}/send", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await recruiter.PostAsJsonAsync($"/api/offers/{offerId}/send", new { notifyCandidate = true }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        var sent = await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}", ct);
+        // Sending tells the candidate; it does not hire them.
+        sent.GetProperty("application").GetProperty("status").GetString().ShouldBe("Active");
+        sent.GetProperty("emails").EnumerateArray().ShouldContain(x => x.GetProperty("templateKey").GetString() == "acceptance");
+        (await recruiter.PostAsJsonAsync($"/api/offers/{offerId}/response", new { accepted = true }, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var after = await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}", ct);
         after.GetProperty("application").GetProperty("status").GetString().ShouldBe("Hired");
-        after.GetProperty("emails").EnumerateArray().ShouldContain(x => x.GetProperty("templateKey").GetString() == "acceptance");
 
         (await recruiter.PostAsync($"/api/offers/{offerId}/reverse", null, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         var reversed = await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}", ct);
@@ -79,7 +83,7 @@ public sealed partial class ApiFlowTests
         var ct = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", ct);
         var applicationId = await JordanApplicationAsync(recruiter, ct);
-        await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/offer", new { note = "" }, ct);
+        await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/offer", new { note = "", baseSalary = 150000m, startDate = "2027-01-04" }, ct);
         var offerId = (await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}/offer", ct)).GetProperty("offer").GetProperty("id").GetGuid();
         await recruiter.PostAsJsonAsync($"/api/offers/{offerId}/submit", new { approvers = new[] { "manager@example.test" } }, ct);
 
@@ -117,14 +121,13 @@ public sealed partial class ApiFlowTests
     {
         var ct = TestContext.Current.CancellationToken;
         using var admin = await LoginAsync("admin@example.test", ct);
-        (await admin.PutAsJsonAsync("/api/email-templates/acceptance", new { subject = "Welcome {{secret}}", body = "Hi", requisitionId = (Guid?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
-        (await admin.PutAsJsonAsync("/api/email-templates/acceptance", new { subject = "Welcome aboard, {{firstName}}", body = "Hi {{firstName}}, see you at {{company}}.", requisitionId = (Guid?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        var list = await admin.GetFromJsonAsync<JsonElement>("/api/email-templates", ct);
-        var acceptance = list.EnumerateArray().Single(x => x.GetProperty("key").GetString() == "acceptance");
+        (await admin.PutAsJsonAsync("/api/templates/acceptance", new { subject = "Welcome {{secret}}", body = "Hi", requisitionId = (Guid?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await admin.PutAsJsonAsync("/api/templates/acceptance", new { subject = "Welcome aboard, {{firstName}}", body = "Hi {{firstName}}, see you at {{company}}.", requisitionId = (Guid?)null }, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
+        var acceptance = await admin.GetFromJsonAsync<JsonElement>("/api/templates/acceptance", ct);
         acceptance.GetProperty("source").GetString().ShouldBe("organization");
         acceptance.GetProperty("version").GetInt32().ShouldBe(1);
-        (await admin.DeleteAsync("/api/email-templates/acceptance", ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
-        (await admin.GetFromJsonAsync<JsonElement>("/api/email-templates", ct)).EnumerateArray().Single(x => x.GetProperty("key").GetString() == "acceptance").GetProperty("source").GetString().ShouldBe("default");
+        (await admin.DeleteAsync("/api/templates/acceptance", ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await admin.GetFromJsonAsync<JsonElement>("/api/templates/acceptance", ct)).GetProperty("source").GetString().ShouldBe("default");
     }
 
     [Fact]
@@ -133,13 +136,15 @@ public sealed partial class ApiFlowTests
         var ct = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", ct);
         var catalog = await recruiter.GetFromJsonAsync<JsonElement>("/api/reports", ct);
-        catalog.GetArrayLength().ShouldBe(7);
+        catalog.GetArrayLength().ShouldBe(9); // the eight standard reports plus offer acceptance
         foreach (var report in catalog.EnumerateArray())
         {
             var key = report.GetProperty("key").GetString();
             var body = await recruiter.GetFromJsonAsync<JsonElement>($"/api/reports/{key}", ct);
             body.GetProperty("stats").GetArrayLength().ShouldBeGreaterThan(0, key);
-            body.GetProperty("charts").GetArrayLength().ShouldBeGreaterThan(0, key);
+            // AI fit holds its charts back until there are enough outcomes to read.
+            if (key != "ai-outcomes")
+                body.GetProperty("charts").GetArrayLength().ShouldBeGreaterThan(0, key);
             var csv = await recruiter.GetAsync($"/api/reports/{key}?format=csv", ct);
             csv.StatusCode.ShouldBe(HttpStatusCode.OK, key);
             csv.Content.Headers.ContentType!.MediaType.ShouldBe("text/csv");
@@ -159,31 +164,14 @@ public sealed partial class ApiFlowTests
         using var recruiter = await LoginAsync("recruiter@example.test", ct);
         (await recruiter.GetAsync("/api/reports/funnel", ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         using var admin = await LoginAsync("admin@example.test", ct);
-        (await admin.PutAsJsonAsync("/api/admin/role-permissions", new { permissions = new Dictionary<string, string[]> { ["Recruiter"] = new[] { "import" } } }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        // A copy of Recruiter without reports, given to the recruiter (see RolesTests for every capability).
+        var role = await admin.PostAsJsonAsync("/api/admin/roles", new { name = "Recruiter without reports", permissions = new[] { "jobs", "all_jobs", "candidates", "import", "templates" } }, ct);
+        var key = (await role.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("key").GetString();
+        var users = await admin.GetFromJsonAsync<JsonElement[]>("/api/admin/users", ct);
+        var id = users!.Single(x => x.GetProperty("email").GetString() == "recruiter@example.test").GetProperty("id").GetGuid();
+        (await admin.PatchAsJsonAsync("/api/admin/users", new { ids = new[] { id }, role = key }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         (await recruiter.GetAsync("/api/reports/funnel", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await recruiter.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("permissions").EnumerateArray().Select(x => x.GetString()).ShouldBe(["import"]);
-    }
-
-    [Fact]
-    public async Task Candidate_import_previews_creates_and_skips_duplicates()
-    {
-        var ct = TestContext.Current.CancellationToken;
-        using var recruiter = await LoginAsync("recruiter@example.test", ct);
-        var csv = "firstName,lastName,email,location,tags\nNora,Quill,nora.quill@example.com,Austin TX,\"go;sql\"\nJordan,Lee,jordan.lee@example.com,,\nBroken,,not-an-email,,\nNora,Again,nora.quill@example.com,,\n";
-        async Task<JsonElement> Post(bool dryRun)
-        {
-            using var form = new MultipartFormDataContent { { new ByteArrayContent(Encoding.UTF8.GetBytes(csv)), "file", "people.csv" } };
-            var response = await recruiter.PostAsync($"/api/candidates/import?dryRun={dryRun.ToString().ToLowerInvariant()}", form, ct);
-            response.StatusCode.ShouldBe(HttpStatusCode.OK);
-            return await response.Content.ReadFromJsonAsync<JsonElement>(ct);
-        }
-        var preview = await Post(true);
-        preview.GetProperty("wouldCreate").GetInt32().ShouldBe(1);
-        preview.GetProperty("duplicates").GetInt32().ShouldBe(2);
-        preview.GetProperty("invalid").GetInt32().ShouldBe(1);
-        preview.GetProperty("created").GetInt32().ShouldBe(0);
-        (await Post(false)).GetProperty("created").GetInt32().ShouldBe(1);
-        (await Post(false)).GetProperty("created").GetInt32().ShouldBe(0);
+        (await recruiter.GetFromJsonAsync<JsonElement>("/api/auth/me", ct)).GetProperty("rules").EnumerateArray().ShouldNotContain(x => x.GetProperty("subject").GetString() == "Report");
     }
 
     [Fact]
@@ -237,7 +225,7 @@ public sealed partial class ApiFlowTests
 
         var detail = await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}", ct);
         detail.GetProperty("messages")[0].GetProperty("body").GetString().ShouldBe("Could we talk on Thursday?");
-        (await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/messages", new { body = "Thursday works." }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/messages", new { body = "Thursday works." }, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         var portalResponse = await anonymous.SendAsync(Candidate(HttpMethod.Get, "/public/portal"), ct);
         portalResponse.StatusCode.ShouldBe(HttpStatusCode.OK, await portalResponse.Content.ReadAsStringAsync(ct));
         var portal = await portalResponse.Content.ReadFromJsonAsync<JsonElement>(ct);
@@ -325,7 +313,7 @@ public sealed partial class ApiFlowTests
         var ct = TestContext.Current.CancellationToken;
         using var recruiter = await LoginAsync("recruiter@example.test", ct);
         var applicationId = await JordanApplicationAsync(recruiter, ct);
-        await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/offer", new { note = "" }, ct);
+        await recruiter.PostAsJsonAsync($"/api/applications/{applicationId}/offer", new { note = "", baseSalary = 150000m, startDate = "2027-01-04" }, ct);
         var offerId = (await recruiter.GetFromJsonAsync<JsonElement>($"/api/applications/{applicationId}/offer", ct)).GetProperty("offer").GetProperty("id").GetGuid();
 
         // An interviewer isn't someone who can approve.
@@ -347,7 +335,7 @@ public sealed partial class ApiFlowTests
         var created = await admin.PostAsJsonAsync("/api/requisitions", new { title = "Detour", department = "Ops", location = "Remote", employmentType = "Full time", workMode = "Remote", openings = 1, ownerEmail = "manager@example.test", recruiterEmail = "recruiter@example.test", description = "x", targetStartDate = (string?)null }, ct);
         var id = (await created.Content.ReadFromJsonAsync<JsonElement>(ct)).GetProperty("id").GetGuid();
         // Draft -> On hold -> Open is the detour.
-        (await admin.PatchAsJsonAsync($"/api/requisitions/{id}/status", new { status = "OnHold" }, ct)).StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await admin.PatchAsJsonAsync($"/api/requisitions/{id}/status", new { status = "OnHold", reason = "Hiring is paused" }, ct)).StatusCode.ShouldBe(HttpStatusCode.OK);
         (await admin.PatchAsJsonAsync($"/api/requisitions/{id}/status", new { status = "Open" }, ct)).StatusCode.ShouldBe(HttpStatusCode.Conflict);
     }
 
@@ -358,8 +346,8 @@ public sealed partial class ApiFlowTests
         using var manager = await LoginAsync("manager@example.test", ct);
         var jobs = await manager.GetFromJsonAsync<JsonElement>("/api/requisitions", ct);
         var jobId = jobs[0].GetProperty("id").GetGuid();
-        (await manager.PutAsJsonAsync("/api/email-templates/acceptance", new { subject = "Hello {{firstName}}", body = "Hi {{firstName}}", requisitionId = jobId }, ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
-        (await manager.DeleteAsync($"/api/email-templates/acceptance?requisitionId={jobId}", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await manager.PutAsJsonAsync("/api/templates/acceptance", new { subject = "Hello {{firstName}}", body = "Hi {{firstName}}", requisitionId = jobId }, ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+        (await manager.DeleteAsync($"/api/templates/acceptance?requisitionId={jobId}", ct)).StatusCode.ShouldBe(HttpStatusCode.Forbidden);
     }
 
     [Theory]

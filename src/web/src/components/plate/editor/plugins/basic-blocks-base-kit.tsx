@@ -8,9 +8,14 @@ import {
   BaseH6Plugin,
   BaseHorizontalRulePlugin,
 } from '@platejs/basic-nodes';
+import { BaseCodeBlockPlugin, BaseCodeLinePlugin } from '@platejs/code-block';
 import { BaseParagraphPlugin } from 'platejs';
 
 import { BlockquoteElementStatic } from '@/components/plate/ui/blockquote-node-static';
+import {
+  CodeBlockElementStatic,
+  CodeLineElementStatic,
+} from '@/components/plate/ui/code-block-node-static';
 import {
   H1ElementStatic,
   H2ElementStatic,
@@ -32,4 +37,6 @@ export const BaseBasicBlocksKit = [
   BaseH6Plugin.withComponent(H6ElementStatic),
   BaseBlockquotePlugin.withComponent(BlockquoteElementStatic),
   BaseHorizontalRulePlugin.withComponent(HrElementStatic),
+  BaseCodeBlockPlugin.withComponent(CodeBlockElementStatic),
+  BaseCodeLinePlugin.withComponent(CodeLineElementStatic),
 ];

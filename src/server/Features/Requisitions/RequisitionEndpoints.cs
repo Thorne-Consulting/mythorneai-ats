@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Auth;
@@ -56,10 +57,56 @@ public static partial class AtsEndpoints
                             Status = x.Status.ToString(),
                             x.OwnerEmail,
                             x.RecruiterEmail,
+                            // What the permission rules read (`can('update', asJob(row))`).
+                            x.IsConfidential,
+                            Members = x.Members.Select(m => new
+                            {
+                                m.User!.Email,
+                                Role = m.Role.ToString(),
+                            }),
+                            HiringManager = x
+                                .Members.Where(m => m.Role == RequisitionRole.HiringManager)
+                                .OrderBy(m => m.CreatedAt)
+                                .Select(m => new
+                                {
+                                    m.UserId,
+                                    m.User!.DisplayName,
+                                    m.User.Email,
+                                })
+                                .FirstOrDefault(),
+                            Recruiter = x
+                                .Members.Where(m => m.Role == RequisitionRole.Recruiter)
+                                .OrderBy(m => m.CreatedAt)
+                                .Select(m => new
+                                {
+                                    m.UserId,
+                                    m.User!.DisplayName,
+                                    m.User.Email,
+                                })
+                                .FirstOrDefault(),
                             x.TargetStartDate,
                             ActiveApplications = x.Applications.Count(a =>
                                 a.Status == ApplicationStatus.Active
                             ),
+                            // Active candidates still in the first stage: nobody has moved them on yet.
+                            NewApplications = x.Applications.Count(a =>
+                                a.Status == ApplicationStatus.Active
+                                && a.PipelineStage!.SortOrder
+                                    == x.Stages.Min(s => (int?)s.SortOrder)
+                            ),
+                            Stages = x
+                                .Stages.OrderBy(s => s.SortOrder)
+                                .Select(s => new
+                                {
+                                    s.Name,
+                                    Type = s.Type.ToString(),
+                                    s.Color,
+                                    Count = s.Applications.Count(a =>
+                                        a.Status == ApplicationStatus.Active
+                                    ),
+                                }),
+                            x.OpenedAt,
+                            x.ClosedAt,
                             x.UpdatedAt,
                         })
                         .ToListAsync(ct)
@@ -93,8 +140,23 @@ public static partial class AtsEndpoints
                         x.RecruiterEmail,
                         x.Description,
                         x.TargetStartDate,
+                        x.LocationCity,
+                        x.LocationRegion,
+                        x.LocationCountry,
+                        x.RemoteCountries,
+                        x.SalaryMin,
+                        x.SalaryMax,
+                        x.SalaryCurrency,
+                        x.SalaryPeriod,
+                        x.ShowSalary,
+                        x.PostingTemplateId,
+                        x.PipelineTemplateId,
+                        QuestionCount = x.Questions.Count,
                         x.CreatedAt,
                         x.UpdatedAt,
+                        x.OpenedAt,
+                        x.ClosedAt,
+                        x.StatusReason,
                         x.RequirementsJson,
                         x.IsConfidential,
                         x.ViewerEmails,
@@ -107,6 +169,11 @@ public static partial class AtsEndpoints
                                 s.Id,
                                 s.Name,
                                 s.SortOrder,
+                                Type = s.Type.ToString(),
+                                s.CandidateLabel,
+                                EmailOnEntry = s.EmailOnEntry.ToString(),
+                                s.TargetDays,
+                                s.AssessmentId,
                                 s.Color,
                                 s.IsTerminal,
                                 Count = s.Applications.Count(a =>
@@ -114,15 +181,29 @@ public static partial class AtsEndpoints
                                     && a.Status == ApplicationStatus.Active
                                 ),
                             }),
+                        Members = x
+                            .Members.OrderBy(m => m.Role)
+                            .ThenBy(m => m.User!.DisplayName)
+                            .Select(m => new
+                            {
+                                m.UserId,
+                                m.User!.DisplayName,
+                                m.User.Email,
+                                Role = m.Role.ToString(),
+                                UserRole = m.User.Role.ToString(),
+                                m.User.IsActive,
+                            }),
+                        // Current kits only: frozen versions and archived kits are not offered for new interviews.
                         InterviewKits = x
-                            .InterviewKits.OrderBy(k => k.SortOrder)
+                            .InterviewKits.Where(k => k.VersionOfId == null && k.ArchivedAt == null)
+                            .OrderBy(k => k.SortOrder)
                             .Select(k => new
                             {
                                 k.Id,
                                 k.Name,
+                                k.PipelineStageId,
+                                k.Version,
                                 k.Instructions,
-                                k.CandidateMessage,
-                                k.InterviewerMessage,
                                 k.DurationMinutes,
                                 k.SortOrder,
                                 Criteria = k
@@ -143,242 +224,7 @@ public static partial class AtsEndpoints
             }
         );
 
-        api.MapPost(
-                "/requisitions/{id:guid}/interview-kits",
-                async (
-                    Guid id,
-                    CreateInterviewKitRequest request,
-                    ClaimsPrincipal principal,
-                    AtsDbContext db,
-                    CancellationToken ct
-                ) =>
-                {
-                    var requestedCriteria = request.Criteria ?? [];
-                    var criterionNames = requestedCriteria
-                        .Select(x => x.Name?.Trim() ?? "")
-                        .Where(x => x.Length > 0)
-                        .ToArray();
-                    if (
-                        string.IsNullOrWhiteSpace(request.Name)
-                        || request.DurationMinutes is < 15 or > 480
-                        || criterionNames.Length == 0
-                        || requestedCriteria.Any(x =>
-                            string.IsNullOrWhiteSpace(x.Question) || x.Weight is < 1 or > 5
-                        )
-                        || criterionNames.Distinct(StringComparer.OrdinalIgnoreCase).Count()
-                            != criterionNames.Length
-                    )
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]>
-                            {
-                                ["interviewKit"] =
-                                [
-                                    "A name, a 15–480 minute duration, and unique criteria with a question and 1–5 weight are required.",
-                                ],
-                            }
-                        );
-
-                    var requisition = await db
-                        .Requisitions.Include(x => x.InterviewKits)
-                        .SingleOrDefaultAsync(x => x.Id == id, ct);
-                    if (requisition is null || !CanManage(requisition, principal))
-                        return Results.NotFound();
-
-                    var kit = new InterviewKit
-                    {
-                        RequisitionId = id,
-                        Name = request.Name.Trim(),
-                        Instructions = request.Instructions?.Trim() ?? "",
-                        CandidateMessage = request.CandidateMessage?.Trim() is { Length: > 0 } candidateMessage
-                            ? candidateMessage
-                            : "Please choose an interview time from the available options.",
-                        InterviewerMessage = request.InterviewerMessage?.Trim() is { Length: > 0 } interviewerMessage
-                            ? interviewerMessage
-                            : "You are assigned to this interview. Please complete your scorecard afterward.",
-                        DurationMinutes = request.DurationMinutes,
-                        SortOrder = requisition.InterviewKits.Count,
-                    };
-                    kit.Criteria.AddRange(
-                        requestedCriteria
-                            .Where(x => !string.IsNullOrWhiteSpace(x.Name))
-                            .Select(
-                                (criterion, index) =>
-                                    new InterviewCriterion
-                                    {
-                                        Name = criterion.Name.Trim(),
-                                        Question = criterion.Question.Trim(),
-                                        Description = criterion.Description?.Trim() ?? "",
-                                        Weight = criterion.Weight,
-                                        SortOrder = index,
-                                    }
-                            )
-                    );
-                    db.InterviewKits.Add(kit);
-                    Audit.Add(
-                        db,
-                        principal,
-                        "Requisition",
-                        id,
-                        "InterviewKitCreated",
-                        new
-                        {
-                            kit.Id,
-                            kit.Name,
-                            Criteria = kit.Criteria.Count,
-                        }
-                    );
-                    await db.SaveChangesAsync(ct);
-                    return Results.Created(
-                        $"/api/requisitions/{id}/interview-kits/{kit.Id}",
-                        new { kit.Id }
-                    );
-                }
-            )
-            .RequireAuthorization(AtsPolicies.ManageHiring);
-
-        api.MapPut(
-                "/requisitions/{id:guid}/interview-kits/{kitId:guid}",
-                async (
-                    Guid id,
-                    Guid kitId,
-                    UpdateInterviewKitRequest request,
-                    ClaimsPrincipal principal,
-                    AtsDbContext db,
-                    CancellationToken ct
-                ) =>
-                {
-                    var requestedCriteria = request.Criteria ?? [];
-                    var criterionNames = requestedCriteria
-                        .Select(x => x.Name?.Trim() ?? "")
-                        .Where(x => x.Length > 0)
-                        .ToArray();
-                    if (
-                        string.IsNullOrWhiteSpace(request.Name)
-                        || request.DurationMinutes is < 15 or > 480
-                        || criterionNames.Length == 0
-                        || requestedCriteria.Any(x =>
-                            string.IsNullOrWhiteSpace(x.Name)
-                            || string.IsNullOrWhiteSpace(x.Question)
-                            || x.Weight is < 1 or > 5
-                        )
-                        || criterionNames.Distinct(StringComparer.OrdinalIgnoreCase).Count()
-                            != criterionNames.Length
-                    )
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]>
-                            {
-                                ["interviewKit"] =
-                                [
-                                    "A name, a 15–480 minute duration, and unique criteria with a question and 1–5 weight are required.",
-                                ],
-                            }
-                        );
-
-                    var requisition = await db.Requisitions.SingleOrDefaultAsync(
-                        x => x.Id == id,
-                        ct
-                    );
-                    if (requisition is null || !CanManage(requisition, principal))
-                        return Results.NotFound();
-                    var kit = await db
-                        .InterviewKits.Include(x => x.Criteria)
-                        .SingleOrDefaultAsync(x => x.Id == kitId && x.RequisitionId == id, ct);
-                    if (kit is null)
-                        return Results.NotFound();
-
-                    var existingIds = kit.Criteria.Select(x => x.Id).ToHashSet();
-                    var keptIds = requestedCriteria
-                        .Where(x => x.Id is not null)
-                        .Select(x => x.Id!.Value)
-                        .ToHashSet();
-                    if (keptIds.Any(x => !existingIds.Contains(x)))
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]>
-                            {
-                                ["interviewKit"] = ["A criterion does not belong to this kit."],
-                            }
-                        );
-
-                    // A competency that interviewers have already scored cannot be removed
-                    // without losing those scores, so keep it or leave it as is.
-                    var removed = kit.Criteria.Where(x => !keptIds.Contains(x.Id)).ToList();
-                    var removedIds = removed.Select(x => x.Id).ToArray();
-                    var scored = await db
-                        .ScorecardCriterionRatings.Where(x =>
-                            removedIds.Contains(x.InterviewCriterionId)
-                        )
-                        .Select(x => x.InterviewCriterionId)
-                        .Distinct()
-                        .ToListAsync(ct);
-                    if (scored.Count > 0)
-                        return Results.Conflict(
-                            new
-                            {
-                                message = "A competency that already has scores can't be removed: "
-                                    + string.Join(
-                                        ", ",
-                                        removed.Where(x => scored.Contains(x.Id)).Select(x => x.Name)
-                                    )
-                                    + ".",
-                            }
-                        );
-
-                    await using var transaction = await db.Database.BeginTransactionAsync(ct);
-                    kit.Name = request.Name.Trim();
-                    kit.Instructions = request.Instructions?.Trim() ?? "";
-                    if (request.CandidateMessage?.Trim() is { Length: > 0 } candidateMessage)
-                        kit.CandidateMessage = candidateMessage;
-                    if (request.InterviewerMessage?.Trim() is { Length: > 0 } interviewerMessage)
-                        kit.InterviewerMessage = interviewerMessage;
-                    kit.DurationMinutes = request.DurationMinutes;
-
-                    db.InterviewCriteria.RemoveRange(removed);
-                    // (KitId, SortOrder) is unique, so park the survivors out of the way first.
-                    foreach (var criterion in kit.Criteria.Where(x => keptIds.Contains(x.Id)))
-                        criterion.SortOrder += 1000;
-                    await db.SaveChangesAsync(ct);
-
-                    for (var index = 0; index < requestedCriteria.Length; index++)
-                    {
-                        var item = requestedCriteria[index];
-                        var criterion = item.Id is { } criterionId
-                            ? kit.Criteria.Single(x => x.Id == criterionId)
-                            : null;
-                        if (criterion is null)
-                        {
-                            criterion = new InterviewCriterion
-                            {
-                                InterviewKitId = kit.Id,
-                                Name = item.Name.Trim(),
-                                Question = item.Question.Trim(),
-                            };
-                            db.InterviewCriteria.Add(criterion);
-                        }
-                        criterion.Name = item.Name.Trim();
-                        criterion.Question = item.Question.Trim();
-                        criterion.Description = item.Description?.Trim() ?? "";
-                        criterion.Weight = item.Weight;
-                        criterion.SortOrder = index;
-                    }
-                    Audit.Add(
-                        db,
-                        principal,
-                        "Requisition",
-                        id,
-                        "InterviewKitUpdated",
-                        new
-                        {
-                            kit.Id,
-                            kit.Name,
-                            Criteria = requestedCriteria.Length,
-                        }
-                    );
-                    await db.SaveChangesAsync(ct);
-                    await transaction.CommitAsync(ct);
-                    return Results.NoContent();
-                }
-            )
-            .RequireAuthorization(AtsPolicies.ManageHiring);
+        // Interview kits are created, versioned and ordered in Features/InterviewKits.
 
         api.MapPost(
                 "/requisitions",
@@ -389,30 +235,87 @@ public static partial class AtsEndpoints
                     CancellationToken ct
                 ) =>
                 {
+                    // People picked in the wizard: emails for the legacy fields come from their accounts.
+                    var picked = request.Members is { Length: > 0 } members
+                        ? await MembersWithEmailsAsync(db, members, ct)
+                        : null;
+                    var owner = picked is null
+                        ? request.OwnerEmail
+                        : picked.FirstOrDefault(x => x.Role == RequisitionRole.HiringManager).Email;
+                    var recruiter = picked is null
+                        ? request.RecruiterEmail
+                        : picked.FirstOrDefault(x => x.Role == RequisitionRole.Recruiter).Email
+                            ?? owner;
                     var errors = ValidateRequisition(
                         request.Title,
                         request.Department,
                         request.Location,
-                        request.OwnerEmail,
-                        request.RecruiterEmail,
+                        owner,
+                        recruiter,
                         request.Openings
                     );
+                    if (picked is not null && owner is null)
+                        errors["members"] = ["Choose a hiring manager."];
+                    if (picked is not null && picked.Count != request.Members!.Length)
+                        errors["members"] = ["Choose people who have an account, one role each."];
+                    ValidatePlaceAndSalary(request.Place, request.Salary, errors);
+                    var (questionList, questionErrors) = ApplicationQuestions.Normalize(
+                        request.Questions
+                    );
+                    foreach (var (key, value) in questionErrors)
+                        errors[key] = value;
+                    if (MediaEndpoints.HasImageWithoutAlt(request.Description))
+                        errors["description"] = [MediaEndpoints.AltRequired];
                     if (errors.Count > 0)
                         return Results.ValidationProblem(errors);
                     var code = await GenerateRequisitionCodeAsync(db, ct);
 
-                    var template = request.PostingTemplateId is null ? null : await db.PostingTemplates
-                        .AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PostingTemplateId && x.IsActive, ct);
+                    var template = request.PostingTemplateId is null
+                        ? null
+                        : await db
+                            .PostingTemplates.AsNoTracking()
+                            .SingleOrDefaultAsync(
+                                x => x.Id == request.PostingTemplateId && x.IsActive,
+                                ct
+                            );
                     if (request.PostingTemplateId is not null && template is null)
-                        return Results.ValidationProblem(new Dictionary<string, string[]>
-                        {
-                            ["postingTemplateId"] = ["Posting template not found."]
-                        });
-                    var description = string.Join("\n\n", new[]
-                    {
-                        template?.HeaderMarkdown, request.Description?.Trim() is { Length: > 0 } descriptionMarkdown ? descriptionMarkdown : template?.DescriptionMarkdown,
-                        template?.BenefitsMarkdown,
-                    }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["postingTemplateId"] = ["Posting template not found."],
+                            }
+                        );
+                    // The wizard sends the whole composed posting, so what was previewed is what is saved.
+                    var description = request.Description?.Trim() is { Length: > 0 } composed
+                        ? composed
+                        : string.Join(
+                            "\n\n",
+                            new[]
+                            {
+                                template?.HeaderMarkdown,
+                                template?.DescriptionMarkdown,
+                                template?.BenefitsMarkdown,
+                            }.Where(x => !string.IsNullOrWhiteSpace(x))
+                        );
+                    var source = request.CopyFromId is { } copyFromId
+                        ? await db
+                            .Requisitions.AsNoTracking()
+                            .Include(x => x.Stages)
+                            .Include(x => x.InterviewKits)
+                                .ThenInclude(x => x.Criteria)
+                            .AsSplitQuery()
+                            .SingleOrDefaultAsync(x => x.Id == copyFromId, ct)
+                        : null;
+                    if (
+                        request.CopyFromId is not null
+                        && (source is null || !CanManage(source, principal))
+                    )
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["copyFromId"] = ["We could not find the job to start from."],
+                            }
+                        );
                     var requisition = new Requisition
                     {
                         Code = code,
@@ -422,27 +325,93 @@ public static partial class AtsEndpoints
                         EmploymentType = request.EmploymentType?.Trim() ?? "",
                         WorkMode = request.WorkMode?.Trim() ?? "",
                         Openings = request.Openings,
-                        OwnerEmail = request.OwnerEmail!.Trim().ToLowerInvariant(),
-                        RecruiterEmail = request.RecruiterEmail!.Trim().ToLowerInvariant(),
+                        OwnerEmail = owner!.Trim().ToLowerInvariant(),
+                        RecruiterEmail = recruiter!.Trim().ToLowerInvariant(),
                         Description = description,
-                        ApplicationQuestionsMarkdown = template?.ApplicationQuestionsMarkdown ?? "",
                         PostingTemplateId = template?.Id,
                         PostingTemplateVersion = template?.Version,
                         TargetStartDate = request.TargetStartDate,
                     };
-                    var pipeline = request.PipelineTemplateId is null
-                        ? await db.PipelineTemplates.AsNoTracking().FirstOrDefaultAsync(x => x.IsDefault, ct)
-                        : await db.PipelineTemplates.AsNoTracking().SingleOrDefaultAsync(x => x.Id == request.PipelineTemplateId, ct);
-                    if (request.PipelineTemplateId is not null && pipeline is null)
-                        return Results.ValidationProblem(new Dictionary<string, string[]>
-                        {
-                            ["pipelineTemplateId"] = ["Pipeline not found."]
-                        });
-                    requisition.Stages.AddRange(
-                        pipeline is null
-                            ? SeedData.CreateDefaultStages(requisition.Id)
-                            : SeedData.CreateStages(requisition.Id, pipeline.StageNames)
+                    ApplyPlaceAndSalary(requisition, request.Place, request.Salary);
+                    // Questions sent by the wizard, else the template's defaults.
+                    var questions =
+                        request.Questions is not null ? questionList
+                        : template is not null
+                            ? ApplicationQuestions.FromJson(template.QuestionsJson)
+                        : [];
+                    requisition.Questions.AddRange(
+                        questions.Select(
+                            (q, i) => ApplicationQuestions.ToEntity(q, requisition.Id, i)
+                        )
                     );
+                    var pipelines = db.PipelineTemplates.AsNoTracking().Include(x => x.Stages);
+                    var pipeline = request.PipelineTemplateId is null
+                        ? await pipelines.FirstOrDefaultAsync(x => x.IsDefault, ct)
+                        : await pipelines.SingleOrDefaultAsync(
+                            x => x.Id == request.PipelineTemplateId,
+                            ct
+                        );
+                    if (request.PipelineTemplateId is not null && pipeline is null)
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["pipelineTemplateId"] = ["Pipeline not found."],
+                            }
+                        );
+                    if (source is not null)
+                    {
+                        // Starting from a job: its stages and interview kits, as Duplicate copies them.
+                        var copy = DuplicateRequisition(source, code);
+                        requisition.PipelineTemplateId = source.PipelineTemplateId;
+                        requisition.Stages.AddRange(
+                            copy.Stages.Select(stage =>
+                            {
+                                stage.RequisitionId = requisition.Id;
+                                return stage;
+                            })
+                        );
+                        requisition.InterviewKits.AddRange(
+                            copy.InterviewKits.Select(kit =>
+                            {
+                                kit.RequisitionId = requisition.Id;
+                                return kit;
+                            })
+                        );
+                    }
+                    else
+                    {
+                        requisition.PipelineTemplateId = pipeline?.Id;
+                        requisition.Stages.AddRange(
+                            StageRules.FromTemplate(
+                                requisition.Id,
+                                pipeline?.Stages is { Count: > 0 } stages
+                                    ? stages
+                                    : StageRules.DefaultTemplate()
+                            )
+                        );
+                    }
+                    if (picked is not null)
+                    {
+                        requisition.Members.AddRange(
+                            picked.Select(x => new RequisitionMember
+                            {
+                                RequisitionId = requisition.Id,
+                                UserId = x.UserId,
+                                Role = x.Role,
+                            })
+                        );
+                        RequisitionTeam.Mirror(
+                            requisition,
+                            [.. picked.Select(x => (x.Role, x.Email!))]
+                        );
+                    }
+                    else
+                        requisition.Members.AddRange(
+                            RequisitionTeam.FromEmails(
+                                requisition,
+                                await RequisitionTeam.UserIdsByEmailAsync(db, ct)
+                            )
+                        );
                     db.Requisitions.Add(requisition);
                     Audit.Add(
                         db,
@@ -452,6 +421,15 @@ public static partial class AtsEndpoints
                         "Created",
                         new { requisition.Code, requisition.Title }
                     );
+                    // The wizard's saved form is done with once the job exists.
+                    if (request.DraftId is { } draftId)
+                        db.JobDrafts.RemoveRange(
+                            await db
+                                .JobDrafts.Where(x =>
+                                    x.Id == draftId && x.OwnerEmail == principal.Email()
+                                )
+                                .ToListAsync(ct)
+                        );
                     await db.SaveChangesAsync(ct);
                     return Results.Created(
                         $"/api/requisitions/{requisition.Id}",
@@ -485,17 +463,41 @@ public static partial class AtsEndpoints
                         request.RecruiterEmail,
                         request.Openings
                     );
+                    ValidatePlaceAndSalary(request.Place, request.Salary, errors);
+                    if (MediaEndpoints.HasImageWithoutAlt(request.Description))
+                        errors["description"] = [MediaEndpoints.AltRequired];
                     if (errors.Count > 0)
                         return Results.ValidationProblem(errors);
 
+                    // Left out (older callers), the place and pay stay as they are.
+                    ApplyPlaceAndSalary(requisition, request.Place, request.Salary);
                     requisition.Title = request.Title!.Trim();
                     requisition.Department = request.Department!.Trim();
                     requisition.Location = request.Location!.Trim();
                     requisition.EmploymentType = request.EmploymentType?.Trim() ?? "";
                     requisition.WorkMode = request.WorkMode?.Trim() ?? "";
                     requisition.Openings = request.Openings;
-                    requisition.OwnerEmail = request.OwnerEmail!.Trim().ToLowerInvariant();
-                    requisition.RecruiterEmail = request.RecruiterEmail!.Trim().ToLowerInvariant();
+                    // The team lives in members now; a changed address here swaps that member.
+                    var owner = request.OwnerEmail!.Trim().ToLowerInvariant();
+                    var recruiter = request.RecruiterEmail!.Trim().ToLowerInvariant();
+                    await RequisitionTeam.ReplaceAsync(
+                        db,
+                        id,
+                        RequisitionRole.HiringManager,
+                        requisition.OwnerEmail,
+                        owner,
+                        ct
+                    );
+                    await RequisitionTeam.ReplaceAsync(
+                        db,
+                        id,
+                        RequisitionRole.Recruiter,
+                        requisition.RecruiterEmail,
+                        recruiter,
+                        ct
+                    );
+                    requisition.OwnerEmail = owner;
+                    requisition.RecruiterEmail = recruiter;
                     requisition.Description = request.Description?.Trim() ?? "";
                     requisition.TargetStartDate = request.TargetStartDate;
                     requisition.UpdatedAt = DateTimeOffset.UtcNow;
@@ -522,6 +524,34 @@ public static partial class AtsEndpoints
                     );
                     if (requisition is null || !CanManage(requisition, principal))
                         return Results.NotFound();
+                    var reason = Clean(request.Reason);
+                    var closing = IsClosedStatus(request.Status);
+                    if (
+                        reason is null
+                        && request.Status
+                            is RequisitionStatus.OnHold
+                                or RequisitionStatus.Closed
+                                or RequisitionStatus.Cancelled
+                    )
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["reason"] = ["Say why the job is on hold, closed or cancelled."],
+                            }
+                        );
+                    if (
+                        request.RejectActive is { } reject
+                        && (!closing || string.IsNullOrWhiteSpace(reject.Reason))
+                    )
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["rejectActive"] =
+                                [
+                                    "Candidates can be rejected only when the job closes, and they need a reason.",
+                                ],
+                            }
+                        );
                     var oldStatus = requisition.Status;
                     if (
                         request.Status == RequisitionStatus.Open
@@ -539,10 +569,69 @@ public static partial class AtsEndpoints
                                 message = "Opening this job needs approval. Submit it for approval first.",
                             }
                         );
+                    var now = DateTimeOffset.UtcNow;
                     if (request.Status == RequisitionStatus.Open)
-                        requisition.OpenedAt ??= DateTimeOffset.UtcNow;
+                        requisition.OpenedAt ??= now;
                     requisition.Status = request.Status;
-                    requisition.UpdatedAt = DateTimeOffset.UtcNow;
+                    requisition.StatusReason = request.Status
+                        is RequisitionStatus.Open
+                            or RequisitionStatus.Draft
+                        ? null
+                        : reason;
+                    // Moving between closed statuses keeps the first close date.
+                    requisition.ClosedAt = closing ? requisition.ClosedAt ?? now : null;
+                    requisition.UpdatedAt = now;
+
+                    var rejected = 0;
+                    if (closing && request.RejectActive is { } rejectActive)
+                    {
+                        var active = await db
+                            .Applications.Include(x => x.Candidate)
+                            .Where(x =>
+                                x.RequisitionId == id && x.Status == ApplicationStatus.Active
+                            )
+                            .ToListAsync(ct);
+                        var dispositionReason = rejectActive.Reason.Trim();
+                        foreach (var application in active)
+                        {
+                            var fromStatus = application.Status;
+                            application.Status = ApplicationStatus.Rejected;
+                            application.DispositionReason = dispositionReason;
+                            application.LastActivityAt = now;
+                            if (rejectActive.SendEmail)
+                                await EmailTemplates.QueueAsync(
+                                    db,
+                                    "rejection",
+                                    id,
+                                    application.Candidate!.Email,
+                                    new Dictionary<string, string>
+                                    {
+                                        ["firstName"] = application.Candidate.FirstName,
+                                        ["jobTitle"] = requisition.Title,
+                                    },
+                                    application.Id,
+                                    ct
+                                );
+                            await PipelineEvents.OnMovedAsync(
+                                db,
+                                application,
+                                application.PipelineStageId,
+                                fromStatus,
+                                principal.Email(),
+                                ct
+                            );
+                            Audit.Add(
+                                db,
+                                principal,
+                                "Application",
+                                application.Id,
+                                "RejectedWhenJobClosed",
+                                new { Reason = dispositionReason, Emailed = rejectActive.SendEmail }
+                            );
+                        }
+                        rejected = active.Count;
+                    }
+
                     Audit.Add(
                         db,
                         principal,
@@ -551,13 +640,93 @@ public static partial class AtsEndpoints
                         "StatusChanged",
                         new
                         {
-                            From = oldStatus,
-                            To = request.Status,
-                            request.Reason,
+                            From = oldStatus.ToString(),
+                            To = request.Status.ToString(),
+                            Reason = reason,
+                            Rejected = rejected,
                         }
                     );
                     await db.SaveChangesAsync(ct);
-                    return Results.NoContent();
+                    return Results.Ok(new { Rejected = rejected });
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageHiring);
+
+        // Who changed the job's status, when and why, newest first (from the activity history).
+        api.MapGet(
+            "/requisitions/{id:guid}/status-history",
+            async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
+            {
+                if (
+                    !await ScopeRequisitions(db.Requisitions, principal)
+                        .AnyAsync(x => x.Id == id, ct)
+                )
+                    return Results.NotFound();
+                var key = id.ToString();
+                var rows = await db
+                    .AuditEvents.AsNoTracking()
+                    .Where(x =>
+                        x.EntityType == "Requisition"
+                        && x.EntityId == key
+                        && (x.Action == "Created" || x.Action == "StatusChanged")
+                    )
+                    .OrderByDescending(x => x.OccurredAt)
+                    .Take(50)
+                    .ToListAsync(ct);
+                var actors = rows.Select(x => x.ActorEmail).Distinct().ToArray();
+                var names = await db
+                    .Users.AsNoTracking()
+                    .Where(u => actors.Contains(u.Email))
+                    .ToDictionaryAsync(
+                        u => u.Email,
+                        u => u.DisplayName,
+                        StringComparer.OrdinalIgnoreCase,
+                        ct
+                    );
+                return Results.Ok(
+                    rows.Select(row =>
+                        ReadStatusChange(row, names.GetValueOrDefault(row.ActorEmail))
+                    )
+                );
+            }
+        );
+
+        // A new draft with the same posting, requirements, stages, kits, team and settings.
+        api.MapPost(
+                "/requisitions/{id:guid}/duplicate",
+                async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
+                {
+                    var source = await db
+                        .Requisitions.AsNoTracking()
+                        .Include(x => x.Stages)
+                        .Include(x => x.Members)
+                        .Include(x => x.Questions)
+                        .Include(x => x.InterviewKits)
+                            .ThenInclude(x => x.Criteria)
+                        .AsSplitQuery()
+                        .SingleOrDefaultAsync(x => x.Id == id, ct);
+                    if (source is null || !CanManage(source, principal))
+                        return Results.NotFound();
+                    var copy = DuplicateRequisition(
+                        source,
+                        await GenerateRequisitionCodeAsync(db, ct)
+                    );
+                    db.Requisitions.Add(copy);
+                    Audit.Add(
+                        db,
+                        principal,
+                        "Requisition",
+                        copy.Id,
+                        "Created",
+                        new
+                        {
+                            copy.Code,
+                            copy.Title,
+                            DuplicatedFrom = source.Code,
+                        }
+                    );
+                    await db.SaveChangesAsync(ct);
+                    return Results.Created($"/api/requisitions/{copy.Id}", new { copy.Id });
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
@@ -566,6 +735,7 @@ public static partial class AtsEndpoints
             "/requisitions/{id:guid}/board",
             async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
             {
+                var now = DateTimeOffset.UtcNow;
                 var allowedApplicationIds = ScopeApplications(
                         db.Applications.AsNoTracking(),
                         principal
@@ -586,6 +756,16 @@ public static partial class AtsEndpoints
                                 s.Name,
                                 s.Color,
                                 s.SortOrder,
+                                s.IsTerminal,
+                                Type = s.Type.ToString(),
+                                s.CandidateLabel,
+                                EmailOnEntry = s.EmailOnEntry.ToString(),
+                                s.TargetDays,
+                                s.AssessmentId,
+                                AssessmentName = db
+                                    .Assessments.Where(t => t.Id == s.AssessmentId)
+                                    .Select(t => t.Name)
+                                    .FirstOrDefault(),
                                 Applications = s
                                     .Applications.Where(a =>
                                         allowedApplicationIds.Contains(a.Id)
@@ -605,6 +785,56 @@ public static partial class AtsEndpoints
                                         a.Rating,
                                         a.LastActivityAt,
                                         a.AppliedAt,
+                                        // The last real move into this stage (a reopen in place does not reset it).
+                                        EnteredStageAt = db.StageTransitions.Where(t =>
+                                                t.ApplicationId == a.Id
+                                                && t.ToStageId == a.PipelineStageId
+                                                && (
+                                                    t.FromStageId == null
+                                                    || t.FromStageId != t.ToStageId
+                                                )
+                                            )
+                                            .Max(t => (DateTimeOffset?)t.OccurredAt)
+                                            ?? a.AppliedAt,
+                                        // Scorecards still missing from interviews that have happened.
+                                        FeedbackOwed = a
+                                            .Interviews.Where(i =>
+                                                i.Status == InterviewStatus.Completed
+                                                || (
+                                                    i.Status == InterviewStatus.Scheduled
+                                                    && i.EndsAt < now
+                                                )
+                                            )
+                                            .Sum(i =>
+                                                i.InterviewerEmails.Length - i.Scorecards.Count
+                                            ),
+                                        a.Candidate.DoNotContact,
+                                        // A knockout answer, for the flag on the card.
+                                        Flagged = db.ApplicationAnswers.Any(x =>
+                                            x.ApplicationId == a.Id && x.Flagged
+                                        ),
+                                        // The latest submitted attempt at any assessment, for the score badge.
+                                        Assessment = db
+                                            .AssessmentInvites.Where(i =>
+                                                i.ApplicationId == a.Id
+                                                && i.ReplacedAt == null
+                                                && i.Status == AssessmentInviteStatus.Submitted
+                                            )
+                                            .OrderByDescending(i => i.SubmittedAt)
+                                            .Select(i => new
+                                            {
+                                                i.Id,
+                                                i.Assessment!.Name,
+                                                i.Percent,
+                                                Decision = i.Decision == AssessmentDecision.Passed
+                                                    ? "Passed"
+                                                : i.Decision == AssessmentDecision.Failed ? "Failed"
+                                                : null,
+                                                i.PendingCount,
+                                            })
+                                            .FirstOrDefault(),
+                                        a.Candidate.FirstName,
+                                        a.Candidate.Email,
                                         YearsExperience = a.Candidate.ResumeYearsExperience,
                                         Skills = a.Candidate.ResumeSkills,
                                         NextInterviewAt = a
@@ -620,6 +850,324 @@ public static partial class AtsEndpoints
                 return requisition is null ? Results.NotFound() : Results.Ok(requisition);
             }
         );
+
+        // Rejected and withdrawn people, for the board's archived lane and the list filter.
+        api.MapGet(
+            "/requisitions/{id:guid}/archived",
+            async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
+            {
+                if (
+                    !await ScopeRequisitions(db.Requisitions, principal)
+                        .AnyAsync(x => x.Id == id, ct)
+                )
+                    return Results.NotFound();
+                return Results.Ok(
+                    await ScopeApplications(db.Applications.AsNoTracking(), principal)
+                        .Where(a =>
+                            a.RequisitionId == id
+                            && (
+                                a.Status == ApplicationStatus.Rejected
+                                || a.Status == ApplicationStatus.Withdrawn
+                            )
+                        )
+                        .OrderByDescending(a => a.LastActivityAt)
+                        .Take(500)
+                        .Select(a => new
+                        {
+                            a.Id,
+                            a.CandidateId,
+                            CandidateName = a.Candidate!.FirstName + " " + a.Candidate.LastName,
+                            a.Candidate.CurrentTitle,
+                            a.Source,
+                            Status = a.Status.ToString(),
+                            a.DispositionReason,
+                            StageId = a.PipelineStageId,
+                            StageName = a.PipelineStage!.Name,
+                            a.LastActivityAt,
+                        })
+                        .ToListAsync(ct)
+                );
+            }
+        );
+
+        MapRequisitionStages(api);
+        MapRequisitionTeam(api);
+        MapPipelineTemplates(api);
+        MapRequisitionStats(api);
+        MapApplicationQuestions(api);
+        MapJobDrafts(api);
+
+        // Team and location values other jobs use, so the wizard and settings suggest one spelling.
+        api.MapGet(
+                "/requisitions/values",
+                async (AtsDbContext db, CancellationToken ct) =>
+                {
+                    var rows = await db
+                        .Requisitions.AsNoTracking()
+                        .IgnoreAutoIncludes()
+                        .Select(x => new
+                        {
+                            x.Department,
+                            x.Location,
+                            x.LocationCity,
+                            x.LocationRegion,
+                            x.LocationCountry,
+                            x.WorkMode,
+                        })
+                        .ToListAsync(ct);
+                    // The wizard offers "Open it now" or "Send for approval" from this.
+                    var approvalRequired = await db
+                        .Organizations.Select(x => x.RequireRequisitionApproval)
+                        .FirstOrDefaultAsync(ct);
+                    return Results.Ok(
+                        new
+                        {
+                            ApprovalRequired = approvalRequired,
+                            Departments = rows.Select(x => x.Department.Trim())
+                                .Where(x => x.Length > 0)
+                                .Distinct(StringComparer.OrdinalIgnoreCase)
+                                .Order(),
+                            Locations = rows.Where(x => x.Location.Trim().Length > 0)
+                                .GroupBy(x => x.Location.Trim(), StringComparer.OrdinalIgnoreCase)
+                                // The most complete spelling of each place.
+                                .Select(g =>
+                                    g.OrderByDescending(x => x.LocationCountry != null)
+                                        .ThenByDescending(x => x.LocationCity != null)
+                                        .First()
+                                )
+                                .OrderBy(x => x.Location)
+                                .Select(x => new
+                                {
+                                    Location = x.Location.Trim(),
+                                    City = x.LocationCity,
+                                    Region = x.LocationRegion,
+                                    Country = x.LocationCountry,
+                                }),
+                        }
+                    );
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageHiring);
+    }
+
+    private static async Task<
+        List<(Guid UserId, RequisitionRole Role, string? Email)>
+    > MembersWithEmailsAsync(AtsDbContext db, MemberInput[] members, CancellationToken ct)
+    {
+        var ids = members.Select(x => x.UserId).Distinct().ToArray();
+        var emails = await db
+            .Users.AsNoTracking()
+            .Where(x => ids.Contains(x.Id) && x.IsActive)
+            .ToDictionaryAsync(x => x.Id, x => x.Email, ct);
+        return
+        [
+            .. members
+                .Where(x => emails.ContainsKey(x.UserId) && Enum.IsDefined(x.Role))
+                .DistinctBy(x => x.UserId)
+                .Select(x => (x.UserId, x.Role, (string?)emails[x.UserId])),
+        ];
+    }
+
+    private static readonly string[] SalaryPeriods = ["Year", "Month", "Hour"];
+
+    private static void ValidatePlaceAndSalary(
+        PlaceInput? place,
+        SalaryInput? salary,
+        Dictionary<string, string[]> errors
+    )
+    {
+        if (place is not null)
+        {
+            if ((place.City?.Trim().Length ?? 0) > 120 || (place.Region?.Trim().Length ?? 0) > 120)
+                errors["place"] = ["Keep the city and region under 120 characters."];
+            static bool Iso(string? code) =>
+                string.IsNullOrWhiteSpace(code)
+                || (code.Trim().Length == 2 && code.Trim().All(char.IsAsciiLetter));
+            if (!Iso(place.Country) || (place.RemoteCountries ?? []).Any(x => !Iso(x)))
+                errors["place.country"] = ["Choose a country from the list."];
+        }
+        if (salary is not null)
+        {
+            if (salary.Min is < 0 or > 100_000_000 || salary.Max is < 0 or > 100_000_000)
+                errors["salary"] = ["Enter amounts of 0 or more."];
+            else if (salary.Min > salary.Max)
+                errors["salary"] = ["The lowest pay should not be more than the highest."];
+            if (
+                salary.Currency is { } currency
+                && (currency.Trim().Length != 3 || !currency.Trim().All(char.IsAsciiLetter))
+            )
+                errors["salary.currency"] = ["Choose a currency."];
+            if (
+                salary.Period is { } period
+                && !SalaryPeriods.Contains(period, StringComparer.OrdinalIgnoreCase)
+            )
+                errors["salary.period"] = ["Choose year, month or hour."];
+            if (salary.Show && salary.Min is null && salary.Max is null)
+                errors["salary"] = ["Enter the pay range to show it on the posting."];
+        }
+    }
+
+    private static void ApplyPlaceAndSalary(
+        Requisition requisition,
+        PlaceInput? place,
+        SalaryInput? salary
+    )
+    {
+        if (place is not null)
+        {
+            requisition.LocationCity = Clean(place.City);
+            requisition.LocationRegion = Clean(place.Region);
+            requisition.LocationCountry = Clean(place.Country)?.ToUpperInvariant();
+            requisition.RemoteCountries =
+            [
+                .. (place.RemoteCountries ?? [])
+                    .Select(x => x.Trim().ToUpperInvariant())
+                    .Where(x => x.Length == 2)
+                    .Distinct(),
+            ];
+        }
+        if (salary is not null)
+        {
+            requisition.SalaryMin = salary.Min;
+            requisition.SalaryMax = salary.Max;
+            requisition.SalaryCurrency =
+                Clean(salary.Currency)?.ToUpperInvariant() ?? requisition.SalaryCurrency;
+            requisition.SalaryPeriod =
+                SalaryPeriods.FirstOrDefault(x =>
+                    x.Equals(salary.Period, StringComparison.OrdinalIgnoreCase)
+                ) ?? requisition.SalaryPeriod;
+            requisition.ShowSalary = salary.Show && (salary.Min ?? salary.Max) is not null;
+        }
+    }
+
+    private static bool IsClosedStatus(RequisitionStatus status) =>
+        status
+            is RequisitionStatus.Filled
+                or RequisitionStatus.Closed
+                or RequisitionStatus.Cancelled;
+
+    // Older rows stored the statuses as numbers; newer ones as names.
+    private static object ReadStatusChange(AuditEvent row, string? actorName)
+    {
+        string? Status(JsonElement details, string name) =>
+            details.TryGetProperty(name, out var value)
+                ? value.ValueKind == JsonValueKind.Number
+                    ? ((RequisitionStatus)value.GetInt32()).ToString()
+                    : value.GetString()
+                : null;
+        using var json = JsonDocument.Parse(row.Details ?? "{}");
+        var details = json.RootElement;
+        return new
+        {
+            row.OccurredAt,
+            row.ActorEmail,
+            ActorName = actorName,
+            From = row.Action == "Created" ? null : Status(details, "From"),
+            To = row.Action == "Created" ? "Draft" : Status(details, "To"),
+            Reason = details.TryGetProperty("Reason", out var reason) ? reason.GetString() : null,
+            Rejected = details.TryGetProperty("Rejected", out var rejected)
+                ? rejected.GetInt32()
+                : 0,
+            DuplicatedFrom = details.TryGetProperty("DuplicatedFrom", out var from)
+                ? from.GetString()
+                : null,
+        };
+    }
+
+    private static Requisition DuplicateRequisition(Requisition source, string code)
+    {
+        var copy = new Requisition
+        {
+            Code = code,
+            Title = $"{source.Title} (copy)",
+            Department = source.Department,
+            Location = source.Location,
+            EmploymentType = source.EmploymentType,
+            WorkMode = source.WorkMode,
+            Openings = source.Openings,
+            OwnerEmail = source.OwnerEmail,
+            RecruiterEmail = source.RecruiterEmail,
+            Description = source.Description,
+            LocationCity = source.LocationCity,
+            LocationRegion = source.LocationRegion,
+            LocationCountry = source.LocationCountry,
+            RemoteCountries = [.. source.RemoteCountries],
+            SalaryMin = source.SalaryMin,
+            SalaryMax = source.SalaryMax,
+            SalaryCurrency = source.SalaryCurrency,
+            SalaryPeriod = source.SalaryPeriod,
+            ShowSalary = source.ShowSalary,
+            RequirementsJson = source.RequirementsJson,
+            RequirementsEmbedding = source.RequirementsEmbedding,
+            IsConfidential = source.IsConfidential,
+            ViewerEmails = [.. source.ViewerEmails],
+            AllowCandidateReschedule = source.AllowCandidateReschedule,
+            AllowCandidateWithdraw = source.AllowCandidateWithdraw,
+            PostingTemplateId = source.PostingTemplateId,
+            PostingTemplateVersion = source.PostingTemplateVersion,
+            PipelineTemplateId = source.PipelineTemplateId,
+            TargetStartDate = source.TargetStartDate,
+        };
+        copy.Stages.AddRange(
+            source.Stages.Select(stage => new PipelineStage
+            {
+                RequisitionId = copy.Id,
+                Name = stage.Name,
+                SortOrder = stage.SortOrder,
+                Type = stage.Type,
+                CandidateLabel = stage.CandidateLabel,
+                EmailOnEntry = stage.EmailOnEntry,
+                TargetDays = stage.TargetDays,
+                Color = stage.Color,
+                IsTerminal = stage.IsTerminal,
+                AssessmentId = stage.AssessmentId,
+            })
+        );
+        copy.Questions.AddRange(
+            source.Questions.Select(q => new ApplicationQuestion
+            {
+                RequisitionId = copy.Id,
+                Type = q.Type,
+                Label = q.Label,
+                HelpText = q.HelpText,
+                Required = q.Required,
+                Options = [.. q.Options],
+                KnockoutAnswers = [.. q.KnockoutAnswers],
+                SortOrder = q.SortOrder,
+                BankQuestionId = q.BankQuestionId,
+            })
+        );
+        copy.Members.AddRange(
+            source.Members.Select(member => new RequisitionMember
+            {
+                RequisitionId = copy.Id,
+                UserId = member.UserId,
+                Role = member.Role,
+            })
+        );
+        copy.InterviewKits.AddRange(
+            source
+                .InterviewKits.Where(kit => kit.VersionOfId == null && kit.ArchivedAt == null)
+                .Select(kit => new InterviewKit
+                {
+                    RequisitionId = copy.Id,
+                    Name = kit.Name,
+                    Instructions = kit.Instructions,
+                    DurationMinutes = kit.DurationMinutes,
+                    SortOrder = kit.SortOrder,
+                    Criteria = kit
+                        .Criteria.Select(criterion => new InterviewCriterion
+                        {
+                            Name = criterion.Name,
+                            Question = criterion.Question,
+                            Description = criterion.Description,
+                            Weight = criterion.Weight,
+                            SortOrder = criterion.SortOrder,
+                        })
+                        .ToList(),
+                })
+        );
+        return copy;
     }
 
     private static async Task<string> GenerateRequisitionCodeAsync(

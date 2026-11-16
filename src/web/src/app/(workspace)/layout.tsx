@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { AuthProvider } from '@/auth';
-import { AppFrame } from '@/components/layout/AppFrame';
+import { AppShell } from '@/components/layout/AppShell';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { ServerApiError, serverApiGet } from '@/lib/server-api';
 import type { User } from '@/types';
@@ -14,10 +14,15 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     return <LoginPage unavailable />;
   }
 
-  const navCollapsed = (await cookies()).get('ats-nav-collapsed')?.value === '1';
+  const jar = await cookies();
+  const navCollapsed = jar.get('ats-nav-collapsed')?.value === '1';
+  // Beside a section nav the sidebar starts as icons, unless the person opened it there.
+  const sectionNavCollapsed = jar.get('ats-nav-collapsed-section')?.value !== '0';
   return (
     <AuthProvider user={user}>
-      <AppFrame navCollapsed={navCollapsed}>{children}</AppFrame>
+      <AppShell navCollapsed={navCollapsed} sectionNavCollapsed={sectionNavCollapsed}>
+        {children}
+      </AppShell>
     </AuthProvider>
   );
 }

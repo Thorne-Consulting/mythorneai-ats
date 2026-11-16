@@ -46,7 +46,8 @@ public static class EmbeddingText
         }
         else
             lines.Add("Roles: " + string.Join(", ", candidate.ResumeJobTitles));
-        lines.Add("Skills: " + string.Join(", ", candidate.ResumeSkills.Concat(candidate.Tags).Distinct(StringComparer.OrdinalIgnoreCase)));
+        // Tags are a recruiter's labels ("silver-medalist"), not skills, so they stay out of the meaning.
+        lines.Add("Skills: " + string.Join(", ", candidate.ResumeSkills));
         lines.Add("Education: " + string.Join("; ", candidate.ResumeEducation));
         if (candidate.ResumeCertifications.Length > 0)
             lines.Add("Certifications: " + string.Join(", ", candidate.ResumeCertifications));
@@ -122,7 +123,7 @@ public sealed class EmbeddingWorker(
             .Candidates.Include(x => x.WorkExperiences)
             .Where(x =>
                 x.ResumeText != null
-                && (x.ResumeEmbeddingAt == null || x.ResumeEmbeddingAt < x.UpdatedAt)
+                && (x.ResumeEmbeddingAt == null || x.ResumeEmbeddingAt < x.ResumeParsedAt)
             )
             .OrderBy(x => x.ResumeEmbeddingAt)
             .Take(20)
@@ -134,8 +135,8 @@ public sealed class EmbeddingWorker(
                 ct,
                 new AiContext("embed-resume", null, "Candidate", candidate.Id.ToString())
             );
-            // Set to UpdatedAt rather than now so a later edit (which moves UpdatedAt forward) re-queues it.
-            candidate.ResumeEmbeddingAt = candidate.UpdatedAt;
+            // Only reading the resume again re-queues it; editing tags, phone or name never costs an AI call.
+            candidate.ResumeEmbeddingAt = candidate.ResumeParsedAt ?? DateTimeOffset.UtcNow;
         }
         await db.SaveChangesAsync(ct);
         return requisitions.Count + candidates.Count > 0;

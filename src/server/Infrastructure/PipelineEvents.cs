@@ -28,7 +28,8 @@ public static class PipelineEvents
             }
         );
 
-    // Queues one signed delivery per active webhook subscribed to the event.
+    // Queues one signed delivery per active webhook subscribed to the event, and starts the
+    // workflows it triggers when the caller saves.
     public static async Task PublishAsync(
         AtsDbContext db,
         string eventType,
@@ -36,6 +37,7 @@ public static class PipelineEvents
         CancellationToken ct
     )
     {
+        Features.Workflows.WorkflowTriggers.Published(db, eventType, data);
         var endpoints = await db
             .WebhookEndpoints.AsNoTracking()
             .Where(x => x.IsActive && (x.Events.Length == 0 || x.Events.Contains(eventType)))
@@ -136,19 +138,13 @@ public static class PipelineEvents
         }
     }
 
-    // Team notification to the organization's Slack or Teams incoming webhook, when one is set.
-    public static async Task NotifyAsync(AtsDbContext db, string text, CancellationToken ct)
-    {
-        var url = await db.Organizations.Select(x => x.NotificationWebhookUrl).SingleOrDefaultAsync(ct);
-        if (string.IsNullOrWhiteSpace(url))
-            return;
-        db.WebhookDeliveries.Add(
-            new WebhookDelivery
-            {
-                Url = url,
-                EventType = "notification",
-                Payload = JsonSerializer.Serialize(new { text }),
-            }
-        );
-    }
+    // Team notification to the organization's Slack or Teams channel, when one is set and wants
+    // this kind (see TeamChannel.Events; no kind always posts). href links back to the record.
+    public static Task NotifyAsync(
+        AtsDbContext db,
+        string text,
+        CancellationToken ct,
+        string? kind = null,
+        string? href = null
+    ) => TeamChannel.PostAsync(db, text, kind, href, ct);
 }

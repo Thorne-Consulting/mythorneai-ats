@@ -17,7 +17,13 @@ public static class PrincipalExtensions
         principal.FindFirstValue(ClaimTypes.Email)?.ToLowerInvariant()
         ?? throw new InvalidOperationException("The signed-in user has no email claim.");
 
+    public const string DepartmentClaim = "ats_department";
+
+    /// <summary>The person's teams (job departments), carried in the session and refreshed when an admin changes them.</summary>
+    public static string[] Departments(this ClaimsPrincipal principal) =>
+        principal.FindAll(DepartmentClaim).Select(x => x.Value).ToArray();
+
+    /// <summary>Keeps candidate records: adds and edits them and sees all of them (the "candidates" capability).</summary>
     public static bool IsHiringStaff(this ClaimsPrincipal principal) =>
-        principal.IsInRole(nameof(UserRole.Admin))
-        || principal.IsInRole(nameof(UserRole.Recruiter));
+        principal.Has(Permissions.Candidates);
 }

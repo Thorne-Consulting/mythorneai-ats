@@ -13,10 +13,26 @@ export class ApiError extends Error {
 async function ensureCsrfToken() {
   if (csrfToken) return csrfToken;
   const response = await fetch('/api/auth/csrf', { credentials: 'include' });
-  if (!response.ok) throw new ApiError('Your session has expired.', response.status);
+  if (!response.ok) {
+    if (response.status === 401) sendToSignIn();
+    throw new ApiError('Your session ended. Sign in again.', response.status);
+  }
   const data = (await response.json()) as { token: string };
   csrfToken = data.token;
   return csrfToken;
+}
+
+let leaving = false;
+
+/**
+ * A 401 means the session ended (it expired, or the account was turned off). Send the person to
+ * sign in once, with a way back to this page, instead of a red toast on every request.
+ */
+function sendToSignIn() {
+  if (leaving || typeof window === 'undefined' || window.location.pathname === '/login') return;
+  leaving = true;
+  const here = window.location.pathname + window.location.search;
+  window.location.assign(`/login?error=session&returnUrl=${encodeURIComponent(here)}`);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -44,8 +60,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
                 'Check the highlighted fields and try again.',
             )
           : response.status === 401
-            ? 'Please sign in.'
-            : 'The request could not be completed.';
+            ? 'Your session ended. Sign in again.'
+            : response.status === 403
+              ? 'You don’t have access to do this. Your role may have changed.'
+              : 'The request could not be completed.';
+    if (response.status === 401) sendToSignIn();
+    // A refused change may mean the role changed: the auth provider reloads who you are.
+    if (response.status === 403 && method !== 'GET' && typeof window !== 'undefined')
+      window.dispatchEvent(new Event('ats:forbidden'));
     throw new ApiError(message, response.status, details);
   }
   if (response.status === 204) return undefined as T;

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using MyThorneAI.Ats.Api.Interviews;
 
 namespace MyThorneAI.Ats.Api.Integrations;
 
@@ -14,6 +15,12 @@ public static class IntegrationServiceCollectionExtensions
         );
         services.AddSingleton<CalendarOAuthService>();
         services.AddScoped<IUserCalendarService, UserCalendarService>();
+        // The interviews area's services ride along with the calendar wiring.
+        services.AddScoped<AvailabilityService>();
+        services.AddScoped<InterviewMailer>();
+        services.AddHostedService<InterviewSweepWorker>();
+        services.AddSingleton<Interviews.Recording.MediaTools>();
+        services.AddHostedService<Interviews.Recording.RecordingWorker>();
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<IntegrationOptions>>().Value;

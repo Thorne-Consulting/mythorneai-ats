@@ -56,7 +56,8 @@ public sealed partial class ApiFlowTests
             .GetGuid();
 
         using var interviewer = await LoginAsync("interviewer@example.test", cancellationToken);
-        var notesResponse = await interviewer.PutAsJsonAsync(
+        // Shared notes are written by the hiring team; a panelist sees them only after their scorecard.
+        var notesResponse = await recruiter.PutAsJsonAsync(
             $"/api/interviews/{interviewId}/meeting-notes",
             new
             {
@@ -213,6 +214,7 @@ public sealed partial class ApiFlowTests
         );
         var interviewId = interview.GetProperty("id").GetGuid();
 
+        await StartInterviewAsync(interviewId, cancellationToken);
         using var interviewer = await LoginAsync("interviewer@example.test", cancellationToken);
         var application = await interviewer.GetFromJsonAsync<JsonElement>(
             $"/api/applications/{applicationId}",
@@ -480,6 +482,7 @@ public sealed partial class ApiFlowTests
         )
             .GetProperty("id")
             .GetGuid();
+        await StartInterviewAsync(interviewId, cancellationToken);
         using var interviewer = await LoginAsync("interviewer@example.test", cancellationToken);
         var scored = await interviewer.PostAsJsonAsync(
             $"/api/interviews/{interviewId}/scorecards",
@@ -522,7 +525,8 @@ public sealed partial class ApiFlowTests
             },
             cancellationToken
         );
-        removal.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await LoadKitAsync()).GetProperty("criteria").GetArrayLength().ShouldBe(3);
+        // Kits are versioned: the scored interview keeps its version, so the competency can go.
+        removal.StatusCode.ShouldBe(HttpStatusCode.NoContent);
+        (await LoadKitAsync()).GetProperty("criteria").GetArrayLength().ShouldBe(1);
     }
 }

@@ -1,23 +1,27 @@
 'use client';
 
 import { Fragment, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Activity, AlertTriangle, Coins, Cpu, Sparkles } from 'lucide-react';
+import { api } from '@/api';
 import {
   Badge,
   Button,
-  Group,
+  Card,
+  CellStack,
+  EmptyState,
+  FilterSelect,
   Pagination,
-  Paper,
-  Select,
-  SimpleGrid,
+  SkeletonRows,
+  StatCard,
+  StatGrid,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
   Table,
-  Text,
-  Title,
-} from '@mantine/core';
-import { IconSparkles } from '@tabler/icons-react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '@/api';
-import { EmptyState, StatCard } from '@/components/ui/Cards';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+} from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 
 interface AiStatus {
@@ -50,16 +54,16 @@ interface AiLogItem {
 const PAGE_SIZE = 50;
 const PURPOSES: Record<string, string> = {
   'draft-message': 'Drafting a message',
-  'embed-job': 'Indexing a job',
+  'embed-job': 'Preparing a job for search',
   'embed-query': 'Understanding a search',
-  'embed-resume': 'Indexing a resume',
+  'embed-resume': 'Preparing a resume for search',
   'extract-requirements': 'Reading job requirements',
   'interview-questions': 'Suggesting interview questions',
   'job-fit': 'Scoring fit for a job',
-  'resume-profile': 'Reading a resume',
+  'parse-resume': 'Reading a resume',
   'search-filters': 'Turning a search into filters',
   'summarize-interview': 'Summarizing an interview',
-  'transcribe-recording': 'Transcribing a recording',
+  'transcribe-recording': 'Turning a recording into text',
 };
 const purposeLabel = (value: string) => PURPOSES[value] ?? value.replace(/-/g, ' ');
 
@@ -87,148 +91,158 @@ export function AdminAi() {
 
   return (
     <>
-      <Title order={3}>AI activity</Title>
-      <Text c="dimmed" size="sm" mb="lg" maw={680}>
-        A record of everything the AI was asked and what it answered, kept for accountability. Use
-        it to check what was sent, who asked, and whether anything failed. Long entries are
-        shortened here.
-      </Text>
       {s && (
-        <SimpleGrid cols={{ base: 2, md: 4 }} mb="lg">
-          <StatCard label="AI calls, last 30 days" value={s.calls30Days} />
-          <StatCard label="Failed" value={s.failed30Days} danger={s.failed30Days > 0} />
+        <StatGrid>
           <StatCard
-            label="Tokens used"
-            value={s.promptTokens30Days + s.completionTokens30Days}
-            hint={`${s.promptTokens30Days.toLocaleString()} in, ${s.completionTokens30Days.toLocaleString()} out`}
+            icon={Activity}
+            label="AI requests, last 30 days"
+            value={s.calls30Days.toLocaleString()}
           />
           <StatCard
+            icon={AlertTriangle}
+            tone={s.failed30Days > 0 ? 'red' : 'green'}
+            label="Failed"
+            value={s.failed30Days.toLocaleString()}
+            hint={s.failed30Days > 0 ? 'Open a failed entry to see why' : 'Nothing failed'}
+          />
+          <StatCard
+            icon={Coins}
+            tone="amber"
+            label="Text processed (tokens)"
+            value={(s.promptTokens30Days + s.completionTokens30Days).toLocaleString()}
+            hint={`${s.promptTokens30Days.toLocaleString()} sent, ${s.completionTokens30Days.toLocaleString()} received`}
+          />
+          <StatCard
+            icon={Cpu}
+            tone="violet"
             label="Status"
-            text={!s.configured ? 'No API key on the server' : s.enabled ? 'On' : 'Turned off'}
+            value={!s.configured ? 'No AI key' : s.enabled ? 'On' : 'Turned off'}
             hint={`Model ${s.model}${s.pendingResumes ? ` · ${s.pendingResumes} resumes waiting` : ''}`}
           />
-        </SimpleGrid>
+        </StatGrid>
       )}
-      <Select
-        label="Show"
-        placeholder="All activity"
-        clearable
-        maw={280}
-        mb="md"
-        data={purposes.map((value) => ({ value, label: purposeLabel(value) }))}
-        value={purpose}
-        onChange={(value) => {
-          setPurpose(value);
-          setPage(1);
-        }}
-      />
-      {!log.data ? (
-        <LoadingBlock rows={4} />
-      ) : log.data.items.length === 0 ? (
-        <EmptyState
-          icon={IconSparkles}
-          title="No AI activity yet"
-          actionLabel={purpose ? 'Show all activity' : undefined}
-          onAction={() => setPurpose(null)}
-        />
-      ) : (
-        <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
-          <Table.ScrollContainer minWidth={760}>
-            <Table verticalSpacing="sm">
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>When</Table.Th>
-                  <Table.Th>What</Table.Th>
-                  <Table.Th>Asked by</Table.Th>
-                  <Table.Th ta="right">Tokens</Table.Th>
-                  <Table.Th ta="right">Time</Table.Th>
-                  <Table.Th>Result</Table.Th>
-                  <Table.Th />
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
+      <Card className="px-5 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-3 py-4">
+          <FilterSelect
+            allLabel="All activity"
+            aria-label="Filter by purpose"
+            data={purposes.map((value) => ({ value, label: purposeLabel(value) }))}
+            value={purpose}
+            onChange={(value) => {
+              setPurpose(value);
+              setPage(1);
+            }}
+          />
+        </div>
+        {!log.data ? (
+          <SkeletonRows rows={4} className="px-0" />
+        ) : log.data.items.length === 0 ? (
+          <EmptyState
+            compact
+            icon={Sparkles}
+            title="No AI activity yet"
+            description={
+              purpose ? undefined : 'Entries show up here as soon as someone uses an AI feature.'
+            }
+            action={
+              purpose ? (
+                <Button variant="secondary" onClick={() => setPurpose(null)}>
+                  Show all activity
+                </Button>
+              ) : undefined
+            }
+          />
+        ) : (
+          <>
+            <Table className="min-w-[760px]">
+              <THead>
+                <tr>
+                  <TH>When</TH>
+                  <TH>What</TH>
+                  <TH>Asked by</TH>
+                  <TH align="right">Tokens</TH>
+                  <TH align="right">Duration</TH>
+                  <TH>Result</TH>
+                  <TH>
+                    <span className="sr-only">Details</span>
+                  </TH>
+                </tr>
+              </THead>
+              <TBody>
                 {log.data.items.map((item) => (
                   <Fragment key={item.id}>
-                    <Table.Tr>
-                      <Table.Td>{formatDateTime(item.createdAt)}</Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={600}>
-                          {purposeLabel(item.purpose)}
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {item.model}
-                          {item.subjectType ? ` · ${item.subjectType}` : ''}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>{item.userEmail ?? 'System'}</Table.Td>
-                      <Table.Td ta="right">
+                    <TR selected={open === item.id}>
+                      <TD className="whitespace-nowrap text-fg-muted tnum">
+                        {formatDateTime(item.createdAt)}
+                      </TD>
+                      <TD>
+                        <CellStack
+                          primary={purposeLabel(item.purpose)}
+                          secondary={`${item.model}${item.subjectType ? ` · ${item.subjectType}` : ''}`}
+                        />
+                      </TD>
+                      <TD className="text-fg-muted">{item.userEmail ?? 'System'}</TD>
+                      <TD align="right" className="tnum">
                         {(item.promptTokens + item.completionTokens).toLocaleString()}
-                      </Table.Td>
-                      <Table.Td ta="right">{(item.latencyMs / 1000).toFixed(1)}s</Table.Td>
-                      <Table.Td>
-                        <Badge variant="light" color={item.error ? 'red' : 'teal'}>
+                      </TD>
+                      <TD align="right" className="tnum">
+                        {(item.latencyMs / 1000).toFixed(1)}s
+                      </TD>
+                      <TD>
+                        <Badge dot tone={item.error ? 'red' : 'green'}>
                           {item.error ? 'Failed' : 'OK'}
                         </Badge>
-                      </Table.Td>
-                      <Table.Td>
+                      </TD>
+                      <TD align="right">
                         <Button
-                          size="compact-sm"
-                          variant="subtle"
+                          size="xs"
+                          variant="quiet"
                           aria-expanded={open === item.id}
                           aria-controls={`ai-entry-${item.id}`}
                           onClick={() => setOpen(open === item.id ? null : item.id)}
                         >
-                          {open === item.id ? 'Hide' : 'Read'}
+                          {open === item.id ? 'Hide' : 'Details'}
                         </Button>
-                      </Table.Td>
-                    </Table.Tr>
+                      </TD>
+                    </TR>
                     {open === item.id && (
-                      <Table.Tr id={`ai-entry-${item.id}`}>
-                        <Table.Td colSpan={7} bg="var(--mantine-color-gray-0)">
+                      <tr id={`ai-entry-${item.id}`}>
+                        <td
+                          colSpan={7}
+                          className="border-b border-border-subtle bg-muted px-4 py-4 text-sm"
+                        >
                           {item.error && (
-                            <>
-                              <Text size="sm" fw={650} c="red">
-                                Error
-                              </Text>
-                              <Text size="sm" c="red" mb="sm">
-                                {item.error}
-                              </Text>
-                            </>
+                            <div className="mb-3">
+                              <p className="font-medium text-destructive">Error</p>
+                              <p className="text-destructive">{item.error}</p>
+                            </div>
                           )}
-                          <Text size="sm" fw={650} c="dimmed">
-                            What was asked
-                          </Text>
-                          <Text size="sm" mb="sm" style={{ whiteSpace: 'pre-wrap' }}>
+                          <p className="text-xs font-medium text-fg-subtle">What was asked</p>
+                          <p className="mt-1 mb-3 whitespace-pre-wrap text-fg">
                             {item.input || '—'}
-                          </Text>
-                          <Text size="sm" fw={650} c="dimmed">
-                            What came back
-                          </Text>
-                          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-                            {item.output || '—'}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
+                          </p>
+                          <p className="text-xs font-medium text-fg-subtle">What came back</p>
+                          <p className="mt-1 whitespace-pre-wrap text-fg">{item.output || '—'}</p>
+                        </td>
+                      </tr>
                     )}
                   </Fragment>
                 ))}
-              </Table.Tbody>
+              </TBody>
             </Table>
-          </Table.ScrollContainer>
-        </Paper>
-      )}
-      {log.data && log.data.total > PAGE_SIZE && (
-        <Group justify="center" mt="lg">
-          <Pagination
-            total={Math.ceil(log.data.total / PAGE_SIZE)}
-            value={page}
-            onChange={(value) => {
-              setPage(value);
-              setOpen(null);
-            }}
-          />
-        </Group>
-      )}
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={log.data.total}
+              noun="entries"
+              onPageChange={(value) => {
+                setPage(value);
+                setOpen(null);
+              }}
+            />
+          </>
+        )}
+      </Card>
     </>
   );
 }

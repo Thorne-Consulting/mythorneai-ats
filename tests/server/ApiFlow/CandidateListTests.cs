@@ -49,7 +49,7 @@ public sealed partial class ApiFlowTests
     public async Task Candidate_list_shows_people_without_applications_only_to_hiring_staff()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        const string sampleSource = "/api/candidates?source=Career%20center%20sample&pageSize=100";
+        const string sampleSource = "/api/candidates?source=Career%20fair&pageSize=100";
 
         using var recruiter = await LoginAsync("recruiter@example.test", cancellationToken);
         var forRecruiter = await recruiter.GetFromJsonAsync<JsonElement>(sampleSource, cancellationToken);

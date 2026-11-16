@@ -1,133 +1,110 @@
 'use client';
 
-import { BarChart, DonutChart, FunnelChart, LineChart, ScatterChart } from '@mantine/charts';
+import type { ReactNode } from 'react';
+import { Card } from '@/components/ui';
+import { BarChart, DonutChart, FunnelBars, LineChart, ScatterChart } from '@/components/ui/chart';
+import { percentColumn, type ReportChart } from './report-data';
 
-type Cell = string | number | null;
+// "light" marks a part that doesn't count, for example a withdrawn offer.
+const toneColor = (tone?: string | null) =>
+  tone === 'light' ? 'var(--chart-6)' : tone ? `var(--tone-${tone}-dot)` : undefined;
 
-export interface ReportChart {
-  kind: 'bar' | 'stacked' | 'line' | 'donut' | 'funnel' | 'scatter';
-  title: string;
-  columns: string[];
-  rows: Cell[][];
-  caption?: string | null;
-}
-
-const COLORS = [
-  'indigo.6',
-  'teal.6',
-  'orange.6',
-  'gray.5',
-  'grape.6',
-  'cyan.6',
-  'yellow.6',
-  'pink.6',
-];
-const color = (index: number) => COLORS[index % COLORS.length];
-
-/** One report chart. Columns[0] labels each row; the other columns are the series. */
-export function ReportChartView({ chart }: { chart: ReportChart }) {
+/**
+ * One report chart in a card. Columns[0] labels each row; the other columns are the series.
+ * `onSelect` gets the row index when someone clicks a bar, point, slice or funnel row.
+ */
+export function ReportChartView({
+  chart,
+  onSelect,
+  action,
+  emptyText = 'Nothing to show for these filters yet.',
+}: {
+  chart: ReportChart;
+  onSelect?: (index: number) => void;
+  action?: ReactNode;
+  emptyText?: string;
+}) {
   const [label, ...values] = chart.columns;
-  const named = chart.rows.map((row) => ({
+  // A donut has one series, so its tones are one per slice.
+  const named = chart.rows.map((row, index) => ({
     name: String(row[0] ?? '—'),
     value: Number(row[1] ?? 0),
+    color: chart.kind === 'donut' ? toneColor(chart.tones?.[index]) : undefined,
   }));
   const items = chart.rows.map((row) => ({
     [label]: String(row[0] ?? '—'),
-    ...Object.fromEntries(values.map((name, index) => [name, Number(row[index + 1] ?? 0)])),
+    ...Object.fromEntries(
+      values.map((name, index) => [name, row[index + 1] == null ? null : Number(row[index + 1])]),
+    ),
   }));
-  const series = values.map((name, index) => ({ name, color: color(index) }));
+  const series = values.map((key, index) => {
+    const column = percentColumn(key);
+    return {
+      key,
+      label: column.header,
+      unit: column.percent ? '%' : undefined,
+      color: toneColor(chart.tones?.[index]),
+      dashed: !!chart.compare && index === values.length - 1,
+    };
+  });
+  const clickable = onSelect && chart.drill?.length ? onSelect : undefined;
   const empty =
     chart.rows.length === 0 || chart.rows.every((row) => row.slice(1).every((cell) => !cell));
 
   let body;
   if (empty) {
-    body = <p className="reports-chart-empty">Nothing to show for these filters yet.</p>;
-  } else if (chart.kind === 'donut' || chart.kind === 'funnel') {
-    const cells = named.map((item, index) => ({ ...item, color: color(index) }));
+    body = <p className="py-10 text-center text-sm text-fg-subtle">{emptyText}</p>;
+  } else if (chart.kind === 'donut') {
     body = (
-      <div className="reports-donut">
-        {chart.kind === 'donut' ? (
-          <DonutChart
-            size={160}
-            thickness={24}
-            withTooltip
-            tooltipDataSource="segment"
-            data={cells}
-          />
-        ) : (
-          <FunnelChart size={180} withTooltip data={cells} />
-        )}
-        <ul className="reports-legend">
-          {cells.map((item) => (
-            <li key={item.name}>
-              <span
-                className="reports-swatch"
-                style={{ background: `var(--mantine-color-${item.color.replace('.', '-')})` }}
-              />
-              {item.name}
-              <b>{item.value}</b>
-            </li>
-          ))}
-        </ul>
-      </div>
+      <DonutChart
+        data={named}
+        centerValue={named.reduce((sum, item) => sum + item.value, 0)}
+        centerLabel={values[0]?.toLowerCase()}
+        onSelect={clickable}
+      />
     );
+  } else if (chart.kind === 'funnel') {
+    body = <FunnelBars data={named} onSelect={clickable} />;
   } else if (chart.kind === 'scatter') {
     body = (
       <ScatterChart
-        h={240}
-        data={[
-          {
-            name: 'Applications',
-            color: 'indigo.6',
-            data: chart.rows.map((row) => ({ x: Number(row[0] ?? 0), y: Number(row[1] ?? 0) })),
-          },
-        ]}
-        dataKey={{ x: 'x', y: 'y' }}
-        labels={{ x: label, y: values[0] }}
-        xAxisProps={{ domain: [0, 100] }}
-        yAxisProps={{ allowDecimals: false }}
+        data={chart.rows.map((row) => ({ x: Number(row[0] ?? 0), y: Number(row[1] ?? 0) }))}
+        xLabel={label}
+        yLabel={values[0]}
+        xDomain={[0, 100]}
+        onSelect={clickable}
       />
     );
   } else if (chart.kind === 'line') {
-    body = (
-      <LineChart
-        h={220}
-        data={items}
-        dataKey={label}
-        series={series}
-        curveType="monotone"
-        withDots={items.length <= 16}
-        gridAxis="y"
-      />
-    );
+    body = <LineChart data={items} dataKey={label} series={series} onSelect={clickable} />;
   } else {
-    // Long labels (jobs, stages, people) read better as horizontal bars.
-    const vertical = named.some((item) => item.name.length > 12);
+    // Long labels (jobs, stages, people, reasons) read better as horizontal bars.
     body = (
       <BarChart
-        h={vertical ? Math.max(160, items.length * 34 + 40) : 220}
         data={items}
         dataKey={label}
         series={series}
-        type={chart.kind === 'stacked' ? 'stacked' : 'default'}
-        orientation={vertical ? 'vertical' : 'horizontal'}
-        yAxisProps={vertical ? { width: 140 } : undefined}
-        gridAxis={vertical ? 'x' : 'y'}
-        withLegend={series.length > 1}
+        stacked={chart.kind === 'stacked'}
+        horizontal={named.some((item) => item.name.length > 9) || named.length > 8}
+        onSelect={clickable}
       />
     );
   }
 
   return (
-    <figure
-      className="reports-chart"
-      aria-label={`${chart.title}. The figures are also in the table.`}
+    <Card
+      role="figure"
+      aria-label={`${chart.title}. The numbers are also in the table below.`}
+      className="flex min-w-0 flex-col break-inside-avoid print:overflow-hidden"
     >
-      <figcaption>
-        <span className="reports-chart-title">{chart.title}</span>
-        {chart.caption && <span className="reports-chart-caption">{chart.caption}</span>}
-      </figcaption>
-      {body}
-    </figure>
+      <div className="px-5 pt-4 pb-3">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="min-w-0 text-lg font-semibold text-fg">{chart.title}</h2>
+          {action && <div className="shrink-0 pt-0.5 print:hidden">{action}</div>}
+        </div>
+        {chart.caption && <p className="mt-0.5 text-sm text-fg-subtle">{chart.caption}</p>}
+      </div>
+      <div className="px-5 pb-5">{body}</div>
+    </Card>
   );
 }

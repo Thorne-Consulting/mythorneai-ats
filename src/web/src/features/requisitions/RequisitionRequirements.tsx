@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { notifications } from '@mantine/notifications';
-import { IconSparkles } from '@tabler/icons-react';
+import { Pencil, Sparkles } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api';
+import { Alert, Badge, Button, CardBody, CardHeader, toast } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import {
   parseRequirements,
   type Requirements,
@@ -52,11 +53,11 @@ export function RequisitionRequirements({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
-      notifications.show({ color: 'teal', message: 'Requirements saved' });
+      toast.success('Requirements saved');
       setDraft(null);
       setFromAi(false);
     },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
+    onError: (error: Error) => toast.error('Could not save the requirements', error.message),
   });
 
   const edit = () => {
@@ -65,143 +66,147 @@ export function RequisitionRequirements({
   };
 
   return (
-    <div>
-      <div className="section-head">
-        <h2 className="section-title">Requirements</h2>
-        {draft && fromAi ? (
-          <span className="ai-notice">
-            <IconSparkles size={13} aria-hidden />
-            Made by AI. Check before saving.
-          </span>
-        ) : (
-          canManage &&
-          !draft && (
-            <span className="text-actions">
-              <button
-                type="button"
-                className="text-action"
-                onClick={() => extract.mutate()}
-                disabled={extract.isPending}
-              >
-                {extract.isPending ? 'Drafting…' : 'Draft with AI'}
-              </button>
-              {confirmed && (
-                <button type="button" className="text-action" onClick={edit}>
-                  Edit
-                </button>
-              )}
-            </span>
+    <>
+      <CardHeader
+        title="Requirements"
+        action={
+          draft && fromAi ? (
+            <Badge tone="violet" icon={<Sparkles />}>
+              Made by AI. Check before saving.
+            </Badge>
+          ) : (
+            canManage &&
+            !draft && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="soft"
+                  size="sm"
+                  leftIcon={<Sparkles />}
+                  onClick={() => extract.mutate()}
+                  loading={extract.isPending}
+                >
+                  {extract.isPending ? 'Drafting…' : 'Draft with AI'}
+                </Button>
+                {confirmed && (
+                  <Button variant="secondary" size="sm" leftIcon={<Pencil />} onClick={edit}>
+                    Edit
+                  </Button>
+                )}
+              </div>
+            )
           )
+        }
+      />
+      <CardBody className="space-y-5">
+        {aiError && (
+          <Alert tone="danger" title="AI could not write a draft">
+            {aiError}
+          </Alert>
         )}
-      </div>
 
-      {aiError && (
-        <p className="req-error" role="alert">
-          The AI draft didn’t run: {aiError}
-        </p>
-      )}
-
-      {draft ? (
-        <form
-          className="req-page"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate(draft);
-          }}
-        >
-          <EditGroup
-            label="Must have"
-            items={draft.required}
-            onChange={(required) => setDraft({ ...draft, required })}
-            placeholder="Add a must-have"
-          />
-          <EditGroup
-            label="Nice to have"
-            items={draft.preferred}
-            onChange={(preferred) => setDraft({ ...draft, preferred })}
-            placeholder="Add a nice-to-have"
-          />
-          <p className="req-line">
-            At least
-            <input
-              className="req-inline"
-              aria-label="Minimum years of experience"
-              inputMode="decimal"
-              placeholder="any"
-              size={3}
-              value={draft.minYears ?? ''}
-              onChange={(event) => {
-                const value = event.currentTarget.value.replace(/[^0-9.]/g, '');
-                setDraft({ ...draft, minYears: value === '' ? null : Number(value) });
-              }}
+        {draft ? (
+          <form
+            className="space-y-5"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save.mutate(draft);
+            }}
+          >
+            <EditGroup
+              label="Must have"
+              items={draft.required}
+              onChange={(required) => setDraft({ ...draft, required })}
+              placeholder="Add a must-have"
             />
-            years of experience, based in
-            <input
-              className="req-inline req-inline-wide"
-              aria-label="Location rule"
-              placeholder="anywhere"
-              value={draft.location}
-              onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
+            <EditGroup
+              label="Nice to have"
+              items={draft.preferred}
+              onChange={(preferred) => setDraft({ ...draft, preferred })}
+              placeholder="Add a nice-to-have"
             />
+            <p className="flex flex-wrap items-center gap-2 text-base text-fg-muted">
+              At least
+              <input
+                className={inlineInput}
+                aria-label="Minimum years of experience"
+                inputMode="decimal"
+                placeholder="any"
+                size={3}
+                value={draft.minYears ?? ''}
+                onChange={(event) => {
+                  const value = event.currentTarget.value.replace(/[^0-9.]/g, '');
+                  setDraft({ ...draft, minYears: value === '' ? null : Number(value) });
+                }}
+              />
+              years of experience, based in
+              <input
+                className={cn(inlineInput, 'w-48')}
+                aria-label="Where candidates must be based"
+                placeholder="anywhere"
+                value={draft.location}
+                onChange={(event) => setDraft({ ...draft, location: event.currentTarget.value })}
+              />
+            </p>
+            <div className="flex items-center gap-2">
+              <Button type="submit" size="sm" loading={save.isPending}>
+                Save requirements
+              </Button>
+              <Button
+                variant="quiet"
+                size="sm"
+                onClick={() => setDraft(null)}
+                disabled={save.isPending}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : confirmed ? (
+          <>
+            <ReadGroup label="Must have" items={confirmed.required} />
+            <ReadGroup label="Nice to have" items={confirmed.preferred} />
+            <p className="text-base text-fg-muted">
+              {[
+                confirmed.minYears != null
+                  ? `At least ${confirmed.minYears} years of experience`
+                  : null,
+                confirmed.location ? `Based in ${confirmed.location}` : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'No minimum experience or location'}
+            </p>
+          </>
+        ) : (
+          <p className="text-base text-fg-subtle">
+            No requirements yet, so candidates are matched by keywords only.
+            {canManage && (
+              <>
+                {' '}
+                Use Draft with AI to write them from the job description, or{' '}
+                <Button variant="link" onClick={edit}>
+                  write them yourself
+                </Button>
+                .
+              </>
+            )}
           </p>
-          <p className="text-actions req-form-actions">
-            <button
-              type="submit"
-              className="text-action text-action-primary"
-              disabled={save.isPending}
-            >
-              {save.isPending ? 'Saving…' : 'Done'}
-            </button>
-            <button
-              type="button"
-              className="text-action"
-              onClick={() => setDraft(null)}
-              disabled={save.isPending}
-            >
-              Cancel
-            </button>
-          </p>
-        </form>
-      ) : confirmed ? (
-        <div className="req-page">
-          <ReadGroup label="Must have" items={confirmed.required} />
-          <ReadGroup label="Nice to have" items={confirmed.preferred} />
-          <p className="req-line req-line-read">
-            {[
-              confirmed.minYears != null ? `${confirmed.minYears}+ years of experience` : null,
-              confirmed.location || null,
-            ]
-              .filter(Boolean)
-              .join(' · ') || 'No experience or location rule'}
-          </p>
-        </div>
-      ) : (
-        <p className="req-empty">
-          Nothing set yet, so candidates are ranked by keywords only. Let AI draft a list from the
-          role description
-          {canManage && (
-            <>
-              , or{' '}
-              <button type="button" className="text-action" onClick={edit}>
-                write it yourself
-              </button>
-            </>
-          )}
-          .
-        </p>
-      )}
-    </div>
+        )}
+      </CardBody>
+    </>
   );
 }
 
+const inlineInput =
+  'h-8 w-16 rounded-md border border-input bg-card px-2 text-base text-fg outline-none placeholder:text-fg-subtle focus:border-primary focus:ring-2 focus:ring-primary/15';
+
 function ReadGroup({ label, items }: { label: string; items: string[] }) {
   return (
-    <section className="req-group">
-      <h3 className="req-h">{label}</h3>
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-fg">{label}</h3>
       {items.length === 0 ? (
-        <p className="req-none">None</p>
+        <p className="text-base text-fg-subtle">None</p>
       ) : (
-        <ul className="req-bullets">
+        <ul className="list-disc space-y-1 pl-5 text-base text-fg marker:text-fg-subtle">
           {items.map((item) => (
             <li key={item}>{item}</li>
           ))}
@@ -239,16 +244,16 @@ function EditGroup({
     onChange(lines.map((line, i) => (i === index ? value : line)));
 
   return (
-    <section className="req-group">
-      <h3 className="req-h">{label}</h3>
-      <ul className="req-bullets">
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-fg">{label}</h3>
+      <ul className="list-disc space-y-1 pl-5 text-base text-fg marker:text-fg-subtle">
         {lines.map((line, index) => (
           <li key={index}>
             <input
               ref={(node) => {
                 refs.current[index] = node;
               }}
-              className="req-input"
+              className="w-full rounded-sm bg-transparent py-0.5 text-base text-fg outline-none placeholder:text-fg-subtle focus-visible:bg-accent"
               aria-label={`${label}, line ${index + 1}`}
               placeholder={index === lines.length - 1 ? placeholder : undefined}
               value={line}

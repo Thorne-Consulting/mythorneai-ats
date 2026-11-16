@@ -1,28 +1,11 @@
-import type { ApplicationDetailResponse } from '@/types';
 import { useApplication } from './application-data';
+import type { ApplicationData } from './application-types';
 
-// The detail endpoint also returns emails and the candidate thread; types.ts does not know them yet.
-export interface ApplicationEmail {
-  id: string;
-  recipient: string;
-  subject: string;
-  status: string;
-  deliveryStatus?: string | null;
-  templateKey?: string | null;
-  createdAt: string;
-}
-export interface ApplicationMessage {
-  id: string;
-  fromCandidate: boolean;
-  body: string;
-  authorEmail?: string | null;
-  createdAt: string;
-  readAt?: string | null;
-}
-type Extras = { emails?: ApplicationEmail[]; messages?: ApplicationMessage[] };
+export type ApplicationEmail = NonNullable<ApplicationData['emails']>[number];
+export type ApplicationMessage = NonNullable<ApplicationData['messages']>[number];
 
+/** The emails and candidate messages the detail endpoint returns alongside the application. */
 export function useApplicationExtras(id: string) {
   const query = useApplication(id);
-  const data = query.data as (ApplicationDetailResponse & Extras) | undefined;
-  return { query, emails: data?.emails ?? [], messages: data?.messages ?? [] };
+  return { query, emails: query.data?.emails ?? [], messages: query.data?.messages ?? [] };
 }

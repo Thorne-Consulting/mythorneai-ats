@@ -60,8 +60,17 @@ builder.Services.AddSingleton<IChatClient>(services =>
 });
 builder.Services.AddHostedService<ResumeParseWorker>();
 builder.Services.AddHostedService<EmailOutboxWorker>();
+// Live message updates (InboxHub). One API instance needs no backplane; add Redis when running several.
+builder.Services.AddSignalR();
 builder.Services.AddHostedService<EmbeddingWorker>();
+builder.Services.AddHostedService<FitWorker>();
 builder.Services.AddHostedService<WebhookWorker>();
+builder.Services.AddHostedService<ReportDigestWorker>();
+builder.Services.AddHostedService<ApplicationFollowUpWorker>();
+builder.Services.AddHostedService<WorkflowWorker>();
+builder.Services.AddHostedService<OfferExpiryWorker>();
+builder.Services.AddHostedService<MediaSweepWorker>();
+builder.Services.AddAssessments();
 builder.Services
     .AddHttpClient("webhooks", client => client.Timeout = TimeSpan.FromSeconds(10))
     .ConfigurePrimaryHttpMessageHandler(() => SsrfGuard.Handler(allowLoopback: builder.Environment.IsDevelopment()));
@@ -84,6 +93,17 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0,
             }
         ));
+    // Job pages are read-only and also fetched by the web server while it renders them.
+    options.AddPolicy(PublicEndpoints.PublicReadPolicy, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 600,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+            }
+        ));
 });
 
 var app = builder.Build();
@@ -94,7 +114,14 @@ app.UseForwardedHeaders(
         ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
     }
 );
-app.UseExceptionHandler();
+// Bad input (a missing or malformed parameter) is the caller's fault: 400, not 500.
+app.UseExceptionHandler(
+    new ExceptionHandlerOptions
+    {
+        StatusCodeSelector = ex =>
+            ex is BadHttpRequestException bad ? bad.StatusCode : StatusCodes.Status500InternalServerError,
+    }
+);
 app.Use(
     async (context, next) =>
     {
@@ -106,6 +133,8 @@ app.Use(
         await next();
     }
 );
+// The candidate portal's session cookie, read by the /public endpoints.
+app.UseCandidateSessionCookie();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
@@ -120,6 +149,11 @@ if (app.Environment.IsDevelopment())
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapAtsAuth(app.Configuration, app.Environment);
 app.MapPublicEndpoints();
+app.MapPublicAssessments();
+app.MapPublicOffers();
+app.MapPublicMedia();
+// Long polls end before the Next proxy's 30-second timeout, so the fallback works through it too.
+app.MapHub<InboxHub>(InboxHub.Path, options => options.LongPolling.PollTimeout = TimeSpan.FromSeconds(20));
 app.MapCalendarConnections();
 app.MapGet(
         "/api/auth/csrf",
@@ -135,6 +169,14 @@ var api = app.MapGroup("/api")
     .RequireAuthorization(AtsPolicies.Read)
     .AddEndpointFilter<AntiforgeryEndpointFilter>();
 api.MapAtsEndpoints();
+api.MapAssessments();
+api.MapCandidateFacingStaff();
+MyThorneAI.Ats.Api.Features.Workflows.WorkflowEndpoints.MapWorkflows(api);
+api.MapTemplates();
+api.MapNotifications();
+api.MapTeamChannel();
+api.MapEmailSettings();
+api.MapMedia();
 
 await using (var scope = app.Services.CreateAsyncScope())
 {
@@ -142,6 +184,20 @@ await using (var scope = app.Services.CreateAsyncScope())
     var files = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
     await db.Database.MigrateAsync();
     await SeedData.InitializeAsync(db, app.Environment, app.Configuration, files);
+    // The old per-role switches become custom roles, once.
+    await AtsEndpoints.CarryOverRoleSwitchesAsync(db);
+    // Stage types and job teams for rows from before them; both skip rows already done.
+    await StageRules.BackfillAsync(db);
+    await RequisitionTeam.BackfillAsync(db);
+    // Markdown application questions become typed questions, once.
+    await ApplicationQuestions.BackfillAsync(db);
+    await InterviewLibrarySeed.EnsureAsync(db);
+    // Offer letters, rejection reasons, and decline reasons as a list (evaluation area); each runs once.
+    await OfferLetters.EnsureAsync(db);
+    await RejectionReasons.EnsureAsync(db);
+    await OfferDeclines.BackfillAsync(db);
+    // The managed candidate sources: the starting list once, then any name in use it lacks.
+    await Sources.EnsureAsync(db);
 }
 
 await app.RunAsync();

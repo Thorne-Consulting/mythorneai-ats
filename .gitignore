@@ -32,3 +32,9 @@ test-results/
 src/web/tsconfig.tsbuildinfo
 
 tmp/*
+# Git worktrees that Claude Code sessions create; each is a full copy of the repo.
+.claude/worktrees/
+
+# Cypress page walk output, moved into docs/screenshots by npm run shots
+src/web/cypress/screenshots/
+src/web/cypress/downloads/

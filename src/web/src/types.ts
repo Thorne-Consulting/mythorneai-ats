@@ -4,20 +4,55 @@ export interface User {
   id: string;
   email: string;
   displayName: string;
+  /** The built-in role theirs behaves like. For personal defaults only; check access with `useAbility()`. */
   role: Role;
-  department?: string;
+  /** Their role's name, built-in ("Hiring manager") or one an admin made. */
+  roleName: string;
+  /** Their teams (job departments). Empty: no limit for recruiters, own jobs only for hiring managers. */
+  departments: string[];
+  /** Colour of their initials avatar; null picks one from the name. */
+  avatarTone?: 'blue' | 'violet' | 'green' | 'amber' | 'red' | 'gray' | null;
+  /** IANA zone; null means the organization's. */
+  timeZone?: string | null;
   organizationName?: string;
+  /** The employer's square icon (Settings → Careers site), shown beside the workspace name. */
+  workspaceIconUrl?: string | null;
+  organizationTimeZone?: string | null;
   organizationSetupCompleted: boolean;
   isOrganizationOwner: boolean;
-  // Extra capabilities granted to the user's role: 'reports', 'import', 'templates'.
-  permissions: string[];
+  /** What this person may do, as CASL rules. Read them with `useAbility()` from `@/lib/ability`. */
+  rules: import('@/lib/ability/rules').AbilityRule[];
+  /** Their own settings, saved with the account (see `features/admin/preferences`). */
+  preferences: UserPreferences;
+  /** The server has an AI key and the organization has AI turned on. AI controls hide otherwise. */
+  aiEnabled?: boolean;
+  /** Where "Contact support" writes to, and the "What's new" page. Hidden when not set. */
+  supportEmail?: string | null;
+  changelogUrl?: string | null;
+}
+
+export interface UserPreferences {
+  theme?: 'light' | 'dark' | 'system' | null;
+  density?: 'comfortable' | 'compact' | null;
+  startPage?: string | null;
+  /** auto (this browser's language), month (Nov 13, 2026), day (13 Nov 2026) or iso (2026-11-13). */
+  dateFormat?: 'auto' | 'month' | 'day' | 'iso' | null;
+  /** True from the first sign-in until the welcome is closed. */
+  welcome?: boolean | null;
 }
 
 export interface DashboardData {
   openRequisitions: number;
   activeCandidates: number;
   interviewsThisWeek: number;
-  pipeline: Array<{ stage: string; count: number; order: number }>;
+  /** Days the trend numbers cover (7, 30 or 90), and the same numbers for the period before. */
+  period?: number;
+  hires?: number;
+  hiresBefore?: number;
+  applied?: number;
+  appliedBefore?: number;
+  /** Active people on open jobs by stage type; `reached`: of those who applied in the period, how many got this far. */
+  pipeline: Array<{ stage: string; count: number; order: number; type?: string; reached?: number }>;
   unreadMessages: Array<{
     applicationId: string;
     candidateName: string;
@@ -30,6 +65,7 @@ export interface DashboardData {
     candidateName: string;
     requisitionTitle: string;
     stage: string;
+    stageType?: string;
     lastActivityAt: string;
   }>;
   stalledTotal: number;
@@ -41,7 +77,7 @@ export interface DashboardData {
     openings: number;
     hired: number;
     newToday: number;
-    stages: Array<{ name: string; count: number }>;
+    stages: Array<{ name: string; count: number; type?: string; color?: string | null }>;
   }>;
   scorecardsDue: Array<{
     id: string;
@@ -57,6 +93,7 @@ export interface DashboardData {
     candidateTitle?: string;
     requisitionTitle: string;
     stage: string;
+    stageType?: string;
     lastActivityAt: string;
   }>;
   upcomingInterviews: Array<{
@@ -82,6 +119,9 @@ export interface RequisitionSummary {
   status: string;
   ownerEmail: string;
   recruiterEmail: string;
+  /** From the hiring team's user records (list endpoint only). */
+  hiringManager?: { userId: string; displayName: string; email: string } | null;
+  recruiter?: { userId: string; displayName: string; email: string } | null;
   targetStartDate?: string;
   activeApplications: number;
   updatedAt: string;
@@ -91,15 +131,38 @@ export interface Stage {
   id: string;
   name: string;
   sortOrder: number;
-  color: string;
+  /** A tone that overrides the type's colour; usually null. Use `stageTone(type, color)`. */
+  color?: string | null;
   isTerminal: boolean;
   count?: number;
+  /** Applied, Screen, Interview, Offer, Hired or Other. Colour and automation read this, not the name. */
+  type?: string;
+  /** What candidates see for this stage. */
+  candidateLabel?: string;
+  /** Off, Ask or Always: whether moving someone here emails them. */
+  emailOnEntry?: 'Off' | 'Ask' | 'Always';
+  targetDays?: number | null;
+  /** The assessment this stage uses; its score shows on the cards here. */
+  assessmentId?: string | null;
+}
+
+/** Someone on a job's hiring team. */
+export interface RequisitionMember {
+  userId: string;
+  displayName: string;
+  email: string;
+  /** HiringManager, Recruiter, Interviewer or Viewer. */
+  role: 'HiringManager' | 'Recruiter' | 'Interviewer' | 'Viewer';
+  /** Their account role (Admin, Recruiter, HiringManager, Interviewer). */
+  userRole: string;
+  isActive: boolean;
 }
 
 export interface RequisitionDetail extends RequisitionSummary {
   description: string;
   createdAt: string;
   stages: Stage[];
+  members?: RequisitionMember[];
   interviewKits: InterviewKit[];
   requirementsJson?: string;
   isConfidential?: boolean;
@@ -121,8 +184,6 @@ export interface InterviewKit {
   id: string;
   name: string;
   instructions: string;
-  candidateMessage?: string;
-  interviewerMessage?: string;
   durationMinutes: number;
   sortOrder?: number;
   criteria: InterviewCriterion[];
@@ -137,9 +198,17 @@ export interface CandidateDetail {
   location?: string;
   currentTitle?: string;
   linkedInUrl?: string;
+  gitHubUrl?: string;
+  portfolioUrl?: string;
+  otherUrls?: string[];
   source: string;
+  /** The teammate who referred them, on referral sources. */
+  referrer?: { id: string; name: string } | null;
   tags: string[];
   doNotContact: boolean;
+  doNotContactReason?: string | null;
+  emailBounced?: boolean;
+  customFieldsJson?: string | null;
   createdAt: string;
   updatedAt: string;
   resumeSummary?: string;
@@ -155,16 +224,39 @@ export interface CandidateDetail {
     requisitionId: string;
     requisitionCode: string;
     requisitionTitle: string;
+    stageId?: string;
     stage: string;
+    /** The stage's type and colour, for StageBadge. */
+    stageType?: string | null;
+    stageColor?: string | null;
     status: string;
     appliedAt: string;
     lastActivityAt: string;
+  }>;
+  /** The next scheduled interview on any application you can see. */
+  nextInterview?: {
+    id: string;
+    applicationId: string;
+    title: string;
+    startsAt: string;
+    requisitionTitle: string;
+  } | null;
+  /** The file the profile was read from. */
+  resumeAttachmentId?: string | null;
+  /** Jobs this person was hidden from when ranking, with why. */
+  dismissals?: Array<{
+    requisitionId: string;
+    reason: string;
+    dismissedBy: string;
+    createdAt: string;
   }>;
   attachments: Array<{
     id: string;
     originalFileName: string;
     contentType: string;
     length: number;
+    /** Resume, CoverLetter, Portfolio or Other. Only resumes are read. */
+    kind?: string;
     scanStatus: string;
     parseStatus: string;
     parseError?: string;
@@ -311,6 +403,8 @@ export interface BoardData {
   title: string;
   stages: Array<
     Stage & {
+      /** The name of the stage's assessment, when it has one. */
+      assessmentName?: string | null;
       applications: Array<{
         id: string;
         candidateId: string;
@@ -321,6 +415,23 @@ export interface BoardData {
         rating?: number;
         lastActivityAt: string;
         appliedAt: string;
+        /** The last move into this stage, for "days in stage". */
+        enteredStageAt?: string;
+        /** Scorecards still missing from interviews that have happened. */
+        feedbackOwed?: number;
+        /** An application answer was one the job flags for review. */
+        flagged?: boolean;
+        /** The latest submitted assessment: percent once scored, and the decision once made. */
+        assessment?: {
+          id: string;
+          name: string;
+          percent: number | null;
+          decision: 'Passed' | 'Failed' | null;
+          pendingCount: number;
+        } | null;
+        doNotContact?: boolean;
+        firstName?: string;
+        email?: string;
         yearsExperience?: number;
         skills: string[];
         nextInterviewAt?: string;
@@ -347,6 +458,8 @@ export interface ApplicationDetailResponse {
     status: string;
     source: string;
     dispositionReason?: string;
+    /** Why, when the reason asked for a note. */
+    dispositionNote?: string | null;
     rating?: number;
     appliedAt: string;
     lastActivityAt: string;
@@ -439,11 +552,17 @@ export interface CandidateListItem {
   location?: string;
   currentTitle?: string;
   source: string;
+  /** Skills read from the resume. */
   skills: string[];
+  /** Labels recruiters added. */
+  tags?: string[];
   experienceYears?: number | null;
   hasParsedResume: boolean;
   doNotContact: boolean;
+  createdAt?: string;
   updatedAt: string;
+  /** A line of the resume with the searched words between ⟦ and ⟧, when the match came from it. */
+  snippet?: string | null;
   matchedTerms: string[];
   applications: CandidateListApplication[];
 }
@@ -455,6 +574,9 @@ export interface CandidateListApplication {
   requisitionTitle: string;
   stageId: string;
   stage: string;
+  /** The stage's type and colour, for StageBadge. */
+  stageType?: string | null;
+  stageColor?: string | null;
   status: string;
   rating?: number | null;
   appliedAt: string;

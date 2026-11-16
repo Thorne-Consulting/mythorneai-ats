@@ -1,120 +1,405 @@
 'use client';
 
 import { useState } from 'react';
-import { Button, Text, TextInput } from '@mantine/core';
-import { IconPlus, IconSearch } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  Briefcase,
+  ChevronDown,
+  CircleCheck,
+  CopyPlus,
+  Eye,
+  Kanban,
+  Pencil,
+  Plus,
+} from 'lucide-react';
 import { api } from '@/api';
-import { statusColors } from '@/components/ui/Badges';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { PageHeader } from '@/components/ui/PageHeaders';
-import { formatDate, formatRelative, humanize } from '@/lib/format';
-import { rowLinkProps } from '@/lib/row-link-props';
-import type { RequisitionSummary } from '@/types';
 import { useCurrentUser } from '@/auth';
+import {
+  Avatar,
+  Button,
+  Card,
+  CellStack,
+  EmptyState,
+  FilterSelect,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuLabel,
+  MenuSeparator,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
+  MenuTrigger,
+  PageHeader,
+  RowActions,
+  SearchInput,
+  toast,
+} from '@/components/ui';
+import { DataTable, type Column } from '@/components/data-table/DataTable';
+import { SavedViews, type SavedView } from '@/components/data-table/SavedViews';
+import { PipelineBar } from '@/components/pipeline/PipelineBar';
+import { StatusBadge, statusLabel } from '@/components/status';
+import { asJob, useAbility } from '@/lib/ability';
+import { formatDate, formatRelative } from '@/lib/format';
+import { useDebouncedValue } from '@/lib/hooks';
+import { personName, statusOptions } from './requisition-data';
+import { JOB_STATUS_TARGETS, daysOpen, planStatusChange } from './job-status';
+import { useJobStatusChange } from './JobStatusChange';
+import { JobDrafts } from './JobDrafts';
+import type { JobListItem } from './requirements-types';
 
-const STATUSES = ['Open', 'PendingApproval', 'Draft', 'OnHold', 'Filled', 'Closed', 'Cancelled'];
-// These columns show even when empty, so the board keeps its shape.
-const ALWAYS_SHOWN = ['Open', 'Draft', 'OnHold'];
-const TEAM_COLORS = ['indigo', 'teal', 'grape', 'orange', 'cyan', 'pink', 'lime', 'violet'];
+type JobFilters = {
+  search: string;
+  statuses: string[] | null;
+  mine: boolean;
+  department: string | null;
+  location: string | null;
+};
+const NONE: JobFilters = {
+  search: '',
+  statuses: null,
+  mine: false,
+  department: null,
+  location: null,
+};
+const VIEWS: SavedView<JobFilters>[] = [
+  { id: 'all', name: 'All jobs', state: NONE, builtIn: true },
+  { id: 'open', name: 'Open', state: { ...NONE, statuses: ['Open'] }, builtIn: true },
+  {
+    id: 'drafts',
+    name: 'Drafts and approval',
+    state: { ...NONE, statuses: ['Draft', 'PendingApproval'] },
+    builtIn: true,
+  },
+  { id: 'hold', name: 'On hold', state: { ...NONE, statuses: ['OnHold'] }, builtIn: true },
+  {
+    id: 'closed',
+    name: 'Closed',
+    state: { ...NONE, statuses: ['Filled', 'Closed', 'Cancelled'] },
+    builtIn: true,
+  },
+  { id: 'mine', name: 'My jobs', state: { ...NONE, mine: true }, builtIn: true },
+];
 
-/** The same team always gets the same colour. */
-const teamColor = (team: string) =>
-  TEAM_COLORS[[...team].reduce((sum, char) => sum + char.charCodeAt(0), 0) % TEAM_COLORS.length];
+const uniq = (values: string[]) => [...new Set(values)].sort();
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
-/** "priya.manager@acme.com" reads as "Priya Manager". */
-const nameFromEmail = (email: string) =>
-  email
-    .split('@')[0]
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-
-/** Every job on one board, a column per status. Drag a card to change its status. */
-export function RequisitionsPage({ initialData }: { initialData: RequisitionSummary[] }) {
-  const [search, setSearch] = useState('');
+/** Every job with its pipeline at a glance. Views by status carry their counts. */
+export function RequisitionsPage({ initialData }: { initialData: JobListItem[] }) {
   const router = useRouter();
   const user = useCurrentUser();
-  const canCreate = ['Admin', 'Recruiter', 'HiringManager'].includes(user.role);
-  const query = useQuery({
-    queryKey: ['requisitions', search],
-    queryFn: () =>
-      api.get<RequisitionSummary[]>(`/api/requisitions?search=${encodeURIComponent(search)}`),
-    initialData: !search ? initialData : undefined,
-  });
-  const rows = query.data ?? [];
-  const columns = STATUSES.filter(
-    (value) => ALWAYS_SHOWN.includes(value) || rows.some((item) => item.status === value),
-  ).map((value) => ({
-    value,
-    color: statusColors[value] ?? 'gray',
-    items: rows.filter((item) => item.status === value),
-  }));
-  const go = (item: RequisitionSummary) =>
-    rowLinkProps(`Open ${item.title}`, () => router.push(`/requisitions/${item.id}`));
+  const ability = useAbility();
+  const canCreate = ability.can('create', 'Job');
+  const managesJob = (job: JobListItem) => ability.can('update', asJob(job));
+  const [filters, setFilters] = useState<JobFilters>(NONE);
+  const [viewId, setViewId] = useState<string | null>('all');
+  const [selected, setSelected] = useState<string[]>([]);
+  const status = useJobStatusChange(() => setSelected([]));
+  const q = useDebouncedValue(filters.search.trim());
+  const mine = (job: JobListItem) =>
+    job.ownerEmail === user.email || job.recruiterEmail === user.email;
 
-  // Drag a card to another column to change the job's status. The card moves at once and moves
-  // back if the server refuses (for example, opening a job that still needs approval).
-  const queryClient = useQueryClient();
-  const [dragId, setDragId] = useState<string | null>(null);
-  const [over, setOver] = useState<string | null>(null);
-  const cacheKey = ['requisitions', search];
-  const move = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch<void>(`/api/requisitions/${id}/status`, { status, reason: null }),
-    onMutate: ({ id, status }) => {
-      const before = queryClient.getQueryData<RequisitionSummary[]>(cacheKey);
-      queryClient.setQueryData<RequisitionSummary[]>(cacheKey, (list) =>
-        list?.map((item) => (item.id === id ? { ...item, status } : item)),
-      );
-      return { before };
-    },
-    onError: (error: Error, _vars, context) => {
-      queryClient.setQueryData(cacheKey, context?.before);
-      notifications.show({ color: 'red', title: 'Could not move the job', message: error.message });
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['requisitions'] }),
+  // Any manual change leaves the saved view it started from.
+  const setFilter = <K extends keyof JobFilters>(key: K, value: JobFilters[K]) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+    setViewId(null);
+  };
+
+  const all = useQuery({
+    queryKey: ['requisitions', ''],
+    queryFn: () => api.get<JobListItem[]>('/api/requisitions?search='),
+    initialData,
   });
-  const dragProps = (item: RequisitionSummary) =>
-    canCreate
-      ? {
-          draggable: true,
-          'data-dragging': dragId === item.id || undefined,
-          onDragStart: (event: React.DragEvent) => {
-            event.dataTransfer.setData('text/plain', item.id);
-            event.dataTransfer.effectAllowed = 'move';
-            setDragId(item.id);
-          },
-          onDragEnd: () => {
-            setDragId(null);
-            setOver(null);
-          },
-        }
-      : {};
-  // Pending approval only comes from submitting for approval, so nothing drops there.
-  const dropProps = (status: string) =>
-    !canCreate || status === 'PendingApproval'
-      ? {}
-      : {
-          'data-over': over === status || undefined,
-          onDragOver: (event: React.DragEvent) => {
-            if (!dragId) return;
-            event.preventDefault();
-            setOver(status);
-          },
-          onDragLeave: (event: React.DragEvent) => {
-            if (!event.currentTarget.contains(event.relatedTarget as Node)) setOver(null);
-          },
-          onDrop: (event: React.DragEvent) => {
-            event.preventDefault();
-            setOver(null);
-            const job = rows.find((item) => item.id === event.dataTransfer.getData('text/plain'));
-            if (job && job.status !== status) move.mutate({ id: job.id, status });
-          },
-        };
+  const searched = useQuery({
+    queryKey: ['requisitions', q],
+    queryFn: () => api.get<JobListItem[]>(`/api/requisitions?search=${encodeURIComponent(q)}`),
+    enabled: !!q,
+  });
+  const base = all.data ?? [];
+  const found = q ? searched.data : base;
+
+  const duplicate = useMutation({
+    mutationFn: (id: string) => api.post<{ id: string }>(`/api/requisitions/${id}/duplicate`),
+    onSuccess: ({ id }) => {
+      toast.success('Job duplicated', 'The copy is a draft. Change what you need, then open it.');
+      router.push(`/jobs/${id}/settings`);
+    },
+    onError: (error: Error) => toast.error('Could not duplicate the job', error.message),
+  });
+
+  const rows = (found ?? []).filter(
+    (job) =>
+      (!filters.statuses || filters.statuses.includes(job.status)) &&
+      (!filters.mine || mine(job)) &&
+      (!filters.department || job.department === filters.department) &&
+      (!filters.location || job.location === filters.location),
+  );
+
+  // Each built-in view shows how many jobs it holds.
+  const views = VIEWS.map((view) => ({
+    ...view,
+    count: base.filter(
+      (job) =>
+        (!view.state.statuses || view.state.statuses.includes(job.status)) &&
+        (!view.state.mine || mine(job)),
+    ).length,
+  }));
+
+  const asStatusJob = (job: JobListItem) => ({
+    id: job.id,
+    title: job.title,
+    activeApplications: job.activeApplications,
+  });
+  const changeSelected = (target: string) => {
+    const known = new Map([...base, ...(found ?? [])].map((job) => [job.id, job]));
+    const jobs = selected.flatMap((id) => known.get(id) ?? []);
+    const { change, skipped } = planStatusChange(jobs, target, managesJob);
+    status.request(change.map(asStatusJob), target, skipped.length);
+  };
+
+  const pipelineLink = (job: JobListItem, children: React.ReactNode, className?: string) => (
+    <Link
+      href={`/jobs/${job.id}/pipeline`}
+      onClick={(e) => e.stopPropagation()}
+      className={className}
+    >
+      {children}
+    </Link>
+  );
+
+  const columns: Column<JobListItem>[] = [
+    {
+      id: 'title',
+      header: 'Job',
+      hideable: false,
+      className: 'max-w-72',
+      cell: (job) => (
+        <CellStack primary={job.title} secondary={`${job.department} · ${job.code}`} />
+      ),
+      sortValue: (job) => job.title,
+    },
+    {
+      id: 'pipeline',
+      header: 'Candidates',
+      className: 'w-56',
+      cell: (job) =>
+        pipelineLink(
+          job,
+          <>
+            <span className="w-6 shrink-0 text-right font-semibold text-fg tnum group-hover/link:text-accent-foreground">
+              {job.activeApplications}
+            </span>
+            <PipelineBar stages={job.stages ?? []} className="flex-1" />
+          </>,
+          'group/link flex items-center gap-3 rounded-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none',
+        ),
+      sortValue: (job) => job.activeApplications,
+      csv: (job) => job.activeApplications,
+    },
+    {
+      id: 'new',
+      header: 'New',
+      align: 'right',
+      className: 'tnum',
+      cell: (job) =>
+        job.newApplications ? (
+          <span className="font-semibold text-fg">{job.newApplications}</span>
+        ) : (
+          <span className="text-fg-subtle">0</span>
+        ),
+      sortValue: (job) => job.newApplications ?? 0,
+    },
+    {
+      id: 'days',
+      header: 'Days open',
+      align: 'right',
+      className: 'tnum whitespace-nowrap',
+      cell: (job) => daysOpen(job) ?? <span className="text-fg-subtle">Not opened</span>,
+      sortValue: (job) => daysOpen(job) ?? -1,
+      csv: (job) => daysOpen(job),
+    },
+    {
+      id: 'location',
+      header: 'Location',
+      defaultHidden: true,
+      cell: (job) => <CellStack primary={job.location} secondary={job.workMode} />,
+      sortValue: (job) => job.location,
+      csv: (job) => `${job.location} (${job.workMode})`,
+    },
+    {
+      id: 'type',
+      header: 'Employment type',
+      defaultHidden: true,
+      cell: (job) => job.employmentType,
+      sortValue: (job) => job.employmentType,
+    },
+    {
+      id: 'openings',
+      header: 'Openings',
+      align: 'right',
+      defaultHidden: true,
+      className: 'tnum',
+      cell: (job) => job.openings,
+      sortValue: (job) => job.openings,
+    },
+    {
+      id: 'owner',
+      header: 'Hiring manager',
+      className: 'whitespace-nowrap',
+      cell: (job) => {
+        const name = personName(job.hiringManager, job.ownerEmail);
+        return (
+          <span
+            className="flex items-center gap-2"
+            title={job.hiringManager?.email ?? job.ownerEmail}
+          >
+            <Avatar name={name} size="xs" />
+            {name}
+          </span>
+        );
+      },
+      sortValue: (job) => personName(job.hiringManager, job.ownerEmail),
+      csv: (job) => personName(job.hiringManager, job.ownerEmail),
+    },
+    {
+      id: 'recruiter',
+      header: 'Recruiter',
+      defaultHidden: true,
+      className: 'whitespace-nowrap',
+      cell: (job) => (
+        <span title={job.recruiter?.email ?? job.recruiterEmail}>
+          {personName(job.recruiter, job.recruiterEmail)}
+        </span>
+      ),
+      sortValue: (job) => personName(job.recruiter, job.recruiterEmail),
+      csv: (job) => personName(job.recruiter, job.recruiterEmail),
+    },
+    {
+      id: 'start',
+      header: 'Target start',
+      defaultHidden: true,
+      className: 'whitespace-nowrap',
+      cell: (job) => formatDate(job.targetStartDate),
+      sortValue: (job) => job.targetStartDate,
+    },
+    {
+      id: 'updated',
+      header: 'Updated',
+      defaultHidden: true,
+      className: 'whitespace-nowrap text-fg-muted',
+      cell: (job) => <span title={formatDate(job.updatedAt)}>{formatRelative(job.updatedAt)}</span>,
+      sortValue: (job) => job.updatedAt,
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      cell: (job) => <StatusBadge status={job.status} />,
+      sortValue: (job) => statusLabel(job.status),
+      csv: (job) => statusLabel(job.status),
+    },
+    {
+      id: 'actions',
+      header: <span className="sr-only">Actions</span>,
+      label: 'Actions',
+      hideable: false,
+      align: 'right',
+      cell: (job) => rowActions(job),
+    },
+  ];
+
+  const rowActions = (job: JobListItem) => {
+    return (
+      // Menu clicks bubble through the portal to the row; keep them from opening the job.
+      <span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <RowActions label={`Actions for ${job.title}`}>
+          <MenuItem icon={<Eye />} onSelect={() => router.push(`/jobs/${job.id}`)}>
+            Open job
+          </MenuItem>
+          <MenuItem icon={<Kanban />} onSelect={() => router.push(`/jobs/${job.id}/pipeline`)}>
+            View pipeline
+          </MenuItem>
+          {managesJob(job) && (
+            <>
+              <MenuItem icon={<Pencil />} onSelect={() => router.push(`/jobs/${job.id}/posting`)}>
+                Edit posting
+              </MenuItem>
+              <MenuItem icon={<CopyPlus />} onSelect={() => duplicate.mutate(job.id)}>
+                Duplicate job
+              </MenuItem>
+              <MenuSeparator />
+              <MenuSub>
+                <MenuSubTrigger icon={<CircleCheck />}>Change status</MenuSubTrigger>
+                <MenuSubContent>
+                  {statusOptions(job).map((target) => (
+                    <MenuItem
+                      key={target}
+                      onSelect={() => status.request([asStatusJob(job)], target)}
+                    >
+                      {statusLabel(target)}
+                    </MenuItem>
+                  ))}
+                </MenuSubContent>
+              </MenuSub>
+            </>
+          )}
+        </RowActions>
+      </span>
+    );
+  };
+
+  const toolbar = (
+    <>
+      <SearchInput
+        value={filters.search}
+        onValueChange={(value) => setFilter('search', value)}
+        placeholder="Search by job title or ID"
+        className="w-full sm:w-64"
+      />
+      <FilterSelect
+        allLabel="All teams"
+        value={filters.department}
+        onChange={(value) => setFilter('department', value)}
+        data={uniq(base.map((job) => job.department))}
+      />
+      <FilterSelect
+        allLabel="All locations"
+        value={filters.location}
+        onChange={(value) => setFilter('location', value)}
+        data={uniq(base.map((job) => job.location))}
+      />
+    </>
+  );
+
+  const empty = (
+    <EmptyState
+      icon={Briefcase}
+      title={base.length === 0 ? 'No jobs yet' : 'No jobs match'}
+      description={
+        base.length === 0
+          ? 'Create a job to start collecting applications.'
+          : 'Try another view, search or filter.'
+      }
+      action={
+        base.length === 0 && canCreate ? (
+          <Button asChild>
+            <Link href="/jobs/new">Create job</Link>
+          </Button>
+        ) : (
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setFilters(NONE);
+              setViewId('all');
+            }}
+          >
+            Show all jobs
+          </Button>
+        )
+      }
+    />
+  );
 
   return (
     <>
@@ -122,91 +407,85 @@ export function RequisitionsPage({ initialData }: { initialData: RequisitionSumm
         title="Jobs"
         actions={
           canCreate && (
-            <Button
-              leftSection={<IconPlus size={17} />}
-              onClick={() => router.push('/requisitions/new')}
-            >
-              New job
+            <Button asChild>
+              <Link href="/jobs/new">
+                <Plus />
+                Create job
+              </Link>
             </Button>
           )
         }
       />
-      <div className="board-bar">
-        <TextInput
-          className="board-search"
-          value={search}
-          onChange={(event) => setSearch(event.currentTarget.value)}
-          placeholder="Find a job"
-          aria-label="Search jobs"
-          leftSection={<IconSearch size={15} />}
-          radius="xl"
+
+      {canCreate && <JobDrafts />}
+      <Card className="px-4 pt-4 pb-4">
+        <SavedViews
+          storageKey="jobs"
+          builtIn={views}
+          current={filters}
+          activeId={viewId}
+          onApply={(saved) => {
+            setFilters(saved.state);
+            setViewId(saved.id);
+          }}
         />
-        <Text size="sm" c="dimmed">
-          {rows.length} {rows.length === 1 ? 'job' : 'jobs'}
-        </Text>
-      </div>
-      {!query.data ? (
-        <LoadingBlock />
-      ) : (
-        <div className="board">
-          {columns.map(({ value, color, items }) => (
-            <section
-              key={value}
-              className="board-col"
-              style={{ background: `var(--mantine-color-${color}-light)` }}
-              aria-label={humanize(value)}
-              {...dropProps(value)}
-            >
-              <div className="board-col-head">
-                <span
-                  className="board-dot"
-                  style={{ background: `var(--mantine-color-${color}-6)` }}
-                />
-                {humanize(value)}
-                <span className="board-count">{items.length}</span>
+        <DataTable
+          // Filters reset paging without remounting, so the search box keeps focus.
+          resetPageKey={JSON.stringify({ ...filters, search: q })}
+          viewKey="jobs-v2"
+          exportName="jobs"
+          noun="job"
+          toolbar={toolbar}
+          data={rows}
+          columns={columns}
+          getRowId={(job) => job.id}
+          loading={!found}
+          empty={empty}
+          pageSize={25}
+          onRowOpen={(job) => router.push(`/jobs/${job.id}`)}
+          rowLabel={(job) => `Open ${job.title}`}
+          card={(job) => (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <CellStack primary={job.title} secondary={`${job.department} · ${job.code}`} />
+                <StatusBadge status={job.status} size="sm" />
               </div>
-              {items.length === 0 && <p className="board-empty">Drop a job here</p>}
-              {items.map((item) => (
-                <div
-                  key={item.id}
-                  {...go(item)}
-                  {...dragProps(item)}
-                  className="job-card clickable-row"
+              <PipelineBar stages={job.stages ?? []} />
+              <p className="text-xs text-fg-subtle">
+                {plural(job.activeApplications, 'candidate')}
+                {job.newApplications ? ` · ${job.newApplications} new` : ''}
+                {daysOpen(job) !== null && ` · open ${plural(daysOpen(job)!, 'day')}`}
+              </p>
+            </div>
+          )}
+          selectable={ability.can('update', 'Job')}
+          selected={selected}
+          onSelectedChange={setSelected}
+          bulkActions={
+            <Menu>
+              <MenuTrigger asChild>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  rightIcon={<ChevronDown />}
+                  loading={status.isPending}
                 >
-                  <span
-                    className="job-card-team"
-                    style={{
-                      color: `var(--mantine-color-${teamColor(item.department)}-light-color)`,
-                    }}
-                  >
-                    {item.department}
-                  </span>
-                  <p className="job-card-title">{item.title}</p>
-                  <span className="job-card-count">
-                    <b>{item.activeApplications}</b>
-                    <span>candidates</span>
-                  </span>
-                  <span className="job-card-place">
-                    {item.location} · {item.workMode}
-                  </span>
-                  <dl className="job-card-facts">
-                    <dt>Openings</dt>
-                    <dd>{item.openings}</dd>
-                    <dt>Contract</dt>
-                    <dd>{item.employmentType}</dd>
-                    <dt>Start</dt>
-                    <dd>{formatDate(item.targetStartDate)}</dd>
-                    <dt>Hiring manager</dt>
-                    <dd>{nameFromEmail(item.ownerEmail)}</dd>
-                    <dt>Updated</dt>
-                    <dd>{formatRelative(item.updatedAt)}</dd>
-                  </dl>
-                </div>
-              ))}
-            </section>
-          ))}
-        </div>
-      )}
+                  Change status
+                </Button>
+              </MenuTrigger>
+              <MenuContent>
+                <MenuLabel>Move selected jobs to</MenuLabel>
+                {JOB_STATUS_TARGETS.map((target) => (
+                  <MenuItem key={target} onSelect={() => changeSelected(target)}>
+                    {statusLabel(target)}
+                  </MenuItem>
+                ))}
+              </MenuContent>
+            </Menu>
+          }
+        />
+      </Card>
+      {status.dialog}
     </>
   );
 }

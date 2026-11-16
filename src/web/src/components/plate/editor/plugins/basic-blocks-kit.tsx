@@ -11,9 +11,13 @@ import {
   H6Plugin,
   HorizontalRulePlugin,
 } from '@platejs/basic-nodes/react';
-import { ParagraphPlugin } from 'platejs/react';
+import { CodeBlockRules } from '@platejs/code-block';
+import { CodeBlockPlugin, CodeLinePlugin } from '@platejs/code-block/react';
+import { KEYS } from 'platejs';
+import { ParagraphPlugin, createPlatePlugin } from 'platejs/react';
 
 import { BlockquoteElement } from '@/components/plate/ui/blockquote-node';
+import { CodeBlockElement, CodeLineElement } from '@/components/plate/ui/code-block-node';
 import {
   H1Element,
   H2Element,
@@ -101,4 +105,36 @@ export const BasicBlocksKit = [
       component: HrElement,
     },
   }),
+
+  // ``` on a new line (or "/" then Code block) starts one. Enter adds a line; Enter on an empty
+  // last line leaves the block. Tab indents inside it.
+  CodeBlockPlugin.configure({
+    inputRules: [CodeBlockRules.markdown({ on: 'match' })],
+    node: { component: CodeBlockElement },
+    shortcuts: { toggle: { keys: 'mod+alt+8' } },
+  }),
+  CodeLinePlugin.withComponent(CodeLineElement),
+  createPlatePlugin({ key: 'code_block_exit' }).overrideEditor(
+    ({ editor, tf: { insertBreak } }) => ({
+      transforms: {
+        insertBreak() {
+          const line = editor.api.above({ match: { type: editor.getType(KEYS.codeLine) } });
+          const block = editor.api.above({ match: { type: editor.getType(KEYS.codeBlock) } });
+          const last = block && line && line[1].at(-1) === block[0].children.length - 1;
+          // A new line copies the indent above, so a line of only spaces counts as empty.
+          const empty = line && !editor.api.string(line[1]).trim();
+          if (!block || !line || !last || block[0].children.length < 2 || !empty)
+            return insertBreak();
+          const after = [...block[1].slice(0, -1), block[1].at(-1)! + 1];
+          editor.tf.withoutNormalizing(() => {
+            editor.tf.removeNodes({ at: line[1] });
+            editor.tf.insertNodes(
+              { type: editor.getType(KEYS.p), children: [{ text: '' }] },
+              { at: after, select: true },
+            );
+          });
+        },
+      },
+    }),
+  ),
 ];

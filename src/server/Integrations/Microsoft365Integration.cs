@@ -29,8 +29,7 @@ public sealed class Microsoft365Integration : IWorkplaceIntegration
     )
     {
         var createMeeting =
-            _options.CreateOnlineMeetings
-            && string.IsNullOrWhiteSpace(calendarEvent.ExistingMeetingLink);
+            _options.CreateOnlineMeetings && calendarEvent.CreatesMeetingOn("Microsoft");
         var graphEvent = new Event
         {
             Subject = calendarEvent.Title,
@@ -56,10 +55,10 @@ public sealed class Microsoft365Integration : IWorkplaceIntegration
             TransactionId = calendarEvent.InterviewId.ToString("N"),
         };
 
-        if (!string.IsNullOrWhiteSpace(calendarEvent.ExistingMeetingLink))
+        if (!string.IsNullOrWhiteSpace(calendarEvent.Place))
             graphEvent.Location = new Location
             {
-                DisplayName = calendarEvent.ExistingMeetingLink,
+                DisplayName = calendarEvent.Place,
                 LocationUri = calendarEvent.ExistingMeetingLink,
             };
 

@@ -1,262 +1,296 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/api';
 import {
   Autocomplete,
+  Card,
   Checkbox,
+  Input,
   MultiSelect,
   NumberInput,
-  Radio,
+  SearchSelect,
   Select,
-  Stack,
-  Textarea,
-  TextInput,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/api';
+  SkeletonRows,
+  Switch,
+} from '@/components/ui';
+import { countryName, countryOptions } from './countries';
+import { CURRENCIES, PERIODS, locationText, payProblem, payText } from './job-form';
+import {
+  useRequisition,
+  useUpdateJob,
+  useUpdateJobSettings,
+  type JobChanges,
+} from './requisition-data';
 import type { RequisitionWithSettings } from './requirements-types';
-
-type DirectoryUser = { email: string; displayName: string; role: string };
 
 const WORK_MODES = ['On-site', 'Hybrid', 'Remote'];
 const EMPLOYMENT_TYPES = ['Full time', 'Part time', 'Contract', 'Internship', 'Temporary'];
 
+export function RequisitionSettingsTab({ id }: { id: string }) {
+  const details = useRequisition(id);
+  if (!details.data)
+    return (
+      <Card>
+        <SkeletonRows rows={3} />
+      </Card>
+    );
+  return (
+    <div className="max-w-[920px]">
+      <RequisitionSettings requisition={details.data as RequisitionWithSettings} />
+    </div>
+  );
+}
+
+/**
+ * The job's own facts and what candidates can do themselves. The posting, the team and who can
+ * see the job have their own tabs. Text saves when you leave a field; choices save at once.
+ */
 export function RequisitionSettings({ requisition }: { requisition: RequisitionWithSettings }) {
-  const queryClient = useQueryClient();
-  const initial = {
-    isConfidential: requisition.isConfidential ?? false,
-    viewerEmails: requisition.viewerEmails ?? [],
-    allowCandidateReschedule: requisition.allowCandidateReschedule ?? false,
-    allowCandidateWithdraw: requisition.allowCandidateWithdraw ?? false,
-  };
-  const [value, setValue] = useState(initial);
-  const key = JSON.stringify(initial);
-  useEffect(() => setValue(JSON.parse(key) as typeof initial), [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const saveJob = useUpdateJob(requisition.id);
+  const saveSettings = useUpdateJobSettings(requisition.id);
+  // Team suggests the values other jobs use, so spellings stay the same.
+  const values = useQuery({
+    queryKey: ['requisition-values'],
+    queryFn: () => api.get<{ departments: string[] }>('/api/requisitions/values'),
+    staleTime: 60_000,
+  }).data;
+  const structured = !!(requisition.locationCity || requisition.locationCountry);
 
-  const directory = useQuery({
-    queryKey: ['directory-users'],
-    queryFn: () => api.get<DirectoryUser[]>('/api/directory/users'),
-  });
-  // Keep emails that are already saved even if they are no longer in the directory.
-  const options = [
-    ...(directory.data ?? []).map((user) => ({
-      value: user.email,
-      label: `${user.displayName} (${user.email})`,
-    })),
-    ...value.viewerEmails
-      .filter((email) => !directory.data?.some((user) => user.email === email))
-      .map((email) => ({ value: email, label: email })),
-  ];
-
-  const save = useMutation({
-    mutationFn: (next: typeof value) =>
-      api.put(`/api/requisitions/${requisition.id}/settings`, next),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
-      queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-    },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
-  });
-
-  // Every change saves straight away; there is no Save button.
-  const change = (next: typeof value) => {
-    setValue(next);
-    save.mutate(next);
-  };
-  const status = save.isPending ? 'Saving…' : save.isError ? 'Not saved' : 'Saved';
-
-  // The job's own fields. Text saves when you leave the field; choices save straight away.
-  const savedDetails = {
+  const saved = {
     title: requisition.title,
     department: requisition.department,
     location: requisition.location,
     employmentType: requisition.employmentType,
     workMode: requisition.workMode,
     openings: requisition.openings,
-    ownerEmail: requisition.ownerEmail,
-    recruiterEmail: requisition.recruiterEmail,
-    description: requisition.description ?? '',
     targetStartDate: requisition.targetStartDate?.slice(0, 10) ?? '',
+    // Jobs from before structured places keep their text as the city until someone changes it.
+    locationCity: requisition.locationCity ?? (structured ? '' : requisition.location),
+    locationRegion: requisition.locationRegion ?? '',
+    locationCountry: requisition.locationCountry ?? '',
+    remoteCountries: requisition.remoteCountries ?? [],
+    salaryMin: requisition.salaryMin ?? ('' as number | ''),
+    salaryMax: requisition.salaryMax ?? ('' as number | ''),
+    salaryCurrency: requisition.salaryCurrency ?? 'USD',
+    salaryPeriod: requisition.salaryPeriod ?? 'Year',
+    showSalary: !!requisition.showSalary,
   };
-  type Details = typeof savedDetails;
-  const [details, setDetails] = useState(savedDetails);
-  const detailsKey = JSON.stringify(savedDetails);
-  useEffect(() => setDetails(JSON.parse(detailsKey) as Details), [detailsKey]);
-  const saveDetails = useMutation({
-    mutationFn: (next: Details) =>
-      api.put(`/api/requisitions/${requisition.id}`, {
-        ...next,
-        targetStartDate: next.targetStartDate || null,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requisition', requisition.id] });
-      queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-    },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not save', message: error.message }),
-  });
-  const saveDetailsIfChanged = (next: Details) => {
-    if (JSON.stringify(next) !== detailsKey) saveDetails.mutate(next);
-  };
-  const changeDetails = (next: Details) => {
-    setDetails(next);
-    saveDetailsIfChanged(next);
-  };
-  const detailsStatus = saveDetails.isPending
-    ? 'Saving…'
-    : saveDetails.isError
-      ? 'Not saved'
-      : 'Saved';
-  const text = (key: 'title' | 'department' | 'location' | 'description' | 'targetStartDate') => ({
-    value: details[key],
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-      setDetails({ ...details, [key]: event.currentTarget.value }),
-    onBlur: () => saveDetailsIfChanged(details),
-  });
-  const pick = (key: 'workMode' | 'employmentType') => ({
-    value: details[key],
-    allowDeselect: false,
-    onChange: (value: string | null) => value && changeDetails({ ...details, [key]: value }),
-  });
-  const person = (key: 'ownerEmail' | 'recruiterEmail') => ({
-    value: details[key],
-    onChange: (value: string) => setDetails({ ...details, [key]: value }),
-    onOptionSubmit: (value: string) => changeDetails({ ...details, [key]: value }),
-    onBlur: () => saveDetailsIfChanged(details),
-  });
-  const people = (role: string) =>
-    (directory.data ?? [])
-      .filter((user) => user.role === role || user.role === 'Admin')
-      .map((user) => ({ value: user.email, label: `${user.displayName} · ${user.email}` }));
+  type Fields = typeof saved;
+  const savedKey = JSON.stringify(saved);
+  const [fields, setFields] = useState(saved);
+  useEffect(() => setFields(JSON.parse(savedKey) as Fields), [savedKey]);
 
-  const visibilityControls = (
-    <Stack gap="lg">
-      <Radio.Group
-        aria-label="Who can see this job"
-        value={value.isConfidential ? 'confidential' : 'team'}
-        onChange={(next) => change({ ...value, isConfidential: next === 'confidential' })}
-      >
-        <Stack gap="sm">
-          <Radio value="team" label="Everyone who can see jobs" description="The usual setting." />
-          <Radio
-            value="confidential"
-            label="Confidential"
-            description="The owner, the recruiter and the people below."
-          />
-        </Stack>
-      </Radio.Group>
-      <MultiSelect
-        label="Also give access to"
-        description="Read access to the job and its applications."
-        placeholder={value.viewerEmails.length ? '' : 'Search by name or email'}
-        searchable
-        data={options}
-        value={value.viewerEmails}
-        onChange={(viewerEmails) => change({ ...value, viewerEmails })}
-      />
-    </Stack>
-  );
-  const selfServiceControls = (
-    <Stack gap="md">
-      <Checkbox
-        label="Reschedule or cancel their interview"
-        checked={value.allowCandidateReschedule}
-        onChange={(event) =>
-          change({ ...value, allowCandidateReschedule: event.currentTarget.checked })
-        }
-      />
-      <Checkbox
-        label="Withdraw their application"
-        checked={value.allowCandidateWithdraw}
-        onChange={(event) =>
-          change({ ...value, allowCandidateWithdraw: event.currentTarget.checked })
-        }
-      />
-    </Stack>
-  );
-  const visibilityBlock = (
-    <section className="settings-block">
-      <div>
-        <h2 className="settings-title">Who can see this job</h2>
-        <p className="settings-copy">
-          A confidential job is hidden from everyone except the owner, the recruiter and the people
-          you add here.
-        </p>
-        <p className="settings-status" aria-live="polite">
-          {status}
-        </p>
-      </div>
-      {visibilityControls}
-    </section>
-  );
-  const selfServiceBlock = (
-    <section className="settings-block">
-      <div>
-        <h2 className="settings-title">Candidate self-service</h2>
-        <p className="settings-copy">
-          What candidates can do on their own, from the portal and the links in their emails.
-        </p>
-      </div>
-      {selfServiceControls}
-    </section>
-  );
+  const pay = {
+    min: fields.salaryMin,
+    max: fields.salaryMax,
+    currency: fields.salaryCurrency,
+    period: fields.salaryPeriod,
+    show: fields.showSalary,
+  };
+  const payError = payProblem(pay);
+  const commit = (input: Fields) => {
+    // The location people read follows the place's parts.
+    const place = {
+      city: input.locationCity,
+      region: input.locationRegion,
+      country: input.locationCountry,
+      remoteCountries: input.remoteCountries,
+    };
+    const next = {
+      ...input,
+      location: locationText(place, input.workMode, countryName) || input.location,
+    };
+    const changed = Object.entries(next).filter(
+      ([key, value]) => JSON.stringify(saved[key as keyof Fields]) !== JSON.stringify(value),
+    );
+    if (
+      changed.length === 0 ||
+      payProblem({ ...pay, min: next.salaryMin, max: next.salaryMax, show: next.showSalary })
+    )
+      return;
+    const changes = Object.fromEntries(
+      changed.map(([key, value]) => [
+        key,
+        value === '' && key.startsWith('salaryM') ? null : value,
+      ]),
+    ) as JobChanges;
+    saveJob.mutate(changes);
+  };
+  const text = (key: 'title' | 'targetStartDate') => ({
+    value: fields[key],
+    onChange: (event: React.ChangeEvent<HTMLInputElement>) =>
+      setFields({ ...fields, [key]: event.currentTarget.value }),
+  });
+  const suggest = (key: 'department') => ({
+    value: fields[key],
+    data: values?.departments ?? [],
+    onChange: (value: string) => setFields({ ...fields, [key]: value }),
+    onOptionSubmit: (value: string) => {
+      const next = { ...fields, [key]: value };
+      setFields(next);
+      commit(next);
+    },
+  });
+  const pick = (key: 'workMode' | 'employmentType' | 'salaryCurrency' | 'salaryPeriod') => ({
+    value: fields[key],
+    onChange: (value: string | null) => {
+      if (!value) return;
+      const next = { ...fields, [key]: value };
+      setFields(next);
+      commit(next);
+    },
+  });
+
+  const saving = saveJob.isPending || saveSettings.isPending;
+  const failed = !saving && (saveJob.isError || saveSettings.isError);
+  const touched = saveJob.isSuccess || saveSettings.isSuccess;
 
   return (
-    <div className="settings-page">
-      <section className="settings-block">
-        <div>
-          <h2 className="settings-title">The job</h2>
-          <p className="settings-copy">
-            What candidates and your team see. Changes show on the job page and posting.
-          </p>
-          <p className="settings-status" aria-live="polite">
-            {detailsStatus}
-          </p>
-        </div>
-        <div className="settings-fields">
-          <TextInput className="settings-wide" label="Job title" {...text('title')} />
-          <TextInput label="Team" {...text('department')} />
-          <TextInput label="Location" {...text('location')} />
-          <Select label="Work mode" data={WORK_MODES} {...pick('workMode')} />
+    <div className="flex flex-col gap-5">
+      <p className="text-sm text-fg-subtle" aria-live="polite">
+        {saving
+          ? 'Saving…'
+          : failed
+            ? 'Your last change was not saved. Try again.'
+            : touched
+              ? 'All changes saved.'
+              : 'Changes save as you go.'}
+      </p>
+      <Block title="The job" copy="Candidates see these on the posting.">
+        {/* Typed values save when you leave the field (blur bubbles from the inputs). */}
+        <div className="grid gap-4 sm:grid-cols-2" onBlur={() => commit(fields)}>
+          <Input className="sm:col-span-2" label="Job title" {...text('title')} />
+          <Autocomplete label="Team" {...suggest('department')} />
           <Select label="Employment type" data={EMPLOYMENT_TYPES} {...pick('employmentType')} />
           <NumberInput
             label="Openings"
             min={1}
-            value={details.openings}
-            onChange={(openings) => setDetails({ ...details, openings: Number(openings) || 1 })}
-            onBlur={() => saveDetailsIfChanged(details)}
+            value={fields.openings}
+            onValueChange={(openings) => setFields({ ...fields, openings: Number(openings) || 1 })}
           />
-          <TextInput type="date" label="Target start" {...text('targetStartDate')} />
+          <Input type="date" label="Target start" {...text('targetStartDate')} />
         </div>
-      </section>
-      <section className="settings-block">
-        <div>
-          <h2 className="settings-title">People</h2>
-          <p className="settings-copy">Who owns the hire, and who runs the process.</p>
-        </div>
-        <div className="settings-fields">
-          <Autocomplete
-            label="Hiring manager"
-            data={people('HiringManager')}
-            {...person('ownerEmail')}
+      </Block>
+      <Block title="Where" copy={`Applicants see: ${saved.location || 'Not set'}`}>
+        <div className="grid gap-4 sm:grid-cols-2" onBlur={() => commit(fields)}>
+          <Select label="Work mode" data={WORK_MODES} {...pick('workMode')} />
+          <Input
+            label="City"
+            value={fields.locationCity}
+            onChange={(e) => setFields({ ...fields, locationCity: e.currentTarget.value })}
           />
-          <Autocomplete
-            label="Recruiter"
-            data={people('Recruiter')}
-            {...person('recruiterEmail')}
+          <Input
+            label="State or region"
+            value={fields.locationRegion}
+            onChange={(e) => setFields({ ...fields, locationRegion: e.currentTarget.value })}
+          />
+          <SearchSelect
+            label="Country"
+            placeholder="Search countries"
+            value={fields.locationCountry || null}
+            data={countryOptions()}
+            onChange={(country) => {
+              const next = { ...fields, locationCountry: country ?? '' };
+              setFields(next);
+              commit(next);
+            }}
+          />
+          {fields.workMode === 'Remote' && (
+            <MultiSelect
+              className="sm:col-span-2"
+              label="People can work from"
+              description="Leave empty for anywhere."
+              placeholder="Search countries"
+              data={countryOptions()}
+              value={fields.remoteCountries}
+              onChange={(remoteCountries) => {
+                const next = { ...fields, remoteCountries };
+                setFields(next);
+                commit(next);
+              }}
+            />
+          )}
+        </div>
+      </Block>
+      <Block
+        title="Pay"
+        copy={
+          payText(pay)
+            ? `${payText(pay)}${pay.show ? ', on the posting' : ', not shown'}`
+            : 'Not set'
+        }
+      >
+        <div className="flex flex-col gap-4" onBlur={() => commit(fields)}>
+          <div className="grid gap-4 sm:grid-cols-4">
+            <NumberInput
+              label="From"
+              min={0}
+              step={1000}
+              value={fields.salaryMin}
+              error={payError ?? undefined}
+              onValueChange={(salaryMin) => setFields({ ...fields, salaryMin })}
+            />
+            <NumberInput
+              label="To"
+              min={0}
+              step={1000}
+              value={fields.salaryMax}
+              onValueChange={(salaryMax) => setFields({ ...fields, salaryMax })}
+            />
+            <Select label="Currency" data={CURRENCIES} {...pick('salaryCurrency')} />
+            <Select
+              label="Per"
+              data={PERIODS.map((p) => ({ value: p.value, label: p.label.replace(/^an? /, '') }))}
+              {...pick('salaryPeriod')}
+            />
+          </div>
+          <Switch
+            label="Show the pay range on the posting"
+            description="Applicants and search engines see it."
+            checked={fields.showSalary}
+            onCheckedChange={(showSalary) => {
+              const next = { ...fields, showSalary };
+              setFields(next);
+              commit(next);
+            }}
           />
         </div>
-      </section>
-      <section className="settings-block">
-        <div>
-          <h2 className="settings-title">About the role</h2>
-          <p className="settings-copy">The summary shown on the Role tab.</p>
+      </Block>
+      <Block
+        title="Candidate self-service"
+        copy="Things candidates can do themselves, from their portal or the links in our emails."
+      >
+        <div className="flex flex-col gap-3">
+          <Checkbox
+            label="Reschedule or cancel their interview"
+            checked={requisition.allowCandidateReschedule ?? false}
+            onCheckedChange={(checked) =>
+              saveSettings.mutate({ allowCandidateReschedule: checked })
+            }
+          />
+          <Checkbox
+            label="Withdraw their application"
+            checked={requisition.allowCandidateWithdraw ?? false}
+            onCheckedChange={(checked) => saveSettings.mutate({ allowCandidateWithdraw: checked })}
+          />
         </div>
-        <Textarea autosize minRows={4} aria-label="About the role" {...text('description')} />
-      </section>
-      {visibilityBlock}
-      {selfServiceBlock}
+      </Block>
     </div>
+  );
+}
+
+/** One settings group: what it does on the left, the controls on the right. */
+function Block({ title, copy, children }: { title: string; copy: string; children: ReactNode }) {
+  return (
+    <Card className="grid gap-5 p-5 md:grid-cols-[240px_1fr]">
+      <div>
+        <h2 className="text-lg font-semibold text-fg">{title}</h2>
+        <p className="mt-1 text-sm text-fg-subtle">{copy}</p>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </Card>
   );
 }

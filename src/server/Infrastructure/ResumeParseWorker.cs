@@ -61,10 +61,11 @@ public sealed class ResumeParseWorker(
         db.ChangeTracker.Clear();
         var job = await db.ResumeParseJobs.SingleAsync(x => x.Id == jobId, cancellationToken);
         var attachment = await db.Attachments.SingleOrDefaultAsync(x => x.Id == job.AttachmentId, cancellationToken);
-        if (attachment is null)
+        if (attachment is null || attachment.Kind != AttachmentKinds.Resume)
         {
+            // Only resumes are read into the profile; a cover letter must never replace it.
             job.Status = "Failed";
-            job.LastError = "The uploaded file no longer exists.";
+            job.LastError = attachment is null ? "The uploaded file no longer exists." : "Only resumes are read.";
             job.CompletedAt = now;
             await db.SaveChangesAsync(cancellationToken);
             return true;

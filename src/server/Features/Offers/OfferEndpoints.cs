@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using MyThorneAI.Ats.Api.Auth;
@@ -7,16 +8,45 @@ using MyThorneAI.Ats.Api.Infrastructure;
 
 namespace MyThorneAI.Ats.Api.Api;
 
-public sealed record CreateOfferRequest(string? Note);
+/// <summary>The offer's terms. Every field is optional until the offer is submitted for approval.</summary>
+public sealed record OfferTermsRequest(
+    string? Note = null,
+    decimal? BaseSalary = null,
+    string? Currency = null,
+    string? PayPeriod = null,
+    string? Bonus = null,
+    string? Equity = null,
+    DateOnly? StartDate = null,
+    string? EmploymentType = null,
+    string? WorkMode = null,
+    string? Location = null,
+    DateOnly? ExpiresOn = null
+);
 
-public sealed record SubmitApprovalRequest(string[]? Approvers, bool? Sequential);
+public sealed record SendOfferRequest(bool NotifyCandidate = true);
 
-public sealed record DecideApprovalRequest(ApprovalDecision Decision, string? Comment);
+/// <summary>The team records the candidate's answer. <c>DeclineReason</c> is a key from <see cref="OfferDeclines"/>; free text still works and is kept as the note under Other.</summary>
+public sealed record OfferResponseRequest(
+    bool Accepted,
+    string? DeclineReason,
+    string? DeclineNote = null
+);
 
 public static partial class AtsEndpoints
 {
     private const string OfferSubject = "Offer";
     private const string RequisitionSubject = "Requisition";
+    private static readonly string[] PayPeriods = ["Year", "Month", "Hour"];
+
+    // An application has at most one of these at a time; a declined or withdrawn offer makes room for a new one.
+    private static readonly OfferStatus[] OpenOfferStatuses =
+    [
+        OfferStatus.Draft,
+        OfferStatus.PendingApproval,
+        OfferStatus.Approved,
+        OfferStatus.Sent,
+        OfferStatus.Accepted,
+    ];
 
     private static void MapOffers(RouteGroupBuilder api)
     {
@@ -30,38 +60,58 @@ public static partial class AtsEndpoints
                     .SingleOrDefaultAsync(x => x.Id == id, ct);
                 if (application?.Requisition is null)
                     return Results.NotFound();
-                var offer = await db
+                var offers = await db
                     .Offers.AsNoTracking()
                     .Where(x => x.ApplicationId == id)
                     .OrderByDescending(x => x.CreatedAt)
-                    .FirstOrDefaultAsync(ct);
+                    .ToListAsync(ct);
+                var offer = offers.FirstOrDefault();
                 var me = principal.Email();
-                var approvals =
-                    offer is null ? [] : await LoadApprovalsAsync(db, OfferSubject, offer.Id, ct);
+                var approvals = offer is null
+                    ? []
+                    : await LoadApprovalsAsync(db, OfferSubject, offer.Id, ct);
                 if (
                     !CanManage(application.Requisition, principal)
                     && !approvals.Any(x => x.ApproverEmail == me)
                 )
                     return Results.NotFound();
-                var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(ct);
+                var setup = await ApprovalSetupAsync(db, OfferSubject, application.Requisition, ct);
+                var creators = offers
+                    .Select(x => x.CreatedBy)
+                    .Concat(offers.Select(x => x.RespondedBy ?? ""))
+                    .Distinct()
+                    .ToArray();
+                var names = await db
+                    .Users.AsNoTracking()
+                    .Where(x => creators.Contains(x.Email))
+                    .ToDictionaryAsync(x => x.Email, x => x.DisplayName, ct);
+                var letterIds = offers.Select(x => x.LetterTemplateId).OfType<Guid>().ToArray();
+                var letters = await db
+                    .EmailTemplates.AsNoTracking()
+                    .Where(x => letterIds.Contains(x.Id))
+                    .ToDictionaryAsync(x => x.Id, x => x.Name ?? "", ct);
+                var job = application.Requisition;
                 return Results.Ok(
                     new
                     {
-                        Offer = offer is null
-                            ? null
-                            : new
-                            {
-                                offer.Id,
-                                Status = offer.Status.ToString(),
-                                offer.Note,
-                                offer.CreatedBy,
-                                offer.CreatedAt,
-                                offer.SentAt,
-                            },
-                        Approvals = await ApprovalViewsAsync(db, approvals, me, ct),
-                        ApprovalRequired = organization?.RequireOfferApproval ?? true,
-                        DefaultApprovers = organization?.DefaultApproverEmails ?? [],
-                        Sequential = organization?.ApprovalsSequential ?? false,
+                        Offer = offer is null ? null : OfferView(offer, names, letters),
+                        // Earlier offers stay readable after a decline or a withdrawal.
+                        History = offers.Skip(1).Select(x => OfferView(x, names, letters)),
+                        Job = new
+                        {
+                            job.EmploymentType,
+                            job.WorkMode,
+                            job.Location,
+                            job.TargetStartDate,
+                        },
+                        // The live (latest) round; earlier rounds stay readable below it.
+                        Approvals = await ApprovalViewsAsync(db, LatestRound(approvals), me, ct),
+                        PreviousRounds = await PreviousRoundViewsAsync(db, approvals, me, ct),
+                        ApprovalRequired = setup.Required,
+                        DefaultApprovers = setup.Approvers,
+                        Sequential = setup.Mode == ApprovalMode.Sequential,
+                        Mode = setup.Mode.ToString(),
+                        DeclineReasons = OfferDeclines.All.Select(x => new { x.Key, x.Label }),
                     }
                 );
             }
@@ -71,7 +121,7 @@ public static partial class AtsEndpoints
                 "/applications/{id:guid}/offer",
                 async (
                     Guid id,
-                    CreateOfferRequest request,
+                    OfferTermsRequest? request,
                     ClaimsPrincipal principal,
                     AtsDbContext db,
                     CancellationToken ct
@@ -87,31 +137,66 @@ public static partial class AtsEndpoints
                         return Results.NotFound();
                     if (application.Status != ApplicationStatus.Active)
                         return Results.Conflict(
-                            new { message = "Only an active application can be accepted." }
+                            new { message = "Only an active application can get an offer." }
                         );
-                    if (
-                        await db.Offers.AnyAsync(
-                            x =>
-                                x.ApplicationId == id
-                                && (
-                                    x.Status == OfferStatus.Draft
-                                    || x.Status == OfferStatus.PendingApproval
-                                    || x.Status == OfferStatus.Approved
-                                ),
-                            ct
-                        )
-                    )
+                    var previous = await db
+                        .Offers.AsNoTracking()
+                        .Where(x => x.ApplicationId == id)
+                        .OrderByDescending(x => x.CreatedAt)
+                        .FirstOrDefaultAsync(ct);
+                    if (previous is not null && OpenOfferStatuses.Contains(previous.Status))
                         return Results.Conflict(
-                            new { message = "This application already has an open acceptance." }
+                            new { message = "This application already has an open offer." }
                         );
-                    var offer = new Offer
-                    {
-                        ApplicationId = id,
-                        Note = request.Note?.Trim() ?? "",
-                        CreatedBy = principal.Email(),
-                    };
+                    var job = application.Requisition;
+                    // A revision starts from the offer it replaces; a first offer starts from the job.
+                    var letter = previous is null ? await OfferLetters.DefaultAsync(db, ct) : null;
+                    var offer = previous is null
+                        ? new Offer
+                        {
+                            ApplicationId = id,
+                            CreatedBy = principal.Email(),
+                            EmploymentType = job.EmploymentType,
+                            WorkMode = job.WorkMode,
+                            Location = job.Location,
+                            StartDate = job.TargetStartDate,
+                            LetterTemplateId = letter?.Id,
+                            LetterTemplateVersion = letter?.Version,
+                            LetterMarkdown = letter?.Body,
+                        }
+                        : new Offer
+                        {
+                            ApplicationId = id,
+                            CreatedBy = principal.Email(),
+                            ReplacesOfferId = previous.Id,
+                            Note = previous.Note,
+                            BaseSalary = previous.BaseSalary,
+                            Currency = previous.Currency,
+                            PayPeriod = previous.PayPeriod,
+                            Bonus = previous.Bonus,
+                            Equity = previous.Equity,
+                            StartDate = previous.StartDate,
+                            EmploymentType = previous.EmploymentType,
+                            WorkMode = previous.WorkMode,
+                            Location = previous.Location,
+                            LetterTemplateId = previous.LetterTemplateId,
+                            LetterTemplateVersion = previous.LetterTemplateVersion,
+                            LetterMarkdown = previous.LetterMarkdown,
+                        };
+                    if (
+                        request is not null
+                        && ApplyTerms(offer, request, replace: false) is { } error
+                    )
+                        return Results.ValidationProblem(error);
                     db.Offers.Add(offer);
-                    Audit.Add(db, principal, "Application", id, "OfferDrafted", new { offer.Id });
+                    Audit.Add(
+                        db,
+                        principal,
+                        "Application",
+                        id,
+                        "OfferDrafted",
+                        new { offer.Id, offer.ReplacesOfferId }
+                    );
                     await db.SaveChangesAsync(ct);
                     return Results.Created($"/api/offers/{offer.Id}", new { offer.Id });
                 }
@@ -122,7 +207,7 @@ public static partial class AtsEndpoints
                 "/offers/{id:guid}",
                 async (
                     Guid id,
-                    CreateOfferRequest request,
+                    OfferTermsRequest request,
                     ClaimsPrincipal principal,
                     AtsDbContext db,
                     CancellationToken ct
@@ -131,12 +216,38 @@ public static partial class AtsEndpoints
                     var offer = await LoadManagedOfferAsync(db, id, principal, ct);
                     if (offer is null)
                         return Results.NotFound();
-                    if (offer.Status != OfferStatus.Draft)
-                        return Results.Conflict(new { message = "Only a draft can be edited." });
-                    offer.Note = request.Note?.Trim() ?? "";
+                    if (
+                        offer.Status
+                        is not (
+                            OfferStatus.Draft
+                            or OfferStatus.PendingApproval
+                            or OfferStatus.Approved
+                        )
+                    )
+                        return Results.Conflict(
+                            new { message = "A sent offer can no longer be changed." }
+                        );
+                    if (ApplyTerms(offer, request, replace: true) is { } error)
+                        return Results.ValidationProblem(error);
+                    // Approvers said yes to the old terms, so changed terms go back to them.
+                    var reset = offer.Status != OfferStatus.Draft;
+                    if (reset)
+                    {
+                        offer.Status = OfferStatus.Draft;
+                        // The round stays as history; whoever had not answered is no longer asked.
+                        await CloseRoundAsync(db, OfferSubject, offer.Id, ct);
+                        Audit.Add(
+                            db,
+                            principal,
+                            "Application",
+                            offer.ApplicationId,
+                            "OfferReopenedForEdit",
+                            new { offer.Id }
+                        );
+                    }
                     offer.UpdatedAt = DateTimeOffset.UtcNow;
                     await db.SaveChangesAsync(ct);
-                    return Results.NoContent();
+                    return Results.Ok(new { reset });
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
@@ -155,19 +266,26 @@ public static partial class AtsEndpoints
                     if (offer is null)
                         return Results.NotFound();
                     if (offer.Status != OfferStatus.Draft)
-                        return Results.Conflict(
-                            new { message = "Only a draft can be submitted." }
+                        return Results.Conflict(new { message = "Only a draft can be submitted." });
+                    if (offer.BaseSalary is null or <= 0 || offer.StartDate is null)
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["terms"] = ["Add the base salary and the start date first."],
+                            }
                         );
-                    var organization = await db.Organizations.SingleOrDefaultAsync(ct);
-                    var required = organization?.RequireOfferApproval ?? true;
-                    var approvers = await ResolveApproversAsync(db, principal, organization, request, required, ct);
+                    var approvers = await ResolveApproversAsync(
+                        db,
+                        principal,
+                        OfferSubject,
+                        offer.Application!.Requisition!,
+                        request,
+                        ct
+                    );
                     if (approvers.Error is not null)
                         return Results.ValidationProblem(
                             new Dictionary<string, string[]> { ["approvers"] = [approvers.Error] }
                         );
-                    var candidate = offer.Application!.Candidate!;
-                    var label =
-                        $"accept {candidate.FirstName} {candidate.LastName} for {offer.Application.Requisition!.Title}";
                     if (approvers.Emails.Length == 0)
                     {
                         offer.Status = OfferStatus.Approved;
@@ -175,11 +293,22 @@ public static partial class AtsEndpoints
                     else
                     {
                         offer.Status = OfferStatus.PendingApproval;
-                        db.Approvals.RemoveRange(
-                            db.Approvals.Where(x => x.SubjectType == OfferSubject && x.SubjectId == offer.Id)
+                        var rows = await AddRoundAsync(
+                            db,
+                            OfferSubject,
+                            offer.Id,
+                            approvers,
+                            principal.Email(),
+                            request.Note,
+                            ct
                         );
-                        var rows = AddApprovals(db, OfferSubject, offer.Id, approvers, principal.Email());
-                        await NotifyEligibleApproversAsync(db, rows, label, principal.Email(), ct);
+                        await NotifyEligibleApproversAsync(
+                            db,
+                            rows,
+                            OfferLabel(offer),
+                            principal.Email(),
+                            ct
+                        );
                     }
                     offer.UpdatedAt = DateTimeOffset.UtcNow;
                     Audit.Add(
@@ -196,71 +325,168 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
 
+        // Sending tells the candidate. It does not hire: that waits for their answer.
         api.MapPost(
                 "/offers/{id:guid}/send",
-                async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
+                async (
+                    Guid id,
+                    SendOfferRequest? request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
                 {
                     var offer = await LoadManagedOfferAsync(db, id, principal, ct);
                     if (offer is null)
                         return Results.NotFound();
                     if (offer.Status != OfferStatus.Approved)
                         return Results.Conflict(
-                            new { message = "The acceptance has to be approved before it is sent." }
+                            new { message = "The offer has to be approved before it is sent." }
                         );
                     var application = offer.Application!;
-                    var requisition = application.Requisition!;
                     if (application.Status != ApplicationStatus.Active)
                         return Results.Conflict(
-                            new { message = "Only an active application can be accepted." }
+                            new { message = "Only an active application can get an offer." }
                         );
-                    if (application.Candidate!.DoNotContact)
+                    var notify = request?.NotifyCandidate ?? true;
+                    if (notify && application.Candidate!.DoNotContact)
                         return Results.Conflict(
-                            new { message = "This candidate is marked do not contact." }
+                            new
+                            {
+                                message = "This candidate asked not to be contacted. Mark it as sent without an email.",
+                            }
                         );
-                    var hiredStage = await FindHiredStageAsync(db, requisition.Id, ct);
-                    if (hiredStage is null)
-                        return Results.Conflict(new { message = "This job has no Hired stage." });
-
-                    var fromStage = application.PipelineStageId;
-                    var fromStatus = application.Status;
-                    offer.PreviousStageId = fromStage;
-                    offer.PreviousStatus = fromStatus;
-                    application.PipelineStageId = hiredStage.Id;
-                    application.Status = ApplicationStatus.Hired;
-                    application.DispositionReason = null;
-                    application.LastActivityAt = DateTimeOffset.UtcNow;
+                    var now = DateTimeOffset.UtcNow;
+                    var zone = await db
+                        .Organizations.Select(x => x.TimeZone)
+                        .FirstOrDefaultAsync(ct);
+                    var closes = offer.ExpiresOn is { } lastDay
+                        ? OfferLetters.ClosesAt(lastDay, TimeText.Zone(zone))
+                        : (DateTimeOffset?)null;
+                    if (closes <= now)
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "The last day to accept has passed. Change the date, then send it.",
+                            }
+                        );
+                    // What the candidate reads is frozen here and never changes after.
+                    if (!string.IsNullOrWhiteSpace(offer.LetterMarkdown))
+                    {
+                        var values = await OfferLetters.ValuesAsync(
+                            db,
+                            offer,
+                            principal.Email(),
+                            ct
+                        );
+                        if (MediaEndpoints.HasImageWithoutAlt(offer.LetterMarkdown))
+                            return Results.ValidationProblem(
+                                new Dictionary<string, string[]>
+                                {
+                                    ["letter"] = [MediaEndpoints.AltRequired],
+                                }
+                            );
+                        var missing = EmailTemplates.Missing(offer.LetterMarkdown, values);
+                        if (missing.Length > 0)
+                            return Results.ValidationProblem(
+                                new Dictionary<string, string[]>
+                                {
+                                    ["letter"] =
+                                    [
+                                        $"The letter uses details this offer does not have: {string.Join(", ", missing.Select(OfferLetters.Label))}. Fill them in or take them out of the letter.",
+                                    ],
+                                }
+                            );
+                        offer.LetterSent = OfferLetters.Fill(offer.LetterMarkdown, values);
+                    }
+                    offer.ExpiresAt = closes;
                     offer.Status = OfferStatus.Sent;
-                    offer.SentAt = DateTimeOffset.UtcNow;
-                    offer.UpdatedAt = offer.SentAt.Value;
-                    await EmailTemplates.QueueAsync(
-                        db,
-                        "acceptance",
-                        requisition.Id,
-                        application.Candidate.Email,
-                        new Dictionary<string, string>
+                    offer.SentAt = now;
+                    offer.UpdatedAt = now;
+                    application.LastActivityAt = now;
+                    if (notify)
+                    {
+                        // A one-click link that signs them in on the offer page.
+                        var link = await CandidateLinks.CreateAsync(
+                            db,
+                            application.CandidateId,
+                            application.Id,
+                            OfferLetters.PortalPath(application.Id),
+                            ct
+                        );
+                        var details = new Dictionary<string, string>
                         {
-                            ["firstName"] = application.Candidate.FirstName,
-                            ["jobTitle"] = requisition.Title,
-                        },
+                            ["firstName"] = application.Candidate!.FirstName,
+                            ["jobTitle"] = application.Requisition!.Title,
+                        };
+                        if (link is not null)
+                            details["portalLink"] = link;
+                        await EmailTemplates.QueueAsync(
+                            db,
+                            "acceptance",
+                            application.RequisitionId,
+                            application.Candidate.Email,
+                            details,
+                            application.Id,
+                            ct
+                        );
+                    }
+                    Audit.Add(
+                        db,
+                        principal,
+                        "Application",
                         application.Id,
-                        ct
+                        "OfferSent",
+                        new { offer.Id, Emailed = notify }
                     );
-                    await PipelineEvents.OnMovedAsync(
-                        db,
-                        application,
-                        fromStage,
-                        fromStatus,
-                        principal.Email(),
-                        ct
-                    );
-                    await PipelineEvents.NotifyAsync(
-                        db,
-                        $"{application.Candidate.FirstName} {application.Candidate.LastName} was accepted for {requisition.Title}.",
-                        ct
-                    );
-                    Audit.Add(db, principal, "Application", application.Id, "AcceptanceSent", new { offer.Id });
                     await db.SaveChangesAsync(ct);
                     return Results.NoContent();
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageHiring);
+
+        // The candidate's answer, recorded by the team (by phone, email or in person). Accepting hires.
+        // A late answer after the deadline can still be recorded here; the portal refuses it.
+        api.MapPost(
+                "/offers/{id:guid}/response",
+                async (
+                    Guid id,
+                    OfferResponseRequest request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    var offer = await LoadManagedOfferAsync(db, id, principal, ct);
+                    if (offer is null)
+                        return Results.NotFound();
+                    if (offer.Status is not (OfferStatus.Sent or OfferStatus.Expired))
+                        return Results.Conflict(
+                            new { message = "Only a sent offer can be accepted or declined." }
+                        );
+                    if (!request.Accepted)
+                    {
+                        var (key, note) = OfferDeclines.Normalize(
+                            request.DeclineReason,
+                            request.DeclineNote
+                        );
+                        await DeclineOfferAsync(db, offer, principal.Email(), key, note, ct);
+                        return Results.Ok(new { JobFilled = false, StillActive = 0 });
+                    }
+                    if (await AcceptOfferAsync(db, offer, principal.Email(), null, ct) is { } error)
+                        return Results.Conflict(new { message = error });
+                    var requisition = offer.Application!.Requisition!;
+                    // When the last opening fills, the team usually closes out everyone else.
+                    var filled = requisition.Status == RequisitionStatus.Filled;
+                    var stillActive = filled
+                        ? await db.Applications.CountAsync(
+                            x =>
+                                x.RequisitionId == requisition.Id
+                                && x.Status == ApplicationStatus.Active,
+                            ct
+                        )
+                        : 0;
+                    return Results.Ok(new { JobFilled = filled, StillActive = stillActive });
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
@@ -272,20 +498,18 @@ public static partial class AtsEndpoints
                     var offer = await LoadManagedOfferAsync(db, id, principal, ct);
                     if (offer is null)
                         return Results.NotFound();
-                    if (offer.Status is OfferStatus.Sent or OfferStatus.Withdrawn)
+                    if (!WithdrawableOfferStatuses.Contains(offer.Status))
                         return Results.Conflict(
-                            new { message = "This acceptance can no longer be withdrawn." }
+                            new { message = "This offer can no longer be withdrawn." }
                         );
-                    offer.Status = OfferStatus.Withdrawn;
-                    offer.UpdatedAt = DateTimeOffset.UtcNow;
-                    Audit.Add(db, principal, "Application", offer.ApplicationId, "OfferWithdrawn", new { offer.Id });
+                    await WithdrawOfferAsync(db, offer, principal.Email(), ct);
                     await db.SaveChangesAsync(ct);
                     return Results.NoContent();
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
 
-        // The email can't be unsent, so this only restores the pipeline when the candidate falls through.
+        // Undo hire: the acceptance fell through. The offer goes back to Sent and the application to where it was.
         api.MapPost(
                 "/offers/{id:guid}/reverse",
                 async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
@@ -293,9 +517,9 @@ public static partial class AtsEndpoints
                     var offer = await LoadManagedOfferAsync(db, id, principal, ct);
                     if (offer is null)
                         return Results.NotFound();
-                    if (offer.Status != OfferStatus.Sent || offer.PreviousStageId is null)
+                    if (offer.Status != OfferStatus.Accepted || offer.PreviousStageId is null)
                         return Results.Conflict(
-                            new { message = "Only a sent acceptance can be reversed." }
+                            new { message = "Only an accepted offer can be undone." }
                         );
                     var application = offer.Application!;
                     var fromStage = application.PipelineStageId;
@@ -303,7 +527,10 @@ public static partial class AtsEndpoints
                     application.PipelineStageId = offer.PreviousStageId.Value;
                     application.Status = offer.PreviousStatus ?? ApplicationStatus.Active;
                     application.LastActivityAt = DateTimeOffset.UtcNow;
-                    offer.Status = OfferStatus.Withdrawn;
+                    offer.Status = OfferStatus.Sent;
+                    offer.RespondedAt = null;
+                    offer.RespondedBy = null;
+                    offer.RespondedName = null;
                     offer.UpdatedAt = DateTimeOffset.UtcNow;
                     var requisition = application.Requisition!;
                     if (requisition.Status == RequisitionStatus.Filled)
@@ -311,257 +538,188 @@ public static partial class AtsEndpoints
                         requisition.Status = RequisitionStatus.Open;
                         requisition.UpdatedAt = DateTimeOffset.UtcNow;
                     }
-                    PipelineEvents.RecordMove(db, application, fromStage, fromStatus, principal.Email());
+                    PipelineEvents.RecordMove(
+                        db,
+                        application,
+                        fromStage,
+                        fromStatus,
+                        principal.Email()
+                    );
                     await PipelineEvents.PublishApplicationAsync(
                         db,
                         "application.stage_changed",
                         application,
                         ct
                     );
-                    Audit.Add(db, principal, "Application", application.Id, "AcceptanceReversed", new { offer.Id });
-                    await db.SaveChangesAsync(ct);
-                    return Results.NoContent();
-                }
-            )
-            .RequireAuthorization(AtsPolicies.ManageHiring);
-
-        api.MapPost(
-                "/requisitions/{id:guid}/submit-for-approval",
-                async (
-                    Guid id,
-                    SubmitApprovalRequest request,
-                    ClaimsPrincipal principal,
-                    AtsDbContext db,
-                    CancellationToken ct
-                ) =>
-                {
-                    var requisition = await db.Requisitions.SingleOrDefaultAsync(x => x.Id == id, ct);
-                    if (requisition is null || !CanManage(requisition, principal))
-                        return Results.NotFound();
-                    if (requisition.Status != RequisitionStatus.Draft)
-                        return Results.Conflict(
-                            new { message = "Only a draft job can be submitted for approval." }
-                        );
-                    var organization = await db.Organizations.SingleOrDefaultAsync(ct);
-                    var approvers = await ResolveApproversAsync(db, principal, organization, request, true, ct);
-                    if (approvers.Error is not null)
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]> { ["approvers"] = [approvers.Error] }
-                        );
-                    requisition.Status = RequisitionStatus.PendingApproval;
-                    requisition.UpdatedAt = DateTimeOffset.UtcNow;
-                    db.Approvals.RemoveRange(
-                        db.Approvals.Where(x => x.SubjectType == RequisitionSubject && x.SubjectId == id)
-                    );
-                    var rows = AddApprovals(db, RequisitionSubject, requisition.Id, approvers, principal.Email());
-                    await NotifyEligibleApproversAsync(
+                    Audit.Add(
                         db,
-                        rows,
-                        $"open the job {requisition.Title} ({requisition.Code})",
-                        principal.Email(),
-                        ct
+                        principal,
+                        "Application",
+                        application.Id,
+                        "HireUndone",
+                        new { offer.Id }
                     );
-                    Audit.Add(db, principal, "Requisition", id, "SubmittedForApproval", new { approvers = approvers.Emails });
                     await db.SaveChangesAsync(ct);
                     return Results.NoContent();
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
 
-        api.MapGet(
-            "/requisitions/{id:guid}/approval",
-            async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
-            {
-                var requisition = await db
-                    .Requisitions.AsNoTracking()
-                    .SingleOrDefaultAsync(x => x.Id == id, ct);
-                if (requisition is null || !CanManage(requisition, principal))
-                    return Results.NotFound();
-                var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(ct);
-                var approvals = await LoadApprovalsAsync(db, RequisitionSubject, id, ct);
-                return Results.Ok(
-                    new
-                    {
-                        Required = organization?.RequireRequisitionApproval ?? false,
-                        DefaultApprovers = organization?.DefaultApproverEmails ?? [],
-                        Sequential = organization?.ApprovalsSequential ?? false,
-                        Approvals = await ApprovalViewsAsync(db, approvals, principal.Email(), ct),
-                    }
-                );
-            }
-        );
-
-        api.MapGet(
-            "/approvals/mine",
-            async (ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
-            {
-                var me = principal.Email();
-                var mine = await db
-                    .Approvals.AsNoTracking()
-                    .Where(x => x.ApproverEmail == me && x.Decision == ApprovalDecision.Pending)
-                    .OrderBy(x => x.CreatedAt)
-                    .ToListAsync(ct);
-                var requesters = mine.Select(x => x.RequestedBy).Distinct().ToArray();
-                var names = await db
-                    .Users.AsNoTracking()
-                    .Where(x => requesters.Contains(x.Email))
-                    .ToDictionaryAsync(x => x.Email, x => x.DisplayName, ct);
-                var items = new List<object>();
-                foreach (var approval in mine)
-                {
-                    var all = await LoadApprovalsAsync(db, approval.SubjectType, approval.SubjectId, ct);
-                    if (!CanDecide(all, approval))
-                        continue;
-                    if (approval.SubjectType == OfferSubject)
-                    {
-                        var offer = await db
-                            .Offers.AsNoTracking()
-                            .Where(x => x.Id == approval.SubjectId)
-                            .Select(x => new
-                            {
-                                x.ApplicationId,
-                                x.Note,
-                                Candidate = x.Application!.Candidate!.FirstName + " " + x.Application.Candidate.LastName,
-                                Job = x.Application.Requisition!.Title,
-                                Code = x.Application.Requisition.Code,
-                            })
-                            .SingleOrDefaultAsync(ct);
-                        if (offer is null)
-                            continue;
-                        items.Add(
-                            new
-                            {
-                                approval.Id,
-                                Type = OfferSubject,
-                                Title = $"Accept {offer.Candidate}",
-                                Detail = $"{offer.Job} ({offer.Code})",
-                                offer.Note,
-                                offer.ApplicationId,
-                                RequisitionId = (Guid?)null,
-                                approval.RequestedBy,
-                                RequestedByName = names.GetValueOrDefault(approval.RequestedBy, approval.RequestedBy),
-                                approval.CreatedAt,
-                            }
-                        );
-                    }
-                    else
-                    {
-                        var requisition = await db
-                            .Requisitions.AsNoTracking()
-                            .Where(x => x.Id == approval.SubjectId)
-                            .Select(x => new { x.Title, x.Code, x.Department, x.Openings })
-                            .SingleOrDefaultAsync(ct);
-                        if (requisition is null)
-                            continue;
-                        items.Add(
-                            new
-                            {
-                                approval.Id,
-                                Type = RequisitionSubject,
-                                Title = $"Open {requisition.Title}",
-                                Detail = $"{requisition.Code} · {requisition.Department} · {requisition.Openings} opening(s)",
-                                Note = "",
-                                ApplicationId = (Guid?)null,
-                                RequisitionId = (Guid?)approval.SubjectId,
-                                approval.RequestedBy,
-                                RequestedByName = names.GetValueOrDefault(approval.RequestedBy, approval.RequestedBy),
-                                approval.CreatedAt,
-                            }
-                        );
-                    }
-                }
-                return Results.Ok(items);
-            }
-        );
-
-        api.MapPost(
-            "/approvals/{id:guid}/decide",
-            async (
-                Guid id,
-                DecideApprovalRequest request,
-                ClaimsPrincipal principal,
-                AtsDbContext db,
-                CancellationToken ct
-            ) =>
-            {
-                if (request.Decision == ApprovalDecision.Pending)
-                    return Results.ValidationProblem(
-                        new Dictionary<string, string[]> { ["decision"] = ["Approve or reject."] }
-                    );
-                if (request.Decision == ApprovalDecision.Rejected && string.IsNullOrWhiteSpace(request.Comment))
-                    return Results.ValidationProblem(
-                        new Dictionary<string, string[]> { ["comment"] = ["Say why you're rejecting this."] }
-                    );
-                var approval = await db.Approvals.SingleOrDefaultAsync(
-                    x => x.Id == id && x.ApproverEmail == principal.Email(),
-                    ct
-                );
-                if (approval is null)
-                    return Results.NotFound();
-                if (string.Equals(approval.ApproverEmail, approval.RequestedBy, StringComparison.OrdinalIgnoreCase))
-                    return Results.Conflict(new { message = "You can't approve something you asked for yourself." });
-                var all = await db
-                    .Approvals.Where(x => x.SubjectType == approval.SubjectType && x.SubjectId == approval.SubjectId)
-                    .ToListAsync(ct);
-                if (!CanDecide(all, approval))
-                    return Results.Conflict(
-                        new { message = "This isn't waiting on you right now." }
-                    );
-                approval.Decision = request.Decision;
-                approval.Comment = request.Comment?.Trim();
-                approval.DecidedAt = DateTimeOffset.UtcNow;
-                var message = await ApplyDecisionAsync(db, all, approval, principal, ct);
-                await db.SaveChangesAsync(ct);
-                return Results.Ok(new { message });
-            }
-        );
+        MapOfferLetters(api);
+        MapApprovals(api);
     }
 
-    private static bool CanDecide(IReadOnlyCollection<Approval> all, Approval mine) =>
-        mine.Decision == ApprovalDecision.Pending
-        && all.Where(x => x.Sequence < mine.Sequence).All(x => x.Decision == ApprovalDecision.Approved);
+    // Anything not answered or closed yet: rejecting someone can withdraw it.
+    internal static readonly OfferStatus[] WithdrawableOfferStatuses =
+    [
+        OfferStatus.Draft,
+        OfferStatus.PendingApproval,
+        OfferStatus.Approved,
+        OfferStatus.Sent,
+    ];
 
-    private static async Task<List<Approval>> LoadApprovalsAsync(
+    /// <summary>Withdraws the offer and drops waiting approvals (the caller saves).</summary>
+    internal static async Task WithdrawOfferAsync(
         AtsDbContext db,
-        string subjectType,
-        Guid subjectId,
-        CancellationToken ct
-    ) =>
-        await db
-            .Approvals.AsNoTracking()
-            .Where(x => x.SubjectType == subjectType && x.SubjectId == subjectId)
-            .OrderBy(x => x.Sequence)
-            .ThenBy(x => x.CreatedAt)
-            .ToListAsync(ct);
-
-    private static async Task<object[]> ApprovalViewsAsync(
-        AtsDbContext db,
-        List<Approval> approvals,
-        string me,
+        Offer offer,
+        string actorEmail,
         CancellationToken ct
     )
     {
-        var emails = approvals.Select(x => x.ApproverEmail).Distinct().ToArray();
-        var names = await db
-            .Users.AsNoTracking()
-            .Where(x => emails.Contains(x.Email))
-            .ToDictionaryAsync(x => x.Email, x => x.DisplayName, ct);
-        return approvals
-            .Select(x =>
-                (object)
-                    new
-                    {
-                        x.Id,
-                        x.ApproverEmail,
-                        ApproverName = names.GetValueOrDefault(x.ApproverEmail, x.ApproverEmail),
-                        x.Sequence,
-                        Decision = x.Decision.ToString(),
-                        x.Comment,
-                        x.DecidedAt,
-                        CanDecide = x.ApproverEmail == me && CanDecide(approvals, x),
-                    }
-            )
-            .ToArray();
+        offer.Status = OfferStatus.Withdrawn;
+        offer.UpdatedAt = DateTimeOffset.UtcNow;
+        await CloseRoundAsync(db, OfferSubject, offer.Id, ct);
+        Audit.Add(
+            db,
+            actorEmail,
+            "Application",
+            offer.ApplicationId,
+            "OfferWithdrawn",
+            new { offer.Id }
+        );
+    }
+
+    /// <summary>
+    /// Accepting hires: the application moves to the job's Hired stage. Used by the team's "Mark as
+    /// accepted" and by the candidate in the portal (<paramref name="typedName"/> is what they typed).
+    /// Saves. Returns why it could not, or null.
+    /// </summary>
+    internal static async Task<string?> AcceptOfferAsync(
+        AtsDbContext db,
+        Offer offer,
+        string actorEmail,
+        string? typedName,
+        CancellationToken ct
+    )
+    {
+        var application = offer.Application!;
+        if (application.Status != ApplicationStatus.Active)
+            return "Only an active application can be hired.";
+        var hiredStage = await FindHiredStageAsync(db, application.RequisitionId, ct);
+        if (hiredStage is null)
+            return "This job has no Hired stage.";
+        var now = DateTimeOffset.UtcNow;
+        var fromStage = application.PipelineStageId;
+        var fromStatus = application.Status;
+        offer.Status = OfferStatus.Accepted;
+        offer.RespondedAt = now;
+        offer.RespondedBy = actorEmail;
+        offer.RespondedName = typedName;
+        offer.UpdatedAt = now;
+        offer.PreviousStageId = fromStage;
+        offer.PreviousStatus = fromStatus;
+        application.PipelineStageId = hiredStage.Id;
+        application.Status = ApplicationStatus.Hired;
+        application.DispositionReason = null;
+        application.DispositionNote = null;
+        application.LastActivityAt = now;
+        await PipelineEvents.OnMovedAsync(db, application, fromStage, fromStatus, actorEmail, ct);
+        await OfferAnsweredAsync(db, application, true, null, actorEmail, ct);
+        Audit.Add(
+            db,
+            actorEmail,
+            "Application",
+            application.Id,
+            "OfferAccepted",
+            new { offer.Id, InPortal = typedName is not null }
+        );
+        await db.SaveChangesAsync(ct);
+        return null;
+    }
+
+    /// <summary>Records a decline with its reason key and note, tells the team, and saves.</summary>
+    internal static async Task DeclineOfferAsync(
+        AtsDbContext db,
+        Offer offer,
+        string actorEmail,
+        string reason,
+        string? note,
+        CancellationToken ct
+    )
+    {
+        var application = offer.Application!;
+        var now = DateTimeOffset.UtcNow;
+        offer.Status = OfferStatus.Declined;
+        offer.RespondedAt = now;
+        offer.RespondedBy = actorEmail;
+        offer.UpdatedAt = now;
+        offer.DeclineReason = reason;
+        offer.DeclineNote = note;
+        application.LastActivityAt = now;
+        Audit.Add(
+            db,
+            actorEmail,
+            "Application",
+            application.Id,
+            "OfferDeclined",
+            new
+            {
+                offer.Id,
+                DeclineReason = OfferDeclines.Label(reason),
+                offer.DeclineNote,
+            }
+        );
+        var why = note is null
+            ? OfferDeclines.Label(reason)
+            : $"{OfferDeclines.Label(reason)}. {note}";
+        await OfferAnsweredAsync(db, application, false, why, actorEmail, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// The job's recruiters (and whoever owns the conversation) hear that the candidate answered,
+    /// in the app and in the team channel. The person who recorded the answer is not told.
+    /// </summary>
+    private static async Task OfferAnsweredAsync(
+        AtsDbContext db,
+        Application application,
+        bool accepted,
+        string? reason,
+        string actorEmail,
+        CancellationToken ct
+    )
+    {
+        var name = $"{application.Candidate!.FirstName} {application.Candidate.LastName}";
+        var title =
+            $"{name} {(accepted ? "accepted" : "turned down")} the offer for {application.Requisition!.Title}";
+        var href = $"/applications/{application.Id}/offer";
+        await Notify.AddAsync(
+            db,
+            [
+                application.AssigneeEmail,
+                .. await EmailThreads.RecruitersAsync(db, application.Requisition, ct),
+            ],
+            new NotificationDraft(
+                NotificationKinds.OfferResponse,
+                title,
+                href,
+                Body: reason is null ? null : $"Their reason: {reason}",
+                ActorEmail: actorEmail,
+                ApplicationId: application.Id
+            ),
+            ct
+        );
+        await PipelineEvents.NotifyAsync(db, $"{title}.", ct, TeamChannel.OfferResponse, href);
     }
 
     private static async Task<Offer?> LoadManagedOfferAsync(
@@ -577,7 +735,9 @@ public static partial class AtsEndpoints
             .Include(x => x.Application)
                 .ThenInclude(x => x!.Requisition)
             .SingleOrDefaultAsync(x => x.Id == id, ct);
-        return offer?.Application?.Requisition is not null && CanManage(offer.Application.Requisition, principal)
+        return
+            offer?.Application?.Requisition is not null
+            && CanManage(offer.Application.Requisition, principal)
             ? offer
             : null;
     }
@@ -592,195 +752,137 @@ public static partial class AtsEndpoints
             .PipelineStages.AsNoTracking()
             .Where(x => x.RequisitionId == requisitionId)
             .ToListAsync(ct);
-        return stages.FirstOrDefault(x => x.Name.Equals("Hired", StringComparison.OrdinalIgnoreCase))
-            ?? stages.Where(x => x.IsTerminal).OrderByDescending(x => x.SortOrder).FirstOrDefault();
+        return StageRules.Hired(stages);
     }
 
-    private sealed record ResolvedApprovers(string[] Emails, bool Sequential, string? Error);
+    private static string OfferLabel(Offer offer) =>
+        $"the offer for {offer.Application!.Candidate!.FirstName} {offer.Application.Candidate.LastName} ({offer.Application.Requisition!.Title})";
 
-    private static async Task<ResolvedApprovers> ResolveApproversAsync(
-        AtsDbContext db,
-        ClaimsPrincipal principal,
-        Organization? organization,
-        SubmitApprovalRequest request,
-        bool required,
-        CancellationToken ct
-    )
+    /// <summary>The terms as a few plain lines, for approvers who read them outside the offer page.</summary>
+    internal static string OfferTermsText(Offer offer) =>
+        string.Join("\n", OfferTermRows(offer).Select(x => $"{x.Label}: {x.Value}"));
+
+    /// <summary>Each term that is filled in, in reading order.</summary>
+    internal static List<(string Label, string Value)> OfferTermRows(Offer offer)
     {
-        var me = principal.Email();
-        var defaults = organization?.DefaultApproverEmails ?? [];
-        var chosen = request.Approvers is { Length: > 0 } ? request.Approvers : defaults;
-        // Only an admin can drop the organization's default approvers; everyone else adds to them.
-        var requested = (principal.IsInRole(nameof(UserRole.Admin)) ? chosen : chosen.Concat(defaults))
-            .Select(x => x.Trim().ToLowerInvariant())
-            // Nobody approves their own request, whatever they typed.
-            .Where(x => x.Length > 0 && x != me)
-            .Distinct()
+        var rows = new List<(string, string)>();
+        if (offer.BaseSalary is { } salary)
+            rows.Add(
+                (
+                    "Base salary",
+                    $"{offer.Currency} {salary.ToString("#,0.##", CultureInfo.InvariantCulture)} per {offer.PayPeriod.ToLowerInvariant()}"
+                )
+            );
+        if (offer.Bonus.Length > 0)
+            rows.Add(("Bonus", offer.Bonus));
+        if (offer.Equity.Length > 0)
+            rows.Add(("Equity", offer.Equity));
+        if (offer.StartDate is { } start)
+            rows.Add(("Start date", start.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture)));
+        var role = new[] { offer.EmploymentType, offer.WorkMode, offer.Location }
+            .Where(x => x.Length > 0)
             .ToArray();
-        var sequential = request.Sequential ?? organization?.ApprovalsSequential ?? false;
-        if (requested.Length == 0)
-            return new([], sequential, required ? "Choose at least one approver other than yourself." : null);
-        var known = await db
-            .Users.AsNoTracking()
-            .Where(x =>
-                x.IsActive
-                && requested.Contains(x.Email)
-                && (x.Role == UserRole.Admin || x.Role == UserRole.Recruiter || x.Role == UserRole.HiringManager))
-            .Select(x => x.Email)
-            .ToListAsync(ct);
-        var unknown = requested.Except(known).ToArray();
-        return unknown.Length > 0
-            ? new([], sequential, $"No active user: {string.Join(", ", unknown)}.")
-            : new(requested, sequential, null);
-    }
-
-    private static List<Approval> AddApprovals(
-        AtsDbContext db,
-        string subjectType,
-        Guid subjectId,
-        ResolvedApprovers approvers,
-        string requestedBy
-    )
-    {
-        var rows = approvers
-            .Emails.Select(
-                (email, index) =>
-                    new Approval
-                    {
-                        SubjectType = subjectType,
-                        SubjectId = subjectId,
-                        ApproverEmail = email,
-                        Sequence = approvers.Sequential ? index : 0,
-                        RequestedBy = requestedBy,
-                    }
-            )
-            .ToList();
-        db.Approvals.AddRange(rows);
+        if (role.Length > 0)
+            rows.Add(("Role", string.Join(", ", role)));
+        if (offer.ExpiresOn is { } expires)
+            rows.Add(
+                ("Offer open until", expires.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture))
+            );
         return rows;
     }
 
-    private static async Task NotifyEligibleApproversAsync(
-        AtsDbContext db,
-        List<Approval> approvals,
-        string label,
-        string requestedBy,
-        CancellationToken ct
+    private static object OfferView(
+        Offer offer,
+        IReadOnlyDictionary<string, string> names,
+        IReadOnlyDictionary<Guid, string> letters
+    ) =>
+        new
+        {
+            offer.Id,
+            Status = offer.Status.ToString(),
+            offer.Note,
+            offer.BaseSalary,
+            offer.Currency,
+            offer.PayPeriod,
+            offer.Bonus,
+            offer.Equity,
+            offer.StartDate,
+            offer.EmploymentType,
+            offer.WorkMode,
+            offer.Location,
+            offer.ExpiresOn,
+            offer.ExpiresAt,
+            offer.LetterTemplateId,
+            // A deleted letter has no name; the version still says which wording it was.
+            LetterTemplateName = offer.LetterTemplateId is { } letterId
+                ? letters.GetValueOrDefault(letterId)
+                : null,
+            offer.LetterTemplateVersion,
+            offer.LetterMarkdown,
+            offer.LetterSent,
+            offer.CreatedBy,
+            CreatedByName = names.GetValueOrDefault(offer.CreatedBy, offer.CreatedBy),
+            offer.CreatedAt,
+            offer.UpdatedAt,
+            offer.SentAt,
+            offer.RespondedAt,
+            offer.RespondedName,
+            // Answered in the portal, or recorded by someone on the team.
+            RespondedByName = offer.RespondedName is not null ? null
+            : offer.RespondedBy is null ? null
+            : names.GetValueOrDefault(offer.RespondedBy, offer.RespondedBy),
+            offer.DeclineReason,
+            DeclineReasonLabel = offer.DeclineReason is null
+                ? null
+                : OfferDeclines.Label(offer.DeclineReason),
+            offer.DeclineNote,
+            offer.ReplacesOfferId,
+        };
+
+    // Validates and copies the terms. PUT replaces them all (a missing date clears it); a new
+    // offer only takes what was sent on top of what it was prefilled with.
+    private static Dictionary<string, string[]>? ApplyTerms(
+        Offer offer,
+        OfferTermsRequest request,
+        bool replace
     )
     {
-        var lowest = approvals.Where(x => x.Decision == ApprovalDecision.Pending).Min(x => x.Sequence);
-        foreach (var approval in approvals.Where(x => x.Decision == ApprovalDecision.Pending && x.Sequence == lowest))
-            await EmailTemplates.QueueAsync(
-                db,
-                "approval-request",
-                null,
-                approval.ApproverEmail,
-                new Dictionary<string, string> { ["subject"] = label, ["requestedBy"] = requestedBy },
-                null,
-                ct
-            );
-        await PipelineEvents.NotifyAsync(db, $"Approval needed: {label} (requested by {requestedBy}).", ct);
-    }
-
-    // Moves the offer or job along once an approver has decided; returns what to tell the approver.
-    private static async Task<string> ApplyDecisionAsync(
-        AtsDbContext db,
-        List<Approval> all,
-        Approval decided,
-        ClaimsPrincipal principal,
-        CancellationToken ct
-    )
-    {
-        Offer? offer = null;
-        Requisition? requisition = null;
-        string label;
-        if (decided.SubjectType == OfferSubject)
-        {
-            offer = await db
-                .Offers.Include(x => x.Application)
-                    .ThenInclude(x => x!.Candidate)
-                .Include(x => x.Application)
-                    .ThenInclude(x => x!.Requisition)
-                .SingleAsync(x => x.Id == decided.SubjectId, ct);
-            label =
-                $"accepting {offer.Application!.Candidate!.FirstName} {offer.Application.Candidate.LastName} for {offer.Application.Requisition!.Title}";
-        }
-        else
-        {
-            requisition = await db.Requisitions.SingleAsync(x => x.Id == decided.SubjectId, ct);
-            label = $"opening {requisition.Title}";
-        }
-
-        Audit.Add(
-            db,
-            principal,
-            decided.SubjectType == OfferSubject ? "Application" : "Requisition",
-            offer?.ApplicationId ?? requisition!.Id,
-            decided.Decision == ApprovalDecision.Approved ? "ApprovalGiven" : "ApprovalRejected",
-            new { decided.SubjectType, decided.Comment }
+        var errors = new Dictionary<string, string[]>();
+        if (request.BaseSalary is < 0 or > 100_000_000)
+            errors["baseSalary"] = ["Enter a base salary of 0 or more."];
+        var currency = request.Currency?.Trim().ToUpperInvariant();
+        if (
+            currency is not null
+            && (currency.Length != 3 || !currency.All(char.IsAsciiLetterUpper))
+        )
+            errors["currency"] = ["Choose a currency."];
+        var period = PayPeriods.FirstOrDefault(x =>
+            x.Equals(request.PayPeriod, StringComparison.OrdinalIgnoreCase)
         );
-
-        if (decided.Decision == ApprovalDecision.Rejected)
-        {
-            if (offer is not null)
-            {
-                offer.Status = OfferStatus.Draft;
-                offer.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-            else
-            {
-                requisition!.Status = RequisitionStatus.Draft;
-                requisition.UpdatedAt = DateTimeOffset.UtcNow;
-            }
-            // Pending approvals from a rejected round are void; the recruiter resubmits with fresh ones.
-            db.Approvals.RemoveRange(all.Where(x => x.Decision == ApprovalDecision.Pending && x.Id != decided.Id));
-            db.EmailOutbox.Add(
-                new EmailOutboxItem
-                {
-                    Recipient = decided.RequestedBy,
-                    Subject = $"Approval rejected: {label}",
-                    Body = $"{principal.Email()} rejected {label}.\n\nReason: {decided.Comment}",
-                }
-            );
-            return "Rejected. The requester has been told why.";
-        }
-
-        var pending = all.Where(x => x.Id != decided.Id && x.Decision == ApprovalDecision.Pending).ToList();
-        if (pending.Count > 0)
-        {
-            var next = pending.Min(x => x.Sequence);
-            if (next > decided.Sequence && pending.All(x => x.Sequence >= next))
-                await NotifyEligibleApproversAsync(
-                    db,
-                    pending.Where(x => x.Sequence == next).ToList(),
-                    label,
-                    decided.RequestedBy,
-                    ct
-                );
-            return "Approved. Waiting on the other approvers.";
-        }
-
-        if (offer is not null)
-        {
-            offer.Status = OfferStatus.Approved;
-            offer.UpdatedAt = DateTimeOffset.UtcNow;
-        }
-        else
-        {
-            requisition!.Status = RequisitionStatus.Open;
-            requisition.OpenedAt ??= DateTimeOffset.UtcNow;
-            requisition.UpdatedAt = DateTimeOffset.UtcNow;
-        }
-        db.EmailOutbox.Add(
-            new EmailOutboxItem
-            {
-                Recipient = decided.RequestedBy,
-                Subject = $"Approved: {label}",
-                Body =
-                    offer is not null
-                        ? $"Everyone approved {label}. You can send the acceptance email from the application."
-                        : $"Everyone approved {label}. The job is now open.",
-            }
-        );
-        return offer is not null ? "Approved. The recruiter can send the email now." : "Approved. The job is open.";
+        if (request.PayPeriod is not null && period is null)
+            errors["payPeriod"] = ["Choose year, month or hour."];
+        if (request.StartDate is { } start && request.ExpiresOn is { } expires && expires > start)
+            errors["expiresOn"] = ["The offer should close before the start date."];
+        if (errors.Count > 0)
+            return errors;
+        string Text(string? value, string current, int max) =>
+            value is null ? (replace ? "" : current)
+            : value.Trim() is var v && v.Length > max ? v[..max]
+            : v;
+        offer.Note = Text(request.Note, offer.Note, 4000);
+        offer.Bonus = Text(request.Bonus, offer.Bonus, 300);
+        offer.Equity = Text(request.Equity, offer.Equity, 300);
+        offer.EmploymentType = Text(request.EmploymentType, offer.EmploymentType, 40);
+        offer.WorkMode = Text(request.WorkMode, offer.WorkMode, 40);
+        offer.Location = Text(request.Location, offer.Location, 200);
+        if (replace || request.BaseSalary is not null)
+            offer.BaseSalary = request.BaseSalary;
+        if (replace || request.StartDate is not null)
+            offer.StartDate = request.StartDate;
+        if (replace || request.ExpiresOn is not null)
+            offer.ExpiresOn = request.ExpiresOn;
+        offer.Currency = currency ?? offer.Currency;
+        offer.PayPeriod = period ?? offer.PayPeriod;
+        return null;
     }
 }

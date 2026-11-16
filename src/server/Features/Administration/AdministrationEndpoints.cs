@@ -14,18 +14,32 @@ public static partial class AtsEndpoints
 {
     private static void MapAdministration(RouteGroupBuilder api)
     {
+        // Admin only: it holds the Slack or Teams channel address, approvers and company domains.
         api.MapGet(
                 "/organization",
-                async (AtsDbContext db, CancellationToken ct) =>
+                async (
+                    AtsDbContext db,
+                    IConfiguration configuration,
+                    IHostEnvironment environment,
+                    CancellationToken ct
+                ) =>
                 {
-                    var organization = await db.Organizations.AsNoTracking().SingleOrDefaultAsync(ct);
-                    return organization is null
-                        ? Results.NotFound()
-                        : Results.Ok(new
+                    var organization = await db
+                        .Organizations.AsNoTracking()
+                        .SingleOrDefaultAsync(ct);
+                    if (organization is null)
+                        return Results.NotFound();
+                    var ownerName = await db
+                        .Users.Where(x => x.Email == organization.OwnerEmail)
+                        .Select(x => x.DisplayName)
+                        .FirstOrDefaultAsync(ct);
+                    return Results.Ok(
+                        new
                         {
                             organization.Id,
                             organization.Name,
                             organization.OwnerEmail,
+                            OwnerName = ownerName,
                             organization.TimeZone,
                             organization.AllowedEmailDomains,
                             organization.AllowGoogleLogin,
@@ -45,10 +59,16 @@ public static partial class AtsEndpoints
                             organization.PublicUrl,
                             organization.AiEnabled,
                             organization.AiModel,
-                        });
+                            // How people sign in here: WorkOS, Oidc or Development. The sign-in method switches only apply to WorkOS.
+                            AuthMode = configuration["Auth:Mode"]
+                                ?? (environment.IsDevelopment() ? "Development" : "WorkOS"),
+                            EmailReady = !string.IsNullOrWhiteSpace(configuration["Resend:ApiKey"])
+                                && !string.IsNullOrWhiteSpace(configuration["Resend:From"]),
+                        }
+                    );
                 }
             )
-            .RequireAuthorization(AtsPolicies.Read);
+            .RequireAuthorization(AtsPolicies.Admin);
 
         api.MapPut(
                 "/organization",
@@ -63,27 +83,43 @@ public static partial class AtsEndpoints
                     var organization = await db.Organizations.SingleOrDefaultAsync(ct);
                     if (organization is null)
                         return Results.NotFound();
-                    if (!principal.IsInRole(nameof(UserRole.Admin))
-                        && !string.Equals(organization.OwnerEmail, principal.Email(), StringComparison.OrdinalIgnoreCase))
+                    if (
+                        !principal.IsInRole(nameof(UserRole.Admin))
+                        && !string.Equals(
+                            organization.OwnerEmail,
+                            principal.Email(),
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
                         return Results.Forbid();
-                    if (string.IsNullOrWhiteSpace(request.Name))
-                        return Results.ValidationProblem(new Dictionary<string, string[]>
-                        {
-                            ["name"] = ["Organization name is required."],
-                        });
-                    organization.Name = request.Name.Trim();
-                    organization.TimeZone = string.IsNullOrWhiteSpace(request.TimeZone)
-                        ? organization.TimeZone
-                        : request.TimeZone.Trim();
-                    organization.AllowedEmailDomains = (request.AllowedEmailDomains ?? [])
-                        .Select(x => x.Trim().TrimStart('@').ToLowerInvariant())
-                        .Where(x => x.Length > 0)
-                        .Distinct()
-                        .Take(20)
-                        .ToArray();
-                    organization.AllowGoogleLogin = request.AllowGoogleLogin;
-                    organization.AllowMicrosoftLogin = request.AllowMicrosoftLogin;
-                    organization.StaleReminderDays = Math.Clamp(request.StaleReminderDays, 1, 30);
+                    if (request.Name is { } name)
+                    {
+                        if (string.IsNullOrWhiteSpace(name))
+                            return Results.ValidationProblem(
+                                new Dictionary<string, string[]>
+                                {
+                                    ["name"] = ["Give the workspace a name."],
+                                }
+                            );
+                        organization.Name = name.Trim();
+                    }
+                    if (!string.IsNullOrWhiteSpace(request.TimeZone))
+                        organization.TimeZone = request.TimeZone.Trim();
+                    if (request.AllowedEmailDomains is { } domains)
+                        organization.AllowedEmailDomains = domains
+                            .Select(x => x.Trim().TrimStart('@').ToLowerInvariant())
+                            .Where(x => x.Length > 0)
+                            .Distinct()
+                            .Take(20)
+                            .ToArray();
+                    if (request.AllowGoogleLogin is { } google)
+                        organization.AllowGoogleLogin = google;
+                    if (request.AllowMicrosoftLogin is { } microsoft)
+                        organization.AllowMicrosoftLogin = microsoft;
+                    if (request.RequireSso is { } requireSso)
+                        organization.RequireSso = requireSso;
+                    if (request.StaleReminderDays is { } staleDays)
+                        organization.StaleReminderDays = Math.Clamp(staleDays, 1, 30);
                     if (request.RequireOfferApproval is { } offerApproval)
                         organization.RequireOfferApproval = offerApproval;
                     if (request.RequireRequisitionApproval is { } jobApproval)
@@ -111,29 +147,100 @@ public static partial class AtsEndpoints
                     {
                         var trimmed = webhookUrl.Trim();
                         if (trimmed.Length > 0 && !WebhookUrlAllowed(trimmed, environment))
-                            return Results.ValidationProblem(new Dictionary<string, string[]>
-                            {
-                                ["notificationWebhookUrl"] = ["Use the https address Slack or Teams gave you."],
-                            });
+                            return Results.ValidationProblem(
+                                new Dictionary<string, string[]>
+                                {
+                                    ["notificationWebhookUrl"] =
+                                    [
+                                        "Use the https address Slack or Teams gave you.",
+                                    ],
+                                }
+                            );
                         organization.NotificationWebhookUrl = trimmed.Length == 0 ? null : trimmed;
                     }
                     if (request.PublicUrl is { } publicUrl)
                     {
                         var trimmed = publicUrl.Trim().TrimEnd('/');
-                        if (trimmed.Length > 0 && !(Uri.TryCreate(trimmed, UriKind.Absolute, out var parsed) && parsed.Scheme is "http" or "https"))
-                            return Results.ValidationProblem(new Dictionary<string, string[]>
-                            {
-                                ["publicUrl"] = ["Use the full address, like https://ats.yourcompany.com."],
-                            });
+                        if (
+                            trimmed.Length > 0
+                            && !(
+                                Uri.TryCreate(trimmed, UriKind.Absolute, out var parsed)
+                                && parsed.Scheme is "http" or "https"
+                            )
+                        )
+                            return Results.ValidationProblem(
+                                new Dictionary<string, string[]>
+                                {
+                                    ["publicUrl"] =
+                                    [
+                                        "Use the full address, like https://ats.yourcompany.com.",
+                                    ],
+                                }
+                            );
                         organization.PublicUrl = trimmed.Length == 0 ? null : trimmed;
                     }
                     if (request.AiEnabled is { } aiEnabled)
                         organization.AiEnabled = aiEnabled;
                     if (request.AiModel is { } aiModel)
-                        organization.AiModel = string.IsNullOrWhiteSpace(aiModel) ? null : aiModel.Trim();
+                        organization.AiModel = string.IsNullOrWhiteSpace(aiModel)
+                            ? null
+                            : aiModel.Trim();
                     organization.SetupCompleted = true;
                     organization.UpdatedAt = DateTimeOffset.UtcNow;
-                    Audit.Add(db, principal, "Organization", organization.Id, "Updated", new { organization.Name });
+                    // The interceptor adds the before and after of every field that changed.
+                    Audit.Add(db, principal, "Organization", organization.Id, "Updated");
+                    await db.SaveChangesAsync(ct);
+                    return Results.NoContent();
+                }
+            )
+            .RequireAuthorization(AtsPolicies.Admin);
+
+        // Only the owner can hand the workspace to another active admin.
+        api.MapPost(
+                "/organization/transfer-ownership",
+                async (
+                    TransferOwnershipRequest request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    var organization = await db.Organizations.SingleOrDefaultAsync(ct);
+                    if (organization is null)
+                        return Results.NotFound();
+                    if (
+                        !string.Equals(
+                            organization.OwnerEmail,
+                            principal.Email(),
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                        return Results.Json(
+                            new { message = "Only the workspace owner can hand over ownership." },
+                            statusCode: StatusCodes.Status403Forbidden
+                        );
+                    var target = await db.Users.SingleOrDefaultAsync(
+                        x => x.Id == request.UserId && x.IsActive && x.Role == UserRole.Admin,
+                        ct
+                    );
+                    if (target is null)
+                        return Results.Conflict(
+                            new
+                            {
+                                message = "Pick an active admin. Make them an admin under Members first.",
+                            }
+                        );
+                    var from = organization.OwnerEmail;
+                    organization.OwnerEmail = target.Email;
+                    organization.UpdatedAt = DateTimeOffset.UtcNow;
+                    Audit.Add(
+                        db,
+                        principal,
+                        "User",
+                        target.Id,
+                        "OwnershipTransferred",
+                        new { From = from, To = target.Email }
+                    );
                     await db.SaveChangesAsync(ct);
                     return Results.NoContent();
                 }
@@ -219,28 +326,6 @@ public static partial class AtsEndpoints
             .RequireAuthorization(AtsPolicies.Admin);
 
         api.MapGet(
-                "/admin/users",
-                async (AtsDbContext db, CancellationToken ct) =>
-                    Results.Ok(
-                        await db
-                            .Users.AsNoTracking()
-                            .OrderBy(x => x.DisplayName)
-                            .Select(x => new
-                            {
-                                x.Id,
-                                x.Email,
-                                x.DisplayName,
-                                Role = x.Role.ToString(),
-                                x.Department,
-                                x.IsActive,
-                                x.UpdatedAt,
-                            })
-                            .ToListAsync(ct)
-                    )
-            )
-            .RequireAuthorization(AtsPolicies.Admin);
-
-        api.MapGet(
                 "/directory/users",
                 async (AtsDbContext db, CancellationToken ct) =>
                     Results.Ok(
@@ -266,81 +351,10 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.Read);
 
-        api.MapPost(
-                "/admin/users",
-                async (
-                    UpsertUserRequest request,
-                    ClaimsPrincipal principal,
-                    AtsDbContext db,
-                    CancellationToken ct
-                ) =>
-                {
-                    if (
-                        string.IsNullOrWhiteSpace(request.Email)
-                        || string.IsNullOrWhiteSpace(request.DisplayName)
-                    )
-                        return Results.ValidationProblem(
-                            new Dictionary<string, string[]>
-                            {
-                                ["user"] = ["Email and display name are required."],
-                            }
-                        );
-                    var email = request.Email.Trim().ToLowerInvariant();
-                    var user = await db.Users.SingleOrDefaultAsync(x => x.Email == email, ct);
-                    if (user is null)
-                    {
-                        user = new AppUser
-                        {
-                            Email = email,
-                            DisplayName = request.DisplayName.Trim(),
-                            Role = request.Role,
-                            Department = Clean(request.Department),
-                            IsActive = request.IsActive,
-                        };
-                        db.Users.Add(user);
-                        Audit.Add(
-                            db,
-                            principal,
-                            "User",
-                            user.Id,
-                            "Created",
-                            new { user.Email, user.Role }
-                        );
-                    }
-                    else
-                    {
-                        user.DisplayName = request.DisplayName.Trim();
-                        user.Role = request.Role;
-                        user.Department = Clean(request.Department);
-                        user.IsActive = request.IsActive;
-                        user.UpdatedAt = DateTimeOffset.UtcNow;
-                        Audit.Add(
-                            db,
-                            principal,
-                            "User",
-                            user.Id,
-                            "Updated",
-                            new { user.Role, user.IsActive }
-                        );
-                    }
-                    await db.SaveChangesAsync(ct);
-                    return Results.Ok(new { user.Id });
-                }
-            )
-            .RequireAuthorization(AtsPolicies.Admin);
-
-        api.MapGet(
-                "/admin/audit",
-                async (string? entityType, AtsDbContext db, CancellationToken ct) =>
-                {
-                    var query = db.AuditEvents.AsNoTracking();
-                    if (!string.IsNullOrWhiteSpace(entityType))
-                        query = query.Where(x => x.EntityType == entityType);
-                    return Results.Ok(
-                        await query.OrderByDescending(x => x.OccurredAt).Take(250).ToListAsync(ct)
-                    );
-                }
-            )
-            .RequireAuthorization(AtsPolicies.Admin);
+        MapPeople(api);
+        MapRoles(api);
+        MapMe(api);
+        MapSso(api);
+        MapAudit(api);
     }
 }

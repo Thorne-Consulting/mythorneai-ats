@@ -1,66 +1,98 @@
 'use client';
 
-import { Badge, Group, Stack, Text, ThemeIcon, UnstyledButton } from '@mantine/core';
-import { IconArrowRight, IconBriefcase2 } from '@tabler/icons-react';
-import { useRouter } from 'next/navigation';
-import { StatusBadge } from '@/components/ui/Badges';
-import { SectionCard } from '@/components/ui/Cards';
-import { formatDate } from '@/lib/format';
+import { useState } from 'react';
+import Link from 'next/link';
+import { Briefcase, ChevronRight, Plus } from 'lucide-react';
+import { Button, Card, CardHeader, EmptyState } from '@/components/ui';
+import { StageBadge, StatusBadge } from '@/components/status';
+import { formatDate, formatRelative } from '@/lib/format';
 import type { CandidateDetail } from '@/types';
+import { ApplyModal } from './ApplyModal';
 
+/** Where this person is in hiring: one line per application, the whole line a link. */
 export function CandidateApplications({
-  applications,
+  candidate,
+  canApply,
 }: {
-  applications: CandidateDetail['applications'];
+  candidate: CandidateDetail;
+  canApply: boolean;
 }) {
-  const router = useRouter();
+  const [opened, setOpened] = useState(false);
+  const applications = candidate.applications;
   return (
-    <SectionCard
-      title="Applications"
-      action={
-        <Badge variant="light" color="indigo" circle>
-          {applications.length}
-        </Badge>
-      }
-    >
-      <Stack gap={0}>
-        {applications.map((application) => (
-          <UnstyledButton
-            key={application.id}
-            className="list-row"
-            data-interactive
-            onClick={() => router.push(`/applications/${application.id}`)}
-          >
-            <Group justify="space-between" wrap="nowrap" gap="sm">
-              <Group wrap="nowrap" style={{ minWidth: 0 }}>
-                <ThemeIcon color="indigo" variant="light">
-                  <IconBriefcase2 size={17} />
-                </ThemeIcon>
-                <div style={{ minWidth: 0 }}>
-                  <Text size="sm" fw={650} truncate>
+    <Card>
+      <CardHeader
+        title="Applications"
+        action={
+          canApply &&
+          applications.length > 0 && (
+            <Button variant="link" size="sm" leftIcon={<Plus />} onClick={() => setOpened(true)}>
+              Add to a job
+            </Button>
+          )
+        }
+      />
+      {applications.length === 0 ? (
+        <div className="px-5 pb-5">
+          <EmptyState
+            compact
+            icon={Briefcase}
+            title="Not in any job yet"
+            description={
+              canApply ? 'Add them to a job to start tracking their progress.' : undefined
+            }
+            action={
+              canApply && (
+                <Button variant="secondary" leftIcon={<Plus />} onClick={() => setOpened(true)}>
+                  Add to a job
+                </Button>
+              )
+            }
+          />
+        </div>
+      ) : (
+        <ul className="divide-y divide-border-subtle border-t border-border-subtle">
+          {applications.map((application) => (
+            <li key={application.id}>
+              <Link
+                href={`/applications/${application.id}`}
+                className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-muted focus-visible:bg-accent focus-visible:outline-none"
+              >
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-medium text-fg">
                     {application.requisitionTitle}
-                  </Text>
-                  <Text size="xs" c="dimmed" truncate>
-                    {application.requisitionCode} · Applied {formatDate(application.appliedAt)}
-                  </Text>
-                </div>
-              </Group>
-              <Group wrap="nowrap" gap="xs">
-                <Badge variant="light" color="gray" visibleFrom="sm">
-                  {application.stage}
-                </Badge>
-                <StatusBadge status={application.status} />
-                <IconArrowRight size={16} color="var(--mantine-color-gray-5)" />
-              </Group>
-            </Group>
-          </UnstyledButton>
-        ))}
-        {applications.length === 0 && (
-          <Text c="dimmed" p="xl" size="sm">
-            No applications yet.
-          </Text>
-        )}
-      </Stack>
-    </SectionCard>
+                  </span>
+                  <span className="block truncate text-xs text-fg-subtle">
+                    {application.requisitionCode} · applied {formatDate(application.appliedAt)} ·
+                    last activity {formatRelative(application.lastActivityAt)}
+                  </span>
+                </span>
+                {application.status === 'Active' ? (
+                  <StageBadge
+                    stage={application.stage}
+                    type={application.stageType}
+                    color={application.stageColor}
+                  />
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <span className="hidden text-sm text-fg-subtle sm:inline">
+                      at {application.stage}
+                    </span>
+                    <StatusBadge status={application.status} />
+                  </span>
+                )}
+                <ChevronRight className="size-4 shrink-0 text-fg-subtle" aria-hidden />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ApplyModal
+        candidateId={candidate.id}
+        candidate={candidate}
+        opened={opened}
+        onClose={() => setOpened(false)}
+      />
+    </Card>
   );
 }

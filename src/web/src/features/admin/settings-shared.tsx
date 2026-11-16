@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { Badge, Box, Button, Divider, Group, Paper, Text } from '@mantine/core';
+import { Badge, Button, Card, CardHeader, SkeletonRows } from '@/components/ui';
 
 /** Local editable copy of server data; resets whenever the server copy changes. */
 export function useDraft<T>(source: T) {
@@ -19,54 +19,68 @@ export function useDraft<T>(source: T) {
   };
 }
 
+/**
+ * One settings group in a card. With `onSave`, a sticky "Discard / Save changes" pair appears at
+ * the bottom of the card once something changed.
+ */
 export function SettingsSection({
   id,
   title,
   description,
+  action,
   dirty,
   saving,
   onSave,
-  saveLabel = 'Save',
+  onDiscard,
+  saveLabel = 'Save changes',
   children,
 }: {
   id?: string;
-  title: string;
+  title: ReactNode;
   description?: ReactNode;
+  action?: ReactNode;
   dirty?: boolean;
   saving?: boolean;
   onSave?: () => void;
+  onDiscard?: () => void;
   saveLabel?: string;
   children: ReactNode;
 }) {
   return (
-    <Paper withBorder radius="lg" id={id} component="section" aria-labelledby={`${id}-title`}>
-      <Box p="lg">
-        <Text fw={650} id={`${id}-title`}>
-          {title}
-        </Text>
-        {description && (
-          <Text size="sm" c="dimmed" maw={680}>
-            {description}
-          </Text>
-        )}
-      </Box>
-      <Divider />
-      <Box p="lg">{children}</Box>
-      {onSave && (
-        <>
-          <Divider />
-          <Group p="md" px="lg" justify="flex-end" gap="md">
-            {dirty && (
-              <Badge variant="light" color="gray" tt="none">
-                Unsaved changes
-              </Badge>
+    <Card id={id}>
+      <section aria-labelledby={id ? `${id}-title` : undefined}>
+        <CardHeader
+          title={<span id={id ? `${id}-title` : undefined}>{title}</span>}
+          description={description}
+          action={action}
+        />
+        <div className="border-t border-border-subtle px-5 py-5">{children}</div>
+        {/* Only while there is something to save, so a settled card carries no empty bar. */}
+        {onSave && dirty && (
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-end gap-2 rounded-b-xl border-t border-border-subtle bg-card px-5 py-3">
+            <Badge tone="amber" className="mr-auto">
+              Unsaved changes
+            </Badge>
+            {onDiscard && (
+              <Button variant="secondary" onClick={onDiscard} disabled={saving}>
+                Discard
+              </Button>
             )}
-            <Button onClick={onSave} loading={saving} disabled={!dirty}>
+            <Button onClick={onSave} loading={saving}>
               {saveLabel}
             </Button>
-          </Group>
-        </>
-      )}
-    </Paper>
+          </div>
+        )}
+      </section>
+    </Card>
+  );
+}
+
+/** Loading placeholder for a settings card. */
+export function SettingsLoading({ rows = 3 }: { rows?: number }) {
+  return (
+    <Card>
+      <SkeletonRows rows={rows} />
+    </Card>
   );
 }

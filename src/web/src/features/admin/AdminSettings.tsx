@@ -1,30 +1,39 @@
 'use client';
 
+import { useState, type ReactNode } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Info } from 'lucide-react';
+import { api } from '@/api';
+import { useCurrentUser } from '@/auth';
 import {
   Alert,
-  Anchor,
   Badge,
   Button,
-  Group,
-  MultiSelect,
+  Card,
+  CardLink,
+  DescriptionList,
+  Input,
+  Modal,
   NumberInput,
-  Paper,
-  SimpleGrid,
-  Stack,
+  SearchSelect,
   Switch,
-  Text,
-  TextInput,
-} from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconInfoCircle } from '@tabler/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import Link from 'next/link';
-import { api } from '@/api';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { SettingsSection, useDraft } from './settings-shared';
+  TagsInput,
+  toast,
+} from '@/components/ui';
+import { cn } from '@/lib/cn';
+import { useAdminUsers } from './admin-data';
+import { ReminderSettings } from '@/features/workflows/ReminderSettings';
+import { TeamChannelSettings } from '@/features/notification-settings/TeamChannelSettings';
+import { SettingsLoading, SettingsSection, useDraft } from './settings-shared';
 
 export interface Organization {
   name: string;
+  ownerEmail: string;
+  ownerName?: string | null;
+  authMode: 'WorkOS' | 'Oidc' | 'Development';
+  emailReady: boolean;
   timeZone?: string | null;
   allowedEmailDomains: string[];
   allowGoogleLogin: boolean;
@@ -43,13 +52,6 @@ export interface Organization {
   publicUrl?: string | null;
   aiEnabled: boolean;
   aiModel?: string | null;
-}
-interface ChecklistItem {
-  key: string;
-  title: string;
-  detail: string;
-  done: boolean;
-  href: string;
 }
 interface AiStatus {
   configured: boolean;
@@ -71,75 +73,51 @@ function useOrganization() {
     queryKey: ['organization'],
     queryFn: () => api.get<Organization>('/api/organization'),
   });
+  // The API takes partial updates: only the fields in the patch change.
   const save = useMutation({
-    mutationFn: (patch: Partial<Organization>) => {
-      const org = query.data!;
-      // The API always expects these six, so send the current values with every save.
-      return api.put('/api/organization', {
-        name: org.name,
-        timeZone: org.timeZone,
-        allowedEmailDomains: org.allowedEmailDomains,
-        allowGoogleLogin: org.allowGoogleLogin,
-        allowMicrosoftLogin: org.allowMicrosoftLogin,
-        staleReminderDays: org.staleReminderDays,
-        ...patch,
-      });
-    },
-    onError: (error: Error) =>
-      notifications.show({ color: 'red', title: 'Could not save', message: error.message }),
+    mutationFn: (patch: Partial<Organization>) => api.put('/api/organization', patch),
+    onError: (error: Error) => toast.error('Could not save', error.message),
   });
   const saveSection = (patch: Partial<Organization>, message: string) =>
     save.mutate(patch, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: ['organization'] });
-        queryClient.invalidateQueries({ queryKey: ['setup-checklist'] });
+        // Same key as the dashboard's "Finish setting up" card.
+        queryClient.invalidateQueries({ queryKey: ['admin', 'setup-checklist'] });
         queryClient.invalidateQueries({ queryKey: ['ai-status'] });
-        notifications.show({ color: 'teal', message });
+        toast.success(message);
       },
     });
   return { org: query.data, saveSection, saving: save.isPending };
 }
 
-export type OrganizationSection =
-  'approvals' | 'reminders' | 'notifications' | 'portal' | 'ai' | 'email';
+export type OrganizationSection = 'general' | 'alerts' | 'ai';
 
 const SECTIONS = {
-  approvals: ApprovalsSection,
-  reminders: RemindersSection,
-  notifications: NotificationsSection,
-  portal: PortalAddressSection,
+  general: GeneralSettings,
+  alerts: AlertsSettings,
   ai: AiSection,
-  email: EmailSection,
 };
 
 /** One organization-wide setting group, on its own settings page. */
 export function OrganizationSettings({ section }: { section: OrganizationSection }) {
   const { org, saveSection, saving } = useOrganization();
-  if (!org) return <LoadingBlock rows={4} />;
+  if (!org) return <SettingsLoading rows={4} />;
   const Section = SECTIONS[section];
   return <Section org={org} saveSection={saveSection} saving={saving} />;
 }
 
-function EmailSection(_: SectionProps) {
-  const checklist = useQuery({
-    queryKey: ['setup-checklist'],
-    queryFn: () => api.get<ChecklistItem[]>('/api/admin/setup-checklist'),
-  });
-  const emailItem = checklist.data?.find((item) => item.key === 'email');
+/** Switch rows separated by hairlines, the Figma settings list. */
+function SwitchList({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <SettingsSection id="email" title="Candidate email">
-      <Group gap="sm">
-        <Badge color={emailItem?.done ? 'teal' : 'red'} variant="light">
-          Candidate email is {emailItem?.done ? 'on' : 'off'}
-        </Badge>
-        {emailItem && !emailItem.done && (
-          <Text size="sm">
-            Candidates won’t receive anything until this is fixed. Add the Resend API key and sender
-            address to the server settings, then restart the API.
-          </Text>
-        )}
-      </Group>
-    </SettingsSection>
+    <div
+      className={cn(
+        'divide-y divide-border-subtle [&>*]:py-4 [&>*:first-child]:pt-0 [&>*:last-child]:pb-0',
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -149,249 +127,288 @@ interface SectionProps {
   saving: boolean;
 }
 
-function ApprovalsSection({ org, saveSection, saving }: SectionProps) {
-  const people = useQuery({
-    queryKey: ['directory-users'],
-    queryFn: () =>
-      api.get<Array<{ email: string; displayName: string; role: string }>>('/api/directory/users'),
-  });
-  const { draft, set, dirty } = useDraft({
-    requireOfferApproval: org.requireOfferApproval,
-    requireRequisitionApproval: org.requireRequisitionApproval,
-    approvalsSequential: org.approvalsSequential,
-    defaultApproverEmails: org.defaultApproverEmails,
-  });
-  const options = (people.data ?? []).map((person) => ({
-    value: person.email,
-    label: `${person.displayName} (${person.email})`,
-  }));
-  for (const email of draft.defaultApproverEmails)
-    if (!options.some((option) => option.value === email))
-      options.push({ value: email, label: email });
-  return (
-    <SettingsSection
-      id="approvals"
-      title="Approvals"
-      dirty={dirty}
-      saving={saving}
-      onSave={() => saveSection(draft, 'Approval settings saved')}
-    >
-      <Stack gap="md">
-        <Switch
-          label="Approve acceptances before they are sent"
-          description="Someone other than the requester signs off before a candidate is told they are accepted."
-          checked={draft.requireOfferApproval}
-          onChange={(event) => set({ requireOfferApproval: event.currentTarget.checked })}
-        />
-        <Switch
-          label="Approve new jobs before they open"
-          description="A job stays a draft until an approver agrees it can be opened."
-          checked={draft.requireRequisitionApproval}
-          onChange={(event) => set({ requireRequisitionApproval: event.currentTarget.checked })}
-        />
-        <Switch
-          label="Approvers go one after another"
-          description="Off means everyone is asked at once. On means each person is asked only after the one before them agrees."
-          checked={draft.approvalsSequential}
-          onChange={(event) => set({ approvalsSequential: event.currentTarget.checked })}
-        />
-        <MultiSelect
-          label="Default approvers"
-          description="Asked whenever an approval is needed, in the order shown."
-          placeholder="Pick people"
-          searchable
-          data={options}
-          value={draft.defaultApproverEmails}
-          onChange={(value) => set({ defaultApproverEmails: value })}
-        />
-      </Stack>
-    </SettingsSection>
-  );
-}
-
+/** Quiet hours, for every reminder and workflow email. The reminders themselves are ReminderSettings. */
 function RemindersSection({ org, saveSection, saving }: SectionProps) {
-  const { draft, set, dirty } = useDraft({
-    staleReminderDays: org.staleReminderDays,
-    bookReminderDays: org.bookReminderDays,
-    scorecardReminderDays: org.scorecardReminderDays,
-    maxReminders: org.maxReminders,
+  const { draft, set, dirty, reset } = useDraft({
     quietHoursStart: org.quietHoursStart,
     quietHoursEnd: org.quietHoursEnd,
   });
-  const num = (value: string | number, fallback: number) =>
-    typeof value === 'number' ? value : fallback;
+  const num = (value: number | '', fallback: number) =>
+    value === '' ? fallback : Math.round(value);
   const hour = (value: number) => `${String(value).padStart(2, '0')}:00`;
   return (
-    <SettingsSection
-      id="reminders"
-      title="Reminders"
-      dirty={dirty}
-      saving={saving}
-      onSave={() => saveSection(draft, 'Reminder settings saved')}
-    >
-      <Stack gap="md">
-        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-          <NumberInput
-            label="Remind about stuck applications after (days)"
-            description="If an application sits in one stage this long, the job owner is reminded."
-            min={1}
-            max={60}
-            allowDecimal={false}
-            value={draft.staleReminderDays}
-            onChange={(value) => set({ staleReminderDays: num(value, 3) })}
-          />
-          <NumberInput
-            label="Remind candidates to book after (days)"
-            description="Sent when a candidate was invited to pick an interview time and hasn’t."
-            min={1}
-            max={30}
-            allowDecimal={false}
-            value={draft.bookReminderDays}
-            onChange={(value) => set({ bookReminderDays: num(value, 2) })}
-          />
-          <NumberInput
-            label="Remind interviewers about feedback after (days)"
-            description="Sent when an interview is done and the scorecard is still empty."
-            min={1}
-            max={30}
-            allowDecimal={false}
-            value={draft.scorecardReminderDays}
-            onChange={(value) => set({ scorecardReminderDays: num(value, 2) })}
-          />
-          <NumberInput
-            label="Most reminders per item"
-            description="After this many, we stop asking."
-            min={0}
-            max={10}
-            allowDecimal={false}
-            value={draft.maxReminders}
-            onChange={(value) => set({ maxReminders: num(value, 3) })}
-          />
-        </SimpleGrid>
+    <>
+      <SettingsSection
+        id="quiet-hours"
+        title="Quiet hours"
+        dirty={dirty}
+        saving={saving}
+        onSave={() => saveSection(draft, 'Quiet hours saved')}
+        onDiscard={reset}
+      >
         <div>
-          <Text size="sm" fw={500}>
-            Quiet hours
-          </Text>
-          <Text size="sm" c="dimmed" mb="xs">
-            Reminder emails are held back during these hours, in your organization’s time zone
-            {org.timeZone ? ` (${org.timeZone})` : ''}, and sent when they end. Hours are 0 to 23.
-            The window can cross midnight: 20 to 8 means 8 pm until 8 am. Use the same number for
-            both to turn quiet hours off.
-          </Text>
-          <Group gap="md" align="flex-end">
+          <p className="max-w-3xl text-sm text-fg-subtle">
+            We hold reminder and workflow emails during these hours and send them when quiet hours
+            end. Times use your workspace time zone{org.timeZone ? ` (${org.timeZone})` : ''}. Use
+            hours 0 to 23. For example, 20 to 8 means 8 pm to 8 am. Set both to the same hour to
+            turn quiet hours off.
+          </p>
+          <div className="mt-3 flex flex-wrap items-end gap-4">
             <NumberInput
+              inset
               label="Quiet from (hour)"
               min={0}
               max={23}
-              allowDecimal={false}
-              w={150}
+              step={1}
+              className="w-40"
               value={draft.quietHoursStart}
-              onChange={(value) => set({ quietHoursStart: num(value, 20) })}
+              onValueChange={(value) => set({ quietHoursStart: num(value, 20) })}
             />
             <NumberInput
+              inset
               label="Quiet until (hour)"
               min={0}
               max={23}
-              allowDecimal={false}
-              w={150}
+              step={1}
+              className="w-40"
               value={draft.quietHoursEnd}
-              onChange={(value) => set({ quietHoursEnd: num(value, 8) })}
+              onValueChange={(value) => set({ quietHoursEnd: num(value, 8) })}
             />
-            <Text size="sm" pb={8}>
+            <Badge
+              tone={draft.quietHoursStart === draft.quietHoursEnd ? 'gray' : 'blue'}
+              className="mb-4"
+            >
               {draft.quietHoursStart === draft.quietHoursEnd
                 ? 'No quiet hours'
                 : `Quiet ${hour(draft.quietHoursStart)} to ${hour(draft.quietHoursEnd)}`}
-            </Text>
-          </Group>
+            </Badge>
+          </div>
         </div>
-      </Stack>
+      </SettingsSection>
+    </>
+  );
+}
+
+const TIME_ZONES = Intl.supportedValuesOf('timeZone');
+
+/** General: the workspace, who can sign in, and the candidate portal address, on one page. */
+function GeneralSettings(props: SectionProps) {
+  return (
+    <>
+      <WorkspaceSection {...props} />
+      <SignInSection {...props} />
+      <CandidatePortalSection {...props} />
+    </>
+  );
+}
+
+function WorkspaceSection({ org, saveSection, saving }: SectionProps) {
+  const { draft, set, dirty, reset } = useDraft({
+    name: org.name,
+    timeZone: org.timeZone ?? '',
+  });
+  const noName = !draft.name.trim();
+  const zones =
+    draft.timeZone && !TIME_ZONES.includes(draft.timeZone)
+      ? [draft.timeZone, ...TIME_ZONES]
+      : TIME_ZONES;
+  return (
+    <SettingsSection
+      id="workspace"
+      title="Name and time zone"
+      dirty={dirty && !noName}
+      saving={saving}
+      onSave={() =>
+        saveSection(
+          { name: draft.name.trim(), timeZone: draft.timeZone || null },
+          'Workspace saved',
+        )
+      }
+      onDiscard={reset}
+    >
+      <div className="grid max-w-3xl gap-4 sm:grid-cols-2">
+        <Input
+          label="Workspace name"
+          description="Candidates see this in emails and on the candidate portal."
+          value={draft.name}
+          onChange={(event) => set({ name: event.currentTarget.value })}
+          error={noName ? 'Give the workspace a name.' : undefined}
+        />
+        <SearchSelect
+          label="Time zone"
+          description="Reminders and quiet hours use this time zone."
+          placeholder="Search time zones"
+          data={zones}
+          value={draft.timeZone || null}
+          onChange={(value) => set({ timeZone: value ?? '' })}
+        />
+      </div>
+      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+        <DescriptionList
+          items={[
+            {
+              label: 'Owner',
+              value: org.ownerName ? `${org.ownerName} (${org.ownerEmail})` : org.ownerEmail,
+            },
+          ]}
+        />
+        <TransferOwnership org={org} />
+      </div>
     </SettingsSection>
   );
 }
 
-function PortalAddressSection({ org, saveSection, saving }: SectionProps) {
-  const { draft, set, dirty } = useDraft({ publicUrl: org.publicUrl ?? '' });
+/** The owner hands the workspace to another active admin. Only the owner sees this. */
+function TransferOwnership({ org }: { org: Organization }) {
+  const me = useCurrentUser();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const admins = (useAdminUsers().data ?? []).filter(
+    (m) => m.role === 'Admin' && m.isActive && m.email !== org.ownerEmail,
+  );
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState<string | null>(null);
+  const transfer = useMutation({
+    mutationFn: () => api.post('/api/organization/transfer-ownership', { userId: to }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['organization'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setOpen(false);
+      toast.success('Ownership moved', 'You are still an admin.');
+      router.refresh();
+    },
+    onError: (e: Error) => toast.error('Ownership didn’t move', e.message),
+  });
+  if (me.email !== org.ownerEmail) return null;
+  return (
+    <>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Transfer ownership
+      </Button>
+      <Modal
+        opened={open}
+        onClose={() => setOpen(false)}
+        title="Transfer ownership"
+        description="The owner always stays an admin and can’t be removed. You stay an admin after this."
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button disabled={!to} loading={transfer.isPending} onClick={() => transfer.mutate()}>
+              Make them the owner
+            </Button>
+          </>
+        }
+      >
+        {admins.length === 0 ? (
+          <p className="text-base text-fg-muted">
+            There is no other active admin yet. Make someone an admin under Members first.
+          </p>
+        ) : (
+          <SearchSelect
+            label="New owner"
+            placeholder="Pick an admin"
+            data={admins.map((m) => ({ value: m.id, label: `${m.displayName} (${m.email})` }))}
+            value={to}
+            onChange={setTo}
+          />
+        )}
+      </Modal>
+    </>
+  );
+}
+
+function SignInSection({ org, saveSection, saving }: SectionProps) {
+  const { draft, set, dirty, reset } = useDraft({
+    allowedEmailDomains: org.allowedEmailDomains,
+  });
+  return (
+    <SettingsSection
+      id="sign-in"
+      title="Who can sign in"
+      description={
+        org.authMode === 'Oidc' ? undefined : (
+          <>
+            Sign-in methods and single sign-on are under{' '}
+            <Link href="/settings/sso" className="text-accent-foreground hover:underline">
+              Single sign-on
+            </Link>
+            .
+          </>
+        )
+      }
+      dirty={dirty}
+      saving={saving}
+      onSave={() => saveSection(draft, 'Sign-in settings saved')}
+      onDiscard={reset}
+    >
+      <TagsInput
+        className="max-w-3xl"
+        label="Company email domains"
+        description={
+          draft.allowedEmailDomains.length
+            ? 'Only email addresses at these domains can sign in. Someone at one of them who was not invited can ask for access.'
+            : 'Empty means anyone you invite can sign in, whatever their email address. Press Enter after each domain, for example acme.com.'
+        }
+        placeholder="acme.com"
+        value={draft.allowedEmailDomains}
+        onChange={(value) => set({ allowedEmailDomains: value })}
+      />
+    </SettingsSection>
+  );
+}
+
+function CandidatePortalSection({ org, saveSection, saving }: SectionProps) {
+  const { draft, set, dirty, reset } = useDraft({ publicUrl: org.publicUrl ?? '' });
   const url = draft.publicUrl.trim();
   const invalid = url.length > 0 && !/^https?:\/\/\S+$/.test(url);
   return (
     <SettingsSection
-      id="portal-address"
-      title="Candidate portal address"
+      id="candidate-portal"
+      title="Candidates"
       dirty={dirty && !invalid}
       saving={saving}
       onSave={() =>
         saveSection({ publicUrl: url }, url ? 'Portal address saved' : 'Portal address cleared')
       }
+      onDiscard={reset}
     >
-      <TextInput
-        label="Where this app is reachable"
-        description="For example https://ats.yourcompany.com. Without it, emails tell candidates to use the portal but can’t link to it."
-        placeholder="https://ats.yourcompany.com"
-        value={draft.publicUrl}
-        onChange={(event) => set({ publicUrl: event.currentTarget.value })}
-        error={invalid ? 'Use the full address, starting with https://.' : undefined}
-      />
+      <div className="flex max-w-3xl flex-col gap-5">
+        <Input
+          label="Web address of this app"
+          description="Emails to candidates link to their portal at this address. Without it, emails mention the portal but cannot link to it."
+          placeholder="https://ats.yourcompany.com"
+          value={draft.publicUrl}
+          onChange={(event) => set({ publicUrl: event.currentTarget.value })}
+          error={invalid ? 'Use the full address, starting with https://.' : undefined}
+        />
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+          <div className="min-w-0">
+            <p className="text-base font-medium text-fg">Candidate email</p>
+            <p className="mt-0.5 text-sm text-fg-subtle">
+              {org.emailReady
+                ? 'Candidates get their confirmations, interview invitations and updates.'
+                : 'Candidates get no emails until whoever runs MyThorneAI for you turns email on.'}
+            </p>
+          </div>
+          <Badge dot tone={org.emailReady ? 'green' : 'red'}>
+            {org.emailReady ? 'Ready' : 'Off'}
+          </Badge>
+        </div>
+      </div>
     </SettingsSection>
   );
 }
 
-function NotificationsSection({ org, saveSection, saving }: SectionProps) {
-  const { draft, set, dirty } = useDraft({
-    notificationWebhookUrl: org.notificationWebhookUrl ?? '',
-  });
-  const url = draft.notificationWebhookUrl.trim();
-  const invalid = url.length > 0 && !url.startsWith('https://');
-  const test = useMutation({
-    mutationFn: () => api.post('/api/admin/notifications/test'),
-    onSuccess: () =>
-      notifications.show({
-        color: 'teal',
-        message: 'Test queued. It should appear in the channel within a few seconds.',
-      }),
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
-  });
+/** Reminders and the Slack or Teams channel, on one page. */
+function AlertsSettings(props: SectionProps) {
   return (
-    <SettingsSection
-      id="notifications"
-      title="Team notifications"
-      dirty={dirty && !invalid}
-      saving={saving}
-      onSave={() =>
-        saveSection(
-          { notificationWebhookUrl: url },
-          url ? 'Team notifications saved' : 'Team notifications turned off',
-        )
-      }
-    >
-      <TextInput
-        label="Incoming webhook URL"
-        description="Create an incoming webhook in Slack or Teams and paste its https address here. Leave empty to turn this off."
-        placeholder="https://hooks.slack.com/services/…"
-        value={draft.notificationWebhookUrl}
-        onChange={(event) => set({ notificationWebhookUrl: event.currentTarget.value })}
-        error={invalid ? 'Use the https address Slack or Teams gave you.' : undefined}
-      />
-      <Text size="sm" c="dimmed" mt="sm">
-        Short one-line messages go to the channel when an approval is waiting, a candidate messages
-        you or withdraws, an interview needs attention, or an email to a candidate bounces. They
-        never include resumes or scorecard notes.
-      </Text>
-      <Button
-        variant="default"
-        size="xs"
-        mt="sm"
-        disabled={!org.notificationWebhookUrl || dirty}
-        loading={test.isPending}
-        onClick={() => test.mutate()}
-      >
-        Send a test message
-      </Button>
-      {!org.notificationWebhookUrl && (
-        <Text size="xs" c="dimmed" mt={4}>
-          Save an address first, then send a test.
-        </Text>
-      )}
-    </SettingsSection>
+    <>
+      <ReminderSettings />
+      <RemindersSection {...props} />
+      <TeamChannelSettings />
+    </>
   );
 }
 
@@ -400,68 +417,77 @@ function AiSection({ org, saveSection, saving }: SectionProps) {
     queryKey: ['ai-status'],
     queryFn: () => api.get<AiStatus>('/api/admin/ai/status'),
   });
-  const { draft, set, dirty } = useDraft({ aiEnabled: org.aiEnabled, aiModel: org.aiModel ?? '' });
+  const { draft, set, dirty, reset } = useDraft({
+    aiEnabled: org.aiEnabled,
+    aiModel: org.aiModel ?? '',
+  });
   const s = status.data;
   return (
-    <SettingsSection
-      id="ai"
-      title="AI assistance"
-      dirty={dirty}
-      saving={saving}
-      onSave={() => saveSection(draft, 'AI settings saved')}
-    >
-      <Stack gap="md">
-        <Switch
-          label="Turn on AI assistance"
-          description="When off, nothing is sent to the AI provider and AI features are hidden."
-          checked={draft.aiEnabled}
-          onChange={(event) => set({ aiEnabled: event.currentTarget.checked })}
-        />
-        <TextInput
-          label="Model"
-          description="Leave blank to use the server default."
-          placeholder={s?.model ?? 'Server default'}
-          value={draft.aiModel}
-          onChange={(event) => set({ aiModel: event.currentTarget.value })}
-        />
-        <Alert variant="light" color="gray" icon={<IconInfoCircle size={18} />}>
-          The AI API key lives in the server settings and is never shown or stored here.
-        </Alert>
-        {s && (
-          <Paper withBorder radius="md" p="md" aria-label="AI status">
-            <Group gap="sm" mb="xs">
-              <Badge color={s.configured && s.enabled ? 'teal' : 'gray'} variant="light">
-                {!s.configured ? 'No API key on the server' : s.enabled ? 'Working' : 'Turned off'}
-              </Badge>
-              <Text size="sm" c="dimmed">
-                Model {s.model} · embeddings {s.embeddingModel}
-              </Text>
-            </Group>
-            <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="md">
-              <Stat label="AI calls, 30 days" value={s.calls30Days} />
-              <Stat label="Failed" value={s.failed30Days} />
-              <Stat label="Tokens used" value={s.promptTokens30Days + s.completionTokens30Days} />
-              <Stat label="Resumes waiting" value={s.pendingResumes} />
-            </SimpleGrid>
-            <Anchor component={Link} href="/admin/ai" size="sm" mt="sm" display="inline-block">
-              See everything the AI was asked
-            </Anchor>
-          </Paper>
-        )}
-      </Stack>
-    </SettingsSection>
+    <>
+      <SettingsSection
+        id="ai"
+        title="AI assistance"
+        description="AI reads resumes, checks job fit, sums up interviews and drafts messages."
+        dirty={dirty}
+        saving={saving}
+        onSave={() => saveSection(draft, 'AI settings saved')}
+        onDiscard={reset}
+      >
+        <SwitchList>
+          <Switch
+            labelPosition="left"
+            label="Turn on AI assistance"
+            description="When this is off, we send nothing to the AI service and hide AI features."
+            checked={draft.aiEnabled}
+            onCheckedChange={(v) => set({ aiEnabled: v })}
+          />
+          <Input
+            inset
+            label="Model"
+            description="Leave this empty to use the model set on the server."
+            placeholder={s?.model ?? 'Server default'}
+            className="max-w-md"
+            value={draft.aiModel}
+            onChange={(event) => set({ aiModel: event.currentTarget.value })}
+          />
+          <Alert tone="neutral" icon={Info}>
+            The AI key is kept on the server. It is never shown or saved here.
+          </Alert>
+        </SwitchList>
+      </SettingsSection>
+      {s && (
+        <Card aria-label="AI status" className="p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge dot tone={s.configured && s.enabled ? 'green' : 'gray'}>
+              {!s.configured ? 'No AI key on the server' : s.enabled ? 'Working' : 'Turned off'}
+            </Badge>
+            <p className="text-sm text-fg-subtle">
+              Model {s.model} · Matching model {s.embeddingModel}
+            </p>
+            <span className="ml-auto">
+              <CardLink href="/settings/ai/activity">See everything the AI was asked</CardLink>
+            </span>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Stat label="AI requests, last 30 days" value={s.calls30Days} />
+            <Stat label="Failed" value={s.failed30Days} />
+            <Stat
+              label="Text processed (tokens)"
+              value={s.promptTokens30Days + s.completionTokens30Days}
+            />
+            <Stat label="Resumes waiting to be read" value={s.pendingResumes} />
+          </dl>
+        </Card>
+      )}
+    </>
   );
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div>
-      <Text size="xs" c="dimmed">
-        {label}
-      </Text>
-      <Text fw={650} fz="lg" className="tnum">
-        {number.format(value)}
-      </Text>
+      <dt className="text-xs text-fg-subtle">{label}</dt>
+      <dd className="mt-1 text-lg font-semibold text-fg tnum">{number.format(value)}</dd>
     </div>
   );
 }

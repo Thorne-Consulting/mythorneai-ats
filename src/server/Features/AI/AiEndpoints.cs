@@ -111,6 +111,9 @@ public static class AiEndpoints
                 .SingleOrDefaultAsync(x => x.Id == request.InterviewId, ct);
             if (interview?.Application?.Requisition is null || !CanManage(interview.Application.Requisition, principal))
                 return Results.NotFound();
+            // Blind review: someone who still owes a scorecard here does not get the panel's feedback this way either.
+            if ((await AtsEndpoints.BlindingInterviewsAsync(db, interview.ApplicationId, principal.Email(), ct)).Length > 0)
+                return Results.Conflict(new { message = "Submit your own scorecard first." });
             var notes = interview.MeetingNotes ?? "No meeting notes were provided.";
             var transcript = string.Join("\n", interview.Recordings.Where(x => !string.IsNullOrWhiteSpace(x.Transcript)).Select(x => x.Transcript));
             var scorecards = interview.Scorecards.Count == 0

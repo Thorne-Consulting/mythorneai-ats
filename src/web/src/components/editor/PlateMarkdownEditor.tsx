@@ -1,165 +1,148 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
-import type { Value } from 'platejs';
-import {
-  BlockquoteRules,
-  BoldRules,
-  HeadingRules,
-  ItalicRules,
-  UnderlineRules,
-} from '@platejs/basic-nodes';
-import {
-  BlockquotePlugin,
-  BoldPlugin,
-  H1Plugin,
-  H2Plugin,
-  H3Plugin,
-  ItalicPlugin,
-  UnderlinePlugin,
-} from '@platejs/basic-nodes/react';
-import { deserializeMd, MarkdownPlugin, serializeMd } from '@platejs/markdown';
-import {
-  TableCellHeaderPlugin,
-  TableCellPlugin,
-  TablePlugin,
-  TableRowPlugin,
-} from '@platejs/table/react';
-import remarkGfm from 'remark-gfm';
-import {
-  Plate,
-  PlateContent,
-  PlateElement,
-  usePlateEditor,
-  type PlateElementProps,
-} from 'platejs/react';
-import { ActionIcon, Group, Paper, Tooltip } from '@mantine/core';
-import {
-  IconBlockquote,
-  IconBold,
-  IconH1,
-  IconH2,
-  IconH3,
-  IconItalic,
-  IconUnderline,
-} from '@tabler/icons-react';
 
-const emptyValue = (): Value => [{ type: 'p', children: [{ text: '' }] }];
+import { serializeMd } from '@platejs/markdown';
+import { normalizeStaticValue, SingleLinePlugin, type Value } from 'platejs';
+import { Plate, usePlateEditor } from 'platejs/react';
 
-function Heading({ as, ...props }: PlateElementProps & { as: 'h1' | 'h2' | 'h3' }) {
-  return <PlateElement as={as} {...props} />;
-}
-
-function TableElement({ children, ...props }: PlateElementProps) {
-  return (
-    <PlateElement as="table" className="doc-table" {...props}>
-      <tbody>{children}</tbody>
-    </PlateElement>
-  );
-}
-
-const TableRow = (props: PlateElementProps) => <PlateElement as="tr" {...props} />;
-const TableCell = (props: PlateElementProps) => <PlateElement as="td" {...props} />;
-const TableHeaderCell = (props: PlateElementProps) => <PlateElement as="th" {...props} />;
-
-function Quote(props: PlateElementProps) {
-  return (
-    <PlateElement
-      as="blockquote"
-      style={{ borderLeft: '2px solid var(--mantine-color-indigo-5)', paddingLeft: 16, margin: 0 }}
-      {...props}
-    />
-  );
-}
+import {
+  type ChipSets,
+  ChipItemsContext,
+  chipKit,
+  EditorKit,
+  ImageKit,
+  initialValue,
+} from '@/components/plate/editor/plugins/editor-kit';
+import { TemplateKit } from '@/components/plate/editor/plugins/menu-kit';
+import { Editor, EditorContainer } from '@/components/plate/ui/editor';
+import {
+  BASIC_BLOCKS,
+  type EditorTemplate,
+  MenuItemsContext,
+} from '@/components/plate/ui/menu-node';
+import { cn } from '@/lib/cn';
+import { FormatButtons } from '@/components/plate/ui/format-buttons';
+import { Toolbar } from '@/components/plate/ui/toolbar';
+import { TooltipProvider } from '@/components/plate/ui/tooltip';
+import { lineToValue, valueToLine } from './single-line';
 
 /**
- * Markdown in, markdown out: a bordered field with a toolbar and markdown shortcuts as you type
- * ("# ", "> ", "**bold**"). Long documents use the Plate UI DocumentEditor instead.
+ * Markdown in, markdown out: a bordered field with a format bar, and the shared editor kit (lists,
+ * links, tables, emoji, Markdown shortcuts as you type). Long documents use `DocumentEditor`.
+ * `chips` turns on "@" for people and "{" for details such as First name. `templates` turns on "#"
+ * on an empty line to insert one (saved replies in the message composer). `header` renders inside
+ * the editor, so it can use `useEditorRef()` to insert text.
+ *
+ * `singleLine` makes a one-line field (an email subject): plain text with "{" detail chips, no
+ * format bar and no Markdown, so the value is the text as typed with `{{key}}` for each chip.
+ * `header` then sits at the right end of the field.
+ *
+ * Pictures are on (the Picture button, paste or drop; each needs a description before saving, see
+ * `imagesWithoutAlt`). Pass `images={false}` where a picture makes no sense, such as saved replies.
  */
 export function PlateMarkdownEditor({
   value,
   onChange,
   placeholder = 'Write here…',
   header,
+  chips,
+  templates,
+  editorClassName,
+  headings = true,
+  singleLine = false,
+  'aria-label': ariaLabel,
+  invalid = false,
+  images = true,
 }: {
   value: string;
   onChange: (markdown: string) => void;
   placeholder?: string;
   header?: ReactNode;
+  chips?: ChipSets;
+  templates?: EditorTemplate[];
+  /** Replaces the writing area's height and padding, for example a short composer. */
+  editorClassName?: string;
+  /** Off for short messages: the format bar drops headings and quotes. */
+  headings?: boolean;
+  /** One line of plain text with detail chips, for a subject. */
+  singleLine?: boolean;
+  'aria-label'?: string;
+  /** Shows the field in the error colour. */
+  invalid?: boolean;
+  /** Pictures in the text. Off for saved replies and other short messages. */
+  images?: boolean;
 }) {
   const editor = usePlateEditor({
-    plugins: [
-      BoldPlugin.configure({ inputRules: [BoldRules.markdown({ variant: '*' })] }),
-      ItalicPlugin.configure({ inputRules: [ItalicRules.markdown({ variant: '_' })] }),
-      UnderlinePlugin.configure({ inputRules: [UnderlineRules.markdown()] }),
-      H1Plugin.withComponent((props) => <Heading as="h1" {...props} />).configure({
-        inputRules: [HeadingRules.markdown()],
-      }),
-      H2Plugin.withComponent((props) => <Heading as="h2" {...props} />).configure({
-        inputRules: [HeadingRules.markdown()],
-      }),
-      H3Plugin.withComponent((props) => <Heading as="h3" {...props} />).configure({
-        inputRules: [HeadingRules.markdown()],
-      }),
-      BlockquotePlugin.withComponent(Quote).configure({
-        inputRules: [BlockquoteRules.markdown()],
-      }),
-      TablePlugin.withComponent(TableElement),
-      TableRowPlugin.withComponent(TableRow),
-      TableCellPlugin.withComponent(TableCell),
-      TableCellHeaderPlugin.withComponent(TableHeaderCell),
-      MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
-    ],
-    value: (instance) => (value.trim() ? deserializeMd(instance, value) : emptyValue()),
+    plugins: (singleLine
+      ? [SingleLinePlugin, ...chipKit(chips)]
+      : [
+          ...EditorKit,
+          ...(images ? ImageKit : []),
+          ...chipKit(chips),
+          ...(templates ? TemplateKit : []),
+        ]) as typeof EditorKit,
+    value: (instance) =>
+      singleLine
+        ? normalizeStaticValue(lineToValue(value) as Value)
+        : initialValue(instance, value),
   });
 
-  const toolbar = useMemo(
-    () =>
-      [
-        ['Bold', IconBold, () => editor.tf.bold.toggle()],
-        ['Italic', IconItalic, () => editor.tf.italic.toggle()],
-        ['Underline', IconUnderline, () => editor.tf.underline.toggle()],
-        ['Heading 1', IconH1, () => editor.tf.h1.toggle()],
-        ['Heading 2', IconH2, () => editor.tf.h2.toggle()],
-        ['Heading 3', IconH3, () => editor.tf.h3.toggle()],
-        ['Quote', IconBlockquote, () => editor.tf.blockquote.toggle()],
-      ] as const,
-    [editor],
-  );
-
-  const save = (nextValue: Value) => onChange(serializeMd(editor, { value: nextValue }));
+  if (singleLine)
+    return (
+      <ChipItemsContext.Provider value={chips ?? {}}>
+        <Plate editor={editor} onValueChange={({ value: next }) => onChange(valueToLine(next))}>
+          <div
+            className={cn(
+              'flex min-h-9 items-center gap-1 rounded-md border bg-card pr-1 transition-colors focus-within:border-primary',
+              invalid ? 'border-destructive' : 'border-input',
+            )}
+          >
+            <EditorContainer variant="default" className="min-w-0 flex-1 overflow-visible">
+              <Editor
+                variant="none"
+                placeholder={placeholder}
+                aria-label={ariaLabel}
+                aria-invalid={invalid || undefined}
+                aria-multiline={false}
+                className={cn('px-3 py-1.5 text-base text-fg', editorClassName)}
+              />
+            </EditorContainer>
+            {header}
+          </div>
+        </Plate>
+      </ChipItemsContext.Provider>
+    );
 
   return (
-    <Paper withBorder radius="md" style={{ overflow: 'hidden' }}>
-      <Group
-        justify="space-between"
-        gap="xs"
-        p="xs"
-        style={{ borderBottom: '1px solid var(--mantine-color-gray-3)' }}
-      >
-        <Group gap={4}>
-          {toolbar.map(([label, Icon, action]) => (
-            <Tooltip label={label} key={label}>
-              <ActionIcon
-                variant="subtle"
-                aria-label={label}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={action}
-              >
-                <Icon size={16} />
-              </ActionIcon>
-            </Tooltip>
-          ))}
-        </Group>
-        {header}
-      </Group>
-      <Plate editor={editor} onChange={({ value: nextValue }) => save(nextValue)}>
-        <PlateContent
-          placeholder={placeholder}
-          style={{ minHeight: 240, padding: '18px 20px', outline: 'none' }}
-        />
-      </Plate>
-    </Paper>
+    <TooltipProvider delayDuration={300}>
+      <MenuItemsContext.Provider value={{ blocks: BASIC_BLOCKS, templates: templates ?? [] }}>
+        <ChipItemsContext.Provider value={chips ?? {}}>
+          <Plate
+            editor={editor}
+            onValueChange={({ value: next }) => onChange(serializeMd(editor, { value: next }))}
+          >
+            <div className="rounded-md border border-input bg-card transition-colors focus-within:border-primary">
+              <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-t-md border-b border-border-subtle px-1.5 py-1">
+                <Toolbar aria-label="Formatting" className="flex-wrap gap-0.5">
+                  <FormatButtons headings={headings} />
+                </Toolbar>
+                {header}
+              </div>
+              <EditorContainer variant="default" className="overflow-visible">
+                <Editor
+                  variant="none"
+                  placeholder={placeholder}
+                  className={cn(
+                    'text-base text-fg',
+                    editorClassName ?? 'min-h-60 px-4 py-3 sm:px-5 sm:py-4',
+                  )}
+                />
+              </EditorContainer>
+            </div>
+          </Plate>
+        </ChipItemsContext.Provider>
+      </MenuItemsContext.Provider>
+    </TooltipProvider>
   );
 }

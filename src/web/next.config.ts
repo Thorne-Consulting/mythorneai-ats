@@ -4,6 +4,9 @@ const apiOrigin = process.env.API_ORIGIN ?? 'http://localhost:5080';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  async redirects() {
+    return [{ source: '/requisitions/:path*', destination: '/jobs/:path*', permanent: true }];
+  },
   async rewrites() {
     return [
       { source: '/api/:path*', destination: `${apiOrigin}/api/:path*` },

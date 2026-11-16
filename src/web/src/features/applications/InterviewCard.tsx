@@ -1,363 +1,120 @@
 'use client';
 
-import {
-  ActionIcon,
-  Anchor,
-  Badge,
-  Button,
-  Group,
-  Menu,
-  Paper,
-  Rating,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-  Title,
-} from '@mantine/core';
-import { useDisclosure } from '@mantine/hooks';
-import { IconCalendarEvent, IconDots, IconNotes, IconSparkles } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { notifications } from '@mantine/notifications';
-import { useMutation } from '@tanstack/react-query';
-import { api } from '@/api';
-import { RecommendationBadge, StatusBadge } from '@/components/ui/Badges';
-import { formatDateTime, humanize } from '@/lib/format';
-import type { InterviewKit } from '@/types';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Check } from 'lucide-react';
+import { Avatar, Badge, Button, RowActions, MenuItem, Tooltip } from '@/components/ui';
+import { interviewHref } from '@/features/interviews/interview-api';
+import { interviewState, rangeText, whenPhrase } from '@/features/interviews/interview-state';
 import type { Interview } from './application-types';
-import { InterviewModal } from './InterviewModal';
-import { InterviewRecorder } from './InterviewRecorder';
-import { AiSummary } from './AiSummary';
-import { InterviewQuestions } from './InterviewQuestions';
-import { MeetingNotesModal } from './MeetingNotesModal';
-import { RecordingTranscripts } from './RecordingTranscripts';
-import { ScorecardModal } from './ScorecardModal';
 
-function ScoreValue({ value, label }: { value: number; label: string }) {
-  return (
-    <Group gap={6} wrap="nowrap">
-      <Rating value={value} readOnly size="xs" aria-hidden />
-      <Text size="sm" fw={650} className="tnum" aria-label={`${label}: ${value} out of 5`}>
-        {value}/5
-      </Text>
-    </Group>
-  );
-}
+export type RoundAction = 'reschedule' | 'cancel' | 'Completed' | 'NoShow';
 
-export function InterviewCard({
+/**
+ * One round on the application's Interviews tab: name, when, the panel with scorecard ticks, a
+ * status that knows the time, and the way into the interview page.
+ */
+export function InterviewRound({
   interview,
-  applicationId,
-  candidateName,
-  currentEmail,
+  people,
   canManage,
-  interviewKits,
-  onUpdated,
+  onAction,
 }: {
   interview: Interview;
-  applicationId: string;
-  candidateName: string;
-  currentEmail: string;
+  people: Record<string, string>;
   canManage: boolean;
-  interviewKits: InterviewKit[];
-  onUpdated: () => void;
+  onAction: (action: RoundAction) => void;
 }) {
-  const [scoreOpened, scoreModal] = useDisclosure();
-  const [editOpened, editModal] = useDisclosure();
-  const [notesOpened, notesModal] = useDisclosure();
-  const [summary, setSummary] = useState<string | null>(null);
-  const mine = interview.scorecards.find(
-    (scorecard) => scorecard.interviewerEmail === currentEmail,
-  );
-  const isAssigned = interview.interviewerEmails.includes(currentEmail);
-  // "Write scorecard" on the home page lands here with the form already open.
-  const requestedScorecard = useSearchParams().get('scorecard') === interview.id;
-  useEffect(() => {
-    if (requestedScorecard && isAssigned && !mine) scoreModal.open();
-    // Only on arrival; closing the form must not reopen it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestedScorecard]);
-  const statusMutation = useMutation({
-    mutationFn: (status: string) =>
-      api.patch(`/api/interviews/${interview.id}`, interviewPayload(interview, status)),
-    onSuccess: () => {
-      onUpdated();
-      notifications.show({ color: 'teal', message: 'Interview updated' });
-    },
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
-  });
-  const summaryMutation = useMutation({
-    mutationFn: () =>
-      api.post<{ summary: string }>('/api/ai/summarize-interview', {
-        interviewId: interview.id,
-      }),
-    onSuccess: (result) => setSummary(result.summary),
-    onError: (error: Error) => notifications.show({ color: 'red', message: error.message }),
-  });
+  const router = useRouter();
+  const state = interviewState(interview.status, interview.startsAt, interview.endsAt);
+  const phrase = whenPhrase(state, interview.startsAt, interview.endsAt);
+  const submitted = new Set(interview.scorecards.map((card) => card.interviewerEmail));
+  const nameOf = (email: string) => people[email] ?? email.split('@')[0];
+  const started = !['upcoming', 'waiting', 'cancelled'].includes(state.key);
+  const href = interviewHref(interview.id);
   return (
-    <Paper withBorder radius="lg" p="lg">
-      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-        <Group align="flex-start" wrap="nowrap" style={{ flex: '1 1 320px', minWidth: 0 }}>
-          <ThemeIcon variant="light" color="violet" size={42}>
-            <IconCalendarEvent size={20} />
-          </ThemeIcon>
-          <div style={{ minWidth: 0 }}>
-            <Group gap="xs" wrap="wrap">
-              <Title order={4}>{interview.title}</Title>
-              <StatusBadge status={interview.status} />
-              {canManage && (
-                <Badge
-                  size="xs"
-                  variant="light"
-                  color={
-                    interview.calendarStatus === 'Created'
-                      ? 'teal'
-                      : interview.calendarStatus === 'Failed'
-                        ? 'red'
-                        : 'gray'
-                  }
+    // Fixed columns on wider screens so avatars, counts and buttons line up from row to row.
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 md:grid md:grid-cols-[minmax(0,1fr)_7.5rem_7rem_6.5rem]">
+      <div className="min-w-0 flex-[1_1_260px]">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={href}
+            className={
+              state.key === 'cancelled'
+                ? 'text-base font-semibold text-fg-muted line-through hover:underline'
+                : 'text-base font-semibold text-fg hover:underline'
+            }
+          >
+            {interview.title}
+          </Link>
+          <Badge tone={state.tone} dot size="sm">
+            {state.label}
+          </Badge>
+          {interview.calendarStatus === 'Failed' && canManage && state.key === 'upcoming' && (
+            <Badge tone="red" size="sm">
+              Invite failed
+            </Badge>
+          )}
+        </div>
+        <p className="mt-0.5 text-sm text-fg-muted">
+          {rangeText(interview.startsAt, interview.endsAt)}
+          {phrase && <span className="text-fg-subtle"> · {phrase}</span>}
+        </p>
+      </div>
+      <ul className="flex items-center -space-x-1.5" aria-label="Interviewers">
+        {interview.interviewerEmails.map((email) => {
+          const done = submitted.has(email);
+          return (
+            <li key={email} className="relative">
+              <Tooltip
+                label={`${nameOf(email)}${done ? ': scorecard in' : started ? ': scorecard due' : ''}`}
+              >
+                <span
+                  tabIndex={0}
+                  className="block rounded-full focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
-                  Calendar {humanize(interview.calendarStatus).toLowerCase()}
-                </Badge>
+                  <Avatar name={nameOf(email)} size="sm" className="ring-2 ring-card" />
+                </span>
+              </Tooltip>
+              {done && (
+                <span
+                  aria-hidden
+                  className="absolute -right-0.5 -bottom-0.5 flex size-3.5 items-center justify-center rounded-full bg-tone-green-dot text-white ring-2 ring-card"
+                >
+                  <Check className="size-2.5" strokeWidth={3} />
+                </span>
               )}
-            </Group>
-            <Text size="sm" c="dimmed" mt={4}>
-              {formatDateTime(interview.startsAt)}–
-              {new Date(interview.endsAt).toLocaleTimeString([], {
-                hour: 'numeric',
-                minute: '2-digit',
-              })}{' '}
-              · {interview.timeZone}
-            </Text>
-            <Text size="xs" c="dimmed" mt={4}>
-              {interview.interviewerEmails.join(', ')}
-            </Text>
-            {interview.meetingLink && (
-              <Anchor
-                size="sm"
-                href={interview.meetingLink}
-                target="_blank"
-                rel="noreferrer"
-                aria-label={`Join ${interview.title} (opens in a new tab)`}
-              >
-                Join meeting
-              </Anchor>
+            </li>
+          );
+        })}
+      </ul>
+      <span className="text-xs text-fg-subtle tnum">
+        {started && state.key !== 'noshow'
+          ? `${interview.submittedScorecards} of ${interview.interviewerEmails.length} scorecards`
+          : ''}
+      </span>
+      <div className="ml-auto flex items-center justify-end gap-1">
+        <Button asChild size="sm" variant="secondary">
+          <Link href={href}>Open</Link>
+        </Button>
+        {canManage && state.key !== 'cancelled' && (
+          <RowActions label={`More for ${interview.title}`}>
+            <MenuItem onSelect={() => router.push(href)}>Open interview</MenuItem>
+            <MenuItem onSelect={() => onAction('reschedule')}>
+              {state.key === 'upcoming' || state.key === 'waiting'
+                ? 'Reschedule or edit'
+                : 'Edit details'}
+            </MenuItem>
+            {started && <MenuItem onSelect={() => onAction('Completed')}>Mark completed</MenuItem>}
+            {started && <MenuItem onSelect={() => onAction('NoShow')}>Mark as no-show</MenuItem>}
+            {!started && (
+              <MenuItem danger onSelect={() => onAction('cancel')}>
+                Cancel interview
+              </MenuItem>
             )}
-          </div>
-        </Group>
-        <Group gap="sm">
-          {interview.status !== 'Cancelled' && (
-            <InterviewQuestions
-              applicationId={applicationId}
-              interviewKitId={interview.interviewKitId}
-              candidateName={candidateName}
-            />
-          )}
-          {isAssigned && !mine && interview.status !== 'Cancelled' && (
-            <Button size="sm" onClick={scoreModal.open}>
-              Submit scorecard
-            </Button>
-          )}
-          {canManage && (
-            <Menu>
-              <Menu.Target>
-                <ActionIcon variant="default" aria-label={`Options for ${interview.title}`}>
-                  <IconDots size={16} />
-                </ActionIcon>
-              </Menu.Target>
-              <Menu.Dropdown>
-                <Menu.Item onClick={editModal.open}>Reschedule or edit</Menu.Item>
-                <Menu.Item onClick={() => statusMutation.mutate('Completed')}>
-                  Mark completed
-                </Menu.Item>
-                <Menu.Item onClick={() => statusMutation.mutate('NoShow')}>Mark no-show</Menu.Item>
-                <Menu.Item color="red" onClick={() => statusMutation.mutate('Cancelled')}>
-                  Cancel interview
-                </Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
-          )}
-        </Group>
-      </Group>
-      {interview.interviewKitInstructions && (
-        <Paper radius="md" p="md" mt="lg" bg="var(--surface-sunken)">
-          <Text size="xs" fw={500} c="dimmed" mb={4}>
-            Interviewer instructions
-          </Text>
-          <Text size="sm">{interview.interviewKitInstructions}</Text>
-        </Paper>
-      )}
-      {interview.criteria.length > 0 && (
-        <Stack gap="xs" mt="lg">
-          {interview.criteria.map((criterion) => (
-            <Paper key={criterion.id} p="sm" radius="sm" bg="var(--surface-sunken)">
-              <Group justify="space-between">
-                <Text fw={650} size="sm">
-                  {criterion.name}
-                </Text>
-                <Text size="xs" c="dimmed">
-                  weight {criterion.weight}
-                </Text>
-              </Group>
-              <Text size="sm" mt={4}>
-                {criterion.question}
-              </Text>
-              {criterion.description && (
-                <Text size="xs" c="dimmed">
-                  What good looks like: {criterion.description}
-                </Text>
-              )}
-            </Paper>
-          ))}
-        </Stack>
-      )}
-      <Paper radius="md" p="md" mt="lg" bg="var(--surface-sunken)">
-        <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
-          <Group gap="sm" align="flex-start" wrap="nowrap">
-            <ThemeIcon variant="light" color="indigo" size={32}>
-              <IconNotes size={16} />
-            </ThemeIcon>
-            <div>
-              <Text fw={650} size="sm">
-                Meeting notes
-              </Text>
-              <Text size="xs" c="dimmed">
-                Notes from a meeting assistant, or your own. Summarize makes an AI draft for you to
-                check.
-              </Text>
-            </div>
-          </Group>
-          <Group gap="xs">
-            {canManage && (
-              <Button
-                size="xs"
-                variant="light"
-                leftSection={<IconSparkles size={14} />}
-                loading={summaryMutation.isPending}
-                onClick={() => summaryMutation.mutate()}
-              >
-                Summarize
-              </Button>
-            )}
-            {(isAssigned || canManage) && (
-              <Button size="xs" variant="light" onClick={notesModal.open}>
-                {interview.meetingNotes ? 'Edit notes' : 'Add notes'}
-              </Button>
-            )}
-          </Group>
-        </Group>
-        {interview.meetingNotes ? (
-          <>
-            <Text size="xs" c="dimmed" mt="md">
-              {interview.meetingNotesSource ?? 'Meeting assistant'}
-              {interview.meetingNotesUpdatedAt
-                ? ` · Updated ${formatDateTime(interview.meetingNotesUpdatedAt)}`
-                : ''}
-            </Text>
-            <Text size="sm" mt="xs" style={{ whiteSpace: 'pre-wrap' }}>
-              {interview.meetingNotes}
-            </Text>
-          </>
-        ) : (
-          <Text size="sm" c="dimmed" mt="md">
-            No meeting notes yet. Paste notes now, or let a meeting assistant add them later.
-          </Text>
+          </RowActions>
         )}
-        {summary && <AiSummary text={summary} />}
-      </Paper>
-      <InterviewRecorder
-        interview={interview}
-        canRecord={isAssigned || canManage}
-        canDelete={canManage}
-        onUpdated={onUpdated}
-      />
-      {canManage && <RecordingTranscripts interview={interview} onUpdated={onUpdated} />}
-      {isAssigned && !mine && interview.submittedScorecards > 0 && (
-        <Text size="xs" c="dimmed" mt="md">
-          Other feedback stays hidden until you submit yours.
-        </Text>
-      )}
-      {interview.scorecards.length > 0 && (
-        <Stack mt="lg">
-          {interview.scorecards.map((scorecard) => (
-            <Paper key={scorecard.id} withBorder radius="md" p="md">
-              <Group justify="space-between" wrap="wrap" gap="sm">
-                <Text fw={650} size="sm">
-                  {scorecard.interviewerEmail}
-                </Text>
-                <Group gap="sm">
-                  <ScoreValue value={scorecard.rating} label="Overall" />
-                  <RecommendationBadge recommendation={scorecard.recommendation} />
-                </Group>
-              </Group>
-              <Text size="sm" mt="sm">
-                {scorecard.evidence}
-              </Text>
-              <SimpleGrid cols={{ base: 1, sm: 2 }} mt="sm">
-                <Text size="sm">
-                  <b>Strengths:</b> {scorecard.strengths}
-                </Text>
-                <Text size="sm">
-                  <b>Concerns:</b> {scorecard.concerns}
-                </Text>
-              </SimpleGrid>
-              {scorecard.criteria.map((criterion) => (
-                <Group
-                  key={criterion.criterionId}
-                  justify="space-between"
-                  mt="sm"
-                  gap="md"
-                  wrap="nowrap"
-                >
-                  <div>
-                    <Text size="sm" fw={650}>
-                      {criterion.criterionName}
-                    </Text>
-                    <Text size="sm">{criterion.evidence}</Text>
-                  </div>
-                  <ScoreValue value={criterion.rating} label={criterion.criterionName} />
-                </Group>
-              ))}
-            </Paper>
-          ))}
-        </Stack>
-      )}
-      <ScorecardModal
-        interviewId={interview.id}
-        interviewTitle={interview.title}
-        candidateName={candidateName}
-        criteria={interview.criteria}
-        opened={scoreOpened}
-        onClose={scoreModal.close}
-        onSaved={onUpdated}
-      />
-      <InterviewModal
-        applicationId={applicationId}
-        interviewKits={interviewKits}
-        interview={interview}
-        opened={editOpened}
-        onClose={editModal.close}
-        onSaved={onUpdated}
-      />
-      <MeetingNotesModal
-        interview={interview}
-        opened={notesOpened}
-        onClose={notesModal.close}
-        onSaved={onUpdated}
-      />
-    </Paper>
+      </div>
+    </li>
   );
-}
-
-function interviewPayload(interview: Interview, status: string) {
-  return {
-    title: interview.title,
-    interviewKitId: interview.interviewKitId ?? null,
-    startsAt: interview.startsAt,
-    endsAt: interview.endsAt,
-    timeZone: interview.timeZone,
-    meetingLink: interview.meetingLink ?? null,
-    interviewerEmails: interview.interviewerEmails,
-    status,
-  };
 }

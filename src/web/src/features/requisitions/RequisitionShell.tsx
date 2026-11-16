@@ -1,27 +1,59 @@
 'use client';
 
-import { Select } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { usePathname } from 'next/navigation';
-import { IconBriefcase } from '@tabler/icons-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
+import { useMutation } from '@tanstack/react-query';
+import {
+  CircleCheck,
+  Copy,
+  CopyPlus,
+  ExternalLink,
+  MoreHorizontal,
+  RotateCcw,
+  Send,
+  UserPlus,
+} from 'lucide-react';
 import { api } from '@/api';
-import { StatusBadge } from '@/components/ui/Badges';
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
-import { type Crumb, DetailHeader } from '@/components/ui/PageHeaders';
-import { PageTabs } from '@/components/ui/PageTabs';
-import { humanize } from '@/lib/format';
+import { asJob, useAbility } from '@/lib/ability';
+import {
+  Badge,
+  Button,
+  Card,
+  IconButton,
+  LinkTabs,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
+  MenuTrigger,
+  PageHeader,
+  SkeletonRows,
+  toast,
+  type Crumb,
+  type LinkTab,
+} from '@/components/ui';
+import { StatusBadge, statusLabel } from '@/components/status';
 import type { RequisitionDetail } from '@/types';
-import { useCanManage, useRequisition } from './requisition-data';
-import { RequisitionApproval } from './RequisitionApproval';
+import { daysOpen, primaryAction } from './job-status';
+import { useJobStatusChange } from './JobStatusChange';
+import { JobSwitcher } from './JobSwitcher';
+import { statusOptions, useRequisition } from './requisition-data';
+import type { RequisitionWithSettings } from './requirements-types';
+import { RequisitionApproval, SubmitForApprovalModal, useJobApproval } from './RequisitionApproval';
 
-// Opening goes through approval when the organization asks for it, so Open is not offered then.
-function statusOptions(current: string, approvalRequired?: boolean) {
-  if (current === 'PendingApproval') return ['PendingApproval', 'Draft', 'Cancelled'];
-  const all = ['Draft', 'Open', 'OnHold', 'Filled', 'Closed', 'Cancelled'];
-  return current === 'Draft' && approvalRequired ? all.filter((item) => item !== 'Open') : all;
-}
+/** The /pipeline shortcut opens the last job you looked at; this cookie remembers it. */
+const LAST_JOB_COOKIE = 'ats-last-job';
 
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
+
+/**
+ * A job record: compact header (title, status, the one next action, ••• menu), then underline
+ * tabs. Every tab under /jobs/[id] renders inside it.
+ */
 export function RequisitionShell({
   id,
   initialData,
@@ -31,89 +63,192 @@ export function RequisitionShell({
   initialData: RequisitionDetail;
   children: React.ReactNode;
 }) {
-  const queryClient = useQueryClient();
-  const pathname = usePathname();
+  const router = useRouter();
+  const pathname = usePathname() ?? '';
   const details = useRequisition(id, initialData);
-  const canManage = useCanManage(details.data);
-  const statusMutation = useMutation({
-    mutationFn: (status: string) =>
-      api.patch<void>(`/api/requisitions/${id}/status`, { status, reason: null }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['requisition', id] });
-      queryClient.invalidateQueries({ queryKey: ['requisitions'] });
-      notifications.show({ color: 'teal', message: 'Job status updated' });
+  const ability = useAbility();
+  const canManage = ability.can('update', asJob(details.data ?? {}));
+  // Finding people on file (ranking everyone) is for whoever keeps the candidate records.
+  const canFind = ability.can('update', 'Candidate');
+  const approvalRequired = useJobApproval(id, canManage).data?.required;
+  const status = useJobStatusChange();
+  const [submitting, setSubmitting] = useState(false);
+  const duplicate = useMutation({
+    mutationFn: () => api.post<{ id: string }>(`/api/requisitions/${id}/duplicate`),
+    onSuccess: ({ id: copyId }) => {
+      toast.success('Job duplicated', 'The copy is a draft. Change what you need, then open it.');
+      router.push(`/jobs/${copyId}/settings`);
     },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not change the job status',
-        message: error.message,
-      }),
+    onError: (error: Error) => toast.error('Could not duplicate the job', error.message),
   });
 
-  const approvalRequired = useQuery({
-    queryKey: ['requisition-approval', id],
-    queryFn: () => api.get<{ required: boolean }>(`/api/requisitions/${id}/approval`),
-    enabled: canManage,
-    retry: false,
-  }).data?.required;
+  useEffect(() => {
+    document.cookie = `${LAST_JOB_COOKIE}=${id}; path=/; max-age=${60 * 60 * 24 * 180}; samesite=lax`;
+  }, [id]);
 
-  if (!details.data) return <LoadingBlock rows={5} />;
-  const requisition = details.data;
-  const base = `/requisitions/${id}`;
-  const tabs = [
-    { label: 'Pipeline', href: base },
-    { label: 'Role', href: `${base}/details` },
-    { label: 'Interview kits', href: `${base}/kits`, count: requisition.interviewKits.length },
+  if (!details.data)
+    return (
+      <Card>
+        <SkeletonRows rows={5} />
+      </Card>
+    );
+  const job = details.data as RequisitionWithSettings;
+  const base = `/jobs/${id}`;
+  // From the job payload, so the server and the browser render the same number.
+  const candidates = job.stages.reduce((sum, stage) => sum + (stage.count ?? 0), 0);
+  const tabs: LinkTab[] = [
+    { label: 'Overview', href: base, exact: true },
+    { label: 'Pipeline', href: `${base}/pipeline`, count: candidates },
+    { label: 'Posting', href: `${base}/posting` },
+    { label: 'Requirements', href: `${base}/requirements` },
+    { label: 'Interview kits', href: `${base}/kits`, count: job.interviewKits.length },
+    { label: 'Team', href: `${base}/team` },
     ...(canManage ? [{ label: 'Settings', href: `${base}/settings` }] : []),
   ];
 
-  // The trail follows the URL: Jobs / this job / the tab / a kit / Edit.
+  // Jobs / this job (a switcher that keeps the tab) / and, inside a kit, the kit trail.
+  const [tab = '', kitId, action] = pathname.slice(base.length + 1).split('/');
   const crumbs: Crumb[] = [
-    { label: 'Jobs', href: '/requisitions', icon: <IconBriefcase size={14} aria-hidden /> },
-    { label: requisition.title, href: base },
+    { label: 'Jobs', href: '/jobs' },
+    { label: <JobSwitcher current={job} tab={tab} /> },
   ];
-  const [tab, kitId, action] = pathname.slice(base.length + 1).split('/');
-  const tabCrumb = tabs.find((item) => item.href === `${base}/${tab}`);
-  if (tabCrumb) crumbs.push({ label: tabCrumb.label, href: tabCrumb.href });
-  if (tab === 'kits' && kitId === 'new') {
-    crumbs.push({ label: 'New kit', href: `${base}/kits/new` });
-  } else if (tab === 'kits' && kitId) {
-    const kit = requisition.interviewKits.find((item) => item.id === kitId);
-    crumbs.push({ label: kit?.name ?? 'Kit', href: `${base}/kits/${kitId}` });
-    if (action === 'edit') crumbs.push({ label: 'Edit', href: `${base}/kits/${kitId}/edit` });
+  if (tab === 'kits' && kitId) {
+    crumbs.push({ label: 'Interview kits', href: `${base}/kits` });
+    if (kitId === 'new') crumbs.push({ label: 'New kit' });
+    else {
+      const kit = job.interviewKits.find((item) => item.id === kitId);
+      crumbs.push({ label: kit?.name ?? 'Kit', href: `${base}/kits/${kitId}` });
+      if (action === 'edit') crumbs.push({ label: 'Edit' });
+    }
   }
-  crumbs[crumbs.length - 1].current = true;
+
+  const open = daysOpen(job);
+  const meta = [
+    job.department,
+    job.location,
+    job.workMode,
+    job.status === 'Open' && open !== null ? `Open ${plural(open, 'day')}` : null,
+    job.statusReason,
+  ].filter(Boolean);
+  const statusJob = { id, title: job.title, activeApplications: candidates };
+  // While we don't know if opening needs approval, a draft shows no button rather than the wrong one.
+  const next =
+    canManage && (approvalRequired !== undefined || job.status === 'Open')
+      ? primaryAction(job, approvalRequired)
+      : null;
+  const careersPath = `/careers/${id}`;
 
   return (
     <>
-      <DetailHeader
-        crumbs={crumbs}
-        title={requisition.title}
-        // Managers change the status in the control on the right, so the badge would repeat it.
-        badges={canManage ? undefined : <StatusBadge status={requisition.status} />}
-        subtitle={`${requisition.code} · ${requisition.department} · ${requisition.location} (${requisition.workMode})`}
-        actions={
-          canManage && (
-            <Select
-              aria-label="Job status"
-              value={requisition.status}
-              onChange={(value) => value && statusMutation.mutate(value)}
-              data={statusOptions(requisition.status, approvalRequired).map((value) => ({
-                value,
-                label: humanize(value),
-              }))}
-              w={160}
-              allowDeselect={false}
-            />
-          )
+      <PageHeader
+        className="mb-4"
+        breadcrumbs={crumbs}
+        title={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {job.title}
+            <StatusBadge status={job.status} />
+          </span>
         }
-      />
+        description={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            <Badge variant="outline" size="sm">
+              {job.code}
+            </Badge>
+            {/* "Open N days" is counted on the server and again in the browser. */}
+            <span suppressHydrationWarning>{meta.join(' · ')}</span>
+          </span>
+        }
+        actions={
+          <>
+            {next === 'find' && canFind && (
+              <Button asChild>
+                <Link href={`/candidates?find=${id}`}>
+                  <UserPlus />
+                  Find candidates
+                </Link>
+              </Button>
+            )}
+            {next === 'open' && (
+              <Button
+                leftIcon={<CircleCheck />}
+                loading={status.isPending}
+                onClick={() => status.request([statusJob], 'Open')}
+              >
+                Open job
+              </Button>
+            )}
+            {next === 'submit' && (
+              <Button leftIcon={<Send />} onClick={() => setSubmitting(true)}>
+                Submit for approval
+              </Button>
+            )}
+            {next === 'reopen' && (
+              <Button
+                variant="secondary"
+                leftIcon={<RotateCcw />}
+                loading={status.isPending}
+                onClick={() => status.request([statusJob], 'Open')}
+              >
+                Reopen job
+              </Button>
+            )}
+            <Menu>
+              <MenuTrigger asChild>
+                <IconButton label="More job actions" variant="secondary">
+                  <MoreHorizontal />
+                </IconButton>
+              </MenuTrigger>
+              <MenuContent>
+                {canManage && (
+                  <>
+                    <MenuSub>
+                      <MenuSubTrigger icon={<CircleCheck />}>Change status</MenuSubTrigger>
+                      <MenuSubContent>
+                        {statusOptions(job, approvalRequired).map((value) => (
+                          <MenuItem key={value} onSelect={() => status.request([statusJob], value)}>
+                            {statusLabel(value)}
+                          </MenuItem>
+                        ))}
+                      </MenuSubContent>
+                    </MenuSub>
+                    <MenuItem icon={<CopyPlus />} onSelect={() => duplicate.mutate()}>
+                      Duplicate job
+                    </MenuItem>
+                    <MenuSeparator />
+                  </>
+                )}
+                {job.status === 'Open' && (
+                  <MenuItem
+                    icon={<ExternalLink />}
+                    onSelect={() => window.open(careersPath, '_blank', 'noopener')}
+                  >
+                    View on careers site
+                  </MenuItem>
+                )}
+                <MenuItem
+                  icon={<Copy />}
+                  onSelect={() =>
+                    navigator.clipboard
+                      .writeText(window.location.origin + careersPath)
+                      .then(() => toast.success('Link copied'))
+                      .catch(() => toast.error('Could not copy the link'))
+                  }
+                >
+                  Copy link to posting
+                </MenuItem>
+              </MenuContent>
+            </Menu>
+          </>
+        }
+      >
+        <LinkTabs items={tabs} aria-label="Job sections" />
+      </PageHeader>
 
-      <RequisitionApproval id={id} status={requisition.status} canManage={canManage} />
-
-      <PageTabs items={tabs} />
+      <RequisitionApproval id={id} status={job.status} canManage={canManage} />
       {children}
+
+      {status.dialog}
+      <SubmitForApprovalModal id={id} opened={submitting} onClose={() => setSubmitting(false)} />
     </>
   );
 }

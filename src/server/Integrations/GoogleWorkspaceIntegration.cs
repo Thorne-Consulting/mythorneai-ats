@@ -40,14 +40,13 @@ public sealed class GoogleWorkspaceIntegration : IWorkplaceIntegration
     {
         var eventId = $"ats{calendarEvent.InterviewId:N}";
         var createMeeting =
-            _options.CreateOnlineMeetings
-            && string.IsNullOrWhiteSpace(calendarEvent.ExistingMeetingLink);
+            _options.CreateOnlineMeetings && calendarEvent.CreatesMeetingOn("Google");
         var calendarItem = new Event
         {
             Id = eventId,
             Summary = calendarEvent.Title,
             Description = calendarEvent.Description,
-            Location = calendarEvent.ExistingMeetingLink,
+            Location = calendarEvent.Place,
             Start = new EventDateTime
             {
                 DateTimeDateTimeOffset = calendarEvent.StartsAt,

@@ -1,11 +1,23 @@
 'use client';
 
 import { useEffect } from 'react';
-import { Alert, Badge, Button, Drawer, Group, Stack, Table, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
-import { IconRefresh } from '@tabler/icons-react';
+import { RefreshCw } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '@/api';
+import {
+  Alert,
+  Badge,
+  Button,
+  Drawer,
+  Table,
+  TBody,
+  TD,
+  TH,
+  THead,
+  toast,
+  TR,
+  type Tone,
+} from '@/components/ui';
 import { formatDateTime } from '@/lib/format';
 
 type Fit = {
@@ -24,12 +36,12 @@ type Fit = {
   };
 };
 
-const STATUS = {
-  met: { label: 'Met', color: 'teal' },
-  partial: { label: 'Partly', color: 'yellow' },
-  missing: { label: 'Not found', color: 'red' },
-  unknown: { label: "Can't tell", color: 'gray' },
-} as const;
+const STATUS: Record<string, { label: string; tone: Tone }> = {
+  met: { label: 'Met', tone: 'green' },
+  partial: { label: 'Partly met', tone: 'amber' },
+  missing: { label: 'Not found', tone: 'red' },
+  unknown: { label: "Can't tell", tone: 'gray' },
+};
 
 export function FitDrawer({
   requisitionId,
@@ -46,10 +58,10 @@ export function FitDrawer({
         `/api/requisitions/${requisitionId}/fit/${candidate?.id}${refresh ? '?refresh=true' : ''}`,
       ),
     onError: (error: Error, refresh) => {
-      if (refresh) notifications.show({ color: 'red', message: error.message });
+      if (refresh) toast.error('Could not check again', error.message);
     },
     onSuccess: (_result, refresh) => {
-      if (refresh) notifications.show({ color: 'teal', message: 'Assessment re-run' });
+      if (refresh) toast.success('Checked again');
     },
   });
   const { mutate, reset } = run;
@@ -63,103 +75,89 @@ export function FitDrawer({
     <Drawer
       opened={!!candidate}
       onClose={onClose}
-      position="right"
       size="xl"
-      title={candidate ? `Assess fit: ${candidate.name}` : ''}
+      title={candidate ? `How ${candidate.name} fits this job` : 'Job fit'}
+      description="Written by AI. Use it as a starting point. You make the decision."
     >
-      <Stack gap="md">
-        <Text size="sm" c="dimmed">
-          AI-generated assessment. It&apos;s a starting point; you decide.
-        </Text>
-        {run.isPending && <Text size="sm">Reading the resume against the requirements…</Text>}
+      <div className="flex flex-col gap-5">
+        {run.isPending && (
+          <p className="text-sm text-fg-muted" aria-live="polite">
+            Reading the resume against the requirements…
+          </p>
+        )}
         {run.isError && !fit && (
-          <Alert color="gray" variant="light" title="No assessment yet">
+          <Alert tone="neutral" title="No assessment yet">
             {run.error.message}
           </Alert>
         )}
         {fit && (
           <>
-            <Group justify="space-between" align="flex-start" wrap="wrap" gap="sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <Text size="xs" c="dimmed">
-                  Requirements met (draft)
-                </Text>
-                <Text fz={28} fw={650} lh={1.1} className="tnum">
+                <p className="text-xs text-fg-subtle">AI match</p>
+                <p className="text-3xl leading-tight font-bold text-fg tnum">
                   {fit.score}
-                  <Text span size="sm" c="dimmed">
-                    {' '}
-                    / 100
-                  </Text>
-                </Text>
-                <Text size="xs" c="dimmed">
-                  {fit.cached ? 'Saved result from ' : 'Just run, '}
+                  <span className="text-sm font-normal text-fg-subtle"> / 100</span>
+                </p>
+                <p className="text-xs text-fg-subtle">
+                  {fit.cached ? 'Last checked ' : 'Checked just now, '}
                   {formatDateTime(fit.createdAt)}
-                </Text>
+                </p>
               </div>
               <Button
-                size="xs"
-                variant="default"
-                leftSection={<IconRefresh size={14} />}
+                size="sm"
+                variant="secondary"
+                leftIcon={<RefreshCw />}
                 loading={run.isPending}
                 onClick={() => run.mutate(true)}
               >
-                Re-run
+                Check again
               </Button>
-            </Group>
-            {fit.result.summary && <Text size="sm">{fit.result.summary}</Text>}
-            <Table.ScrollContainer minWidth={420}>
-              <Table verticalSpacing="xs">
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Requirement</Table.Th>
-                    <Table.Th>Status</Table.Th>
-                    <Table.Th>Evidence from the resume</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {fit.result.requirements.map((row) => {
-                    const status = STATUS[row.status] ?? STATUS.unknown;
-                    return (
-                      <Table.Tr key={`${row.kind}-${row.requirement}`}>
-                        <Table.Td>
-                          <Text size="sm">{row.requirement}</Text>
-                          <Text size="xs" c="dimmed">
-                            {row.kind === 'required' ? 'Required' : 'Preferred'}
-                          </Text>
-                        </Table.Td>
-                        <Table.Td>
-                          <Badge variant="light" color={status.color} tt="none">
-                            {status.label}
-                          </Badge>
-                        </Table.Td>
-                        <Table.Td>
-                          <Text size="sm" c={row.evidence ? undefined : 'dimmed'}>
-                            {row.evidence || 'Nothing quoted'}
-                          </Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    );
-                  })}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
+            </div>
+            {fit.result.summary && <p className="text-base text-fg">{fit.result.summary}</p>}
+            <Table className="min-w-[420px]">
+              <THead>
+                <TR>
+                  <TH>Requirement</TH>
+                  <TH>Status</TH>
+                  <TH>Evidence from the resume</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {fit.result.requirements.map((row) => {
+                  const status = STATUS[row.status] ?? STATUS.unknown;
+                  return (
+                    <TR key={`${row.kind}-${row.requirement}`}>
+                      <TD className="align-top">
+                        <p>{row.requirement}</p>
+                        <p className="text-xs text-fg-subtle">
+                          {row.kind === 'required' ? 'Required' : 'Preferred'}
+                        </p>
+                      </TD>
+                      <TD className="align-top">
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      </TD>
+                      <TD className={row.evidence ? 'align-top' : 'align-top text-fg-subtle'}>
+                        {row.evidence || 'No evidence found'}
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
             {fit.result.concerns.length > 0 && (
               <div>
-                <Text size="sm" fw={650} mb={4}>
-                  Things to check
-                </Text>
-                <Stack gap={4}>
+                <h3 className="mb-1.5 text-base font-semibold text-fg">Things to check</h3>
+                <ul className="list-disc space-y-1 pl-5 text-base text-fg">
                   {fit.result.concerns.map((concern) => (
-                    <Text key={concern} size="sm">
-                      {concern}
-                    </Text>
+                    <li key={concern}>{concern}</li>
                   ))}
-                </Stack>
+                </ul>
               </div>
             )}
           </>
         )}
-      </Stack>
+      </div>
     </Drawer>
   );
 }

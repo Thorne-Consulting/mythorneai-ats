@@ -82,21 +82,12 @@ public static partial class AtsEndpoints
                         .SingleOrDefaultAsync(x => x.Id == id, ct);
                     if (recording?.Interview?.Application?.Requisition is null || !CanManage(recording.Interview.Application.Requisition, principal))
                         return Results.NotFound();
-                    if (recording.Length > 25 * 1024 * 1024)
-                        return Results.Conflict(new { message = "This recording is over 25 MB, which is the most the transcription service accepts." });
-                    return await AiCallAsync(async () =>
-                    {
-                        await using var stream = files.OpenRead(recording.StoredFileName);
-                        recording.Transcript = await ai.TranscribeAsync(
-                            stream,
-                            recording.OriginalFileName,
-                            ct,
-                            new AiContext("transcribe-recording", principal.Email(), "InterviewRecording", id.ToString())
-                        );
-                        Audit.Add(db, principal, "Application", recording.Interview.ApplicationId, "RecordingTranscribed", new { recording.Id });
-                        await db.SaveChangesAsync(ct);
-                        return Results.Ok(new { recording.Transcript });
-                    });
+                    // Transcription runs in RecordingWorker, never inside the request.
+                    recording.TranscriptStatus = RecordingStatus.TranscriptQueued;
+                    recording.TranscriptError = null;
+                    Audit.Add(db, principal, "Application", recording.Interview.ApplicationId, "RecordingTranscriptionQueued", new { recording.Id });
+                    await db.SaveChangesAsync(ct);
+                    return Results.Accepted($"/api/interview-recordings/{id}/transcript", new { recording.TranscriptStatus });
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);

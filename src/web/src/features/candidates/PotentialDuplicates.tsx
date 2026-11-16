@@ -1,9 +1,9 @@
 'use client';
 
-import { Anchor, Badge, Group, Paper, Stack, Text } from '@mantine/core';
-import { IconCopy } from '@tabler/icons-react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
+import { RailGroup } from './Rail';
 
 type Duplicate = {
   id: string;
@@ -21,34 +21,25 @@ export function PotentialDuplicates({ candidateId }: { candidateId: string }) {
   if (duplicates.isLoading || duplicates.isError || !duplicates.data?.length) return null;
 
   return (
-    <Paper withBorder radius="lg" p="lg">
-      <Group gap="sm" mb="xs">
-        <IconCopy size={17} />
-        <Text fw={700}>Possible duplicates</Text>
-      </Group>
-      <Text size="sm" c="dimmed" mb="md">
-        Review these records before creating another candidate. Records are never merged
-        automatically.
-      </Text>
-      <Stack gap="sm">
+    <RailGroup title="Possible duplicates">
+      <p className="mb-3 text-sm text-fg-subtle">
+        These may be the same person. We never merge records for you.
+      </p>
+      <ul className="space-y-2.5">
         {duplicates.data.map((duplicate) => (
-          <div key={duplicate.id}>
-            <Anchor href={`/candidates/${duplicate.id}`} fw={600} size="sm">
+          <li key={duplicate.id} className="min-w-0">
+            <Link
+              href={`/candidates/${duplicate.id}`}
+              className="text-base font-medium text-accent-foreground hover:underline"
+            >
               {duplicate.name}
-            </Anchor>
-            <Text size="xs" c="dimmed">
-              {duplicate.currentTitle ?? duplicate.email}
-            </Text>
-            <Group gap={5} mt={5}>
-              {duplicate.reasons.map((reason) => (
-                <Badge key={reason} size="xs" variant="outline" color="gray">
-                  {reason}
-                </Badge>
-              ))}
-            </Group>
-          </div>
+            </Link>
+            <p className="truncate text-xs text-fg-subtle">
+              {[duplicate.currentTitle ?? duplicate.email, ...duplicate.reasons].join(' · ')}
+            </p>
+          </li>
         ))}
-      </Stack>
-    </Paper>
+      </ul>
+    </RailGroup>
   );
 }

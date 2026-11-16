@@ -45,8 +45,13 @@ public static partial class SeedData
                 LastActivityAt = now.AddDays(-activityDaysAgo),
             };
             applications.Add(application);
+            if (candidate.CreatedAt > application.AppliedAt)
+                candidate.CreatedAt = application.AppliedAt;
             return application;
         }
+
+        Candidate Named(string first, string last) =>
+            people.Single(person => person.FirstName == first && person.LastName == last);
 
         // Senior product engineer — the busiest pipeline.
         var jordanApp = Apply(people[0], engineering, 2, 9, 1, 4);
@@ -101,6 +106,82 @@ public static partial class SeedData
 
         // Engineering manager — filled.
         Apply(people[20], engManager, 4, 60, 16, 5, ApplicationStatus.Hired);
+
+        // Early-career jobs, filled by the career-center sample resumes.
+        var nurseApp = Apply(Named("Jordan", "Jones"), jobs.Nurse, 2, 12, 2, 4);
+
+        var jalilaApp = Apply(Named("Jalila", "Asha"), jobs.Marketing, 2, 15, 3, 4);
+        Apply(Named("Mary Jane", "Washington"), jobs.Marketing, 1, 8, 4, 3);
+        Apply(Named("Casey", "Carter"), jobs.Marketing, 0, 3, 3);
+
+        Apply(Named("Miranda", "Hudson"), jobs.Mechanical, 3, 24, 2, 4);
+        Apply(Named("Morgan", "Martinez"), jobs.Mechanical, 1, 9, 5);
+        Apply(Named("Claudio", "di Leo"), jobs.Mechanical, 1, 14, 10, 3, ApplicationStatus.Rejected, "Experience mismatch");
+
+        var andrewApp = Apply(Named("Andrew", "Peters"), jobs.Research, 2, 18, 1, 5);
+        Apply(Named("Eniola", "Viglionese"), jobs.Research, 1, 7, 2, 4);
+        Apply(Named("Stephen", "Artur"), jobs.Research, 0, 2, 2);
+        Apply(Named("Jean", "Upeg"), jobs.Research, 1, 11, 6, 3, ApplicationStatus.Rejected, "Experience mismatch");
+        Apply(Named("Morgan", "Lander"), jobs.Research, 0, 13, 9, null, ApplicationStatus.Withdrawn, "Withdrew");
+
+        var shirleyApp = Apply(Named("Shirley", "Gallo"), jobs.Programs, 2, 16, 2, 4);
+        Apply(Named("Yasmine", "Hejazi"), jobs.Programs, 1, 10, 3, 4);
+        Apply(Named("Kendall", "King"), jobs.Programs, 1, 8, 4, 3);
+        Apply(Named("Peyton", "Parker"), jobs.Programs, 0, 4, 4);
+        Apply(Named("Taylor", "Thompson"), jobs.Programs, 0, 2, 2);
+        Apply(Named("Marina", "Johnson"), jobs.Programs, 0, 1, 1);
+        Apply(Named("Ally", "Bama"), jobs.Programs, 0, 12, 9, null, ApplicationStatus.Rejected, "Skills mismatch");
+
+        Apply(Named("Daniel", "Garcia"), analyst, 1, 6, 3, 3);
+        Apply(Named("Huy", "Nguyen"), analyst, 0, 2, 2);
+        Apply(Named("Charles", "Meng"), platform, 1, 5, 2, 3);
+
+        nurseApp.Interviews.Add(
+            new Interview
+            {
+                Title = "Nurse manager interview",
+                StartsAt = now.AddDays(2).AddHours(4),
+                EndsAt = now.AddDays(2).AddHours(5),
+                TimeZone = "America/Chicago",
+                InterviewerEmails = ["priya.manager@example.test"],
+            }
+        );
+        andrewApp.Interviews.Add(
+            new Interview
+            {
+                Title = "Lab skills interview",
+                StartsAt = now.AddDays(3).AddHours(5),
+                EndsAt = now.AddDays(3).AddHours(6),
+                TimeZone = "America/Los_Angeles",
+                InterviewerEmails = ["manager@example.test", "asha.interviewer@example.test"],
+            }
+        );
+        shirleyApp.Interviews.Add(
+            new Interview
+            {
+                Title = "Program coordinator interview",
+                StartsAt = now.AddDays(1).AddHours(6),
+                EndsAt = now.AddDays(1).AddHours(7),
+                TimeZone = "America/Chicago",
+                InterviewerEmails = ["priya.manager@example.test", "tomas.interviewer@example.test"],
+            }
+        );
+        jalilaApp.Notes.Add(
+            new ApplicationNote
+            {
+                Body = "Ran a student newsletter with real numbers to show. Asked about the events budget, which is a good sign.",
+                AuthorEmail = "dana.recruiter@example.test",
+                CreatedAt = now.AddDays(-3),
+            }
+        );
+        andrewApp.Notes.Add(
+            new ApplicationNote
+            {
+                Body = "Overqualified on paper, but wants bench work for a year before a postdoc. Worth the interview.",
+                AuthorEmail = "manager@example.test",
+                CreatedAt = now.AddDays(-2),
+            }
+        );
 
         jordanApp.Notes.Add(
             new ApplicationNote

@@ -35,6 +35,7 @@ services:
       Resend__ApiKey: ${RESEND_API_KEY:-}
       Resend__From: ${RESEND_FROM:-}
       Resend__WebhookSecret: ${RESEND_WEBHOOK_SECRET:-}
+      Resend__InboundDomain: ${RESEND_INBOUND_DOMAIN:-}
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
       OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
       OpenAI__EmbeddingModel: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}

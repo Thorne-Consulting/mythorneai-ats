@@ -1,5 +1,9 @@
-import { LoadingBlock } from '@/components/ui/LoadingBlock';
+import { Card, SkeletonRows } from '@/components/ui';
 
 export default function Loading() {
-  return <LoadingBlock rows={6} />;
+  return (
+    <Card>
+      <SkeletonRows rows={6} />
+    </Card>
+  );
 }

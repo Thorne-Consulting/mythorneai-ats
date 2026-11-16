@@ -4,22 +4,42 @@ export function humanize(value: string) {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+/** How dates read: this browser's language, Nov 13, 2026, 13 Nov 2026, or 2026-11-13 (Settings → Preferences). */
+export type DateOrder = 'auto' | 'month' | 'day' | 'iso';
+const DATE_LOCALES: Record<DateOrder, string | undefined> = {
+  auto: undefined,
+  month: 'en-US',
+  day: 'en-GB',
+  iso: 'sv-SE',
+};
+// ponytail: one module-level value, set from the signed-in person before the app renders
+// (AuthProvider). A per-request store would be needed if dates were formatted for several people
+// in one server render.
+let dateOrder: DateOrder = 'auto';
+export function setDateOrder(order: DateOrder | null | undefined) {
+  dateOrder = order && order in DATE_LOCALES ? order : 'auto';
+}
+
 export function formatDate(value?: string) {
   if (!value) return '—';
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(`${value.length === 10 ? `${value}T12:00:00` : value}`));
+  return new Intl.DateTimeFormat(
+    DATE_LOCALES[dateOrder],
+    dateOrder === 'iso'
+      ? { year: 'numeric', month: '2-digit', day: '2-digit' }
+      : { month: 'short', day: 'numeric', year: 'numeric' },
+  ).format(new Date(`${value.length === 10 ? `${value}T12:00:00` : value}`));
 }
 
 export function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat(undefined, {
+  const date = new Date(value);
+  if (dateOrder === 'iso')
+    return `${formatDate(value)} ${new Intl.DateTimeFormat('sv-SE', { hour: '2-digit', minute: '2-digit' }).format(date)}`;
+  return new Intl.DateTimeFormat(DATE_LOCALES[dateOrder], {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  }).format(new Date(value));
+  }).format(date);
 }
 
 export function initials(name: string) {

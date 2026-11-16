@@ -30,6 +30,12 @@
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.15.0" />
     <PackageVersion Include="WorkOS.net" Version="6.4.0" />
+    <PackageVersion Include="Ical.Net" Version="5.2.3" />
+    <PackageVersion Include="Markdig" Version="1.5.1" />
+    <PackageVersion Include="EmailReplyParser" Version="2.0.1" />
+    <PackageVersion Include="FFMpegCore" Version="5.5.0" />
+    <PackageVersion Include="Pgvector.EntityFrameworkCore" Version="0.3.0" />
+    <PackageVersion Include="ClosedXML" Version="0.105.1" />
     <PackageVersion Include="xunit.v3" Version="4.0.1" />
     <PackageVersion Include="xunit.v3.mtp-v2" Version="4.0.1" />
   </ItemGroup>

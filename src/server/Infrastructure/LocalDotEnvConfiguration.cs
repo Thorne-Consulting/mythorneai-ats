@@ -57,6 +57,7 @@ public static class LocalDotEnvConfiguration
             ["OpenAI:EmbeddingModel"] = Get(values, "OPENAI_EMBEDDING_MODEL"),
             ["OpenAI:TranscriptionModel"] = Get(values, "OPENAI_TRANSCRIPTION_MODEL"),
             ["Resend:WebhookSecret"] = Get(values, "RESEND_WEBHOOK_SECRET"),
+            ["Resend:InboundDomain"] = Get(values, "RESEND_INBOUND_DOMAIN"),
         };
         settings["ConnectionStrings:AtsDatabase"] =
             $"Host=localhost;Port={Get(values, "POSTGRES_HOST_PORT") ?? "55433"};Database={Get(values, "POSTGRES_DB") ?? "internal_ats"};Username={Get(values, "POSTGRES_USER") ?? "ats"};Password={Get(values, "POSTGRES_PASSWORD") ?? "ats-local-only"}";

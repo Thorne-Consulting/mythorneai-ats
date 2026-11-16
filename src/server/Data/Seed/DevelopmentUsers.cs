@@ -25,14 +25,14 @@ public static partial class SeedData
                 Email = "manager@example.test",
                 DisplayName = "Morgan Manager",
                 Role = UserRole.HiringManager,
-                Department = "Engineering",
+                Departments = ["Engineering"],
             },
             new AppUser
             {
                 Email = "interviewer@example.test",
                 DisplayName = "Indigo Interviewer",
                 Role = UserRole.Interviewer,
-                Department = "Engineering",
+                Departments = ["Engineering"],
             },
             new AppUser
             {
@@ -45,21 +45,21 @@ public static partial class SeedData
                 Email = "priya.manager@example.test",
                 DisplayName = "Priya Raman",
                 Role = UserRole.HiringManager,
-                Department = "Design",
+                Departments = ["Design"],
             },
             new AppUser
             {
                 Email = "tomas.interviewer@example.test",
                 DisplayName = "Tomas Nowak",
                 Role = UserRole.Interviewer,
-                Department = "Engineering",
+                Departments = ["Engineering"],
             },
             new AppUser
             {
                 Email = "asha.interviewer@example.test",
                 DisplayName = "Asha Bello",
                 Role = UserRole.Interviewer,
-                Department = "Data",
+                Departments = ["Data"],
             },
             new AppUser
             {

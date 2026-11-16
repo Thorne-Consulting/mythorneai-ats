@@ -1,25 +1,94 @@
 'use client';
 
-import { Alert, Box, Group, Stack, Text } from '@mantine/core';
-import { notifications } from '@mantine/notifications';
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { api } from '@/api';
-import { SectionCard } from '@/components/ui/Cards';
-import { useInvalidateApprovals, type ApprovalView } from '@/features/approvals/approval-data';
+import { Alert, Button, ConfirmDialog, Modal, toast } from '@/components/ui';
+import {
+  useInvalidateApprovals,
+  useWithdrawApproval,
+  type ApprovalMode,
+  type ApprovalView,
+  type PreviousRound,
+} from '@/features/approvals/approval-data';
 import {
   ApprovalTimeline,
   ApproverPicker,
   DecideControls,
+  PreviousRounds,
 } from '@/features/approvals/ApprovalParts';
 
-interface JobApproval {
+export interface JobApproval {
   required: boolean;
   defaultApprovers: string[];
   sequential: boolean;
+  mode: ApprovalMode;
+  /** The live round. */
   approvals: ApprovalView[];
+  previousRounds: PreviousRound[];
 }
 
-/** Submit a draft job for approval, or show who still has to approve it. Renders nothing otherwise. */
+/** Whether this organization needs approval to open jobs, and this job's approvals so far. */
+export function useJobApproval(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ['requisition-approval', id],
+    queryFn: () => api.get<JobApproval>(`/api/requisitions/${id}/approval`),
+    enabled,
+    retry: false,
+  });
+}
+
+/** Choose approvers and send a draft job to them. Opened from the header's "Submit for approval". */
+export function SubmitForApprovalModal({
+  id,
+  opened,
+  onClose,
+}: {
+  id: string;
+  opened: boolean;
+  onClose: () => void;
+}) {
+  const invalidate = useInvalidateApprovals();
+  const approval = useJobApproval(id, opened).data;
+  const submit = useMutation({
+    mutationFn: (input: { approvers: string[]; mode: ApprovalMode; note: string }) =>
+      api.post(`/api/requisitions/${id}/submit-for-approval`, input),
+    onSuccess: () => {
+      invalidate();
+      onClose();
+      toast.success(
+        'Sent for approval',
+        'We emailed the approvers. The job opens once they approve.',
+      );
+    },
+    onError: (error: Error) => toast.error('Could not send the job for approval', error.message),
+  });
+  return (
+    <Modal
+      opened={opened}
+      onClose={onClose}
+      title="Submit for approval"
+      description="The job opens on its own once it is approved."
+      dismissable={!submit.isPending}
+    >
+      {approval && (
+        <ApproverPicker
+          defaultApprovers={approval.defaultApprovers}
+          defaultMode={approval.mode}
+          required
+          submitLabel="Send for approval"
+          loading={submit.isPending}
+          onSubmit={(input) => submit.mutate(input)}
+        />
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * One line under the job header while approval matters: who still has to approve (with the
+ * details in a modal), or who said no and why. Renders nothing otherwise.
+ */
 export function RequisitionApproval({
   id,
   status,
@@ -29,84 +98,102 @@ export function RequisitionApproval({
   status: string;
   canManage: boolean;
 }) {
-  const invalidate = useInvalidateApprovals();
+  const [open, setOpen] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const withdraw = useWithdrawApproval(() => {
+    setWithdrawing(false);
+    setOpen(false);
+  });
   const relevant = canManage && (status === 'Draft' || status === 'PendingApproval');
-  const query = useQuery({
-    queryKey: ['requisition-approval', id],
-    queryFn: () => api.get<JobApproval>(`/api/requisitions/${id}/approval`),
-    enabled: relevant,
-    retry: false,
-  });
-  const submit = useMutation({
-    mutationFn: (input: { approvers: string[]; sequential: boolean }) =>
-      api.post(`/api/requisitions/${id}/submit-for-approval`, input),
-    onSuccess: () => {
-      invalidate();
-      notifications.show({
-        color: 'teal',
-        message:
-          'Sent for approval. Approvers have been emailed, and the job opens when they agree.',
-      });
-    },
-    onError: (error: Error) =>
-      notifications.show({
-        color: 'red',
-        title: 'Could not submit the job',
-        message: error.message,
-      }),
-  });
-
-  if (!relevant || !query.data) return null;
-  const { approvals, required } = query.data;
-  const rejected = approvals.filter((item) => item.decision === 'Rejected');
+  const data = useJobApproval(id, relevant).data;
+  if (!relevant || !data) return null;
+  const { approvals } = data;
   const mine = approvals.find((item) => item.canDecide);
 
   if (status === 'PendingApproval') {
-    const waiting = approvals.filter((item) => item.decision === 'Pending');
+    const turn = approvals.filter((item) => item.waiting);
+    const approved = approvals.filter((item) => item.decision === 'Approved').length;
+    const anyOne = approvals.some((item) => item.anyOne);
     return (
-      <Box mb="xl">
-        <SectionCard title="Waiting for approval">
-          <ApprovalTimeline approvals={approvals} />
-          {mine && (
-            <Group p="lg">
-              <DecideControls approvalId={mine.id} subject="Open this job" />
-            </Group>
-          )}
-        </SectionCard>
-      </Box>
+      <>
+        <Alert
+          tone="warning"
+          className="mb-5"
+          title={
+            mine
+              ? 'You are asked to approve this job'
+              : `Waiting for approval (${approved} of ${approvals.length})`
+          }
+          action={
+            <Button
+              size="sm"
+              variant={mine ? 'primary' : 'secondary'}
+              onClick={() => setOpen(true)}
+            >
+              {mine ? 'Review and decide' : 'See progress'}
+            </Button>
+          }
+        >
+          {turn.length > 0 && !mine
+            ? `${turn.map((item) => item.approverName).join(', ')} ${turn.length === 1 ? 'has' : 'have'} to answer next. `
+            : ''}
+          {anyOne
+            ? 'The job opens when one of them approves.'
+            : 'The job opens when everyone approves.'}
+        </Alert>
+        <Modal
+          opened={open}
+          onClose={() => setOpen(false)}
+          title="Approval"
+          size="md"
+          footer={
+            <Button variant="danger-quiet" onClick={() => setWithdrawing(true)}>
+              Withdraw request
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-4">
+            <ApprovalTimeline approvals={approvals} steer />
+            {mine && (
+              <div className="border-t border-border-subtle pt-4">
+                <DecideControls approvalId={mine.id} subject="this job" />
+              </div>
+            )}
+            <PreviousRounds rounds={data.previousRounds} />
+          </div>
+        </Modal>
+        <ConfirmDialog
+          opened={withdrawing}
+          onClose={() => setWithdrawing(false)}
+          title="Withdraw this request?"
+          message="The job goes back to draft and nobody is asked to approve it. You can send it again later."
+          confirmLabel="Withdraw request"
+          onConfirm={() =>
+            withdraw.mutateAsync({ subjectType: 'Requisition', subjectId: id }).then(
+              () => undefined,
+              () => undefined,
+            )
+          }
+        />
+      </>
     );
   }
 
-  if (!required && rejected.length === 0) return null;
+  // A draft that came back: say who said no and why, once.
+  const rejected = approvals.filter((item) => item.decision === 'Rejected');
+  if (rejected.length === 0) return null;
   return (
-    <Stack gap="md" mb="xl">
+    <Alert
+      tone="danger"
+      className="mb-5"
+      title={`${rejected.map((item) => item.approverName).join(', ')} did not approve this job`}
+    >
       {rejected.map((item) => (
-        <Alert
-          key={item.id}
-          color="red"
-          variant="light"
-          title={`${item.approverName} did not approve this job`}
-        >
-          <Text size="sm" style={{ whiteSpace: 'pre-wrap' }}>
-            {item.comment}
-          </Text>
-          <Text size="sm" mt={4}>
-            Make the change they asked for, then submit it again.
-          </Text>
-        </Alert>
+        <span key={item.id} className="block whitespace-pre-wrap">
+          “{item.comment}”
+        </span>
       ))}
-      {required && (
-        <SectionCard title="This job needs approval before it opens" padded>
-          <ApproverPicker
-            defaultApprovers={query.data.defaultApprovers}
-            defaultSequential={query.data.sequential}
-            required
-            submitLabel="Submit for approval"
-            loading={submit.isPending}
-            onSubmit={(approvers, sequential) => submit.mutate({ approvers, sequential })}
-          />
-        </SectionCard>
-      )}
-    </Stack>
+      Make the change they asked for, then submit it again.
+    </Alert>
   );
 }

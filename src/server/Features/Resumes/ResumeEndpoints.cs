@@ -38,11 +38,21 @@ public static partial class AtsEndpoints
                             new AiContext("parse-resume", principal.Email()),
                             ct
                         );
-                        return Results.Ok(new { extraction.Form, extraction.Model, TextLength = text.Length });
+                        return Results.Ok(
+                            new
+                            {
+                                extraction.Form,
+                                extraction.Model,
+                                TextLength = text.Length,
+                            }
+                        );
                     }
                     catch (AiUnavailableException exception)
                     {
-                        return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+                        return Results.Problem(
+                            exception.Message,
+                            statusCode: StatusCodes.Status503ServiceUnavailable
+                        );
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
@@ -89,7 +99,10 @@ public static partial class AtsEndpoints
                     }
                     catch (AiUnavailableException exception)
                     {
-                        return Results.Problem(exception.Message, statusCode: StatusCodes.Status503ServiceUnavailable);
+                        return Results.Problem(
+                            exception.Message,
+                            statusCode: StatusCodes.Status503ServiceUnavailable
+                        );
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
@@ -106,7 +119,8 @@ public static partial class AtsEndpoints
                     var errors = ValidateCandidate(firstName, lastName, email, source);
                     if (errors.Count > 0)
                         return Results.ValidationProblem(errors);
-                    var duplicate = await db.Candidates.AsNoTracking()
+                    var duplicate = await db
+                        .Candidates.AsNoTracking()
                         .Where(candidate => candidate.Email == email)
                         .Select(candidate => new
                         {
@@ -140,7 +154,7 @@ public static partial class AtsEndpoints
                         FirstName = firstName.Trim(),
                         LastName = lastName.Trim(),
                         Email = email.Trim(),
-                        Source = source.Trim(),
+                        Source = (await SourceList.LoadAsync(db, ct)).Resolve(source),
                     };
                     db.Candidates.Add(candidate);
                     await ResumeProfileWriter.ApplyAsync(db, candidate, extraction, text, ct);
@@ -163,7 +177,13 @@ public static partial class AtsEndpoints
                         "Candidate",
                         candidate.Id,
                         "ResumeImported",
-                        new { attachment.Id, attachment.OriginalFileName, extraction.Model, extraction.PromptVersion }
+                        new
+                        {
+                            attachment.Id,
+                            attachment.OriginalFileName,
+                            extraction.Model,
+                            extraction.PromptVersion,
+                        }
                     );
                     try
                     {
@@ -191,126 +211,205 @@ public static partial class AtsEndpoints
                 "/candidates/{id:guid}/resume",
                 async (Guid id, ClaimsPrincipal principal, AtsDbContext db, CancellationToken ct) =>
                 {
-                    var canSeeContact = principal.IsHiringStaff() || principal.IsInRole(nameof(UserRole.HiringManager));
-                    var allowedApplicationIds = ScopeApplications(db.Applications.AsNoTracking(), principal).Select(x => x.Id);
-                    var candidate = await db.Candidates.AsNoTracking()
+                    var canSeeContact =
+                        principal.IsHiringStaff()
+                        || principal.IsInRole(nameof(UserRole.HiringManager));
+                    var allowedApplicationIds = ScopeApplications(
+                            db.Applications.AsNoTracking(),
+                            principal
+                        )
+                        .Select(x => x.Id);
+                    var candidate = await db
+                        .Candidates.AsNoTracking()
                         .WithProfile()
-                        .Include(x => x.WorkExperiences).ThenInclude(x => x.Skills).ThenInclude(x => x.Skill)
-                        .Include(x => x.Skills).ThenInclude(x => x.Skill)
-                        .Include(x => x.Projects).ThenInclude(x => x.Skills).ThenInclude(x => x.Skill)
+                        .Include(x => x.WorkExperiences)
+                            .ThenInclude(x => x.Skills)
+                                .ThenInclude(x => x.Skill)
+                        .Include(x => x.Skills)
+                            .ThenInclude(x => x.Skill)
+                        .Include(x => x.Projects)
+                            .ThenInclude(x => x.Skills)
+                                .ThenInclude(x => x.Skill)
                         .Include(x => x.CurrentEmployer)
-                        .SingleOrDefaultAsync(x => x.Id == id
-                            && (principal.IsHiringStaff() || x.Applications.Any(a => allowedApplicationIds.Contains(a.Id))), ct);
+                        .SingleOrDefaultAsync(
+                            x =>
+                                x.Id == id
+                                && (
+                                    principal.IsHiringStaff()
+                                    || x.Applications.Any(a => allowedApplicationIds.Contains(a.Id))
+                                ),
+                            ct
+                        );
                     if (candidate is null)
                         return Results.NotFound();
-                    var attachment = await db.Attachments.AsNoTracking()
-                        .Where(x => x.CandidateId == id)
+                    // The resume being read, else the one the profile was read from. Other kinds never show here.
+                    var attachment = await db
+                        .Attachments.AsNoTracking()
+                        .Where(x => x.CandidateId == id && x.Kind == AttachmentKinds.Resume)
                         .OrderByDescending(x => x.ParsedAt)
                         .ThenByDescending(x => x.UploadedAt)
-                        .Select(x => new { x.Id, x.OriginalFileName, x.ContentType, x.ParseStatus, x.ParseError, x.ParsedAt })
+                        .Select(x => new
+                        {
+                            x.Id,
+                            x.OriginalFileName,
+                            x.ContentType,
+                            x.ParseStatus,
+                            x.ParseError,
+                            x.ParsedAt,
+                        })
                         .FirstOrDefaultAsync(ct);
                     var unassigned = Array.Empty<string>();
                     if (candidate.ResumeProfileJson is not null)
                     {
                         try
                         {
-                            using var document = System.Text.Json.JsonDocument.Parse(candidate.ResumeProfileJson);
-                            if (document.RootElement.TryGetProperty("unassignedText", out var lines) && lines.ValueKind == System.Text.Json.JsonValueKind.Array)
-                                unassigned = lines.EnumerateArray().Select(x => x.GetString() ?? "").Where(x => x.Length > 0).ToArray();
+                            using var document = System.Text.Json.JsonDocument.Parse(
+                                candidate.ResumeProfileJson
+                            );
+                            if (
+                                document.RootElement.TryGetProperty("unassignedText", out var lines)
+                                && lines.ValueKind == System.Text.Json.JsonValueKind.Array
+                            )
+                                unassigned = lines
+                                    .EnumerateArray()
+                                    .Select(x => x.GetString() ?? "")
+                                    .Where(x => x.Length > 0)
+                                    .ToArray();
                         }
                         catch (System.Text.Json.JsonException) { }
                     }
-                    return Results.Ok(new
-                    {
-                        candidate.Id,
-                        Name = candidate.FirstName + " " + candidate.LastName,
-                        Email = canSeeContact ? candidate.Email : null,
-                        Phone = canSeeContact ? candidate.Phone : null,
-                        candidate.City,
-                        candidate.Region,
-                        candidate.Country,
-                        candidate.Location,
-                        candidate.WillingToRelocate,
-                        candidate.OpenToRemote,
-                        LinkedInUrl = canSeeContact ? candidate.LinkedInUrl : null,
-                        GitHubUrl = canSeeContact ? candidate.GitHubUrl : null,
-                        PortfolioUrl = canSeeContact ? candidate.PortfolioUrl : null,
-                        OtherUrls = canSeeContact ? candidate.OtherUrls : [],
-                        Summary = candidate.ResumeSummary,
-                        candidate.CurrentTitle,
-                        CurrentEmployer = candidate.CurrentEmployer?.Name,
-                        candidate.Seniority,
-                        YearsExperience = candidate.ResumeYearsExperience,
-                        candidate.YearsManagement,
-                        candidate.HighestDegreeLevel,
-                        Work = candidate.WorkExperiences.OrderBy(x => x.SortOrder).Select(x => new
+                    return Results.Ok(
+                        new
                         {
-                            x.Id,
-                            Company = x.CompanyNameRaw,
-                            x.Title,
-                            x.Seniority,
-                            x.EmploymentType,
-                            x.City,
-                            x.Region,
-                            x.Country,
-                            x.IsRemote,
-                            x.StartYear,
-                            x.StartMonth,
-                            x.EndYear,
-                            x.EndMonth,
-                            x.IsCurrent,
-                            x.DurationMonths,
-                            x.ManagedPeople,
-                            Bullets = x.Description.Split('\n', StringSplitOptions.RemoveEmptyEntries),
-                            Skills = x.Skills.Select(s => s.Skill!.Name).Order(StringComparer.OrdinalIgnoreCase).ToArray(),
-                            x.Verified,
-                        }),
-                        Education = candidate.Educations.OrderBy(x => x.SortOrder).Select(x => new
-                        {
-                            x.Id,
-                            School = x.SchoolNameRaw,
-                            x.Degree,
-                            x.DegreeLevel,
-                            x.Field,
-                            x.FieldNormalized,
-                            x.StartYear,
-                            x.EndYear,
-                            x.IsInProgress,
-                            x.Gpa,
-                            x.GpaScale,
-                            x.Honors,
-                            x.Verified,
-                        }),
-                        Skills = candidate.Skills.Select(x => new
-                        {
-                            Name = x.Skill!.Name,
-                            x.Skill.Category,
-                            x.Source,
-                            x.YearsUsed,
-                            x.LastUsedYear,
-                            x.Verified,
-                        }).OrderBy(x => x.Category).ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
-                        Certifications = candidate.Certifications.Select(x => new { x.Id, x.Name, x.Issuer, x.Year, x.ExpiresYear, x.Url, x.Verified }),
-                        Languages = candidate.Languages.Select(x => new { x.Language, x.Proficiency }),
-                        Projects = candidate.Projects.Select(x => new
-                        {
-                            x.Id,
-                            x.Name,
-                            x.Description,
-                            x.Url,
-                            x.Year,
-                            Skills = x.Skills.Select(s => s.Skill!.Name).ToArray(),
-                        }),
-                        Publications = candidate.Publications.Select(x => new { x.Id, x.Title, x.Venue, x.Year, x.Url }),
-                        Awards = candidate.Awards.Select(x => new { x.Id, x.Name, x.Issuer, x.Year }),
-                        // The raw text carries the contact details, so it follows the same rule as they do.
-                        UnassignedText = canSeeContact ? unassigned : [],
-                        ResumeText = canSeeContact ? candidate.ResumeText : null,
-                        ParsedAt = candidate.ResumeParsedAt,
-                        Model = candidate.ResumeModel,
-                        PromptVersion = candidate.ResumePromptVersion,
-                        Attachment = attachment,
-                    });
+                            candidate.Id,
+                            Name = candidate.FirstName + " " + candidate.LastName,
+                            Email = canSeeContact ? candidate.Email : null,
+                            Phone = canSeeContact ? candidate.Phone : null,
+                            candidate.City,
+                            candidate.Region,
+                            candidate.Country,
+                            candidate.Location,
+                            candidate.WillingToRelocate,
+                            candidate.OpenToRemote,
+                            LinkedInUrl = canSeeContact ? candidate.LinkedInUrl : null,
+                            GitHubUrl = canSeeContact ? candidate.GitHubUrl : null,
+                            PortfolioUrl = canSeeContact ? candidate.PortfolioUrl : null,
+                            OtherUrls = canSeeContact ? candidate.OtherUrls : [],
+                            Summary = candidate.ResumeSummary,
+                            candidate.CurrentTitle,
+                            CurrentEmployer = candidate.CurrentEmployer?.Name,
+                            candidate.Seniority,
+                            YearsExperience = candidate.ResumeYearsExperience,
+                            candidate.YearsManagement,
+                            candidate.HighestDegreeLevel,
+                            Work = candidate
+                                .WorkExperiences.OrderBy(x => x.SortOrder)
+                                .Select(x => new
+                                {
+                                    x.Id,
+                                    Company = x.CompanyNameRaw,
+                                    x.Title,
+                                    x.Seniority,
+                                    x.EmploymentType,
+                                    x.City,
+                                    x.Region,
+                                    x.Country,
+                                    x.IsRemote,
+                                    x.StartYear,
+                                    x.StartMonth,
+                                    x.EndYear,
+                                    x.EndMonth,
+                                    x.IsCurrent,
+                                    x.DurationMonths,
+                                    x.ManagedPeople,
+                                    Bullets = x.Description.Split(
+                                        '\n',
+                                        StringSplitOptions.RemoveEmptyEntries
+                                    ),
+                                    Skills = x
+                                        .Skills.Select(s => s.Skill!.Name)
+                                        .Order(StringComparer.OrdinalIgnoreCase)
+                                        .ToArray(),
+                                    x.Verified,
+                                }),
+                            Education = candidate
+                                .Educations.OrderBy(x => x.SortOrder)
+                                .Select(x => new
+                                {
+                                    x.Id,
+                                    School = x.SchoolNameRaw,
+                                    x.Degree,
+                                    x.DegreeLevel,
+                                    x.Field,
+                                    x.FieldNormalized,
+                                    x.StartYear,
+                                    x.EndYear,
+                                    x.IsInProgress,
+                                    x.Gpa,
+                                    x.GpaScale,
+                                    x.Honors,
+                                    x.Verified,
+                                }),
+                            Skills = candidate
+                                .Skills.Select(x => new
+                                {
+                                    Name = x.Skill!.Name,
+                                    x.Skill.Category,
+                                    x.Source,
+                                    x.YearsUsed,
+                                    x.LastUsedYear,
+                                    x.Verified,
+                                })
+                                .OrderBy(x => x.Category)
+                                .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase),
+                            Certifications = candidate.Certifications.Select(x => new
+                            {
+                                x.Id,
+                                x.Name,
+                                x.Issuer,
+                                x.Year,
+                                x.ExpiresYear,
+                                x.Url,
+                                x.Verified,
+                            }),
+                            Languages = candidate.Languages.Select(x => new
+                            {
+                                x.Language,
+                                x.Proficiency,
+                            }),
+                            Projects = candidate.Projects.Select(x => new
+                            {
+                                x.Id,
+                                x.Name,
+                                x.Description,
+                                x.Url,
+                                x.Year,
+                                Skills = x.Skills.Select(s => s.Skill!.Name).ToArray(),
+                            }),
+                            Publications = candidate.Publications.Select(x => new
+                            {
+                                x.Id,
+                                x.Title,
+                                x.Venue,
+                                x.Year,
+                                x.Url,
+                            }),
+                            Awards = candidate.Awards.Select(x => new
+                            {
+                                x.Id,
+                                x.Name,
+                                x.Issuer,
+                                x.Year,
+                            }),
+                            // The raw text carries the contact details, so it follows the same rule as they do.
+                            UnassignedText = canSeeContact ? unassigned : [],
+                            ResumeText = canSeeContact ? candidate.ResumeText : null,
+                            ParsedAt = candidate.ResumeParsedAt,
+                            Model = candidate.ResumeModel,
+                            PromptVersion = candidate.ResumePromptVersion,
+                            Attachment = attachment,
+                        }
+                    );
                 }
             )
             .RequireAuthorization(AtsPolicies.Read);
@@ -353,12 +452,34 @@ public static partial class AtsEndpoints
                         job.LastError = null;
                         job.CompletedAt = null;
                     }
+                    if (!ResumeTextExtractor.CanRead(attachment.OriginalFileName))
+                        return Results.ValidationProblem(
+                            new Dictionary<string, string[]>
+                            {
+                                ["file"] =
+                                [
+                                    "We can read resumes in PDF or Word (.docx) files only.",
+                                ],
+                            }
+                        );
+                    // Reading a file makes it the resume ("Use as the resume").
+                    attachment.Kind = AttachmentKinds.Resume;
                     attachment.ParseStatus = "Pending";
                     attachment.ParseError = null;
                     attachment.ParsedAt = null;
-                    Audit.Add(db, principal, "Candidate", candidateId, "ResumeParseQueued", new { attachment.Id });
+                    Audit.Add(
+                        db,
+                        principal,
+                        "Candidate",
+                        candidateId,
+                        "ResumeParseQueued",
+                        new { attachment.Id }
+                    );
                     await db.SaveChangesAsync(ct);
-                    return Results.Accepted($"/api/attachments/{attachment.Id}", new { attachment.Id });
+                    return Results.Accepted(
+                        $"/api/attachments/{attachment.Id}",
+                        new { attachment.Id }
+                    );
                 }
             )
             .RequireAuthorization(AtsPolicies.ManageCandidates);
@@ -370,10 +491,14 @@ public static partial class AtsEndpoints
         return value.Length == 0 ? null : value;
     }
 
-    private static string[] SearchTerms(string value) => value
-        .Split([' ', ',', ';'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-        .Where(term => term.Length >= 2)
-        .Distinct(StringComparer.OrdinalIgnoreCase)
-        .Take(12)
-        .ToArray();
+    private static string[] SearchTerms(string value) =>
+        value
+            .Split(
+                [' ', ',', ';'],
+                StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries
+            )
+            .Where(term => term.Length >= 2)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
 }
