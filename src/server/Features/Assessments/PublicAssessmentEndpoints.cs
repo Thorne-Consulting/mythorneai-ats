@@ -165,7 +165,10 @@ public static class PublicAssessmentEndpoints
                 var (invite, error) = await LoadAsync(db, token, id, ct, track: true);
                 if (invite is null)
                     return error!;
+                // Whole seconds: the database keeps microseconds, so the start and deadline it
+                // gives back must equal the ones this reply sends.
                 var now = DateTimeOffset.UtcNow;
+                now = now.AddTicks(-(now.Ticks % TimeSpan.TicksPerSecond));
                 await AssessmentFlow.SettleAsync(db, invite, now, ct);
                 if (invite.Status == AssessmentInviteStatus.NotStarted)
                 {
