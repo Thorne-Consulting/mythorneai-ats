@@ -14,7 +14,7 @@ import {
 type Ids = Record<string, string | null | undefined>;
 
 // `--env only=<regex>` walks only the routes that match, for a quick check of one area.
-const only = Cypress.env('only') ? new RegExp(String(Cypress.env('only'))) : null;
+const only = Cypress.expose('only') ? new RegExp(String(Cypress.expose('only'))) : null;
 const wanted = (route: string) => !only || only.test(route);
 
 /** Fills `{job}` and friends from the ids found at the start. Undefined when an id is missing. */
@@ -389,7 +389,7 @@ for (const email of ['interview@local.dev', 'offer@local.dev']) {
 
     if (email.startsWith('offer')) {
       it('the offer, and its accept and decline dialogs', function () {
-        if (!portal.offerApp) this.skip();
+        if (!portal.offerApp || !wanted('/candidate-portal/offer')) this.skip();
         const route = `/candidate-portal/applications/${portal.offerApp}/offer`;
         shoot(tag, route);
         cy.contains('button', /^Accept/).click();

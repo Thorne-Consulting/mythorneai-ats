@@ -5,6 +5,8 @@ import { defineConfig } from 'cypress';
 const INDEX = 'cypress/screenshots/index-desktop-dark.tsv';
 
 export default defineConfig({
+  // `CYPRESS_only='^/jobs' npm run shots` walks only the routes that match.
+  expose: { only: process.env.CYPRESS_only ?? '' },
   e2e: {
     baseUrl: 'http://localhost:3000',
     viewportWidth: 1440,
