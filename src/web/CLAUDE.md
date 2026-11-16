@@ -19,15 +19,15 @@ our data.
 
 ## Where things go
 
-| Path                        | What                                                                                                                                                                                                 |
-| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/styles.css`            | Design tokens (CSS variables, light + dark) and the Tailwind theme. The only place a hex value may appear.                                                                                           |
-| `src/components/ui/*`       | The component library. Generic, no API calls, no business words. Import from `@/components/ui`.                                                                                                      |
-| `src/components/status.tsx` | The single mapping from job/application/stage status to colour (`StatusBadge`, `StageBadge`, `stageTone`).                                                                                           |
+| Path                        | What                                                                                                                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `src/styles.css`            | Design tokens (CSS variables, light + dark) and the Tailwind theme. The only place a hex value may appear.                                                                                       |
+| `src/components/ui/*`       | The component library. Generic, no API calls, no business words. Import from `@/components/ui`.                                                                                                  |
+| `src/components/status.tsx` | The single mapping from job/application/stage status to colour (`StatusBadge`, `StageBadge`, `stageTone`).                                                                                       |
 | `src/components/<area>/*`   | Composites used by several pages: `layout/` (AppShell), `pipeline/` (BoardColumn, CandidateCard), `calendar/` (WeekCalendar), `messages/` (ChatBubble, ConversationRow), `workflow/` (StepCard). |
-| `src/features/<area>/*`     | Pages and feature components. They compose `ui` + composites and own data fetching.                                                                                                                  |
-| `src/features/preview/*`    | Only if a screen ships before its backend (see "Preview screens"); empty today.                                                                                                                               |
-| `src/app/**/page.tsx`       | Thin route files. Fetch on the server if useful, render a feature component.                                                                                                                         |
+| `src/features/<area>/*`     | Pages and feature components. They compose `ui` + composites and own data fetching.                                                                                                              |
+| `src/features/preview/*`    | Only if a screen ships before its backend (see "Preview screens"); empty today.                                                                                                                  |
+| `src/app/**/page.tsx`       | Thin route files. Fetch on the server if useful, render a feature component.                                                                                                                     |
 
 Before writing markup, look in `components/ui` and the gallery. If something is missing and will
 be reused, add it to `components/ui` (and a demo to the gallery) instead of styling it in a page.
@@ -206,6 +206,15 @@ assistant.
 
 ## Verifying UI changes
 
-Run the web app (`npm run dev`) and the API, then check the page in the browser in light and dark
-mode, at desktop and at 375px. Typecheck with `npx tsc --noEmit -p .`. Logic self-checks:
-`node --experimental-strip-types src/lib/cn.ts` and `node --experimental-strip-types src/components/ui/page-list.check.mjs`.
+The app is desktop only: check at 1440 wide, in light and dark mode, never at phone widths.
+Run the web app (`npm run dev`) and the API with dev sign-in (`tools/dev-api.sh` from the repo
+root), then check the page in the browser. Typecheck with `npx tsc --noEmit -p .`. Logic
+self-checks: `node --experimental-strip-types src/lib/cn.ts` and
+`node --experimental-strip-types src/components/ui/page-list.check.mjs`.
+
+**Every page, without a browser session:** `npm run shots` opens every page of the app in dark mode
+as staff, as the public and as two portal candidates, checks each one is a real page that did not
+crash, and saves a full-page screenshot of each into `docs/screenshots` with an index of console
+errors (`index-desktop-dark.tsv`). `CYPRESS_only='^/jobs' npm run shots` walks one area. The
+routes live in `cypress/e2e/pages.cy.ts`; add a route there when you add a page. Then
+`node tools/help-images.mjs` from the repo root refreshes the help page pictures.

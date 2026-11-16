@@ -1,110 +1,137 @@
-/	staff-desktop-dark_.png	200	1440		
-/jobs	staff-desktop-dark_jobs.png	200	1440		
-/jobs/new	staff-desktop-dark_jobs_new.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/pipeline	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_pipeline.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/pipeline?view=list	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_pipeline_view_list.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/posting	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_posting.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/requirements	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_requirements.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/kits	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_kits.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/kits/new	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_kits_new.png	200	1440		
-/jobs/796e7a81-bf48-4a9d-8732-aa0ae7963f26/kits/5441722c-0ab6-405b-b4f9-48df0c93b839	staff-desktop-dark_jobs_796e7a81-bf48-4a9d-8732-aa0ae7963f26_kits_5441722c-0ab6-405b-b4f9-48df0c93b839.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/team	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_team.png	200	1440		
-/jobs/dfec05e4-e5e3-487d-838f-89db6c4fbf63/settings	staff-desktop-dark_jobs_dfec05e4-e5e3-487d-838f-89db6c4fbf63_settings.png	200	1440		
-/pipeline	staff-desktop-dark_pipeline.png	200	1440		
-/approvals	staff-desktop-dark_approvals.png	200	1440		
-/candidates	staff-desktop-dark_candidates.png	200	1440		
-/candidates/active	staff-desktop-dark_candidates_active.png	200	1440		
-/candidates/hired	staff-desktop-dark_candidates_hired.png	200	1440		
-/candidates/not-in-a-job	staff-desktop-dark_candidates_not-in-a-job.png	200	1440		
-/candidates/rejected	staff-desktop-dark_candidates_rejected.png	200	1440		
-/candidates/withdrawn	staff-desktop-dark_candidates_withdrawn.png	200	1440		
-/candidates/talent-pools	staff-desktop-dark_candidates_talent-pools.png	200	1440		
-/candidates/pools/125a329f-79a5-43ba-b2f8-9f10dda92a80	staff-desktop-dark_candidates_pools_125a329f-79a5-43ba-b2f8-9f10dda92a80.png	200	1440		
-/candidates/views/f47b41ea-efb5-42fb-8e35-521644597b7a	staff-desktop-dark_candidates_views_f47b41ea-efb5-42fb-8e35-521644597b7a.png	200	1440		
-/candidates/compare	staff-desktop-dark_candidates_compare.png	200	1440		%o %s TypeError: Cannot read properties of undefined (reading 'data') at CandidateCompare (http://localhost:3000/_next/static/chunks/_1aadgsrqo7fbz._.js:669:43)
-/candidates/dac4b6b8-43a3-4d57-b097-ecb718c9962c	staff-desktop-dark_candidates_dac4b6b8-43a3-4d57-b097-ecb718c9962c.png	200	1440		
-/candidates/dac4b6b8-43a3-4d57-b097-ecb718c9962c/files	staff-desktop-dark_candidates_dac4b6b8-43a3-4d57-b097-ecb718c9962c_files.png	200	1440		
-/candidates/dac4b6b8-43a3-4d57-b097-ecb718c9962c/resume	staff-desktop-dark_candidates_dac4b6b8-43a3-4d57-b097-ecb718c9962c_resume.png	200	1440		
-/applications/e7d112af-ffd6-46ee-9f27-fa9189263e0d	staff-desktop-dark_applications_e7d112af-ffd6-46ee-9f27-fa9189263e0d.png	200	1440		
-/applications/e7d112af-ffd6-46ee-9f27-fa9189263e0d/scorecards	staff-desktop-dark_applications_e7d112af-ffd6-46ee-9f27-fa9189263e0d_scorecards.png	200	1440		
-/applications/e7d112af-ffd6-46ee-9f27-fa9189263e0d/interviews	staff-desktop-dark_applications_e7d112af-ffd6-46ee-9f27-fa9189263e0d_interviews.png	200	1440		
-/applications/e7d112af-ffd6-46ee-9f27-fa9189263e0d/messages	staff-desktop-dark_applications_e7d112af-ffd6-46ee-9f27-fa9189263e0d_messages.png	200	1440		
-/applications/e7d112af-ffd6-46ee-9f27-fa9189263e0d/offer	staff-desktop-dark_applications_e7d112af-ffd6-46ee-9f27-fa9189263e0d_offer.png	200	1440		
-/applications/e7d112af-ffd6-46ee-9f27-fa9189263e0d/activity	staff-desktop-dark_applications_e7d112af-ffd6-46ee-9f27-fa9189263e0d_activity.png	200	1440		
-/interviews	staff-desktop-dark_interviews.png	200	1440		
-/interviews/feedback	staff-desktop-dark_interviews_feedback.png	200	1440		
-/interviews/schedule	staff-desktop-dark_interviews_schedule.png	200	1440		
-/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9.png	200	1440		
-/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/room	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_room.png	200	1440		
-/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/recording	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_recording.png	200	1440		
-/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/summary	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_summary.png	200	1440		
-/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/feedback	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_feedback.png	200	1440		
-/assessments	staff-desktop-dark_assessments.png	200	1440		
-/assessments/new	staff-desktop-dark_assessments_new.png	200	1440		
-/assessments/dad44e4b-121c-4b01-96ae-129fe9d96e86	staff-desktop-dark_assessments_dad44e4b-121c-4b01-96ae-129fe9d96e86.png	200	1440		
-/assessments/dad44e4b-121c-4b01-96ae-129fe9d96e86/edit	staff-desktop-dark_assessments_dad44e4b-121c-4b01-96ae-129fe9d96e86_edit.png	200	1440		
-/assessments/dad44e4b-121c-4b01-96ae-129fe9d96e86/results/cfa0fc68-cbd5-4d85-980b-b4bf52b8a338	staff-desktop-dark_assessments_dad44e4b-121c-4b01-96ae-129fe9d96e86_results_cfa0fc68-cbd5-4d85-980b-b4bf52b8a338.png	200	1440		
-/reports	staff-desktop-dark_reports.png	200	1440		
-/reports/funnel	staff-desktop-dark_reports_funnel.png	200	1440		
-/reports/velocity	staff-desktop-dark_reports_velocity.png	200	1440		
-/reports/sources	staff-desktop-dark_reports_sources.png	200	1440		
-/reports/offers	staff-desktop-dark_reports_offers.png	200	1440		
-/reports/subscriptions	staff-desktop-dark_reports_subscriptions.png	200	1440		
-/messages	staff-desktop-dark_messages.png	200	1440		Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a 
-/messages/starred	staff-desktop-dark_messages_starred.png	200	1440		
-/messages/templates	staff-desktop-dark_messages_templates.png	200	1440		
-/messages/templates/new	staff-desktop-dark_messages_templates_new.png	200	1440		
-/notifications	staff-desktop-dark_notifications.png	200	1440		
-/help	staff-desktop-dark_help.png	200	1440		
-/settings/profile	staff-desktop-dark_settings_profile.png	200	1440		
-/settings/preferences	staff-desktop-dark_settings_preferences.png	200	1440		
-/settings/notifications	staff-desktop-dark_settings_notifications.png	200	1440		
-/settings/availability	staff-desktop-dark_settings_availability.png	200	1440		
-/settings/members	staff-desktop-dark_settings_members.png	200	1440		
-/settings/roles	staff-desktop-dark_settings_roles.png	200	1440		
-/settings/roles/admin	staff-desktop-dark_settings_roles_admin.png	200	1440		
-/settings/general	staff-desktop-dark_settings_general.png	200	1440		
-/settings/careers	staff-desktop-dark_settings_careers.png	200	1440		
-/settings/email	staff-desktop-dark_settings_email.png	200	1440		
-/settings/email/sent	staff-desktop-dark_settings_email_sent.png	200	1440		
-/settings/email/blocked	staff-desktop-dark_settings_email_blocked.png	200	1440		
-/settings/alerts	staff-desktop-dark_settings_alerts.png	200	1440		
-/settings/approvals	staff-desktop-dark_settings_approvals.png	200	1440		
-/settings/calendar	staff-desktop-dark_settings_calendar.png	200	1440		
-/settings/fields	staff-desktop-dark_settings_fields.png	200	1440		
-/settings/sources	staff-desktop-dark_settings_sources.png	200	1440		
-/settings/pipelines	staff-desktop-dark_settings_pipelines.png	200	1440		
-/settings/templates	staff-desktop-dark_settings_templates.png	200	1440		
-/settings/interview-library	staff-desktop-dark_settings_interview-library.png	200	1440		
-/settings/interview-library/questions	staff-desktop-dark_settings_interview-library_questions.png	200	1440		
-/settings/interview-library/templates/2af75f14-951b-4af0-a1a7-711f6b1e168d	staff-desktop-dark_settings_interview-library_templates_2af75f14-951b-4af0-a1a7-711f6b1e168d.png	200	1440		
-/settings/offer-letters	staff-desktop-dark_settings_offer-letters.png	200	1440		
-/settings/offer-letters/a6d23393-e3cf-4a98-a507-b8c6606cc8b3	staff-desktop-dark_settings_offer-letters_a6d23393-e3cf-4a98-a507-b8c6606cc8b3.png	200	1440		
-/settings/rejection-reasons	staff-desktop-dark_settings_rejection-reasons.png	200	1440		
-/settings/ai	staff-desktop-dark_settings_ai.png	200	1440		
-/settings/ai/activity	staff-desktop-dark_settings_ai_activity.png	200	1440		
-/settings/webhooks	staff-desktop-dark_settings_webhooks.png	200	1440		
-/settings/sso	staff-desktop-dark_settings_sso.png	200	1440		
-/settings/activity	staff-desktop-dark_settings_activity.png	200	1440		
-/settings/workflows	staff-desktop-dark_settings_workflows.png	200	1440		
-/settings/workflows/6bba1348-0a69-45a0-9770-27a5dfcede7b	staff-desktop-dark_settings_workflows_6bba1348-0a69-45a0-9770-27a5dfcede7b.png	200	1440		
-/careers/preview/dfec05e4-e5e3-487d-838f-89db6c4fbf63	staff-desktop-dark_careers_preview_dfec05e4-e5e3-487d-838f-89db6c4fbf63.png	200	1440		
-/design	staff-desktop-dark_design.png	200	1440		
-/careers	public-desktop-dark_careers.png	200	1440		
-/careers/community-programs-coordinator-c8d2451a-7807-4c63-a8c3-4f63653dcc15	public-desktop-dark_careers_community-programs-coordinator-c8d2451a-7807-4c63-a8c3-4f63653dcc15.png	200	1440		
-/careers/community-programs-coordinator-c8d2451a-7807-4c63-a8c3-4f63653dcc15/apply	public-desktop-dark_careers_community-programs-coordinator-c8d2451a-7807-4c63-a8c3-4f63653dcc15_apply.png	200	1440		
-/candidate-portal	public-desktop-dark_candidate-portal.png	200	1440		
-/login	public-desktop-dark_login.png	200	1440		
-/candidate-portal/home	portal-interview-desktop-dark_candidate-portal_home.png	200	1440		
-/candidate-portal/interviews	portal-interview-desktop-dark_candidate-portal_interviews.png	200	1440		
-/candidate-portal/messages	portal-interview-desktop-dark_candidate-portal_messages.png	200	1440		
-/candidate-portal/profile	portal-interview-desktop-dark_candidate-portal_profile.png	200	1440		
-/candidate-portal/applications/8231409b-e8a7-4982-8bbe-fc76257a9a94	portal-interview-desktop-dark_candidate-portal_applications_8231409b-e8a7-4982-8bbe-fc76257a9a94.png	200	1440		
-/candidate-portal/assessments/e639eea3-9be5-4424-82d3-1692d8eeacec	portal-interview-desktop-dark_candidate-portal_assessments_e639eea3-9be5-4424-82d3-1692d8eeacec.png	200	1440		
-/candidate-portal/home	portal-offer-desktop-dark_candidate-portal_home.png	200	1440		
-/candidate-portal/interviews	portal-offer-desktop-dark_candidate-portal_interviews.png	200	1440		
-/candidate-portal/messages	portal-offer-desktop-dark_candidate-portal_messages.png	200	1440		
-/candidate-portal/profile	portal-offer-desktop-dark_candidate-portal_profile.png	200	1440		
-/candidate-portal/applications/offer	portal-offer-desktop-dark_candidate-portal_applications_offer.png	200	1440	NOTFOUND	
-/candidate-portal/applications/offer/offer	portal-offer-desktop-dark_candidate-portal_applications_offer_offer.png	200	1440		Failed to load resource: the server responded with a status of 404 (Not Found)
+route	file	problem	console errors
+/	staff-desktop-dark_.png		
+/jobs	staff-desktop-dark_jobs.png		
+/jobs/new	staff-desktop-dark_jobs_new.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/details	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_details.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/candidates	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_candidates.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/pipeline	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_pipeline.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/pipeline?view=list	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_pipeline_view_list.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/posting	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_posting.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/requirements	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_requirements.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/kits	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_kits.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/kits/new	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_kits_new.png		
+/jobs/c8d2451a-7807-4c63-a8c3-4f63653dcc15/kits/8be7e91e-d73f-4a9f-ba39-0b729c094389	staff-desktop-dark_jobs_c8d2451a-7807-4c63-a8c3-4f63653dcc15_kits_8be7e91e-d73f-4a9f-ba39-0b729c094389.png		
+/jobs/c8d2451a-7807-4c63-a8c3-4f63653dcc15/kits/8be7e91e-d73f-4a9f-ba39-0b729c094389/edit	staff-desktop-dark_jobs_c8d2451a-7807-4c63-a8c3-4f63653dcc15_kits_8be7e91e-d73f-4a9f-ba39-0b729c094389_edit.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/team	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_team.png		
+/jobs/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9/settings	staff-desktop-dark_jobs_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9_settings.png		
+/pipeline	staff-desktop-dark_pipeline.png		
+/approvals	staff-desktop-dark_approvals.png		
+/candidates	staff-desktop-dark_candidates.png		
+/candidates/recent	staff-desktop-dark_candidates_recent.png		
+/candidates/active	staff-desktop-dark_candidates_active.png		
+/candidates/hired	staff-desktop-dark_candidates_hired.png		
+/candidates/not-in-a-job	staff-desktop-dark_candidates_not-in-a-job.png		
+/candidates/rejected	staff-desktop-dark_candidates_rejected.png		
+/candidates/withdrawn	staff-desktop-dark_candidates_withdrawn.png		
+/candidates/talent-pools	staff-desktop-dark_candidates_talent-pools.png		
+/candidates/pools/bb3a20ae-b064-4011-9741-a0496a999279	staff-desktop-dark_candidates_pools_bb3a20ae-b064-4011-9741-a0496a999279.png		
+/candidates/views/f47b41ea-efb5-42fb-8e35-521644597b7a	staff-desktop-dark_candidates_views_f47b41ea-efb5-42fb-8e35-521644597b7a.png		
+/candidates/compare?ids=7dca510a-9628-44f9-8c3b-b356229562df	staff-desktop-dark_candidates_compare_ids_7dca510a-9628-44f9-8c3b-b356229562df.png		
+/candidates/7dca510a-9628-44f9-8c3b-b356229562df	staff-desktop-dark_candidates_7dca510a-9628-44f9-8c3b-b356229562df.png		
+/candidates/7dca510a-9628-44f9-8c3b-b356229562df/applications	staff-desktop-dark_candidates_7dca510a-9628-44f9-8c3b-b356229562df_applications.png		
+/candidates/7dca510a-9628-44f9-8c3b-b356229562df/files	staff-desktop-dark_candidates_7dca510a-9628-44f9-8c3b-b356229562df_files.png		
+/candidates/7dca510a-9628-44f9-8c3b-b356229562df/resume	staff-desktop-dark_candidates_7dca510a-9628-44f9-8c3b-b356229562df_resume.png		
+/applications/ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5	staff-desktop-dark_applications_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5.png		
+/applications/ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5/scorecards	staff-desktop-dark_applications_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5_scorecards.png		
+/applications/ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5/interviews	staff-desktop-dark_applications_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5_interviews.png		
+/applications/ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5/messages	staff-desktop-dark_applications_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5_messages.png		
+/applications/ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5/offer	staff-desktop-dark_applications_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5_offer.png		
+/applications/ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5/activity	staff-desktop-dark_applications_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5_activity.png		
+/applications/compare?ids=ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5	staff-desktop-dark_applications_compare_ids_ac4f4f1d-58dc-4aa2-b462-0c0f4b730fa5.png		
+/interviews	staff-desktop-dark_interviews.png		
+/interviews/feedback	staff-desktop-dark_interviews_feedback.png		
+/interviews/schedule	staff-desktop-dark_interviews_schedule.png		
+/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9.png		
+/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/room	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_room.png		
+/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/recording	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_recording.png		
+/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/summary	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_summary.png		
+/interviews/0de26e49-f246-4f01-9f0d-b1975796a0d9/feedback	staff-desktop-dark_interviews_0de26e49-f246-4f01-9f0d-b1975796a0d9_feedback.png		
+/assessments	staff-desktop-dark_assessments.png		
+/assessments/new	staff-desktop-dark_assessments_new.png		
+/assessments/e770a40b-ea85-4075-8b06-ea866fc4f1fa	staff-desktop-dark_assessments_e770a40b-ea85-4075-8b06-ea866fc4f1fa.png		
+/assessments/e770a40b-ea85-4075-8b06-ea866fc4f1fa/edit	staff-desktop-dark_assessments_e770a40b-ea85-4075-8b06-ea866fc4f1fa_edit.png		
+/assessments/e770a40b-ea85-4075-8b06-ea866fc4f1fa/results/2e093b69-65b5-4946-8063-556513f097e0	staff-desktop-dark_assessments_e770a40b-ea85-4075-8b06-ea866fc4f1fa_results_2e093b69-65b5-4946-8063-556513f097e0.png		
+/reports	staff-desktop-dark_reports.png		
+/reports/funnel	staff-desktop-dark_reports_funnel.png		
+/reports/velocity	staff-desktop-dark_reports_velocity.png		
+/reports/sources	staff-desktop-dark_reports_sources.png		
+/reports/offers	staff-desktop-dark_reports_offers.png		
+/reports/subscriptions	staff-desktop-dark_reports_subscriptions.png		
+/messages	staff-desktop-dark_messages.png		
+/messages/starred	staff-desktop-dark_messages_starred.png		
+/messages/templates	staff-desktop-dark_messages_templates.png		
+/messages/templates/new	staff-desktop-dark_messages_templates_new.png		
+/messages/templates/acceptance	staff-desktop-dark_messages_templates_acceptance.png		
+/notifications	staff-desktop-dark_notifications.png		
+/help	staff-desktop-dark_help.png		
+/settings	staff-desktop-dark_settings.png		
+/settings/profile	staff-desktop-dark_settings_profile.png		
+/settings/preferences	staff-desktop-dark_settings_preferences.png		
+/settings/notifications	staff-desktop-dark_settings_notifications.png		
+/settings/availability	staff-desktop-dark_settings_availability.png		
+/settings/members	staff-desktop-dark_settings_members.png		
+/settings/roles	staff-desktop-dark_settings_roles.png		
+/settings/roles/admin	staff-desktop-dark_settings_roles_admin.png		
+/settings/general	staff-desktop-dark_settings_general.png		
+/settings/careers	staff-desktop-dark_settings_careers.png		
+/settings/email	staff-desktop-dark_settings_email.png		
+/settings/email/sent	staff-desktop-dark_settings_email_sent.png		
+/settings/email/blocked	staff-desktop-dark_settings_email_blocked.png		
+/settings/alerts	staff-desktop-dark_settings_alerts.png		
+/settings/approvals	staff-desktop-dark_settings_approvals.png		
+/settings/calendar	staff-desktop-dark_settings_calendar.png		
+/settings/fields	staff-desktop-dark_settings_fields.png		
+/settings/sources	staff-desktop-dark_settings_sources.png		
+/settings/pipelines	staff-desktop-dark_settings_pipelines.png		
+/settings/templates	staff-desktop-dark_settings_templates.png		
+/settings/templates/new	staff-desktop-dark_settings_templates_new.png		
+/settings/templates/email	staff-desktop-dark_settings_templates_email.png		
+/settings/templates/235a638a-a317-46a8-ae7b-a6fa271e8cd7	staff-desktop-dark_settings_templates_235a638a-a317-46a8-ae7b-a6fa271e8cd7.png		
+/settings/interview-library	staff-desktop-dark_settings_interview-library.png		
+/settings/interview-library/questions	staff-desktop-dark_settings_interview-library_questions.png		
+/settings/interview-library/templates/2af75f14-951b-4af0-a1a7-711f6b1e168d	staff-desktop-dark_settings_interview-library_templates_2af75f14-951b-4af0-a1a7-711f6b1e168d.png		
+/settings/offer-letters	staff-desktop-dark_settings_offer-letters.png		
+/settings/offer-letters/a6d23393-e3cf-4a98-a507-b8c6606cc8b3	staff-desktop-dark_settings_offer-letters_a6d23393-e3cf-4a98-a507-b8c6606cc8b3.png		
+/settings/rejection-reasons	staff-desktop-dark_settings_rejection-reasons.png		
+/settings/ai	staff-desktop-dark_settings_ai.png		
+/settings/ai/activity	staff-desktop-dark_settings_ai_activity.png		
+/settings/webhooks	staff-desktop-dark_settings_webhooks.png		
+/settings/sso	staff-desktop-dark_settings_sso.png		
+/settings/activity	staff-desktop-dark_settings_activity.png		
+/settings/workflows	staff-desktop-dark_settings_workflows.png		
+/settings/workflows/6bba1348-0a69-45a0-9770-27a5dfcede7b	staff-desktop-dark_settings_workflows_6bba1348-0a69-45a0-9770-27a5dfcede7b.png		
+/careers/preview/e6fd10c2-1a99-4f66-b311-8e913ff7b0c9	staff-desktop-dark_careers_preview_e6fd10c2-1a99-4f66-b311-8e913ff7b0c9.png		
+/design	staff-desktop-dark_design.png		
+/settings/email	staff-desktop-dark_flow_settings-email.png		
+/careers	public-desktop-dark_careers.png		
+/careers?q=zzzz	public-desktop-dark_careers_q_zzzz.png		
+/careers/c8d2451a-7807-4c63-a8c3-4f63653dcc15	public-desktop-dark_careers_c8d2451a-7807-4c63-a8c3-4f63653dcc15.png		
+/careers/c8d2451a-7807-4c63-a8c3-4f63653dcc15/apply	public-desktop-dark_careers_c8d2451a-7807-4c63-a8c3-4f63653dcc15_apply.png		
+/candidate-portal	public-desktop-dark_candidate-portal.png		
+/candidate-portal/link	public-desktop-dark_candidate-portal_link.png		
+/book/not-a-real-token	public-desktop-dark_book_not-a-real-token.png		
+/approve/not-a-real-token	public-desktop-dark_approve_not-a-real-token.png		
+/login	public-desktop-dark_login.png		
+/candidate-portal/home	portal-interview-desktop-dark_candidate-portal_home.png		
+/candidate-portal/applications	portal-interview-desktop-dark_candidate-portal_applications.png		
+/candidate-portal/interviews	portal-interview-desktop-dark_candidate-portal_interviews.png		
+/candidate-portal/messages	portal-interview-desktop-dark_candidate-portal_messages.png		
+/candidate-portal/profile	portal-interview-desktop-dark_candidate-portal_profile.png		
+/candidate-portal/applications/401d61a5-bbc1-4c27-86d8-cb70cf92434e	portal-interview-desktop-dark_candidate-portal_applications_401d61a5-bbc1-4c27-86d8-cb70cf92434e.png		
+/candidate-portal/applications/401d61a5-bbc1-4c27-86d8-cb70cf92434e/emails	portal-interview-desktop-dark_candidate-portal_applications_401d61a5-bbc1-4c27-86d8-cb70cf92434e_emails.png		
+/candidate-portal/applications/401d61a5-bbc1-4c27-86d8-cb70cf92434e/interviews	portal-interview-desktop-dark_candidate-portal_applications_401d61a5-bbc1-4c27-86d8-cb70cf92434e_interviews.png		
+/candidate-portal/applications/401d61a5-bbc1-4c27-86d8-cb70cf92434e/messages	portal-interview-desktop-dark_candidate-portal_applications_401d61a5-bbc1-4c27-86d8-cb70cf92434e_messages.png		
+/candidate-portal/messages/401d61a5-bbc1-4c27-86d8-cb70cf92434e	portal-interview-desktop-dark_candidate-portal_messages_401d61a5-bbc1-4c27-86d8-cb70cf92434e.png		
+/candidate-portal/assessments/2e093b69-65b5-4946-8063-556513f097e0	portal-interview-desktop-dark_candidate-portal_assessments_2e093b69-65b5-4946-8063-556513f097e0.png		
+/candidate-portal/home	portal-offer-desktop-dark_candidate-portal_home.png		
+/candidate-portal/applications	portal-offer-desktop-dark_candidate-portal_applications.png		
+/candidate-portal/interviews	portal-offer-desktop-dark_candidate-portal_interviews.png		
+/candidate-portal/messages	portal-offer-desktop-dark_candidate-portal_messages.png		
+/candidate-portal/profile	portal-offer-desktop-dark_candidate-portal_profile.png		
+/candidate-portal/applications/bc87dd38-f317-48a1-8584-ba8c844e97b0	portal-offer-desktop-dark_candidate-portal_applications_bc87dd38-f317-48a1-8584-ba8c844e97b0.png		
+/candidate-portal/applications/bc87dd38-f317-48a1-8584-ba8c844e97b0/emails	portal-offer-desktop-dark_candidate-portal_applications_bc87dd38-f317-48a1-8584-ba8c844e97b0_emails.png		
+/candidate-portal/applications/bc87dd38-f317-48a1-8584-ba8c844e97b0/interviews	portal-offer-desktop-dark_candidate-portal_applications_bc87dd38-f317-48a1-8584-ba8c844e97b0_interviews.png		
+/candidate-portal/applications/bc87dd38-f317-48a1-8584-ba8c844e97b0/messages	portal-offer-desktop-dark_candidate-portal_applications_bc87dd38-f317-48a1-8584-ba8c844e97b0_messages.png		
+/candidate-portal/messages/bc87dd38-f317-48a1-8584-ba8c844e97b0	portal-offer-desktop-dark_candidate-portal_messages_bc87dd38-f317-48a1-8584-ba8c844e97b0.png		
+/candidate-portal/applications/bc87dd38-f317-48a1-8584-ba8c844e97b0/offer	portal-offer-desktop-dark_candidate-portal_applications_bc87dd38-f317-48a1-8584-ba8c844e97b0_offer.png		
