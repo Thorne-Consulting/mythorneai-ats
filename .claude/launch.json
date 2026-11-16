@@ -4,29 +4,8 @@
     {
       "name": "ats-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "--prefix",
-        "src/web",
-        "run",
-        "dev"
-      ],
+      "runtimeArgs": ["--prefix", "src/web", "run", "dev"],
       "port": 3000
-    },
-    {
-      "name": "ats-api",
-      "runtimeExecutable": "dotnet",
-      "runtimeArgs": [
-        "run",
-        "--project",
-        "src/server/MyThorneAI.Ats.Api.csproj"
-      ],
-      "port": 5080
-    },
-    {
-      "name": "ats-api-dev",
-      "runtimeExecutable": "/private/tmp/claude-501/-Users-sirshak-Desktop-Items-Github-Thorne-Consulting-mythorneai-ats/a0fd85d9-aa24-4a95-a27f-f41baa703cb4/scratchpad/run-api-dev.sh",
-      "runtimeArgs": [],
-      "port": 5080
     }
   ]
 }
