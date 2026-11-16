@@ -19,194 +19,34 @@ import {
   SearchInput,
 } from '@/components/ui';
 import { useAbility, type AppAbility } from '@/lib/ability';
+import { GUIDES } from './guides';
 
-type Guide = {
-  key: string;
-  task: string;
-  title: string;
-  steps: string[];
-  href: string;
-  link: string;
-  /** Shown only to people who can do it. */
-  allowed?: (ability: AppAbility) => boolean;
-};
-
-const GUIDES: Guide[] = [
-  {
-    key: 'feedback',
-    task: 'Interviews',
-    title: 'Submit a scorecard',
-    steps: [
-      'Open Interviews and find the interview you ran.',
-      'Rate each area, add notes and say whether you would hire.',
-      'Click Submit scorecard. It locks after that, so every interviewer’s view stays independent.',
-      'Other people’s feedback opens to you once yours is in.',
-    ],
-    href: '/interviews',
-    link: 'Open interviews',
-  },
-  {
-    key: 'calendar',
-    task: 'Interviews',
-    title: 'Connect your calendar',
-    steps: [
-      'Open Settings, then Calendar and hours.',
-      'Connect your Google or Microsoft calendar. We only read when you are busy.',
-      'Set your working hours and time zone, so interviews are booked when you are free.',
-    ],
-    href: '/settings/availability',
-    link: 'Open calendar and hours',
-  },
-  {
-    key: 'schedule',
-    task: 'Interviews',
-    title: 'Schedule an interview',
-    steps: [
-      'Open the candidate and choose Schedule interview.',
-      'Pick the interview type, the interviewers and a time.',
-      'Everyone on the panel sees it under Interviews.',
-    ],
-    href: '/interviews',
-    link: 'Open interviews',
-    allowed: (a) => a.can('schedule', 'Interview'),
-  },
-  {
-    key: 'post-job',
-    task: 'Jobs',
-    title: 'Post a job',
-    steps: [
-      'Click Post a Job in the header.',
-      'Fill in the title, department, location and description.',
-      'Submit it. If your company needs approval first, the job opens once it’s approved.',
-    ],
-    href: '/jobs/new',
-    link: 'Post a job',
-    allowed: (a) => a.can('create', 'Job'),
-  },
-  {
-    key: 'approve',
-    task: 'Jobs',
-    title: 'Approve a job or an offer',
-    steps: [
-      'Requests waiting on you show in Waiting on you and in Notifications.',
-      'Open the request. Read the details and the note from the person who asked.',
-      'Approve or reject it. We save your decision on the job or the offer.',
-    ],
-    href: '/approvals',
-    link: 'Open approvals',
-    allowed: (a) => a.can('read', 'Job'),
-  },
-  {
-    key: 'add-candidate',
-    task: 'Candidates',
-    title: 'Add a candidate',
-    steps: [
-      'Open Candidates and click Add candidate. You can also add people from a resume or a spreadsheet (CSV).',
-      'Fill in their details and save. Their profile opens under Candidates.',
-    ],
-    href: '/candidates',
-    link: 'Open candidates',
-    allowed: (a) => a.can('create', 'Candidate'),
-  },
-  {
-    key: 'move',
-    task: 'Candidates',
-    title: 'Move a candidate',
-    steps: [
-      'Open the job and go to its Pipeline tab.',
-      'Drag the candidate card to the next stage, or open the candidate and use Move stage.',
-      'Rejecting asks for a reason, so every decision is recorded.',
-    ],
-    href: '/jobs',
-    link: 'Open jobs',
-    allowed: (a) => a.can('update', 'Job'),
-  },
-  {
-    key: 'search',
-    task: 'Getting around',
-    title: 'Search or run a command',
-    steps: [
-      'Press / or ⌘K anywhere.',
-      'Type a name, email or job title to find it, or type what you want to do, like “create job” or “dark mode”.',
-      'Use the arrow keys and Enter, or click a result.',
-    ],
-    href: '/',
-    link: 'Open the dashboard',
-  },
-  {
-    key: 'notifications',
-    task: 'Getting around',
-    title: 'Keep on top of notifications',
-    steps: [
-      'Notifications lists approvals, feedback you owe, candidate replies and applications with no recent activity.',
-      'Filter by type, open an item to act on it, or mark it as done.',
-    ],
-    href: '/notifications',
-    link: 'Open notifications',
-  },
-  {
-    key: 'dashboard',
-    task: 'Getting around',
-    title: 'Customize your dashboard',
-    steps: [
-      'My work shows only what is assigned to you or waiting on you.',
-      'On Team, click Customize to show, hide and reorder the cards.',
-    ],
-    href: '/',
-    link: 'Open the dashboard',
-    allowed: (a) => a.can('read', 'Job'),
-  },
-  {
-    key: 'report',
-    task: 'Reports',
-    title: 'Read and share a report',
-    steps: [
-      'Open Reports and pick one from the side: pipeline, speed, sources or team.',
-      'Filter by job, source and dates. Save the filters you use often as a saved view.',
-      'Download the table as a spreadsheet (CSV), or as a PDF to print or share.',
-    ],
-    href: '/reports',
-    link: 'Open reports',
-    allowed: (a) => a.can('read', 'Report'),
-  },
-  {
-    key: 'report-view',
-    task: 'Reports',
-    title: 'Save a report your way',
-    steps: [
-      'Open any report. Choose the dates and filters, and pick what to break it down by.',
-      'Choose Save view and give it a name. Share it with your team if you like.',
-      'From the view’s menu, pin it to the reports overview or have it emailed every week or month.',
-    ],
-    href: '/reports',
-    link: 'Open reports',
-    allowed: (a) => a.can('read', 'Report'),
-  },
-  {
-    key: 'role',
-    task: 'Your team',
-    title: 'Make a role of your own',
-    steps: [
-      'Open Settings, then Roles. Choose Duplicate on the role closest to what you need.',
-      'Name it, then pick which jobs it works on and what else it can do.',
-      'Save, then give it to people under Members or when you invite them.',
-    ],
-    href: '/settings/roles',
-    link: 'Open roles',
-    allowed: (a) => a.can('manage', 'Member'),
-  },
+const TASKS = [
+  'Getting around',
+  'Jobs',
+  'Candidates',
+  'Interviews',
+  'Offers',
+  'Messages',
+  'Assessments',
+  'Reports',
+  'Careers site and portal',
+  'Your team',
 ];
 
 /** The guides this person can use, grouped by task. Interviews lead for people who don't run jobs. */
 function guidesFor(ability: AppAbility, query: string) {
   const q = query.trim().toLowerCase();
   const order = ability.can('read', 'Job')
-    ? ['Getting around', 'Jobs', 'Candidates', 'Interviews', 'Reports', 'Your team']
-    : ['Interviews', 'Getting around', 'Candidates', 'Reports'];
+    ? TASKS
+    : ['Interviews', ...TASKS.filter((t) => t !== 'Interviews')];
   const guides = GUIDES.filter(
     (g) =>
       (!g.allowed || g.allowed(ability)) &&
-      (!q || [g.title, g.task, ...g.steps].some((text) => text.toLowerCase().includes(q))),
+      (!q ||
+        [g.title, g.task, g.picture ?? '', ...g.steps].some((text) =>
+          text.toLowerCase().includes(q),
+        )),
   );
   return order
     .map((task) => ({ task, guides: guides.filter((g) => g.task === task) }))
@@ -229,7 +69,7 @@ export function HelpPage() {
     <>
       <PageHeader
         title="Help"
-        description="Short how-tos for what you can do here, and every keyboard shortcut."
+        description="A short how-to for each thing you can do here, with a picture, and every keyboard shortcut."
       >
         <SearchInput
           aria-label="Search help"
@@ -277,6 +117,22 @@ export function HelpPage() {
                           <li key={s}>{s}</li>
                         ))}
                       </ol>
+                      {g.picture && (
+                        <figure className="mt-4">
+                          {/* Made by tools/help-images.mjs from the dark-mode screenshots. */}
+                          <img
+                            src={`/help/${g.key}.png`}
+                            alt={g.picture}
+                            width={1440}
+                            height={900}
+                            loading="lazy"
+                            className="w-full rounded-lg border border-border bg-well"
+                          />
+                          <figcaption className="mt-1.5 text-xs text-fg-subtle">
+                            {g.picture}
+                          </figcaption>
+                        </figure>
+                      )}
                       <div className="mt-4">
                         <CardLink href={g.href}>{g.link}</CardLink>
                       </div>
