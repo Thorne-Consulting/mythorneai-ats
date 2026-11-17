@@ -30,22 +30,59 @@ public static class LocalDotEnvConfiguration
     /// Outside Development: the same plain names (AUTH_MODE, S3_SECRET_KEY, POSTGRES_PASSWORD...)
     /// read from the process environment, which the deploy stack fills from Infisical at start.
     /// A name that is not set leaves the setting to appsettings.json or the ASP.NET-style variable.
+    /// Each name read is then removed from the process environment: the API holds its settings in
+    /// configuration, and the tools it starts (ffmpeg, OCR, both fed candidates' files) inherit the
+    /// environment, so they would otherwise inherit every secret.
     /// </summary>
     public static void AddFromEnvironment(ConfigurationManager configuration)
     {
-        var values = Environment
-            .GetEnvironmentVariables()
-            .Cast<System.Collections.DictionaryEntry>()
-            .ToDictionary(
-                e => (string)e.Key,
-                e => (string?)e.Value ?? "",
-                StringComparer.OrdinalIgnoreCase
-            );
+        var values = new Recording(
+            Environment
+                .GetEnvironmentVariables()
+                .Cast<System.Collections.DictionaryEntry>()
+                .ToDictionary(
+                    e => (string)e.Key,
+                    e => (string?)e.Value ?? "",
+                    StringComparer.OrdinalIgnoreCase
+                )
+        );
         var settings = Map(values);
         if (Get(values, "POSTGRES_PASSWORD") is { } password)
             settings["ConnectionStrings:AtsDatabase"] =
                 $"Host={Get(values, "POSTGRES_HOST") ?? "database"};Port={Get(values, "POSTGRES_PORT") ?? "5432"};Database={Get(values, "POSTGRES_DB") ?? "internal_ats"};Username={Get(values, "POSTGRES_USER") ?? "ats"};Password={password}";
         configuration.AddInMemoryCollection(settings.Where(pair => pair.Value is not null));
+        foreach (var name in values.Used)
+            Environment.SetEnvironmentVariable(name, null);
+    }
+
+    /// <summary>A read-only view that remembers which names were found.</summary>
+    private sealed class Recording(IReadOnlyDictionary<string, string> inner)
+        : IReadOnlyDictionary<string, string>
+    {
+        public HashSet<string> Used { get; } = [];
+
+        public string this[string key] => inner[key];
+
+        public IEnumerable<string> Keys => inner.Keys;
+
+        public IEnumerable<string> Values => inner.Values;
+
+        public int Count => inner.Count;
+
+        public bool ContainsKey(string key) => inner.ContainsKey(key);
+
+        public bool TryGetValue(string key, out string value)
+        {
+            var found = inner.TryGetValue(key, out value!);
+            if (found)
+                Used.Add(key);
+            return found;
+        }
+
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => inner.GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
     }
 
     private static Dictionary<string, string?> Map(IReadOnlyDictionary<string, string> values) =>

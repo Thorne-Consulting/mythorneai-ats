@@ -26,7 +26,9 @@ USER $APP_UID
 # With INFISICAL_CLIENT_ID set, the API fetches its own settings at start: it signs in to
 # Infisical with that machine identity (universal auth), then `infisical run` starts the API
 # with every secret of INFISICAL_ENV in its environment. Nothing is written to disk; HOME is the
-# memory /tmp because the root file system is read-only. Without INFISICAL_CLIENT_ID it starts
+# memory /tmp because the root file system is read-only. The login pair is dropped from the
+# environment once the token is bought, so the API and the tools it starts never hold it. The
+# token itself is short-lived (set its TTL low in Infisical). Without INFISICAL_CLIENT_ID it starts
 # the API directly with the environment it was given (a developer machine, another platform).
 # Arguments pass through, so `seed --sets baseline` works the same way.
-ENTRYPOINT ["sh", "-c", "set -e; export HOME=/tmp; if [ -z \"${INFISICAL_CLIENT_ID:-}\" ]; then exec dotnet MyThorneAI.Ats.Api.dll \"$@\"; fi; token=$(infisical login --method=universal-auth --client-id=\"$INFISICAL_CLIENT_ID\" --client-secret=\"$INFISICAL_CLIENT_SECRET\" --plain --silent); exec infisical run --token=\"$token\" --env=\"$INFISICAL_ENV\" --projectId=\"$INFISICAL_PROJECT_ID\" -- dotnet MyThorneAI.Ats.Api.dll \"$@\"", "api"]
+ENTRYPOINT ["sh", "-c", "set -e; export HOME=/tmp; if [ -z \"${INFISICAL_CLIENT_ID:-}\" ]; then exec dotnet MyThorneAI.Ats.Api.dll \"$@\"; fi; token=$(infisical login --method=universal-auth --client-id=\"$INFISICAL_CLIENT_ID\" --client-secret=\"$INFISICAL_CLIENT_SECRET\" --plain --silent); unset INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET; exec infisical run --token=\"$token\" --env=\"$INFISICAL_ENV\" --projectId=\"$INFISICAL_PROJECT_ID\" -- dotnet MyThorneAI.Ats.Api.dll \"$@\"", "api"]

@@ -58,7 +58,7 @@ public static partial class MediaEndpoints
                 var id = Guid.NewGuid().ToString("N");
                 await using (
                     var output = new FileStream(
-                        files.FullPath(StoredPrefix + id + type.Extension),
+                        files.NewPath(StoredPrefix + id + type.Extension),
                         FileMode.CreateNew,
                         FileAccess.Write,
                         FileShare.None,
@@ -81,18 +81,18 @@ public static partial class MediaEndpoints
     {
         app.MapGet(
                 PublicPath + "{name}",
-                (string name, HttpContext http, LocalFileStore files) =>
+                async (string name, HttpContext http, LocalFileStore files, CancellationToken ct) =>
                 {
                     var match = MediaName().Match(name);
                     if (!match.Success)
                         return Results.NotFound();
                     var stored = StoredPrefix + name;
-                    if (!File.Exists(files.FullPath(stored)))
+                    if (!await files.ExistsAsync(stored, ct))
                         return Results.NotFound();
                     // A name is never reused, so browsers, mail apps and proxies can keep it for good.
                     http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
                     return Results.File(
-                        files.OpenRead(stored),
+                        await files.OpenReadAsync(stored, ct),
                         match.Groups[1].Value switch
                         {
                             "png" => "image/png",

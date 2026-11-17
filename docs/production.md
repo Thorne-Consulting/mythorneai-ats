@@ -130,13 +130,17 @@ an app secret:
 
 - **The API** fetches its own. Its image runs `infisical login` with the host's identity, then
   `infisical run --env=$INFISICAL_ENV --projectId=$INFISICAL_PROJECT_ID -- dotnet
-  MyThorneAI.Ats.Api.dll`. Every secret is in the API process only, never in a file. The API
+  MyThorneAI.Ats.Api.dll`. Every secret is in the API process only, never in a file. The
+  entrypoint drops the Infisical login from the environment once it has its token, and the API
+  removes each setting it has read from its own environment, so ffmpeg and the OCR tool, which
+  work on candidates' files, do not inherit any secret. The API
   reads the plain names (`AUTH_MODE`, `POSTGRES_PASSWORD`, `S3_SECRET_KEY` and the rest) from
   its environment. Without `INFISICAL_CLIENT_ID` the image starts the API directly, with
   whatever environment it was given.
 - **Postgres and RustFS** have no Infisical CLI. The `secrets` service fetches
-  `POSTGRES_PASSWORD`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` into the memory volume
-  `ats-secrets`, one file each. Postgres reads `POSTGRES_PASSWORD_FILE`; RustFS reads
+  `POSTGRES_PASSWORD`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` into two memory volumes, one
+  file each: `ats-secrets-database` for the database, `ats-secrets-objects` for the object
+  store. Each of the two mounts only its own, so neither can read the other's secret. Postgres reads `POSTGRES_PASSWORD_FILE`; RustFS reads
   `RUSTFS_ACCESS_KEY_FILE` and `RUSTFS_SECRET_KEY_FILE`. The service then sleeps: Docker empties
   a memory volume when no running container has it mounted, so it must stay up.
 

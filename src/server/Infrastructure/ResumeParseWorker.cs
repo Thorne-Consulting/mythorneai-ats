@@ -78,7 +78,7 @@ public sealed class ResumeParseWorker(
             var textExtractor = scope.ServiceProvider.GetRequiredService<ResumeTextExtractor>();
             var extractor = scope.ServiceProvider.GetRequiredService<ResumeExtractor>();
             string text;
-            await using (var stream = files.OpenRead(attachment.StoredFileName))
+            await using (var stream = await files.OpenReadAsync(attachment.StoredFileName, cancellationToken))
                 text = await textExtractor.ExtractAsync(stream, attachment.OriginalFileName, cancellationToken);
 
             var extraction = await extractor.ExtractAsync(

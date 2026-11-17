@@ -291,7 +291,7 @@ public static class RecordingPipeline
                     await db.SaveChangesAsync(ct);
                     return true;
                 case TranscriptionPlan.Whole:
-                    await using (var stream = files.OpenRead(source))
+                    await using (var stream = await files.OpenReadAsync(source, ct))
                         transcript = await ai.TranscribeDetailedAsync(
                             stream,
                             $"interview{Path.GetExtension(source)}",

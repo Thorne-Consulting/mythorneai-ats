@@ -148,7 +148,7 @@ public static partial class AtsEndpoints
                             ],
                         }
                     );
-                var part = files.FullPath(
+                var part = files.NewPath(
                     RecordingPipeline.PartName(recording.StoredFileName, index)
                 );
                 await using (var output = new FileStream(part, FileMode.Create, FileAccess.Write))
