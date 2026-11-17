@@ -1221,6 +1221,9 @@ public sealed class WorkflowEngineTests(WorkflowFixture fixture) : IClassFixture
             ),
             w => w.Name = "Fast lane"
         );
+        // The seeded application may have been in the target stage before; only this test's
+        // own history counts below.
+        var since = DateTimeOffset.UtcNow.AddSeconds(-1);
         await MoveAsync(app, stages[1].Id);
         var run = (await RunsAsync(id)).Single();
         await StepAsync(run.Id);
@@ -1273,7 +1276,9 @@ public sealed class WorkflowEngineTests(WorkflowFixture fixture) : IClassFixture
         titles.ShouldContain("Workflow: Fast lane · Add tag");
         titles.Count(x => x.StartsWith("Workflow: Fast lane")).ShouldBe(3);
         // The step's own effects are not listed a second time.
-        titles.ShouldNotContain($"Moved to {target.Name}");
+        feed.Where(x => x.GetProperty("at").GetDateTimeOffset() >= since)
+            .Select(x => x.GetProperty("title").GetString())
+            .ShouldNotContain($"Moved to {target.Name}");
         titles.Where(x => x.StartsWith("Emailed: Hi ")).ShouldBeEmpty();
         feed.Select(x => x.GetProperty("actorEmail").ToString())
             .Where(x => x.StartsWith("workflow:"))

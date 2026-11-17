@@ -1,5 +1,4 @@
 import {
-  BarChart3,
   Briefcase,
   CalendarDays,
   CircleHelp,
@@ -36,7 +35,6 @@ export function primaryNav(ability: AppAbility): NavItem[] {
       match: ['/applications'],
       allowed: ability.can('read', 'Candidate'),
     },
-    { label: 'Pipeline', href: '/pipeline', icon: BarChart3, allowed: ability.can('read', 'Job') },
     {
       label: 'Interviews',
       href: '/interviews',

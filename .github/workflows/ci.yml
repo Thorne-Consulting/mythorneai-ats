@@ -1,35 +1,93 @@
+# Checks a pull request into staging or main. Runs once per PR, never again on the push that
+# merges it: release.yml takes over there and only builds images.
 name: ci
 
 on:
-  push:
   pull_request:
+    branches: [staging, main]
+  workflow_dispatch:
 
+# A new push to the same PR cancels the run in progress.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+# Read the code, nothing else. No job writes anything.
 permissions:
   contents: read
 
 jobs:
-  build-and-test:
+  web:
+    name: web
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: src/web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: src/web/package-lock.json
-      - name: build web
-        working-directory: src/web
+      - run: npm ci
+      - run: npm audit --audit-level=high
+      - run: npx prettier --check .
+      - run: npx tsc --noEmit -p .
+      - name: logic checks
         run: |
-          npm ci
-          npm audit --audit-level=high
-          npm run build
-      - name: restore .NET
-        run: dotnet restore tests/server/MyThorneAI.Ats.Api.Tests.csproj
-      - name: build .NET
-        run: dotnet build tests/server/MyThorneAI.Ats.Api.Tests.csproj --no-restore
-      - name: run integration tests
-        run: dotnet run --project tests/server/MyThorneAI.Ats.Api.Tests.csproj --no-build
+          node --experimental-strip-types src/lib/cn.ts
+          for f in $(find src -name '*.check.mjs'); do node --experimental-strip-types "$f"; done
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: 1
+
+  server:
+    # Four shards by the test method's first letter, so the 14-minute suite takes about four.
+    name: server (${{ matrix.shard.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - { name: A, filter: "--filter-query '/*/*/*/A*'" }
+          - {
+              name: B-H,
+              filter: "--filter-query '/*/*/*/B*' --filter-query '/*/*/*/C*' --filter-query '/*/*/*/D*' --filter-query '/*/*/*/E*' --filter-query '/*/*/*/F*' --filter-query '/*/*/*/G*' --filter-query '/*/*/*/H*'",
+            }
+          - {
+              name: I-R,
+              filter: "--filter-query '/*/*/*/I*' --filter-query '/*/*/*/J*' --filter-query '/*/*/*/K*' --filter-query '/*/*/*/L*' --filter-query '/*/*/*/M*' --filter-query '/*/*/*/N*' --filter-query '/*/*/*/O*' --filter-query '/*/*/*/P*' --filter-query '/*/*/*/Q*' --filter-query '/*/*/*/R*'",
+            }
+          - {
+              name: S-Z,
+              filter: "--filter-query '/*/*/*/S*' --filter-query '/*/*/*/T*' --filter-query '/*/*/*/U*' --filter-query '/*/*/*/V*' --filter-query '/*/*/*/W*' --filter-query '/*/*/*/X*' --filter-query '/*/*/*/Y*' --filter-query '/*/*/*/Z*'",
+            }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: nuget-${{ runner.os }}-
+      - run: dotnet restore tests/server/MyThorneAI.Ats.Api.Tests.csproj
+      - run: dotnet build tests/server/MyThorneAI.Ats.Api.Tests.csproj --no-restore --configuration Release
+      - name: tests
+        run: dotnet run --project tests/server/MyThorneAI.Ats.Api.Tests.csproj --no-build --configuration Release -- ${{ matrix.shard.filter }}
+
+  # One name for the branch rules to require, whatever the shards are called.
+  ok:
+    name: ok
+    needs: [web, server]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: |
+          echo "web: ${{ needs.web.result }}, server: ${{ needs.server.result }}"
+          test "${{ needs.web.result }}" = success && test "${{ needs.server.result }}" = success

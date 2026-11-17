@@ -1,0 +1,119 @@
+# Staging and production: the images release.yml published to GHCR, nothing built here.
+# Settings come from .env, which deploy.sh writes from Infisical. Only the web app listens, on
+# the loopback address, for the reverse proxy or the Netbird peer in front of it. Every container
+# runs as its own unprivileged user, drops every capability, cannot gain new ones, and the two
+# app containers have a read-only root file system.
+#
+#   IMAGE_TAG=staging docker compose -f compose.prod.yaml up -d
+services:
+  api:
+    image: ghcr.io/thorne-consulting/mythorneai-ats-api:${IMAGE_TAG:-latest}
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ConnectionStrings__AtsDatabase: Host=database;Port=5432;Database=${POSTGRES_DB:-internal_ats};Username=${POSTGRES_USER:-ats};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      Auth__Mode: ${AUTH_MODE:-WorkOS}
+      Auth__Authority: ${AUTH_AUTHORITY:-}
+      Auth__ClientId: ${AUTH_CLIENT_ID:-}
+      Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
+      Auth__WorkOS__ApiKey: ${WORKOS_API_KEY:-}
+      Auth__WorkOS__ClientId: ${WORKOS_CLIENT_ID:-}
+      Auth__WorkOS__RedirectUri: ${WORKOS_REDIRECT_URI:-}
+      Auth__AllowedEmailDomains: ${AUTH_ALLOWED_EMAIL_DOMAINS:-}
+      Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
+      Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-ATS administrator}
+      Integrations__Provider: ${INTEGRATIONS_PROVIDER:-None}
+      Integrations__Microsoft365__TenantId: ${MICROSOFT365_TENANT_ID:-}
+      Integrations__Microsoft365__ClientId: ${MICROSOFT365_CLIENT_ID:-}
+      Integrations__Microsoft365__ClientSecret: ${MICROSOFT365_CLIENT_SECRET:-}
+      Integrations__Microsoft365__SenderUserId: ${MICROSOFT365_SENDER_USER_ID:-}
+      Integrations__Microsoft365__CreateOnlineMeetings: ${MICROSOFT365_CREATE_ONLINE_MEETINGS:-true}
+      Integrations__CalendarOAuth__GoogleClientId: ${CALENDAR_OAUTH_GOOGLE_CLIENT_ID:-}
+      Integrations__CalendarOAuth__GoogleClientSecret: ${CALENDAR_OAUTH_GOOGLE_CLIENT_SECRET:-}
+      Integrations__CalendarOAuth__MicrosoftClientId: ${CALENDAR_OAUTH_MICROSOFT_CLIENT_ID:-}
+      Integrations__CalendarOAuth__MicrosoftClientSecret: ${CALENDAR_OAUTH_MICROSOFT_CLIENT_SECRET:-}
+      Integrations__CalendarOAuth__MicrosoftTenantId: ${CALENDAR_OAUTH_MICROSOFT_TENANT_ID:-common}
+      Integrations__CalendarOAuth__RedirectUri: ${CALENDAR_OAUTH_REDIRECT_URI:-}
+      Integrations__GoogleWorkspace__ImpersonatedUser: ${GOOGLE_WORKSPACE_IMPERSONATED_USER:-}
+      Integrations__GoogleWorkspace__CalendarId: ${GOOGLE_WORKSPACE_CALENDAR_ID:-primary}
+      Integrations__GoogleWorkspace__ServiceAccountJsonPath: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH:-}
+      Integrations__GoogleWorkspace__ServiceAccountJsonBase64: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_BASE64:-}
+      Integrations__GoogleWorkspace__CreateOnlineMeetings: ${GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS:-true}
+      Resend__ApiKey: ${RESEND_API_KEY:-}
+      Resend__From: ${RESEND_FROM:-}
+      Resend__WebhookSecret: ${RESEND_WEBHOOK_SECRET:-}
+      Resend__InboundDomain: ${RESEND_INBOUND_DOMAIN:-}
+      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
+      OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
+      OpenAI__ResumeModel: ${OPENAI_RESUME_MODEL:-}
+      OpenAI__EmbeddingModel: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OpenAI__TranscriptionModel: ${OPENAI_TRANSCRIPTION_MODEL:-whisper-1}
+      DataProtection__KeyPath: /app/data-protection-keys
+      FileStorage__RootPath: /app/uploads
+    expose:
+      - '8080'
+    depends_on:
+      database:
+        condition: service_healthy
+    volumes:
+      - ats-data-protection:/app/data-protection-keys
+      - ats-uploads:/app/uploads
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '20m', max-file: '5' }
+
+  web:
+    image: ghcr.io/thorne-consulting/mythorneai-ats-web:${IMAGE_TAG:-latest}
+    ports:
+      - '${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8080}:3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /app/.next/cache:size=256m
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: '20m', max-file: '5' }
+
+  database:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-internal_ats}
+      POSTGRES_USER: ${POSTGRES_USER:-ats}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    # Not published: only the api on the compose network reaches it.
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ats-database:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  ats-database:
+  ats-data-protection:
+  ats-uploads:
