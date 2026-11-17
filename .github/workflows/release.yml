@@ -4,6 +4,8 @@
 #   staging -> ghcr.io/<owner>/mythorneai-ats-{api,web}:staging  -> the staging host
 #   main    -> ...:latest and :main                              -> production, after approval
 #   v1.2.3  -> ...:1.2.3 and :1.2                                -> nothing (a tag is a label)
+#
+# Every build also gets sha-<commit>, and that is what the hosts deploy: a tag that never moves.
 name: release
 
 on:
@@ -29,6 +31,9 @@ jobs:
     name: image (${{ matrix.image.name }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # A manual run only publishes from the two protected branches; a v* tag needs an admin
+    # (the tags ruleset), so nothing unreviewed gets a version or a branch tag.
+    if: github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -52,12 +57,13 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.IMAGE_BASE }}-${{ matrix.image.name }}
+          flavor: latest=false
           tags: |
             type=ref,event=branch
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,prefix=sha-,format=short
+            type=sha,prefix=sha-,format=long
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.image.context }}
@@ -94,7 +100,8 @@ jobs:
       - name: pull and restart
         working-directory: deploy
         env:
-          IMAGE_TAG: ${{ github.ref == 'refs/heads/main' && 'latest' || 'staging' }}
+          # The exact image this run built, never a moving tag.
+          IMAGE_TAG: sha-${{ github.sha }}
           INFISICAL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}

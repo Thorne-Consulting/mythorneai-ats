@@ -27,7 +27,10 @@ feature branch ──PR──▶ staging ──PR──▶ main
 5. **Merging into `main`** publishes the images with the tags `latest` and `main`, then waits
    for a reviewer on the `production` environment before the production host pulls them.
 6. **A tag `v1.2.3` on `main`** publishes the images as `1.2.3` and `1.2`, for a known
-   rollback point. It deploys nothing.
+   rollback point. It deploys nothing. Only an admin can make a `v*` tag (the tags ruleset).
+
+Every build also gets `sha-<commit>`, and that is what the hosts deploy: the exact image the
+run built, never a moving tag. `staging`, `main` and `latest` are for people.
 
 Nothing runs twice. A push to a feature branch runs nothing: the PR is where checks happen.
 Dependabot opens its PRs against `staging`, only for versions at least 14 days old, and patch
@@ -48,6 +51,7 @@ It sets:
 - **`staging`:** a pull request with the `ok` check. No force pushes, no deletion.
 - **`main`:** a pull request with one approval, the `ok` check up to date with `main`, every
   review thread resolved, linear history. No force pushes, no deletion.
+- **Tags `v*`:** only an admin can create, move or delete one.
 - **Environments:** `staging` deploys at once. `production` waits for the reviewer the script
   names, and only from `main`.
 
@@ -170,8 +174,9 @@ images need from the platform:
   read the code; the image job writes packages; the deploy job reads packages.
 - Every action is pinned to a commit SHA, with its version in a comment. Dependabot moves them,
   14 days after a release.
-- The images carry provenance and a software bill of materials, and a tag never moves except
-  `staging`, `main` and `latest`.
+- The images carry provenance and a software bill of materials. The hosts deploy `sha-<commit>`
+  tags, which never move; `staging`, `main` and `latest` are labels for people. A manual run
+  publishes only from the two protected branches, and only an admin can make a `v*` tag.
 - In compose, every container runs as its own unprivileged user, drops every capability, cannot
   gain new ones, and the API and web containers have a read-only root file system with a small
   `tmpfs` for scratch. If the API ever logs a write error on the first staging deploy, that is
