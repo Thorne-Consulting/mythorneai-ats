@@ -22,7 +22,16 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 builder.Services.AddProblemDetails();
-builder.Services.AddOpenApi();
+// The public API (careers site, apply, candidate portal) has its own OpenAPI document, served
+// with Scalar at /docs everywhere. The full document covers every endpoint and is for developers.
+builder.Services.AddOpenApi(
+    "public",
+    options =>
+        options.ShouldInclude = description =>
+            description.RelativePath?.StartsWith("public", StringComparison.OrdinalIgnoreCase) == true
+);
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddOpenApi();
 var dataProtectionPath = builder.Configuration["DataProtection:KeyPath"];
 if (!string.IsNullOrWhiteSpace(dataProtectionPath))
 {
@@ -141,10 +150,16 @@ app.UseRateLimiter();
 app.UseAntiforgery();
 
 app.MapOpenApi();
-if (app.Environment.IsDevelopment())
-{
-    app.MapScalarApiReference("/docs");
-}
+app.MapScalarApiReference(
+    "/docs",
+    options =>
+    {
+        options.WithTitle("MyThorneAI ATS API");
+        options.AddDocument("public", "Public API", isDefault: true);
+        if (app.Environment.IsDevelopment())
+            options.AddDocument("v1", "Everything (development)");
+    }
+);
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapAtsAuth(app.Configuration, app.Environment);
