@@ -78,7 +78,6 @@ const STAFF_ROUTES = [
   '/jobs/{kitJob}/kits/{kit}/edit',
   '/jobs/{job}/team',
   '/jobs/{job}/settings',
-  '/pipeline',
   '/approvals',
   '/candidates',
   '/candidates/recent',

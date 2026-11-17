@@ -96,7 +96,7 @@ closed, neutral. Get stage/status colours from `components/status.tsx`; never pi
 ## Screen anatomy
 
 1. **Shell** (`AppShell`): navy header (brand, search, notifications, Post a Job, account) and navy
-   sidebar (Dashboard, Jobs, Candidates, Pipeline, Interviews, Assessments, Reports, Messages ·
+   sidebar (Dashboard, Jobs, Candidates, Interviews, Assessments, Reports, Messages ·
    Settings, Help, Thorney). Pages render only their content.
 2. **PageHeader**: optional breadcrumbs, 28px bold title, one plain sentence saying what the page is
    for, actions on the right (secondary first, primary last, at most one primary).

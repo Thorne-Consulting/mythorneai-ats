@@ -603,7 +603,7 @@ function PipelineWidget({ data, className }: { data: DashboardData; className: s
       <CardHeader
         title="Hiring pipeline"
         description={`Active people on open jobs. Percentages: of those who applied in the last ${days} days, how many went on to the next step.`}
-        action={<CardLink href="/pipeline">View pipeline</CardLink>}
+        action={<CardLink href="/candidates/active?openJobs=true">View everyone active</CardLink>}
       />
       <div className="px-5 pb-5">
         {total === 0 ? (

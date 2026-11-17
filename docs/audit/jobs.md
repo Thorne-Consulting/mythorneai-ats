@@ -14,6 +14,7 @@
 ## Features
 
 ### Team dashboard grid and layout — COMPLETE · M
+
 - Where: `/`, `features/dashboard/DashboardPage.tsx:132-252`, `widget-layout.ts`, `GET /api/dashboard` (`Features/Dashboard/DashboardEndpoints.cs`).
 - Today: a 3-column grid of widgets in a fixed per-role order (`widget-layout.ts:17-32`). Spans are hard-coded (`DashboardPage.tsx:98-107`). It works end to end on real data.
 - Design critique: "Hiring pipeline" (span 2) shares a row with "Candidate sources" (span 1, about 380px tall). The pipeline card stretches to match and leaves a ~200px empty block under five 118px tiles (`desktop-light_.png`, y 800-1010). "Coming up" leaves the same kind of gap next to "Recent candidates". The header packs the date, Customize and two tabs, but "My work (7)" vs "Team" is the main choice on the page and reads as small 13px tab text. On phone the Recent candidates table scrolls sideways and cuts off "Last activity", and the pipeline tiles show 2.5 of 5.
@@ -27,6 +28,7 @@
 - Libraries: none.
 
 ### Key numbers (stat cards) — COMPLETE · S
+
 - Where: `DashboardPage.tsx:422-458`, `DashboardEndpoints.cs:30-54`.
 - Today: Open jobs, Active candidates, Interviews in the next 7 days, and "Hires" with the hint "On open jobs" (`DashboardPage.tsx:449-455`).
 - Design critique: "Hires · 1 · On open jobs" undercounts on purpose: a job that is filled drops out. "Interviews schedul…" truncates at 1440.
@@ -39,6 +41,7 @@
 - Libraries: none.
 
 ### Finish setting up checklist — COMPLETE · S
+
 - Where: `DashboardPage.tsx:460-503`, `GET /api/admin/setup-checklist` (`ConfigurationEndpoints.cs:~340-360`).
 - Today: works and links to the right settings pages.
 - Design critique: steps say "Add the email sending key and sender address to the server" and "Add the OpenAI key to the server". A customer admin cannot do that. You cannot dismiss it, so it stays until all 8 steps are done.
@@ -50,6 +53,7 @@
 - Libraries: none.
 
 ### Hiring pipeline widget — COMPLETE · M
+
 - Where: `DashboardPage.tsx:505-539`, `DashboardEndpoints.cs:56-66`.
 - Today: groups active applications by stage name across all jobs, including closed jobs.
 - Design critique: tiles use generic file icons picked by tone (`stageIcons`, `DashboardPage.tsx:88-95`). "Booked" (gray) comes after "Interview" (blue), so the colour story goes backwards. Tiles are not links.
@@ -62,6 +66,7 @@
 - Libraries: none.
 
 ### Candidate sources widget — COMPLETE · S
+
 - Where: `DashboardPage.tsx:541-569`, `/api/reports/sources`.
 - Today: an all-time donut with a legend. It is hidden when the user lacks report access.
 - Design critique: "All applications" all-time makes it the same chart forever.
@@ -72,6 +77,7 @@
 - Libraries: Recharts via `@/components/ui/chart` (installed).
 
 ### Recent candidates → Activity feed — COMPLETE · M
+
 - Where: `DashboardPage.tsx:571-624`, `DashboardEndpoints.cs:157-169`.
 - Today: six applications sorted by last activity, with the stage and "13 min ago". It never says what happened.
 - Product critique: Greenhouse "Recent activity" and Ashby home say "Ivy Chen booked a Technical interview" or "Priya moved Casey to Review". That is what a recruiter scans for.
@@ -83,6 +89,7 @@
 - Libraries: none.
 
 ### Coming up (team interviews) — COMPLETE · S
+
 - Where: `DashboardPage.tsx:399-408,680-713`.
 - Today: the next 5 scheduled interviews in scope.
 - Design critique: the card stretches to the row height with 2 items and ~180px of blank space. There are no interviewer avatars and no meeting link. "15 Sun" is a strange date label (`dayLabel`, `DashboardPage.tsx:773-781`).
@@ -94,6 +101,7 @@
 - Libraries: none.
 
 ### Open jobs widget — COMPLETE · S
+
 - Where: `DashboardPage.tsx:626-678,783-815`, `DashboardEndpoints.cs:131-156`.
 - Today: every open or pending job with a one-hue stage bar.
 - Design critique: the bar's segments differ only by opacity (`DashboardPage.tsx:803-808`) and have no legend, so "Booked" and "Offer" cannot be told apart. The list has no limit (12 rows at 1440, more for real customers). Counts flip between "1 new today" and "active", two different units in the same column.
@@ -105,6 +113,7 @@
 - Libraries: none.
 
 ### Waiting on you — COMPLETE · S
+
 - Where: `DashboardPage.tsx:715-771`, `features/notifications/notification-items.ts`.
 - Today: approvals, scorecards due, unread candidate messages and stalled applications, merged in the browser. "Done" lives in `localStorage` (`notification-items.ts:94-97`).
 - Design critique: the meta lines truncate ("nothing has happen…"), and the action link ("Open") is the same for every stalled row.
@@ -117,6 +126,7 @@
 - Libraries: none.
 
 ### Customize dashboard — COMPLETE · S
+
 - Where: `DashboardPage.tsx:138-143,197-249`, `widget-layout.ts`.
 - Today: show, hide and reorder with up and down arrows, saved in `localStorage` per role.
 - Design critique: arrow buttons on 8 rows work but feel clumsy. "Only this browser remembers your choice" admits the gap in the copy.
@@ -127,6 +137,7 @@
 - Libraries: `@dnd-kit/sortable@10.0.0` (shared with the board work below).
 
 ### My work tab — COMPLETE · S
+
 - Where: `DashboardPage.tsx:254-374`.
 - Today: four stat cards, Waiting on you, My interviews and My jobs. Interviews are fetched again and filtered in the browser by email (`DashboardPage.tsx:263-276`).
 - Design critique: "Waiting on you" appears as a stat card and as a list right under it, so it is said twice. Remove the stat card.
@@ -138,6 +149,7 @@
 - Libraries: none.
 
 ### Interviewer home — COMPLETE · S
+
 - Where: `features/dashboard/InterviewerHome.tsx`.
 - Today: next interview with Prepare, feedback due with Write scorecard, and a "Later" list. Good shape for the once-a-month user.
 - Product critique: Greenhouse and Ashby show "Join" and the interview kit right on the card.
@@ -149,6 +161,7 @@
 - Libraries: none.
 
 ### Jobs list (table) — COMPLETE · M
+
 - Where: `/jobs`, `features/requisitions/RequisitionsPage.tsx:209-340,482-521`, `GET /api/requisitions`.
 - Today: sortable, column choice, density, CSV export, row ••• menu (Open, Edit, Change status), 10 per page. All jobs load at once in the browser.
 - Design critique (`desktop-light_jobs.png`):
@@ -168,11 +181,13 @@
 - Libraries: none (`DataTable` already covers it).
 
 ### Jobs stat cards — MERGE · S
+
 - Where: `RequisitionsPage.tsx:411-439`.
 - Today: Open 9, Active applications 43, Draft 1, Filled 1. They cannot be clicked (no `href`), and on phone they stack into ~470px before the list.
 - Verdict: MERGE into the saved-view pills, with counts on the pills ("Open 9 · Drafts and approval 1 · On hold 1 · Closed 1"). "Active applications" moves to the dashboard, which already has it. This frees about 130px at 1440 and a whole screen on phone.
 
 ### Saved views and filters — COMPLETE · S
+
 - Where: `RequisitionsPage.tsx:63-94,342-363,443-452`, `components/data-table/SavedViews.tsx:28`.
 - Today: built-in views plus personal views in `localStorage`; filters for department and location (free-text values, so "Engineering" and "engineering" split).
 - Complete means:
@@ -183,6 +198,7 @@
 - Libraries: none.
 
 ### Bulk status change — COMPLETE · S
+
 - Where: `RequisitionsPage.tsx:155-194,499-520`, `job-status.ts`.
 - Today: one PATCH per job, with skipped jobs explained in the toast. No confirmation, even for Closed or Cancelled.
 - Complete means:
@@ -192,10 +208,12 @@
 - Libraries: none.
 
 ### Jobs status board (kanban by status) — REMOVE · S
+
 - Where: `RequisitionsPage.tsx:453-461,529-603`.
 - Why: jobs do not flow left to right the way candidates do, and the board makes the riskiest action (closing a job) a careless drag with no reason and no undo (`RequisitionsPage.tsx:556-563`). The table with status views does the job better. Remove the Table|Board toggle and `JobBoard`.
 
 ### Create job wizard — COMPLETE · L
+
 - Where: `/jobs/new`, `features/requisitions/CreateRequisitionPage.tsx`, `POST /api/requisitions` (`RequisitionEndpoints.cs:383-461`).
 - Today: 6 steps (Basics, Description, Requirements, Pipeline, Hiring team, Review) with a live posting preview. It saves as Draft.
 - Design critique (`desktop-light_jobs_new.png`):
@@ -222,6 +240,7 @@
 - Libraries: `@platejs/list@53.3.13` and `@platejs/autoformat@53.0.0` (lists and "- " shortcuts in `PlateMarkdownEditor`); `@platejs/link@53.3.5` (links in postings). They fit the installed `platejs@53` line and replace nothing hand-rolled.
 
 ### Job record layout (shell and section nav) — COMPLETE · M
+
 - Where: `/jobs/[id]/*`, `features/requisitions/RequisitionShell.tsx`, `components/layout/SectionLayout.tsx`.
 - Today: breadcrumbs, title with status, code and meta, Change status and Find candidates, the approval card, then a 224px section nav with 3 groups and 9 items.
 - Design critique: the nav math in "Overall". The hydration error (`RequisitionShell.tsx:52,80`). On phone the header stacks title, badge, code chip, meta, two buttons and a native `<select>` (~380px) before any content (`phone-light_jobs_…png`). The "JOB / THE JOB / PEOPLE" group labels add nothing for 7 items.
@@ -236,6 +255,7 @@
 - Libraries: none.
 
 ### Job status lifecycle — COMPLETE · M
+
 - Where: `RequisitionShell.tsx:54-70,147-176`, `job-status.ts`, `PATCH /api/requisitions/{id}/status` (`RequisitionEndpoints.cs:509-563`), `PipelineEvents.OnMovedAsync` (auto Filled).
 - Today: seven statuses. Opening is gated by approval. "Reason" exists in the API but the UI always sends `null`. Closing leaves every active candidate active and unanswered. No webhook fires for job events.
 - Product critique: Lever and Greenhouse ask why a job closed (filled, budget, on hold, cancelled) and offer to reject or move the open candidates. That is the candidate experience customers are judged on.
@@ -249,9 +269,10 @@
 - Libraries: none.
 
 ### Job overview — COMPLETE · M
+
 - Where: `/jobs/[id]`, `features/requisitions/JobOverview.tsx`.
 - Today: Candidates by stage, Funnel (active only), Next steps, Hiring team and Key facts.
-- Design critique: the 77px stage tiles. Two cards show the same numbers. "Funnel" counts only *active* people, so "Review 56%" is not a conversion rate. People who were rejected never "reached" anything (`pipeline-stats.ts:17-25`). The right rail repeats the Team and Details pages. Next steps tells you to "Use Change status" instead of giving the button (`JobOverview.tsx:35`).
+- Design critique: the 77px stage tiles. Two cards show the same numbers. "Funnel" counts only _active_ people, so "Review 56%" is not a conversion rate. People who were rejected never "reached" anything (`pipeline-stats.ts:17-25`). The right rail repeats the Team and Details pages. Next steps tells you to "Use Change status" instead of giving the button (`JobOverview.tsx:35`).
 - Product critique: Ashby's job overview is the job's health page: conversion by stage including rejected, average days in stage, where candidates come from, upcoming interviews, feedback still owed, and days open versus target start.
 - Complete means:
   - [ ] One "Pipeline" card: horizontal rows per stage with label, count in stage, and the share who reached the stage (from `StageTransitions`, including rejected). Labels sit on the left, so nothing truncates.
@@ -263,14 +284,17 @@
 - Libraries: none.
 
 ### Job details page — MERGE · S
+
 - Where: `/jobs/[id]/details`, `RequisitionDetails.tsx:25-80`.
 - Verdict: MERGE. "About the role" is already on Posting, the facts are on Overview's Key facts, and the stages are on Overview. Survivor: Posting (description and facts as the posting header) and Overview. Redirect `/details` to `/posting`.
 
 ### Job candidates page — MERGE · S
+
 - Where: `/jobs/[id]/candidates`, `JobSections.tsx:48-103`.
 - Verdict: MERGE into Pipeline's List view (`PipelineView.tsx:86-95`); it is the same `ApplicantsTable`. The "Candidates" nav count moves to the Pipeline tab. Redirect `/candidates` to `/pipeline?view=list`.
 
 ### Job pipeline board and list — COMPLETE · L
+
 - Where: `/jobs/[id]/pipeline`, `features/pipeline/PipelineView.tsx`, `PipelineBoard.tsx`, `StageStrip.tsx`, `ApplicantsTable.tsx`, `components/pipeline/BoardColumn.tsx`, `CandidateCard.tsx`, `GET /api/requisitions/{id}/board`, `PATCH /api/applications/{id}/stage`.
 - Today: search, stage chips that filter, Board|List, compact cards, drag or ••• to move, optimistic with rollback. Active candidates only.
 - Design critique (`desktop-light_jobs_…_pipeline.png`):
@@ -306,6 +330,7 @@
   - `@tanstack/react-virtual@3.14.26` for columns over ~100 cards.
 
 ### Stage-change candidate emails — COMPLETE · M
+
 - Where: `ApplicationEndpoints.cs:440-455` (every move queues "stage-update"), `EmailTemplates.cs:21-25`.
 - Today: every drag, even an accidental one or a move back, emails the candidate "Your application … has moved to: {internal stage name}". The recruiter is never told an email went out and cannot skip it.
 - Why it matters: the most visible part of the product is the candidate inbox. Lever, Greenhouse and Ashby send stage emails only when a stage is set up to, show the email before sending, allow "don't send", and delay or batch so moves back and forth send nothing.
@@ -318,6 +343,7 @@
 - Libraries: none.
 
 ### Stage model (types, colours, automation keys) — COMPLETE · M
+
 - Where: `Domain/Requisitions.cs:52-62` (`PipelineStage`), `Domain/Configuration.cs:3-11` (`PipelineTemplate.StageNames`), `components/status.tsx:48-56`, `PublicInterviewBookingEndpoints.cs:227-229`, `OfferEndpoints.cs` `FindHiredStageAsync`, `SeedData.cs:74-91`.
 - Today: stages are names. Colour is guessed by regex. `Color` is stored ("indigo", "grape" and other tones that do not exist in the token set) and never read. Automation looks for the words "Booked" and "Hired".
 - Complete means:
@@ -328,6 +354,7 @@
 - Libraries: none.
 
 ### Per-job stage editing — COMPLETE · M
+
 - Where: missing. Stages are copied from a template at create time (`RequisitionEndpoints.cs:433-445`) and no endpoint changes them later.
 - Product critique: Greenhouse "Interview plan" and Ashby "Interview plan" are edited per job all the time (add a take-home for one role).
 - Complete means:
@@ -338,6 +365,7 @@
 - Libraries: `@dnd-kit/sortable@10.0.0`.
 
 ### Requirements — COMPLETE · S
+
 - Where: `/jobs/[id]/requirements`, `RequisitionRequirements.tsx`, `PUT /requisitions/{id}/requirements`, `POST …/requirements/extract` (`AI/RankingEndpoints.cs:110,139`).
 - Today: bullet lists that you edit in place, AI draft from the description, minimum years and location. It works.
 - Design critique (`desktop-light_jobs_…_requirements.png`): the read view ends with "At least 10 years of experience · 10". The location has no label (`RequisitionRequirements.tsx:168-177`). The card fills 894px with 6 short bullets. Seed data is keyboard mash ("sdsdsd"), which is a demo risk.
@@ -350,6 +378,7 @@
 - Libraries: none.
 
 ### Job posting page — COMPLETE · M
+
 - Where: `/jobs/[id]/posting`, `JobSections.tsx:196-270`.
 - Today: public link with copy and open, a warning when the job is not open, and a preview. "Edit posting" jumps to Settings.
 - Design critique (`desktop-light_jobs_…_posting.png`): the link is a raw GUID URL in monospace. The preview's disabled "Apply for this job" looks broken. Markdown is not rendered.
@@ -363,6 +392,7 @@
 - Libraries: Plate static render (`components/plate/ui/editor-static.tsx` already exists) in `JobPostingView` and Details. No `react-markdown` needed.
 
 ### Application questions — COMPLETE · M
+
 - Where: `Requisition.ApplicationQuestionsMarkdown` (`Domain/Requisitions.cs:16`), set only from a posting template at create time (`RequisitionEndpoints.cs:428`). Parsed by guesswork in `features/careers/questions.ts:20-31`.
 - Today: recruiters cannot see or edit a job's questions anywhere. `GET /requisitions/{id}` does not return them. The template starter text "Add any default questions for applicants." is a paragraph not starting with `#`, so `parseQuestions` turns it into a real question on the apply form if the admin leaves it. The template editor cannot make list items (no list plugin), which is the format the parser prefers.
 - Product critique: every competitor has a question builder with types and required flags; Greenhouse and Lever add knockout answers.
@@ -374,6 +404,7 @@
 - Libraries: `@dnd-kit/sortable@10.0.0` for reorder.
 
 ### Hiring team page — MERGE · M
+
 - Where: `/jobs/[id]/team`, `JobSections.tsx:120-193`, plus "People" and "Who can see this job" in `RequisitionSettings.tsx:156-209`.
 - Verdict: MERGE into one "Team" tab that is both view and edit. Survivor: the Team tab. What moves: the hiring manager and recruiter pickers and the confidential and viewer controls from Settings.
 - Complete means (Team tab):
@@ -386,6 +417,7 @@
 - Libraries: `@casl/ability@7.1.3` and `@casl/react@7.1.0` if the RBAC reviewer adopts CASL. `canManageJob` (`requisition-data.tsx:29-36`) then becomes `can('manage', subject('Job', job))`, so the UI and the API rules come from one definition.
 
 ### Job settings — COMPLETE · S
+
 - Where: `/jobs/[id]/settings`, `RequisitionSettings.tsx`, `PUT /api/requisitions/{id}`, `PUT /api/requisitions/{id}/settings`.
 - Today: auto-save on blur for job fields, people, description, visibility and self-service.
 - Design critique (`desktop-light_jobs_…_settings.png`): two save indicators ("Saved" twice, `RequisitionSettings.tsx:136,180`) because two endpoints back one page. "About the role" is a 4-row plain textarea, while creation used a rich editor. People fields accept any typed string.
@@ -397,13 +429,15 @@
 - Libraries: none.
 
 ### Candidate self-service toggles — DONE · S
+
 - Where: `RequisitionSettings.tsx:210-226`, enforced in `PublicPortalEndpoints.cs`, `PublicInterviewBookingEndpoints.cs` and `PublicCandidateMessagingEndpoints.cs`.
 - Why done: two clear switches, saved right away, and honoured by every public endpoint that offers the action. Only the copy needs a touch ("from their portal or the links in our emails" is fine). It moves with Settings.
 
 ### Job approval (submit, waiting, rejected) — COMPLETE · M
+
 - Where: `RequisitionApproval.tsx`, `POST /requisitions/{id}/submit-for-approval`, `GET /requisitions/{id}/approval` (`OfferEndpoints.cs:328-392`).
 - Today: draft jobs show a full card with the approver picker above every tab. Pending shows a timeline. Rejection shows a red alert with the comment.
-- Design critique: the card sits above the tabs and repeats on every sub-page. The rejection alert says "did not approve this job" but does not show *what* they saw.
+- Design critique: the card sits above the tabs and repeats on every sub-page. The rejection alert says "did not approve this job" but does not show _what_ they saw.
 - Product critique: Greenhouse shows approval status in the job header and lets the requester "Cancel request" or "Nudge". Ashby keeps every round of the approval history.
 - Complete means:
   - [ ] Header status reads "Waiting for approval (1 of 2)" with a popover timeline.
@@ -414,10 +448,13 @@
 - Libraries: none.
 
 ### Pipeline page (/pipeline) — MERGE · S
+
 - Where: `/pipeline`, `features/pipeline/PipelinePage.tsx`.
 - Verdict: MERGE into the job's Pipeline tab. It is the same `PipelineView` with a plain `Select` job picker (long lists should use `SearchSelect` by the UI rules). It shows only Open jobs (`PipelinePage.tsx:27`) and says "Add candidate" for the same link the job page calls "Find candidates". Survivor: `/jobs/[id]/pipeline` with the breadcrumb job switcher. `/pipeline` redirects to the last job the user viewed (preference) or the first open job. The sidebar item stays and points there.
+- Removed on 2026-11-16: the sidebar item and `/pipeline` are gone. The item only redirected to one job's board, which Jobs and the breadcrumb job switcher already reach, and a global "Pipeline" that opens one job confused people. `/pipeline` redirects to `/jobs` for old links. The dashboard's Hiring pipeline card links to the active candidates list instead.
 
 ### Approvals inbox (/approvals) — COMPLETE · M
+
 - Where: `/approvals`, `features/approvals/ApprovalsPage.tsx`, `ApprovalDetail.tsx`, `ApprovalParts.tsx`, `GET /api/approvals/mine`, `POST /api/approvals/{id}/decide`.
 - Today: approvals waiting on me, with tabs by kind, a detail drawer, approve (optional comment) and reject (required reason). Reached only from the bell or the dashboard. The sidebar highlights "Dashboard" on this page by design (`components/layout/nav.ts:29`).
 - Design critique (`desktop-light_approvals.png`): all three tabs are subsets of "Waiting on me", so they never show anything else. An approver must leave the page ("Open application" or "Open job") to see what they are approving. The drawer shows only a string like "PRG-008 · Community programs · 1 opening(s)" (`OfferEndpoints.cs` `/approvals/mine`, which also breaks the "(s)" copy rule). `ConfirmModal` (`ApprovalParts.tsx:53-96`) is dead code.
@@ -436,6 +473,7 @@
 - Libraries: none.
 
 ### Approval engine (backend) — COMPLETE · M
+
 - Where: `OfferEndpoints.cs` (`ResolveApproversAsync`, `AddApprovals`, `NotifyEligibleApproversAsync`, `ApplyDecisionAsync`), `Domain/Offers.cs:36-49`.
 - Today: parallel or sequential chains, no self-approval, admin defaults added for non-admins, rejection resets the subject to Draft.
 - Problems:
@@ -452,6 +490,7 @@
 - Libraries: none.
 
 ### Approval rules (admin) — COMPLETE · M
+
 - Where: `/admin/approvals`, `AdminSettings.tsx:159-220`, `PUT /api/admin/organization`.
 - Today: two switches (offers, new jobs), "one at a time", and one list of default approvers for both.
 - Design critique (`desktop-light_admin_approvals.png`): the help text says "We ask these people, in this order", but a `MultiSelect` cannot be reordered; the order is the click order. The chips are long ("Morgan Manager (manager@example.test)").
@@ -464,6 +503,7 @@
 - Libraries: `@dnd-kit/sortable@10.0.0`.
 
 ### Hiring pipelines (admin templates) — COMPLETE · M
+
 - Where: `/admin/pipelines`, `features/admin/PipelineTemplatesSection.tsx`, `/api/pipeline-templates`, `/api/admin/pipeline-templates*` (`ConfigurationEndpoints.cs:183-210`).
 - Today: list with stage chips, a modal editor (name, reorder by handle or arrows, up to 12, default) and delete with a confirm. It works.
 - Design critique (`desktop-light_admin_pipelines.png`): "Set as default" is missing from the ••• menu; you have to open Edit. The stage colours come from the name regex, so "Booked" is grey between two blues.
@@ -477,6 +517,7 @@
 - Libraries: `@dnd-kit/sortable@10.0.0` replaces the HTML5 drag in `PipelineTemplatesSection.tsx:199-223`.
 
 ### Posting templates (list) — COMPLETE · S
+
 - Where: `/admin/templates`, `features/admin/PostingTemplates.tsx`, `GET/POST /api/posting-templates` (`PostingTemplateEndpoints.cs`).
 - Today: a list of name and version with a "Ready to use" badge that never changes (`PostingTemplates.tsx:71-73`). Rows cannot be opened, edited, archived or deleted; the API has no GET-by-id, PUT or DELETE. Saving with an existing name makes a new version, but every version stays `IsActive`, so the list and the wizard picker show "Engineering standard · version 1" and "· version 2" side by side.
 - Design critique (`desktop-light_admin_templates.png`): the empty state shows two identical "New template" buttons (`PostingTemplates.tsx:43,53`).
@@ -490,6 +531,7 @@
 - Libraries: none.
 
 ### Posting template editor — COMPLETE · M
+
 - Where: `/admin/templates/new`, `PostingTemplateEditor.tsx`, `lib/markdown-sections.ts`.
 - Today: one Plate document whose H1 headings must keep their exact text ("Keep the headings. They tell us where each part goes"). Sections are cut out by heading name. Bold, italic, underline, H1-H3 and quote are available; there are no lists or links.
 - Design critique (`desktop-light_admin_templates_new.png`): 5 giant H1s in the editing surface. If an admin renames "Benefits and principles", that section is silently dropped. "Interview stages" is stored (`InterviewStagesMarkdown`) and never used anywhere. "Application questions" feeds the guesswork parser described above.
@@ -611,6 +653,7 @@ Not done:
 ## Progress (wave 4)
 
 Finished:
+
 - **Stage to assessment link**: `PipelineStage.AssessmentId` and `PipelineTemplateStage.AssessmentId` (set null when the assessment goes). "Edit stages" on a job and the admin pipeline editor have an Assessment field per stage (published assessments; an archived one is refused); new jobs copy it from their pipeline, Duplicate copies it. The board column says "Assessment: {name}" under the stage, and every card with a submitted result shows a score badge in its footer: the percent once scored ("To score" while a reviewer still has work), green once passed, red once failed, with the assessment's name for screen readers. The board payload carries `assessmentId`, `assessmentName` per stage and `assessment { name, percent, decision, pendingCount }` per card (read from `AssessmentInvites`; no change to the assessments files). Sending the assessment on stage entry is the workflows builder's.
 - **Create job wizard drafts**: the wizard saves its whole state to the server a second after each change once the job has a title (`PUT /api/requisitions/drafts/{id}`, `JobDraft`, one person's own), shows "Draft saved …" by the title, and the address becomes `/jobs/new?draft={id}` so a refresh resumes. The Jobs list shows "Unfinished jobs" (yours only) with the step you stopped at, Continue and "Discard draft". Creating the job (`draftId` on `POST /api/requisitions`) removes the draft in the same save. Old drafts fill in fields added later (`restoreDraft`).
 - **Approval chains per team**: `ApprovalPolicy.Departments`; a chain for some teams wins over the organization's chain for jobs (and their offers) in those teams; the chain naming the team with the fewest teams wins, and each team has at most one chain per kind. Settings, Approvals: under each kind, "Use a different chain for some teams" adds a card with Teams (suggested from jobs), approvers, how they decide and reminder days; Remove asks first. `PUT /api/approval-policies/{kind}` with `departments` (and `id`) saves a team chain, `DELETE /api/approval-policies/{id}` removes one. Reminders use each request's own chain.
@@ -619,4 +662,5 @@ Finished:
 - **Platform cleanup**: the unrouted Approvals section is gone from `AdminSettings.tsx`.
 
 Not done:
+
 - Template variables (`{{company}}`, `{{jobTitle}}`) with an insert menu, and the remaining jobs list polish (unchanged from wave 3).
