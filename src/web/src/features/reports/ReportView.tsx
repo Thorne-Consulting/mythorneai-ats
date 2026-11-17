@@ -26,6 +26,7 @@ import { formatDate } from '@/lib/format';
 import { DrillDrawer, type DrillRequest } from './DrillDrawer';
 import { KpiGrid, KpiTile } from './KpiTile';
 import { ReportChartView } from './ReportChartView';
+import { ChartBuilder, ChartBuilderButton } from './ChartBuilder';
 import { CLEARED, ReportFilters } from './ReportFilters';
 import {
   BREAKDOWN_LABELS,
@@ -113,6 +114,7 @@ export function ReportView({ reportKey }: { reportKey: string }) {
   const info = catalog.data?.find((report) => report.key === reportKey);
   const report = useReport(reportKey, { ...filters });
   const [drill, setDrill] = useState<DrillRequest | null>(null);
+  const [builder, setBuilder] = useState(false);
 
   const go = (next: Partial<Filters>) => {
     const qs = queryString({ ...filters, ...next, view: viewId ?? undefined });
@@ -219,9 +221,16 @@ export function ReportView({ reportKey }: { reportKey: string }) {
             </Card>
           ) : (
             <>
-              {(data.charts?.length ?? 0) > 0 && (
+              {((data.charts?.length ?? 0) > 0 || builder) && (
                 <div className="grid gap-4 lg:grid-cols-2 print:grid-cols-1 [&>*:last-child:nth-child(odd)]:lg:col-span-2">
-                  {data.charts!.map((chart) => (
+                  <ChartBuilder
+                    id={`${reportKey}:${data.groupBy || 'rows'}`}
+                    columns={data.columns}
+                    rows={data.rows}
+                    open={builder}
+                    onClose={() => setBuilder(false)}
+                  />
+                  {data.charts?.map((chart) => (
                     <ReportChartView
                       key={chart.title}
                       chart={chart}
@@ -257,14 +266,17 @@ export function ReportView({ reportKey }: { reportKey: string }) {
                       : `See the applications for ${row.cells[0]}`
                   }
                   toolbar={
-                    <p className="text-sm font-semibold text-fg">
-                      {data.groupBy
-                        ? `By ${BREAKDOWN_LABELS[data.groupBy]?.toLowerCase() ?? data.groupBy}`
-                        : 'Details'}{' '}
-                      <span className="font-normal text-fg-subtle">
-                        · {countOf(data.columns[0], data.rows.length)}
-                      </span>
-                    </p>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <p className="text-sm font-semibold text-fg">
+                        {data.groupBy
+                          ? `By ${BREAKDOWN_LABELS[data.groupBy]?.toLowerCase() ?? data.groupBy}`
+                          : 'Details'}{' '}
+                        <span className="font-normal text-fg-subtle">
+                          · {countOf(data.columns[0], data.rows.length)}
+                        </span>
+                      </p>
+                      <ChartBuilderButton open={builder} onClick={() => setBuilder(true)} />
+                    </div>
                   }
                   className="print:[&>div:first-child]:hidden"
                 />

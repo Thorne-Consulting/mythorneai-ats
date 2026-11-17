@@ -20,7 +20,73 @@ public static class LocalDotEnvConfiguration
                 parts => parts[1].Trim().Trim('"'),
                 StringComparer.OrdinalIgnoreCase
             );
-        var settings = new Dictionary<string, string?>
+        var settings = Map(values);
+        settings["ConnectionStrings:AtsDatabase"] =
+            $"Host=localhost;Port={Get(values, "POSTGRES_HOST_PORT") ?? "55433"};Database={Get(values, "POSTGRES_DB") ?? "internal_ats"};Username={Get(values, "POSTGRES_USER") ?? "ats"};Password={Get(values, "POSTGRES_PASSWORD") ?? "ats-local-only"}";
+        configuration.AddInMemoryCollection(settings.Where(pair => pair.Value is not null));
+    }
+
+    /// <summary>
+    /// Outside Development: the same plain names (AUTH_MODE, S3_SECRET_KEY, POSTGRES_PASSWORD...)
+    /// read from the process environment, which the deploy stack fills from Infisical at start.
+    /// A name that is not set leaves the setting to appsettings.json or the ASP.NET-style variable.
+    /// Each name read is then removed from the process environment: the API holds its settings in
+    /// configuration, and the tools it starts (ffmpeg, OCR, both fed candidates' files) inherit the
+    /// environment, so they would otherwise inherit every secret.
+    /// </summary>
+    public static void AddFromEnvironment(ConfigurationManager configuration)
+    {
+        var values = new Recording(
+            Environment
+                .GetEnvironmentVariables()
+                .Cast<System.Collections.DictionaryEntry>()
+                .ToDictionary(
+                    e => (string)e.Key,
+                    e => (string?)e.Value ?? "",
+                    StringComparer.OrdinalIgnoreCase
+                )
+        );
+        var settings = Map(values);
+        if (Get(values, "POSTGRES_PASSWORD") is { } password)
+            settings["ConnectionStrings:AtsDatabase"] =
+                $"Host={Get(values, "POSTGRES_HOST") ?? "database"};Port={Get(values, "POSTGRES_PORT") ?? "5432"};Database={Get(values, "POSTGRES_DB") ?? "internal_ats"};Username={Get(values, "POSTGRES_USER") ?? "ats"};Password={password}";
+        configuration.AddInMemoryCollection(settings.Where(pair => pair.Value is not null));
+        foreach (var name in values.Used)
+            Environment.SetEnvironmentVariable(name, null);
+    }
+
+    /// <summary>A read-only view that remembers which names were found.</summary>
+    private sealed class Recording(IReadOnlyDictionary<string, string> inner)
+        : IReadOnlyDictionary<string, string>
+    {
+        public HashSet<string> Used { get; } = [];
+
+        public string this[string key] => inner[key];
+
+        public IEnumerable<string> Keys => inner.Keys;
+
+        public IEnumerable<string> Values => inner.Values;
+
+        public int Count => inner.Count;
+
+        public bool ContainsKey(string key) => inner.ContainsKey(key);
+
+        public bool TryGetValue(string key, out string value)
+        {
+            var found = inner.TryGetValue(key, out value!);
+            if (found)
+                Used.Add(key);
+            return found;
+        }
+
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => inner.GetEnumerator();
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+            GetEnumerator();
+    }
+
+    private static Dictionary<string, string?> Map(IReadOnlyDictionary<string, string> values) =>
+        new()
         {
             ["Auth:Mode"] = Get(values, "AUTH_MODE"),
             ["Auth:Authority"] = Get(values, "AUTH_AUTHORITY"),
@@ -37,17 +103,50 @@ public static class LocalDotEnvConfiguration
             ["Integrations:Microsoft365:ClientId"] = Get(values, "MICROSOFT365_CLIENT_ID"),
             ["Integrations:Microsoft365:ClientSecret"] = Get(values, "MICROSOFT365_CLIENT_SECRET"),
             ["Integrations:Microsoft365:SenderUserId"] = Get(values, "MICROSOFT365_SENDER_USER_ID"),
-            ["Integrations:Microsoft365:CreateOnlineMeetings"] = Get(values, "MICROSOFT365_CREATE_ONLINE_MEETINGS"),
-            ["Integrations:GoogleWorkspace:ImpersonatedUser"] = Get(values, "GOOGLE_WORKSPACE_IMPERSONATED_USER"),
-            ["Integrations:GoogleWorkspace:CalendarId"] = Get(values, "GOOGLE_WORKSPACE_CALENDAR_ID"),
-            ["Integrations:GoogleWorkspace:ServiceAccountJsonPath"] = Get(values, "GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH"),
-            ["Integrations:GoogleWorkspace:ServiceAccountJsonBase64"] = Get(values, "GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_BASE64"),
-            ["Integrations:GoogleWorkspace:CreateOnlineMeetings"] = Get(values, "GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS"),
-            ["Integrations:CalendarOAuth:GoogleClientId"] = Get(values, "CALENDAR_OAUTH_GOOGLE_CLIENT_ID"),
-            ["Integrations:CalendarOAuth:GoogleClientSecret"] = Get(values, "CALENDAR_OAUTH_GOOGLE_CLIENT_SECRET"),
-            ["Integrations:CalendarOAuth:MicrosoftClientId"] = Get(values, "CALENDAR_OAUTH_MICROSOFT_CLIENT_ID"),
-            ["Integrations:CalendarOAuth:MicrosoftClientSecret"] = Get(values, "CALENDAR_OAUTH_MICROSOFT_CLIENT_SECRET"),
-            ["Integrations:CalendarOAuth:MicrosoftTenantId"] = Get(values, "CALENDAR_OAUTH_MICROSOFT_TENANT_ID"),
+            ["Integrations:Microsoft365:CreateOnlineMeetings"] = Get(
+                values,
+                "MICROSOFT365_CREATE_ONLINE_MEETINGS"
+            ),
+            ["Integrations:GoogleWorkspace:ImpersonatedUser"] = Get(
+                values,
+                "GOOGLE_WORKSPACE_IMPERSONATED_USER"
+            ),
+            ["Integrations:GoogleWorkspace:CalendarId"] = Get(
+                values,
+                "GOOGLE_WORKSPACE_CALENDAR_ID"
+            ),
+            ["Integrations:GoogleWorkspace:ServiceAccountJsonPath"] = Get(
+                values,
+                "GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH"
+            ),
+            ["Integrations:GoogleWorkspace:ServiceAccountJsonBase64"] = Get(
+                values,
+                "GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_BASE64"
+            ),
+            ["Integrations:GoogleWorkspace:CreateOnlineMeetings"] = Get(
+                values,
+                "GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS"
+            ),
+            ["Integrations:CalendarOAuth:GoogleClientId"] = Get(
+                values,
+                "CALENDAR_OAUTH_GOOGLE_CLIENT_ID"
+            ),
+            ["Integrations:CalendarOAuth:GoogleClientSecret"] = Get(
+                values,
+                "CALENDAR_OAUTH_GOOGLE_CLIENT_SECRET"
+            ),
+            ["Integrations:CalendarOAuth:MicrosoftClientId"] = Get(
+                values,
+                "CALENDAR_OAUTH_MICROSOFT_CLIENT_ID"
+            ),
+            ["Integrations:CalendarOAuth:MicrosoftClientSecret"] = Get(
+                values,
+                "CALENDAR_OAUTH_MICROSOFT_CLIENT_SECRET"
+            ),
+            ["Integrations:CalendarOAuth:MicrosoftTenantId"] = Get(
+                values,
+                "CALENDAR_OAUTH_MICROSOFT_TENANT_ID"
+            ),
             ["Integrations:CalendarOAuth:RedirectUri"] = Get(values, "CALENDAR_OAUTH_REDIRECT_URI"),
             ["Resend:ApiKey"] = Get(values, "RESEND_API_KEY"),
             ["Resend:From"] = Get(values, "RESEND_FROM"),
@@ -56,13 +155,20 @@ public static class LocalDotEnvConfiguration
             ["OpenAI:ResumeModel"] = Get(values, "OPENAI_RESUME_MODEL"),
             ["OpenAI:EmbeddingModel"] = Get(values, "OPENAI_EMBEDDING_MODEL"),
             ["OpenAI:TranscriptionModel"] = Get(values, "OPENAI_TRANSCRIPTION_MODEL"),
+            ["Currency:RatesUrl"] = Get(values, "CURRENCY_RATES_URL"),
+            ["Currency:CacheHours"] = Get(values, "CURRENCY_CACHE_HOURS"),
+            ["Currency:ConversionEnabled"] = Get(values, "CURRENCY_CONVERSION"),
+            ["FileStorage:S3:Endpoint"] = Get(values, "S3_ENDPOINT"),
+            ["FileStorage:S3:Bucket"] = Get(values, "S3_BUCKET"),
+            ["FileStorage:S3:AccessKey"] = Get(values, "S3_ACCESS_KEY"),
+            ["FileStorage:S3:SecretKey"] = Get(values, "S3_SECRET_KEY"),
+            ["FileStorage:S3:Region"] = Get(values, "S3_REGION"),
+            ["Seed:Environment"] = Get(values, "SEED_ENVIRONMENT"),
+            ["Seed:PrivatePath"] = Get(values, "SEED_PRIVATE_PATH"),
             ["Resend:WebhookSecret"] = Get(values, "RESEND_WEBHOOK_SECRET"),
             ["Resend:InboundDomain"] = Get(values, "RESEND_INBOUND_DOMAIN"),
+            ["Seed:Sets"] = Get(values, "SEED_SETS"),
         };
-        settings["ConnectionStrings:AtsDatabase"] =
-            $"Host=localhost;Port={Get(values, "POSTGRES_HOST_PORT") ?? "55433"};Database={Get(values, "POSTGRES_DB") ?? "internal_ats"};Username={Get(values, "POSTGRES_USER") ?? "ats"};Password={Get(values, "POSTGRES_PASSWORD") ?? "ats-local-only"}";
-        configuration.AddInMemoryCollection(settings.Where(pair => pair.Value is not null));
-    }
 
     private static string? Get(IReadOnlyDictionary<string, string> values, string key) =>
         values.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value) ? value : null;

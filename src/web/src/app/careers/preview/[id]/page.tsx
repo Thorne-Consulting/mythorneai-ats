@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { EyeOff } from 'lucide-react';
 import { Alert } from '@/components/ui';
 import { JobPage } from '@/features/careers/JobPage';
-import { getFacets, getJobs, getPostingPreview } from '@/features/careers/server';
+import { getCurrencies, getFacets, getJobs, getPostingPreview } from '@/features/careers/server';
 
 export const metadata: Metadata = { title: 'Posting preview', robots: { index: false } };
 
@@ -14,9 +14,10 @@ export const metadata: Metadata = { title: 'Posting preview', robots: { index: f
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const job = await getPostingPreview((await params).id);
   if (!job) notFound();
-  const [sameTeam, facets] = await Promise.all([
+  const [sameTeam, facets, currencies] = await Promise.all([
     getJobs({ department: [job.department] }, 4),
     getFacets(),
+    getCurrencies(),
   ]);
   return (
     <>
@@ -30,6 +31,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         job={job}
         related={sameTeam.items.filter((j) => j.id !== job.id).slice(0, 3)}
         totalOpen={facets.total}
+        currencies={currencies}
       />
     </>
   );

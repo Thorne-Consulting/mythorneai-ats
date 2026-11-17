@@ -156,6 +156,7 @@ const STAFF_ROUTES = [
   '/settings/offer-letters',
   '/settings/offer-letters/{letter}',
   '/settings/rejection-reasons',
+  '/settings/currencies',
   '/settings/ai',
   '/settings/ai/activity',
   '/settings/webhooks',

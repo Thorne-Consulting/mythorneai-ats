@@ -328,6 +328,20 @@ export const GUIDES: Guide[] = [
     allowed: (a) => a.can('update', 'Job'),
   },
   {
+    key: 'currencies',
+    task: 'Offers',
+    title: 'Set currencies',
+    steps: [
+      'Open Settings, then Currencies.',
+      'Choose the base currency. Reports and totals convert to it.',
+      'Tick the currencies people may choose on a job or an offer, then save.',
+      "Choose Refresh rates now to fetch today's exchange rates. Each converted amount says which day its rates are from.",
+    ],
+    href: '/settings/currencies',
+    link: 'Open currencies',
+    allowed: (a) => a.can('manage', 'Workspace'),
+  },
+  {
     key: 'offer-letters',
     task: 'Offers',
     title: 'Write an offer letter template',
@@ -427,6 +441,8 @@ export const GUIDES: Guide[] = [
     steps: [
       'Open Reports and pick one from the side: pipeline, speed, sources, offers or team.',
       'Filter by job, source and dates.',
+      'Each chart is a form that fits its numbers: a funnel for stages, a flow for where people went, a treemap for reasons, a radar for sources.',
+      'Choose Make a chart above the table to draw your own: pick the form, what names each row, and the numbers to draw.',
       'Download the table as a spreadsheet (CSV), or as a PDF to print or share.',
     ],
     href: '/reports',

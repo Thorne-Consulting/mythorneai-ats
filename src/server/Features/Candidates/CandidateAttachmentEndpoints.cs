@@ -118,7 +118,7 @@ public static partial class AtsEndpoints
                 return attachment is null
                     ? Results.NotFound()
                     : Results.File(
-                        files.OpenRead(attachment.StoredFileName),
+                        await files.OpenReadAsync(attachment.StoredFileName, ct),
                         attachment.ContentType,
                         inline ? null : attachment.OriginalFileName,
                         attachment.UploadedAt,

@@ -17,7 +17,8 @@ import {
   Switch,
 } from '@/components/ui';
 import { countryName, countryOptions } from './countries';
-import { CURRENCIES, PERIODS, locationText, payProblem, payText } from './job-form';
+import { PERIODS, locationText, payProblem, payText } from './job-form';
+import { useSupportedCurrencyCodes } from '@/features/currencies/currency-data';
 import {
   useRequisition,
   useUpdateJob,
@@ -134,6 +135,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
       commit(next);
     },
   });
+  const currencies = useSupportedCurrencyCodes();
   const pick = (key: 'workMode' | 'employmentType' | 'salaryCurrency' | 'salaryPeriod') => ({
     value: fields[key],
     onChange: (value: string | null) => {
@@ -240,7 +242,7 @@ export function RequisitionSettings({ requisition }: { requisition: RequisitionW
               value={fields.salaryMax}
               onValueChange={(salaryMax) => setFields({ ...fields, salaryMax })}
             />
-            <Select label="Currency" data={CURRENCIES} {...pick('salaryCurrency')} />
+            <Select label="Currency" data={currencies.options} {...pick('salaryCurrency')} />
             <Select
               label="Per"
               data={PERIODS.map((p) => ({ value: p.value, label: p.label.replace(/^an? /, '') }))}

@@ -308,7 +308,9 @@ public static partial class AtsEndpoints
                     query,
                     ReportEngine.DateFieldOf(info),
                     DateTimeOffset.UtcNow,
-                    ct
+                    ct,
+                    showPay: principal.IsHiringStaff()
+                        || principal.IsInRole(nameof(UserRole.HiringManager))
                 );
                 var table = (await ReportEngine.RunAsync(context, info.Key, ct))!;
                 if (query.Format == "csv")

@@ -211,7 +211,10 @@ public static partial class PublicEndpoints
                 {
                     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
                     timeout.CancelAfter(TimeSpan.FromSeconds(20));
-                    await using var stream = files.OpenRead(stored.StoredName);
+                    await using var stream = await files.OpenReadAsync(
+                        stored.StoredName,
+                        timeout.Token
+                    );
                     fields = ResumeAutofill.Read(
                         await extractor.ExtractAsync(stream, fileName, timeout.Token)
                     );

@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using MyThorneAI.Ats.Api.Infrastructure;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -23,6 +24,7 @@ public sealed partial class ApiFlowTests : IAsyncLifetime
         .Build();
 
     private WebApplicationFactory<Program>? _factory;
+    private readonly FakeRatesHttp _rates = new();
 
     public async ValueTask InitializeAsync()
     {
@@ -31,7 +33,14 @@ public sealed partial class ApiFlowTests : IAsyncLifetime
         {
             builder.UseEnvironment("Development");
             // The model is stubbed: the tests check the pipeline around it, not the parse itself.
-            builder.ConfigureTestServices(services => services.AddSingleton<IChatClient>(new FakeResumeChat()));
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IChatClient>(new FakeResumeChat());
+                // Only the exchange-rate client is stubbed; webhooks and the rest keep the real factory.
+                services
+                    .AddHttpClient(CurrencyRates.HttpClientName)
+                    .ConfigurePrimaryHttpMessageHandler(() => _rates.Handler());
+            });
             builder.ConfigureAppConfiguration(
                 (_, configuration) =>
                 {
