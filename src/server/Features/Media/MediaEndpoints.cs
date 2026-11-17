@@ -70,6 +70,7 @@ public static partial class MediaEndpoints
                     await output.WriteAsync(head.AsMemory(0, read), ct);
                     await input.CopyToAsync(output, ct);
                 }
+                await files.UploadAsync(StoredPrefix + id + type.Extension, ct);
                 return Results.Ok(new { Url = PublicPath + id + type.Extension });
             }
         );

@@ -355,6 +355,7 @@ public static class PublicAssessmentEndpoints
                     )
                 )
                     await input.CopyToAsync(output, ct);
+                await files.UploadAsync(stored, ct);
                 var candidate = invite.Application!.Candidate!;
                 var attachment = new Attachment
                 {

@@ -1,11 +1,12 @@
-# Builds the two images and publishes them to GHCR when staging or main moves, then deploys.
+# Builds the two images and publishes them to GHCR when staging or main moves. Nothing else:
+# the host pulls them (Dokploy, or `docker compose up -d` with deploy/compose.prod.yaml).
 # The tests already ran on the pull request, so this does not run them again.
 #
-#   staging -> ghcr.io/<owner>/mythorneai-ats-{api,web}:staging  -> the staging host
-#   main    -> ...:latest and :main                              -> production, after approval
-#   v1.2.3  -> ...:1.2.3 and :1.2                                -> nothing (a tag is a label)
+#   staging -> ghcr.io/<owner>/mythorneai-ats-{api,web}:staging
+#   main    -> ...:latest and :main
+#   v1.2.3  -> ...:1.2.3 and :1.2
 #
-# Every build also gets sha-<commit>, and that is what the hosts deploy: a tag that never moves.
+# Every build also gets sha-<commit>, a tag that never moves; set IMAGE_TAG to it to pin one.
 name: release
 
 on:
@@ -76,49 +77,3 @@ jobs:
           # Provenance and a software bill of materials travel with the image.
           provenance: mode=max
           sbom: true
-
-  deploy:
-    # Runs on a self-hosted runner on the target host, inside the Netbird mesh, where Infisical
-    # and Docker are reachable. Turned on by the repository variable DEPLOY_RUNNERS=true, so a
-    # push does not sit waiting for a runner that does not exist yet.
-    name: deploy (${{ github.ref_name }})
-    needs: images
-    if: vars.DEPLOY_RUNNERS == 'true' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
-    runs-on:
-      [self-hosted, ats, "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"]
-    # The production environment asks a reviewer before this job starts (set in GitHub).
-    environment:
-      name: "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      packages: read
-      # For the short-lived token that signs this job in to Infisical. The token names the
-      # environment, so only a job the environment let through can read that environment's
-      # secrets. The runner itself holds no credential.
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          sparse-checkout: deploy
-      - id: oidc
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        with:
-          script: |
-            const jwt = await core.getIDToken('infisical');
-            core.setSecret(jwt);
-            core.setOutput('jwt', jwt);
-      - name: pull and restart
-        working-directory: deploy
-        env:
-          # The exact image this run built, never a moving tag.
-          IMAGE_TAG: sha-${{ github.sha }}
-          INFISICAL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
-          INFISICAL_OIDC_JWT: ${{ steps.oidc.outputs.jwt }}
-          # An environment variable: each GitHub environment names its own Infisical identity.
-          INFISICAL_IDENTITY_ID: ${{ vars.INFISICAL_IDENTITY_ID }}
-          INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
-          INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL }}
-          GHCR_USER: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./deploy.sh

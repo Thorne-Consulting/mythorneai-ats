@@ -9,14 +9,24 @@ RUN dotnet publish src/server/MyThorneAI.Ats.Api.csproj --no-restore --configura
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 USER root
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends libgssapi-krb5-2 ocrmypdf \
+    && apt-get install --yes --no-install-recommends curl ffmpeg libgssapi-krb5-2 ocrmypdf \
     && rm -rf /var/lib/apt/lists/* \
     && mkdir --parents /app/data-protection-keys \
     && mkdir --parents /app/uploads \
     && chown app:app /app/data-protection-keys /app/uploads
+# The Infisical CLI, pinned. It is one static binary, so it is copied from its own image.
+COPY --from=infisical/cli:0.44.12 /bin/infisical /usr/local/bin/infisical
 WORKDIR /app
 COPY --from=server-build /app/publish/ ./
-ENV ASPNETCORE_HTTP_PORTS=8080
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DataProtection__KeyPath=/app/data-protection-keys \
+    INFISICAL_DISABLE_TELEMETRY=1
 EXPOSE 8080
 USER $APP_UID
-ENTRYPOINT ["dotnet", "MyThorneAI.Ats.Api.dll"]
+# With INFISICAL_CLIENT_ID set, the API fetches its own settings at start: it signs in to
+# Infisical with that machine identity (universal auth), then `infisical run` starts the API
+# with every secret of INFISICAL_ENV in its environment. Nothing is written to disk; HOME is the
+# memory /tmp because the root file system is read-only. Without INFISICAL_CLIENT_ID it starts
+# the API directly with the environment it was given (a developer machine, another platform).
+# Arguments pass through, so `seed --sets baseline` works the same way.
+ENTRYPOINT ["sh", "-c", "set -e; export HOME=/tmp; if [ -z \"${INFISICAL_CLIENT_ID:-}\" ]; then exec dotnet MyThorneAI.Ats.Api.dll \"$@\"; fi; token=$(infisical login --method=universal-auth --client-id=\"$INFISICAL_CLIENT_ID\" --client-secret=\"$INFISICAL_CLIENT_SECRET\" --plain --silent); exec infisical run --token=\"$token\" --env=\"$INFISICAL_ENV\" --projectId=\"$INFISICAL_PROJECT_ID\" -- dotnet MyThorneAI.Ats.Api.dll \"$@\"", "api"]
