@@ -103,7 +103,7 @@ public sealed partial class ApiFlowTests
     public async Task Rates_are_cached_for_the_window_and_the_last_table_survives_an_outage()
     {
         var ct = TestContext.Current.CancellationToken;
-        var http = (FakeRatesHttp)_factory!.Services.GetRequiredService<IHttpClientFactory>();
+        var http = _rates;
         var cache = _factory.Services.GetRequiredService<IMemoryCache>();
         http.Fail = false;
         cache.Remove("currency-rates");

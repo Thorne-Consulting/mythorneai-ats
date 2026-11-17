@@ -6,8 +6,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using MyThorneAI.Ats.Api.Infrastructure;
 using Shouldly;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -35,8 +36,10 @@ public sealed partial class ApiFlowTests : IAsyncLifetime
             builder.ConfigureTestServices(services =>
             {
                 services.AddSingleton<IChatClient>(new FakeResumeChat());
-                // The exchange-rate source is stubbed too; the tests check the cache and the fallback.
-                services.AddSingleton<IHttpClientFactory>(_rates);
+                // Only the exchange-rate client is stubbed; webhooks and the rest keep the real factory.
+                services
+                    .AddHttpClient(CurrencyRates.HttpClientName)
+                    .ConfigurePrimaryHttpMessageHandler(() => _rates.Handler());
             });
             builder.ConfigureAppConfiguration(
                 (_, configuration) =>

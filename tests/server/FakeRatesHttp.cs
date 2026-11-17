@@ -2,9 +2,10 @@ using System.Net;
 
 namespace MyThorneAI.Ats.Api.Tests;
 
-// Stands in for the rates source in the API tests: serves one ECB-shaped document, counts the
-// calls, and fails on demand so the cache window and the fallback can be checked.
-public sealed class FakeRatesHttp : IHttpClientFactory
+// Stands in for the rates source in the API tests: serves one rate document, counts the calls,
+// and fails on demand so the cache window and the fallback can be checked. Only the rates client
+// gets this handler; every other named client keeps the real one.
+public sealed class FakeRatesHttp
 {
     public int Calls { get; private set; }
     public bool Fail { get; set; }
@@ -36,9 +37,9 @@ public sealed class FakeRatesHttp : IHttpClientFactory
             </gesmes:Envelope>
             """;
 
-    public HttpClient CreateClient(string name) => new(new Handler(this));
+    public HttpMessageHandler Handler() => new RatesHandler(this);
 
-    private sealed class Handler(FakeRatesHttp owner) : HttpMessageHandler
+    private sealed class RatesHandler(FakeRatesHttp owner) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
