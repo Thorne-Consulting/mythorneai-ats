@@ -92,12 +92,13 @@ public static class OfferLetters
     public static string Fill(string markdown, IReadOnlyDictionary<string, string> values) =>
         EmailTemplates.Fill(EmailTemplates.Camel(markdown), values).Trim();
 
-    /// <summary>The template a new offer starts from: the first one by name.</summary>
+    /// <summary>The template a new offer starts from: the standard letter when it exists, else the first by name.</summary>
     public static Task<EmailTemplate?> DefaultAsync(AtsDbContext db, CancellationToken ct) =>
         db
             .EmailTemplates.AsNoTracking()
             .Where(x => x.Kind == TemplateKind.OfferLetter)
-            .OrderBy(x => x.Name)
+            .OrderBy(x => x.Name == StandardName ? 0 : 1)
+            .ThenBy(x => x.Name)
             .FirstOrDefaultAsync(ct);
 
     /// <summary>
