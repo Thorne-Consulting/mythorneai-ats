@@ -5,7 +5,7 @@
 # only the Infisical login and non-secret switches:
 #
 #   INFISICAL_API_URL, INFISICAL_HOSTNAME, INFISICAL_IP, INFISICAL_CLIENT_ID,
-#   INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID, INFISICAL_ENV, IMAGE_TAG, COMPOSE_PROFILES
+#   INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID, INFISICAL_ENV, IMAGE_TAG
 #
 # Every other setting lives in Infisical (docs/production.md lists them):
 #   - The api fetches its own at start: its image has the Infisical CLI (see the Dockerfile).
@@ -14,8 +14,8 @@
 #
 # The host must already be on the Netbird network, so Infisical is reachable.
 #
-# COMPOSE_PROFILES=edge adds Caddy, the two doors (below). Leave it off when the platform's
-# own proxy fronts the service "web" on port 3000.
+# Caddy (below) is the only way in: two doors into the web app. A platform's own proxy
+# (Traefik on Dokploy) sits in front of it and points at its two ports.
 
 x-logging: &logging
   driver: json-file
@@ -182,14 +182,17 @@ services:
     restart: unless-stopped
     logging: *logging
 
-  # Profile edge. Two doors into the web app (the Caddyfile is below):
+  # Two doors into the web app (the Caddyfile is below):
   #   - Public, port 80 inside the stack. On Dokploy, Traefik owns 80 and 443 on the host: point
   #     the public domain at this service, port 80, and Traefik does the certificate. Only the
   #     careers site, the candidate portal and the webhooks pass; every other path is 404.
-  #   - Staff, everything, published on BIND_ADDRESS:APP_PORT. Set BIND_ADDRESS to the host's
-  #     Netbird address so only people on the VPN reach it (default: this host only).
+  #   - Staff, everything, port 8080 inside the stack. Two ways in, and only from the private
+  #     network (Netbird's range, and this host): published on BIND_ADDRESS:APP_PORT for the
+  #     host's Netbird address, and, for sign-in, which needs https, through a Traefik domain
+  #     (Dokploy: the staff domain, service caddy, port 8080). Behind a proxy the client
+  #     address comes from X-Forwarded-For, so the name can be public in DNS and still refuse
+  #     anyone off the private network.
   caddy:
-    profiles: [edge]
     image: caddy:2.11.7
     depends_on:
       web:
@@ -218,6 +221,11 @@ configs:
     content: |
       {
       	auto_https off
+      	servers {
+      		# Behind a proxy (Traefik), the client's address is in X-Forwarded-For.
+      		trusted_proxies static private_ranges
+      		trusted_proxies_strict
+      	}
       }
 
       # The public door: only what candidates and outside services need.
@@ -235,9 +243,17 @@ configs:
       	}
       }
 
-      # The staff door: everything. Passes WebSocket upgrades, so the inbox hub works.
+      # The staff door: everything, for the private network only. Passes WebSocket upgrades, so
+      # the inbox hub works. 100.64.0.0/10 is Netbird's default range; change it here if yours
+      # differs.
       :8080 {
-      	reverse_proxy web:3000
+      	@private client_ip 100.64.0.0/10 127.0.0.0/8
+      	handle @private {
+      		reverse_proxy web:3000
+      	}
+      	handle {
+      		respond "The staff app is only reachable on the private network." 403
+      	}
       }
 
 volumes:
