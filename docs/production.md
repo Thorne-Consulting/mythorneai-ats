@@ -84,6 +84,10 @@ Each host (staging, production) needs:
   identity (below).
 - A GitHub Actions self-hosted runner with the labels `self-hosted`, `ats` and `staging` or
   `production`. The runner is what lets GitHub reach a host that is not on the internet.
+  Register it as **ephemeral** (`config.sh --ephemeral`, under a service that re-registers
+  it), so each job gets a clean runner. The repository is public, so also keep "require
+  approval for all external contributors" on (the rules script sets it), and if the
+  organization has runner groups, put these runners in a group limited to `release.yml`.
 - A copy of the `deploy/` folder, or a checkout of the repository.
 
 Then set the repository variable `DEPLOY_RUNNERS` to `true`. Until it is set, `release.yml` skips
@@ -109,20 +113,27 @@ only helps when GitHub itself needs them. Here GitHub only builds images, and th
 secrets. The hosts are the ones that need the values, and they are on the mesh with Infisical.
 So the mesh is the convenient path, and no GitHub app or sync is needed.
 
-Set up each host once:
+The job signs in to Infisical with a short-lived token from GitHub (OIDC), bound to the GitHub
+environment it runs in. The `production` environment only hands that token to a job a reviewer
+let through, so the approval gate is what decides who reads production secrets. The host keeps
+no Infisical credential at all.
 
-1. In Infisical, make a **machine identity** with Universal Auth, give it read access to the
-   project and its environment, and copy the client id and secret.
-2. On the host, sign the CLI in:
+Set it up once:
 
-   ```bash
-   export INFISICAL_API_URL=https://infisical.<your mesh domain>
-   infisical login --method=universal-auth --client-id=<id> --client-secret=<secret> --plain > ~/.infisical-token
-   ```
+1. In Infisical, make a **machine identity** with **GitHub OIDC** auth: issuer
+   `https://token.actions.githubusercontent.com`, audience `infisical`, and a bound subject
+   per environment, `repo:Thorne-Consulting/mythorneai-ats:environment:staging` for the
+   staging identity and `...:environment:production` for the production one. Give each read
+   access to its environment only.
+2. In GitHub, set the repository variables `INFISICAL_API_URL` (the Infisical address on the
+   mesh), `INFISICAL_PROJECT_ID`, and `INFISICAL_IDENTITY_ID` (one identity can serve both
+   environments if its bound subject allows both; else make it an environment variable).
+3. Infisical must be able to fetch GitHub's signing keys from
+   `https://token.actions.githubusercontent.com/.well-known/jwks`, which means outbound
+   internet from the Infisical host. Nothing needs inbound access to Infisical from GitHub.
 
-   Then put `INFISICAL_TOKEN=$(cat ~/.infisical-token)`, `INFISICAL_API_URL` and
-   `INFISICAL_PROJECT_ID` in the runner's environment (`.env` in the runner folder, or the
-   service unit). `deploy.sh` reads them.
+To deploy by hand, sign the CLI in as yourself (`infisical login`) in that shell only, or
+export `INFISICAL_TOKEN` for the one command. Do not leave a token on the host.
 
 3. Put these keys in the Infisical environment. Required ones first.
 
@@ -182,8 +193,9 @@ images need from the platform:
   `tmpfs` for scratch. If the API ever logs a write error on the first staging deploy, that is
   where to look.
 - The database and the API publish no ports. The web app binds to the loopback address.
-- The deploy host holds secrets only in a `.env` that one user can read, written fresh on each
-  deploy from Infisical over the mesh. Nothing is copied into GitHub.
+- The deploy host holds no standing credential. The job signs in to Infisical with a
+  short-lived GitHub token bound to the environment, and writes a `.env` that one user can
+  read, fresh on each deploy. Nothing is copied into GitHub.
 - The API already limits public requests per address, checks CSRF on every change, and keeps
   webhooks away from private addresses.
 

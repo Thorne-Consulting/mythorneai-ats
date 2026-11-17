@@ -4,14 +4,22 @@
 #
 #   IMAGE_TAG=staging INFISICAL_ENV=staging ./deploy.sh
 #
-# Settings come from Infisical over the Netbird mesh. Sign the host in once with a machine
-# identity (see docs/production.md); `infisical export` then needs nothing else.
+# Settings come from Infisical over the Netbird mesh. From the workflow, the job signs in with
+# a short-lived GitHub token (INFISICAL_OIDC_JWT) bound to the GitHub environment, so the host
+# keeps no credential. By hand, sign in first: `infisical login` with your own account, or set
+# INFISICAL_TOKEN for this shell only.
 set -eu
 cd "$(dirname "$0")"
 
 : "${IMAGE_TAG:=latest}"
 : "${INFISICAL_ENV:=prod}"
 : "${INFISICAL_PROJECT_ID:?set INFISICAL_PROJECT_ID (the Infisical project for this app)}"
+
+if [ -n "${INFISICAL_OIDC_JWT:-}" ]; then
+  : "${INFISICAL_IDENTITY_ID:?set INFISICAL_IDENTITY_ID (the machine identity with GitHub OIDC auth)}"
+  INFISICAL_TOKEN=$(infisical login --method=oidc-auth --machine-identity-id="$INFISICAL_IDENTITY_ID" --oidc-jwt="$INFISICAL_OIDC_JWT" --plain --silent)
+  export INFISICAL_TOKEN
+fi
 
 # 1. Settings. The file is only readable by this user; compose reads it on the next line.
 umask 077

@@ -93,16 +93,31 @@ jobs:
     permissions:
       contents: read
       packages: read
+      # For the short-lived token that signs this job in to Infisical. The token names the
+      # environment, so only a job the environment let through can read that environment's
+      # secrets. The runner itself holds no credential.
+      id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: deploy
+      - id: oidc
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const jwt = await core.getIDToken('infisical');
+            core.setSecret(jwt);
+            core.setOutput('jwt', jwt);
       - name: pull and restart
         working-directory: deploy
         env:
           # The exact image this run built, never a moving tag.
           IMAGE_TAG: sha-${{ github.sha }}
           INFISICAL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+          INFISICAL_OIDC_JWT: ${{ steps.oidc.outputs.jwt }}
+          INFISICAL_IDENTITY_ID: ${{ vars.INFISICAL_IDENTITY_ID }}
+          INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
+          INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL }}
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./deploy.sh
