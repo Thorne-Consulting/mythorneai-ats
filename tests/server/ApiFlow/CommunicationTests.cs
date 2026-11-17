@@ -166,12 +166,15 @@ public sealed partial class ApiFlowTests
             )
         ).StatusCode.ShouldBe(HttpStatusCode.OK);
 
+        // The admin sees the shared replies (the seeded ones and Team), never the recruiter's own.
         var forAdmin = await admin.GetFromJsonAsync<JsonElement>("/api/templates", ct);
-        forAdmin
+        var adminNames = forAdmin
             .GetProperty("saved")
             .EnumerateArray()
             .Select(x => x.GetProperty("name").GetString())
-            .ShouldBe(["Team"]);
+            .ToArray();
+        adminNames.ShouldContain("Team");
+        adminNames.ShouldNotContain("Mine");
         var forRecruiter = await recruiter.GetFromJsonAsync<JsonElement>("/api/templates", ct);
         var names = forRecruiter
             .GetProperty("saved")

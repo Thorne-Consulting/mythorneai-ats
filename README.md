@@ -87,6 +87,16 @@ You need .NET 10, Node 22 and Docker.
    `admin@example.test`. The candidate portal is at `/candidate-portal`; every `@local.dev`
    candidate signs in with the code `123456`.
 
+In development the API seeds the database when it starts: the workspace basics (`baseline`), the
+pick-lists (`catalog`) and the sample data (`demo`). To run a seed again, or only part of it:
+
+```bash
+tools/seed.sh baseline,catalog
+```
+
+Staging and production are seeded on purpose, from the `seed` workflow on GitHub. Production
+never gets `demo`. See [docs/production.md](docs/production.md), Seeding.
+
 The API reads `.env` in development. Copy `.env.example` to `.env` and fill in what you use.
 Without an OpenAI key, resumes are not read and matching is off; everything else works.
 
@@ -121,6 +131,7 @@ API.
 | ----------------------- | ---------------------------------------------------------------------------- |
 | `src/server`            | The API: ASP.NET Core, EF Core, PostgreSQL.                                  |
 | `src/web`               | The web app: Next.js, React, Tailwind. Its rules are in `src/web/CLAUDE.md`. |
+| `src/server/Data/Seed`  | The seed sets: baseline, catalog and demo.                                   |
 | `tests/server`          | Server tests, against a real PostgreSQL in a container.                      |
 | `src/web/cypress`       | The page walk.                                                               |
 | `deploy`                | Production compose file and deploy script.                                   |

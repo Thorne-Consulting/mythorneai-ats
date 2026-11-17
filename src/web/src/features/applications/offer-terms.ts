@@ -13,10 +13,22 @@ export type OfferTerms = {
   expiresOn?: string | null;
 };
 
-/** "EUR 120,000 per year". The currency code, not a symbol: "$" means several currencies. */
+/**
+ * "€120,000 per year": the symbol (with its region for dollars, like "CA$") and the currency's
+ * decimals. A code the browser does not know is written as "XYZ 120,000".
+ */
 export function formatPay(amount: number, currency: string, period: string) {
-  const number = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(amount);
-  return `${currency} ${number} per ${period.toLowerCase()}`;
+  let number: string;
+  try {
+    number = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'symbol',
+    }).format(amount);
+  } catch {
+    number = `${currency.toUpperCase()} ${amount.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  }
+  return `${number} per ${period.toLowerCase()}`;
 }
 
 /** A date-only value ("2027-03-01") as "March 1, 2027", without a time zone shift. */

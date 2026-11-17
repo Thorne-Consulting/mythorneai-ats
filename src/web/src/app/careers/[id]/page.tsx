@@ -2,7 +2,14 @@ import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { JobPage } from '@/features/careers/JobPage';
 import { idFromParam, jobPath, jobPostingLd, ldJson, plainText } from '@/features/careers/jobs';
-import { getFacets, getJob, getJobs, getOrganization, siteOrigin } from '@/features/careers/server';
+import {
+  getCurrencies,
+  getFacets,
+  getJob,
+  getJobs,
+  getOrganization,
+  siteOrigin,
+} from '@/features/careers/server';
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -42,11 +49,12 @@ export default async function Page({ params, searchParams }: Props) {
       for (const v of Array.isArray(value) ? value : value ? [value] : []) query.append(key, v);
     permanentRedirect(query.size ? `${path}?${query}` : path);
   }
-  const [organization, origin, sameTeam, facets] = await Promise.all([
+  const [organization, origin, sameTeam, facets, currencies] = await Promise.all([
     getOrganization(),
     siteOrigin(),
     getJobs({ department: [job.department] }, 4),
     getFacets(),
+    getCurrencies(),
   ]);
   const company = organization.name?.trim() || 'Company';
   const ld = jobPostingLd(job, { company, url: `${origin}${path}`, origin });
@@ -57,6 +65,7 @@ export default async function Page({ params, searchParams }: Props) {
         job={job}
         related={sameTeam.items.filter((j) => j.id !== job.id).slice(0, 3)}
         totalOpen={facets.total}
+        currencies={currencies}
       />
     </>
   );

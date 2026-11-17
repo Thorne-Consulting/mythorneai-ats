@@ -41,14 +41,8 @@ import { LetterPaper } from '@/features/offer-letters/LetterPaper';
 import { liveOffer, useOffer, type Offer, type OfferResponse } from './offer-data';
 import { LetterEditor, LetterPreview, type LetterDraft } from './OfferLetter';
 import { OFFER_STEPS, offerStep, termRows } from './offer-terms';
+import { useSupportedCurrencyCodes } from '@/features/currencies/currency-data';
 
-const CURRENCIES = (() => {
-  try {
-    return Intl.supportedValuesOf('currency');
-  } catch {
-    return ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'INR'];
-  }
-})();
 const PAY_PERIODS = [
   { value: 'Year', label: 'Year' },
   { value: 'Month', label: 'Month' },
@@ -298,6 +292,7 @@ function OfferWizard({
     onError: (error: Error) => toast.error('Could not withdraw the offer', error.message),
   });
 
+  const currencies = useSupportedCurrencyCodes();
   const salaryOk = draft.baseSalary !== '' && draft.baseSalary > 0;
   const datesOk = !draft.expiresOn || !draft.startDate || draft.expiresOn <= draft.startDate;
   const steps = [
@@ -379,7 +374,7 @@ function OfferWizard({
                 label="Currency"
                 value={draft.currency}
                 onChange={(value) => value && set({ currency: value })}
-                data={CURRENCIES}
+                data={currencies.options}
               />
               <Select
                 label="Paid per"

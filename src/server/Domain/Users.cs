@@ -120,6 +120,9 @@ public sealed class Organization
     /// <summary>The WorkOS organization that holds single sign-on and domain verification. Created the first time an admin opens the setup.</summary>
     public string? WorkOsOrganizationId { get; set; }
 
+    /// <summary>The currency that totals and comparisons are shown in (ISO 4217). Jobs and offers may use any supported one.</summary>
+    public string BaseCurrency { get; set; } = "USD";
+
     /// <summary>People at a verified domain must sign in with single sign-on. The owner is always exempt.</summary>
     public bool RequireSso { get; set; }
     public bool SetupCompleted { get; set; }

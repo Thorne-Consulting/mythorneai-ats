@@ -30,7 +30,8 @@ public static class OfferLetters
         new("firstName", "First name", "Alex"),
         new("jobTitle", "Job title", "Senior Engineer"),
         new("company", "Company", "Acme"),
-        new("salary", "Salary", "150,000"),
+        new("salary", "Salary (number only)", "150,000"),
+        new("pay", "Pay, with the currency symbol", "$150,000"),
         new("currency", "Currency", "USD"),
         new("payPeriod", "Pay period", "year"),
         new("bonus", "Bonus", "10% yearly target"),
@@ -44,7 +45,7 @@ public static class OfferLetters
         new(
             "terms",
             "All terms (a list)",
-            "- **Base salary:** USD 150,000 per year\n- **Start date:** January 4, 2027"
+            "- **Base salary:** $150,000 per year\n- **Start date:** January 4, 2027"
         ),
         new("senderName", "Your name", "Sam Recruiter"),
     ];
@@ -172,7 +173,14 @@ public static class OfferLetters
             ),
         };
         if (offer.BaseSalary is { } salary)
+        {
             values["salary"] = salary.ToString("#,0.##", CultureInfo.InvariantCulture);
+            values["pay"] = Currencies.Format(
+                salary,
+                offer.Currency,
+                await CurrencyEndpoints.InfoAsync(db, offer.Currency, ct)
+            );
+        }
         if (offer.StartDate is { } start)
             values["startDate"] = Day(start);
         if (offer.ExpiresOn is { } expires)

@@ -53,8 +53,24 @@ export interface ReportStat {
   drill?: Drill | null;
   lowerIsBetter?: boolean;
 }
+/** Every form the report charts can take; `ChartBuilder` offers the ones that fit plain rows. */
+export type ChartKind =
+  | 'bar'
+  | 'stacked'
+  | 'line'
+  | 'area'
+  | 'donut'
+  | 'pie'
+  | 'funnel'
+  | 'scatter'
+  | 'radar'
+  | 'radial'
+  | 'treemap'
+  | 'sankey'
+  | 'sunburst';
+
 export interface ReportChart {
-  kind: 'bar' | 'stacked' | 'line' | 'donut' | 'funnel' | 'scatter';
+  kind: ChartKind;
   title: string;
   columns: string[];
   rows: Cell[][];

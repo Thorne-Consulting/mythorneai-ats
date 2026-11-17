@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Trash2, UserPlus } from 'lucide-react';
 import { api } from '@/api';
+import { useSupportedCurrencyCodes } from '@/features/currencies/currency-data';
 import { useCurrentUser } from '@/auth';
 import {
   Alert,
@@ -42,7 +43,6 @@ import { formatDate, formatRelative } from '@/lib/format';
 import { countryName, countryOptions } from './countries';
 import { ROLES, rolesFor } from './JobSections';
 import {
-  CURRENCIES,
   EMPTY_REQUIREMENTS,
   INITIAL_FORM,
   PERIODS,
@@ -79,6 +79,7 @@ type PostingTemplate = {
 type JobValues = {
   approvalRequired: boolean;
   departments: string[];
+  employmentTypes: string[];
   locations: {
     location: string;
     city: string | null;
@@ -166,6 +167,7 @@ export function CreateRequisitionPage() {
     queryFn: () => api.get<Person[]>('/api/requisitions/people'),
     staleTime: 60_000,
   });
+  const currencies = useSupportedCurrencyCodes();
   const values = useQuery({
     queryKey: ['requisition-values'],
     queryFn: () => api.get<JobValues>('/api/requisitions/values'),
@@ -469,7 +471,15 @@ export function CreateRequisitionPage() {
         />
         <Select
           label="Employment type"
-          data={['Full time', 'Part time', 'Contract', 'Internship', 'Temporary']}
+          data={
+            values.data?.employmentTypes ?? [
+              'Full time',
+              'Part time',
+              'Contract',
+              'Internship',
+              'Temporary',
+            ]
+          }
           value={form.employmentType}
           onChange={(v) => v && set({ employmentType: v })}
         />
@@ -579,7 +589,7 @@ export function CreateRequisitionPage() {
           />
           <Select
             label="Currency"
-            data={CURRENCIES}
+            data={currencies.options}
             value={form.pay.currency}
             onChange={(currency) => currency && set({ pay: { ...form.pay, currency } })}
           />

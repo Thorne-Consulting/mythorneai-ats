@@ -6,6 +6,8 @@ import { jobPath, metaParts, postedText } from './jobs';
 import type { PublicJob } from './public-api';
 import { typeLabel } from './questions';
 import { ApplyBar, ApplyCard } from './ShareActions';
+import { PayTerms } from './PayTerms';
+import type { PublicCurrencies } from './server';
 
 /**
  * A job as applicants see it, rendered on the server: the posting, what the form will ask, a few
@@ -15,11 +17,13 @@ export function JobPage({
   job,
   related,
   totalOpen,
+  currencies,
 }: {
   job: PublicJob;
   /** Other open jobs in the same department. */
   related: PublicJob[];
   totalOpen: number;
+  currencies: PublicCurrencies;
 }) {
   const questions = job.questions ?? [];
   const applyHref = `${jobPath(job)}/apply`;
@@ -39,6 +43,7 @@ export function JobPage({
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-10">
           <JobPostingView job={job} pay={job.salary?.text} />
+          {job.salary && <PayTerms salary={job.salary} currencies={currencies} />}
           {questions.length > 0 && (
             <section aria-labelledby="job-questions" className="max-w-[68ch] space-y-3">
               <h2 id="job-questions" className="text-lg font-semibold text-fg">

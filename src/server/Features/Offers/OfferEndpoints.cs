@@ -183,9 +183,12 @@ public static partial class AtsEndpoints
                             LetterTemplateVersion = previous.LetterTemplateVersion,
                             LetterMarkdown = previous.LetterMarkdown,
                         };
+                    var money = await CurrencyEndpoints.PolicyAsync(db, ct);
+                    if (offer.Currency.Length == 0)
+                        offer.Currency = money.Base;
                     if (
                         request is not null
-                        && ApplyTerms(offer, request, replace: false) is { } error
+                        && ApplyTerms(offer, request, replace: false, money.Supported) is { } error
                     )
                         return Results.ValidationProblem(error);
                     db.Offers.Add(offer);
@@ -227,7 +230,8 @@ public static partial class AtsEndpoints
                         return Results.Conflict(
                             new { message = "A sent offer can no longer be changed." }
                         );
-                    if (ApplyTerms(offer, request, replace: true) is { } error)
+                    var money = await CurrencyEndpoints.PolicyAsync(db, ct);
+                    if (ApplyTerms(offer, request, replace: true, money.Supported) is { } error)
                         return Results.ValidationProblem(error);
                     // Approvers said yes to the old terms, so changed terms go back to them.
                     var reset = offer.Status != OfferStatus.Draft;
@@ -770,7 +774,7 @@ public static partial class AtsEndpoints
             rows.Add(
                 (
                     "Base salary",
-                    $"{offer.Currency} {salary.ToString("#,0.##", CultureInfo.InvariantCulture)} per {offer.PayPeriod.ToLowerInvariant()}"
+                    $"{Currencies.Format(salary, offer.Currency)} per {offer.PayPeriod.ToLowerInvariant()}"
                 )
             );
         if (offer.Bonus.Length > 0)
@@ -844,7 +848,8 @@ public static partial class AtsEndpoints
     private static Dictionary<string, string[]>? ApplyTerms(
         Offer offer,
         OfferTermsRequest request,
-        bool replace
+        bool replace,
+        HashSet<string> supportedCurrencies
     )
     {
         var errors = new Dictionary<string, string[]>();
@@ -853,9 +858,9 @@ public static partial class AtsEndpoints
         var currency = request.Currency?.Trim().ToUpperInvariant();
         if (
             currency is not null
-            && (currency.Length != 3 || !currency.All(char.IsAsciiLetterUpper))
+            && (!Currencies.LooksLikeCode(currency) || !supportedCurrencies.Contains(currency))
         )
-            errors["currency"] = ["Choose a currency."];
+            errors["currency"] = ["Choose one of the supported currencies (Settings, then Currencies)."];
         var period = PayPeriods.FirstOrDefault(x =>
             x.Equals(request.PayPeriod, StringComparison.OrdinalIgnoreCase)
         );

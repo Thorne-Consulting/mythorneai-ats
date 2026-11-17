@@ -12,7 +12,8 @@ const empty = {
   location: '',
 };
 assert.deepEqual(termRows(empty), []);
-assert.equal(formatPay(120000, 'EUR', 'Year'), 'EUR 120,000 per year');
+assert.equal(formatPay(120000, 'EUR', 'Year'), '€120,000.00 per year');
+assert.equal(formatPay(50, 'CAD', 'Hour'), 'CA$50.00 per hour');
 assert.equal(longDate('2027-03-01'), 'March 1, 2027');
 assert.deepEqual(
   termRows({
@@ -26,7 +27,7 @@ assert.deepEqual(
     expiresOn: '2027-02-01',
   }),
   [
-    { label: 'Base salary', value: 'USD 95,000.5 per year' },
+    { label: 'Base salary', value: '$95,000.50 per year' },
     { label: 'Bonus', value: '10% target' },
     { label: 'Start date', value: 'March 1, 2027' },
     { label: 'Role', value: 'Full time, Hybrid, Chicago' },

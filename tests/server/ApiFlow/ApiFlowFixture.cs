@@ -23,6 +23,7 @@ public sealed partial class ApiFlowTests : IAsyncLifetime
         .Build();
 
     private WebApplicationFactory<Program>? _factory;
+    private readonly FakeRatesHttp _rates = new();
 
     public async ValueTask InitializeAsync()
     {
@@ -31,7 +32,12 @@ public sealed partial class ApiFlowTests : IAsyncLifetime
         {
             builder.UseEnvironment("Development");
             // The model is stubbed: the tests check the pipeline around it, not the parse itself.
-            builder.ConfigureTestServices(services => services.AddSingleton<IChatClient>(new FakeResumeChat()));
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IChatClient>(new FakeResumeChat());
+                // The exchange-rate source is stubbed too; the tests check the cache and the fallback.
+                services.AddSingleton<IHttpClientFactory>(_rates);
+            });
             builder.ConfigureAppConfiguration(
                 (_, configuration) =>
                 {

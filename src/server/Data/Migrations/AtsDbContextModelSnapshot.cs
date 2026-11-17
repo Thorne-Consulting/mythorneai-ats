@@ -1626,6 +1626,44 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.ToTable("Companies");
                 });
 
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Currency", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<int>("Decimals")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsSupported")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Symbol")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("character varying(8)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Currencies");
+                });
+
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.CustomFieldDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2008,6 +2046,32 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.HasIndex("TemplateRef", "RequisitionId", "Version");
 
                     b.ToTable("EmailTemplateVersions");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.ExchangeRateTable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Base")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<DateTimeOffset>("FetchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("RatesDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("RatesJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ExchangeRateTables");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.FitJob", b =>
@@ -3012,6 +3076,10 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                     b.Property<bool>("ApprovalsSequential")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("BaseCurrency")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<int>("BookReminderDays")
                         .HasColumnType("integer");
 
@@ -3093,6 +3161,33 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Organizations");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PickListItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Kind", "Value")
+                        .IsUnique();
+
+                    b.ToTable("PickListItems");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.PipelineStage", b =>
@@ -4056,6 +4151,36 @@ namespace MyThorneAI.Ats.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ScorecardDrafts");
+                });
+
+            modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.SeedRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Fingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SeedKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTimeOffset>("SeededAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeedKey")
+                        .IsUnique();
+
+                    b.ToTable("SeedRecords");
                 });
 
             modelBuilder.Entity("MyThorneAI.Ats.Api.Domain.Skill", b =>
