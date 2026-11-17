@@ -2,6 +2,7 @@ import {
   Bell,
   BellRing,
   Building2,
+  Coins,
   CalendarClock,
   CalendarDays,
   CheckCheck,
@@ -106,6 +107,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
         description: 'How your careers page, candidate portal and emails to candidates look.',
         keywords:
           'brand logo colour color icon favicon careers page jobs board headline introduction website social links resume required candidate portal emails',
+      },
+      {
+        href: '/settings/currencies',
+        label: 'Currencies',
+        icon: Coins,
+        description:
+          'The base currency for totals and reports, the currencies jobs and offers may use, and the exchange rates.',
+        keywords: 'currency money pay salary exchange rates convert base usd eur',
       },
       {
         href: '/settings/email',

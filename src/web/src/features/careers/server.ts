@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { headers } from 'next/headers';
 import type { PublicBrand } from './brand';
 import type { PublicFacets, PublicJob, PublicJobPage } from './public-api';
+import type { CurrencyInfo, RateTable } from '@/features/currencies/money';
 
 const API = process.env.API_ORIGIN ?? 'http://localhost:5080';
 
@@ -35,6 +36,22 @@ export type PublicOrganization = {
 
 export const getOrganization = cache(
   async () => (await get<PublicOrganization>('/public/organization')) ?? {},
+);
+
+/** GET /public/currencies: the supported currencies, the base and the rate table, for pay on the site. */
+export type PublicCurrencies = {
+  base: string;
+  currencies: CurrencyInfo[];
+  rates: RateTable | null;
+};
+
+export const getCurrencies = cache(
+  async () =>
+    (await get<PublicCurrencies>('/public/currencies')) ?? {
+      base: 'USD',
+      currencies: [],
+      rates: null,
+    },
 );
 
 export const getJob = cache((id: string) => get<PublicJob>(`/public/jobs/${id}`));

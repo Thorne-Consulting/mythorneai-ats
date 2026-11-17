@@ -1853,7 +1853,10 @@ public static partial class ReportEngine
         DateTimeOffset? RespondedAt,
         DateOnly? ExpiresOn,
         string? DeclineReason,
-        bool Revision
+        bool Revision,
+        decimal? BaseSalary = null,
+        string Currency = "",
+        string PayPeriod = "Year"
     )
     {
         public OfferResult Result(DateOnly today) =>
@@ -1921,7 +1924,10 @@ public static partial class ReportEngine
                 x.RespondedAt,
                 x.ExpiresOn,
                 x.DeclineReason,
-                x.ReplacesOfferId != null
+                x.ReplacesOfferId != null,
+                x.BaseSalary,
+                x.Currency,
+                x.PayPeriod
             ))
             .ToListAsync(ct);
     }
@@ -1942,6 +1948,17 @@ public static partial class ReportEngine
         var offers = await OfferFactsAsync(c.Db, c.Facts, c.Period.Start, c.Period.End, ct);
         var today = c.Today;
         var facts = c.Facts.ToDictionary(f => f.Id);
+        // Yearly base pay in the workspace currency, from the last good rate table. Offers paid by
+        // the hour or month, or in a currency the table lacks, are left out and the hint says so.
+        var money = await CurrencyEndpoints.PolicyAsync(c.Db, ct);
+        var table = await CurrencyRates.StoredAsync(c.Db, ct);
+        decimal? InBase(OfferFact o) =>
+            o.BaseSalary is { } amount && o.PayPeriod == "Year"
+                ? o.Currency.Equals(money.Base, StringComparison.OrdinalIgnoreCase) ? amount
+                : table?.Convert(amount, o.Currency, money.Base)
+                : null;
+        var yearly = offers.Select(InBase).OfType<decimal>().ToList();
+        var leftOut = offers.Count(o => o.BaseSalary is not null) - yearly.Count;
         int Count(OfferResult result) => offers.Count(o => o.Result(today) == result);
         var accepted = Count(OfferResult.Accepted);
         var answered = accepted + Count(OfferResult.Declined);
@@ -1962,6 +1979,7 @@ public static partial class ReportEngine
             "Days to answer",
             "Reason for declining",
             "Revised offer",
+            $"Base salary ({money.Base} a year)",
         ];
         var rows = offers
             .Select(o =>
@@ -1974,6 +1992,7 @@ public static partial class ReportEngine
                     o.DaysToAnswer is { } days ? Math.Round(days, 1) : null,
                     o.Status == OfferStatus.Declined ? ReasonOf(o.DeclineReason) : null,
                     o.Revision ? "Yes" : null,
+                    InBase(o) is { } pay ? Math.Round(pay) : null,
                 }
             )
             .ToList();
@@ -2193,6 +2212,19 @@ public static partial class ReportEngine
                         : "Sent, with no answer yet",
                     waiting,
                     ReportDrill.Of(("offer", "waiting"))
+                ),
+                new(
+                    $"Average base salary ({money.Base})",
+                    yearly.Count == 0
+                        ? "–"
+                        : Currencies.Format(Math.Round(yearly.Average()), money.Base),
+                    yearly.Count == 0 ? "No yearly base salaries to average"
+                    : (
+                        table is null
+                            ? "Amounts in other currencies are not converted: no rate table yet"
+                            : $"Other currencies converted at rates from {table.Date:MMMM d, yyyy}"
+                    ) + (leftOut > 0 ? $"; {ReportFormat.Count(leftOut)} left out" : ""),
+                    (double)(yearly.Count == 0 ? 0 : yearly.Average())
                 ),
             ],
             [.. charts]
