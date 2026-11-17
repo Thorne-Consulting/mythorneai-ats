@@ -132,11 +132,11 @@ public sealed partial class ApiFlowTests
         (await Get()).ShouldNotBeNull();
         http.Calls.ShouldBe(start + 1);
         // Past the window: fetched again.
-        await Age(TimeSpan.FromHours(7));
+        await Age(TimeSpan.FromHours(25));
         (await Get()).ShouldNotBeNull();
         http.Calls.ShouldBe(start + 2);
         // Past the window and the source is down: the last good table, not null.
-        await Age(TimeSpan.FromHours(7));
+        await Age(TimeSpan.FromHours(25));
         http.Fail = true;
         var stale = await Get();
         stale.ShouldNotBeNull();

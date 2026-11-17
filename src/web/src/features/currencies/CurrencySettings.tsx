@@ -91,7 +91,7 @@ export function CurrencySettings() {
         <SettingsSection
           id="rates"
           title="Exchange rates"
-          description="Daily reference rates from a public source. They are kept for six hours, and the last good table is kept until a new one arrives."
+          description="Daily reference rates from Frankfurter, which blends 112 central banks. A table is kept for a day, and the last good one stays until a new one arrives."
           action={
             <Button
               variant="secondary"

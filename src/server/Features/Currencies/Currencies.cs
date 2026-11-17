@@ -7,8 +7,8 @@ public sealed record CurrencyInfo(string Code, string Name, string Symbol, int D
 
 /// <summary>
 /// The built-in currency catalog: every country currency in ISO 4217, the common ones first. The
-/// baseline seed copies it into the workspace, where an admin picks the supported ones. Rates
-/// exist for the currencies the rate source publishes; the others show amounts as posted.
+/// baseline seed copies it into the workspace, where an admin picks the supported ones. The rate
+/// source (Frankfurter) covers all of them; a code it lacks shows amounts as posted.
 /// Formatting falls back to it when a code is not in the database.
 /// </summary>
 public static class Currencies
@@ -37,7 +37,6 @@ public static class Currencies
         new("CZK", "Czech koruna", "Kč"),
         new("HUF", "Hungarian forint", "Ft"),
         new("RON", "Romanian leu", "lei"),
-        new("BGN", "Bulgarian lev", "лв"),
         new("TRY", "Turkish lira", "₺"),
         new("ILS", "Israeli new shekel", "₪"),
         new("ZAR", "South African rand", "R"),

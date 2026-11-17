@@ -509,3 +509,455 @@ export function ScatterChart({
     </ResponsiveContainer>
   );
 }
+
+// ---- The other forms recharts draws ----------------------------------------------------------
+
+import {
+  Funnel,
+  FunnelChart as RFunnelChart,
+  LabelList,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart as RRadarChart,
+  RadialBar,
+  RadialBarChart as RRadialBarChart,
+  Sankey,
+  SunburstChart as RSunburstChart,
+  Treemap,
+} from 'recharts';
+
+/** A real funnel: each stage a narrowing band, with the count and the share of the first stage. */
+export function FunnelChart({
+  data,
+  height,
+  onSelect,
+}: {
+  data: Slice[];
+  height?: number;
+  onSelect?: OnSelect;
+}) {
+  const top = data[0]?.value || 1;
+  const rows = data.map((d, i) => ({
+    name: d.name,
+    value: d.value,
+    fill: d.color ?? chartColors[i % chartColors.length],
+    share: `${Math.round((d.value / top) * 100)}%`,
+  }));
+  return (
+    <ResponsiveContainer width="100%" height={height ?? Math.max(200, data.length * 44)}>
+      <RFunnelChart margin={{ top: 4, right: 140, bottom: 4, left: 140 }}>
+        <RTooltip content={<TooltipBox />} />
+        <Funnel
+          data={rows}
+          dataKey="value"
+          nameKey="name"
+          isAnimationActive={false}
+          stroke="var(--card)"
+          strokeWidth={2}
+          onClick={onSelect ? (_, index) => onSelect(index) : undefined}
+          style={onSelect ? { cursor: 'pointer' } : undefined}
+        >
+          <LabelList
+            dataKey="name"
+            position="left"
+            fill="var(--fg-muted)"
+            stroke="none"
+            fontSize={12}
+          />
+          <LabelList
+            dataKey="share"
+            position="right"
+            fill="var(--fg)"
+            stroke="none"
+            fontSize={12}
+            fontWeight={600}
+          />
+        </Funnel>
+      </RFunnelChart>
+    </ResponsiveContainer>
+  );
+}
+
+/** A plain pie with a legend; a donut is `DonutChart`. */
+export function PieChart2({
+  data,
+  size = 180,
+  onSelect,
+}: {
+  data: Slice[];
+  size?: number;
+  onSelect?: OnSelect;
+}) {
+  const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <div className="shrink-0" style={{ width: size, height: size }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="value"
+              nameKey="name"
+              outerRadius="100%"
+              startAngle={90}
+              endAngle={-270}
+              stroke="var(--card)"
+              strokeWidth={2}
+              isAnimationActive={false}
+              onClick={onSelect ? (_, index) => onSelect(index) : undefined}
+              style={onSelect ? { cursor: 'pointer' } : undefined}
+            >
+              {data.map((d, i) => (
+                <Cell key={d.name} fill={d.color ?? chartColors[i % chartColors.length]} />
+              ))}
+            </Pie>
+            <RTooltip content={<TooltipBox />} />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+      <ul className="min-w-40 flex-1 space-y-2 text-sm">
+        {data.map((d, i) => (
+          <li key={d.name} className="flex items-center gap-2.5">
+            <span
+              className="size-3 shrink-0 rounded-[3px]"
+              style={{ background: d.color ?? chartColors[i % chartColors.length] }}
+            />
+            <span className="min-w-0 flex-1 break-words text-fg-muted">{d.name}</span>
+            <span className="font-medium text-fg tnum">
+              {d.value} · {Math.round((d.value / total) * 100)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** Stacked areas over a category axis: volume over time, one band per series. */
+export function AreaChart({
+  data,
+  dataKey,
+  series,
+  height = 220,
+  onSelect,
+}: {
+  data: Row[];
+  dataKey: string;
+  series: Series[];
+  height?: number;
+  onSelect?: OnSelect;
+}) {
+  return (
+    <div>
+      {series.length > 1 && <ChartLegend series={series} className="mb-2" />}
+      <ResponsiveContainer width="100%" height={height}>
+        <ComposedChart
+          data={data}
+          margin={{ top: 6, right: 8, bottom: 0, left: -18 }}
+          onClick={
+            onSelect ? (state) => indexOf(state) !== null && onSelect(indexOf(state)!) : undefined
+          }
+          style={onSelect ? { cursor: 'pointer' } : undefined}
+        >
+          <CartesianGrid vertical={false} {...grid} />
+          <XAxis dataKey={dataKey} minTickGap={14} {...axis} />
+          <YAxis allowDecimals={false} unit={sharedUnit(series)} {...axis} />
+          <RTooltip content={<TooltipBox />} cursor={{ stroke: 'var(--border)' }} />
+          {series.map((s, i) => (
+            <Area
+              key={s.key}
+              type="monotone"
+              dataKey={s.key}
+              name={s.label ?? s.key}
+              unit={s.unit}
+              stackId={s.dashed ? undefined : 'a'}
+              stroke={color(s, i)}
+              strokeWidth={2}
+              strokeDasharray={s.dashed ? '5 4' : undefined}
+              fill={color(s, i)}
+              fillOpacity={s.dashed ? 0 : 0.18}
+              isAnimationActive={false}
+            />
+          ))}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** Several measures per category on spokes. Reads best with 3 to 8 categories. */
+export function RadarChart({
+  data,
+  dataKey,
+  series,
+  height = 260,
+}: {
+  data: Row[];
+  dataKey: string;
+  series: Series[];
+  height?: number;
+}) {
+  return (
+    <div>
+      {series.length > 1 && <ChartLegend series={series} className="mb-2" />}
+      <ResponsiveContainer width="100%" height={height}>
+        <RRadarChart data={data} outerRadius="72%">
+          <PolarGrid stroke="var(--border-subtle)" />
+          <PolarAngleAxis dataKey={dataKey} tick={{ fill: 'var(--fg-subtle)', fontSize: 11 }} />
+          <PolarRadiusAxis tick={{ fill: 'var(--fg-subtle)', fontSize: 10 }} axisLine={false} />
+          <RTooltip content={<TooltipBox />} />
+          {series.map((s, i) => (
+            <Radar
+              key={s.key}
+              dataKey={s.key}
+              name={s.label ?? s.key}
+              stroke={color(s, i)}
+              fill={color(s, i)}
+              fillOpacity={0.12}
+              strokeWidth={2}
+              isAnimationActive={false}
+            />
+          ))}
+        </RRadarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** One ring per category, filled to its value (a percentage or a count against the largest). */
+export function RadialChart({
+  data,
+  max,
+  unit,
+  height = 240,
+  onSelect,
+}: {
+  data: Slice[];
+  max?: number;
+  unit?: string;
+  height?: number;
+  onSelect?: OnSelect;
+}) {
+  const rows = data.map((d, i) => ({
+    name: d.name,
+    value: d.value,
+    fill: d.color ?? chartColors[i % chartColors.length],
+  }));
+  const top = max ?? Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <div className="shrink-0" style={{ width: height, height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <RRadialBarChart
+            data={rows}
+            innerRadius="25%"
+            outerRadius="100%"
+            startAngle={90}
+            endAngle={-270}
+          >
+            <PolarAngleAxis type="number" domain={[0, top]} tick={false} />
+            <RadialBar
+              dataKey="value"
+              background={{ fill: 'var(--muted)' }}
+              cornerRadius={4}
+              isAnimationActive={false}
+              onClick={onSelect ? (_, index) => onSelect(index) : undefined}
+              style={onSelect ? { cursor: 'pointer' } : undefined}
+            />
+            <RTooltip content={<TooltipBox />} />
+          </RRadialBarChart>
+        </ResponsiveContainer>
+      </div>
+      <ul className="min-w-40 flex-1 space-y-2 text-sm">
+        {rows.map((d) => (
+          <li key={d.name} className="flex items-center gap-2.5">
+            <span className="size-3 shrink-0 rounded-[3px]" style={{ background: d.fill }} />
+            <span className="min-w-0 flex-1 break-words text-fg-muted">{d.name}</span>
+            <span className="font-medium text-fg tnum">
+              {d.value}
+              {unit}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function TreemapCell(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  name?: string;
+  value?: number;
+  index?: number;
+  color?: string;
+}) {
+  const { x = 0, y = 0, width = 0, height = 0, name = '', value, index = 0 } = props;
+  const fill = props.color ?? chartColors[index % chartColors.length];
+  const room = width > 56 && height > 28;
+  return (
+    <g>
+      <rect
+        x={x + 1}
+        y={y + 1}
+        width={Math.max(0, width - 2)}
+        height={Math.max(0, height - 2)}
+        rx={4}
+        fill={fill}
+        fillOpacity={0.85}
+      />
+      {room && (
+        <text x={x + 8} y={y + 18} fill="var(--primary-foreground)" fontSize={12}>
+          <tspan fontWeight={600}>{wrapLabel(name, Math.floor((width - 12) / 7))[0]}</tspan>
+          <tspan x={x + 8} dy={14}>
+            {value}
+          </tspan>
+        </text>
+      )}
+    </g>
+  );
+}
+
+/** Each part's share as an area. Suits many parts of one whole, where a pie gets crowded. */
+export function TreemapChart({
+  data,
+  height = 240,
+  onSelect,
+}: {
+  data: Slice[];
+  height?: number;
+  onSelect?: OnSelect;
+}) {
+  const rows = data.map((d, i) => ({ name: d.name, value: d.value, color: d.color, index: i }));
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <Treemap
+        data={rows}
+        dataKey="value"
+        nameKey="name"
+        isAnimationActive={false}
+        content={<TreemapCell />}
+        onClick={onSelect ? (node: { index?: number }) => onSelect(node.index ?? 0) : undefined}
+        style={onSelect ? { cursor: 'pointer' } : undefined}
+      >
+        <RTooltip content={<TooltipBox />} />
+      </Treemap>
+    </ResponsiveContainer>
+  );
+}
+
+/** Flows between named steps. `links` are [from, to, value]; nodes are made from the names. */
+export function SankeyChart({
+  links,
+  height = 300,
+}: {
+  links: [string, string, number][];
+  height?: number;
+}) {
+  const names = [...new Set(links.flatMap(([a, b]) => [a, b]))];
+  const data = {
+    nodes: names.map((name) => ({ name })),
+    links: links.map(([a, b, value]) => ({
+      source: names.indexOf(a),
+      target: names.indexOf(b),
+      value,
+    })),
+  };
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <Sankey
+        data={data}
+        nodePadding={18}
+        nodeWidth={10}
+        margin={{ top: 8, right: 110, bottom: 8, left: 8 }}
+        node={<SankeyNode />}
+        link={{ stroke: 'var(--chart-5)', strokeOpacity: 0.35 }}
+      >
+        <RTooltip content={<TooltipBox />} />
+      </Sankey>
+    </ResponsiveContainer>
+  );
+}
+
+function SankeyNode(props: {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  index?: number;
+  payload?: { name?: string; value?: number };
+}) {
+  const { x = 0, y = 0, width = 0, height = 0, index = 0, payload } = props;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} rx={2} fill={chartColors[index % 5]} />
+      <text x={x + width + 6} y={y + height / 2} dy={4} fill="var(--fg-muted)" fontSize={11}>
+        {payload?.name} · {payload?.value}
+      </text>
+    </g>
+  );
+}
+
+/** Two rings: each parent's share, then its children. Rows are [parent, child, value]. */
+export function SunburstChart({
+  rows,
+  height = 260,
+}: {
+  rows: [string, string, number][];
+  height?: number;
+}) {
+  const parents = [...new Set(rows.map(([p]) => p))];
+  const total = (parent: string) =>
+    rows.filter(([p]) => p === parent).reduce((s, [, , v]) => s + v, 0);
+  const data = {
+    name: 'All',
+    value: parents.reduce((s, p) => s + total(p), 0),
+    children: parents.map((parent, i) => ({
+      name: parent,
+      value: total(parent),
+      fill: chartColors[i % chartColors.length],
+      children: rows
+        .filter(([p]) => p === parent)
+        .map(([, child, value]) => ({
+          name: child,
+          value,
+          fill: chartColors[i % chartColors.length],
+        })),
+    })),
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-6">
+      <div className="shrink-0" style={{ width: height, height }}>
+        <RSunburstChart
+          width={height}
+          height={height}
+          data={data}
+          dataKey="value"
+          innerRadius={28}
+          outerRadius={height / 2 - 4}
+          ringPadding={2}
+          stroke="var(--card)"
+          fill="var(--chart-1)"
+        >
+          <RTooltip content={<TooltipBox />} />
+        </RSunburstChart>
+      </div>
+      <ul className="min-w-40 flex-1 space-y-2 text-sm">
+        {parents.map((parent, i) => (
+          <li key={parent} className="flex items-center gap-2.5">
+            <span
+              className="size-3 shrink-0 rounded-[3px]"
+              style={{ background: chartColors[i % chartColors.length] }}
+            />
+            <span className="min-w-0 flex-1 break-words text-fg-muted">{parent}</span>
+            <span className="font-medium text-fg tnum">{total(parent)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

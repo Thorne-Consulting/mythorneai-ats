@@ -441,6 +441,8 @@ export const GUIDES: Guide[] = [
     steps: [
       'Open Reports and pick one from the side: pipeline, speed, sources, offers or team.',
       'Filter by job, source and dates.',
+      'Each chart is a form that fits its numbers: a funnel for stages, a flow for where people went, a treemap for reasons, a radar for sources.',
+      'Choose Make a chart above the table to draw your own: pick the form, what names each row, and the numbers to draw.',
       'Download the table as a spreadsheet (CSV), or as a PDF to print or share.',
     ],
     href: '/reports',

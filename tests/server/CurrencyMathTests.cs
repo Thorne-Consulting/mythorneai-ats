@@ -36,6 +36,18 @@ public sealed class CurrencyMathTests
     }
 
     [Fact]
+    public void The_frankfurter_document_parses_to_a_dated_table()
+    {
+        var table = CurrencyRates.Parse(new FakeRatesHttp().Json);
+        table.Base.ShouldBe("EUR");
+        // The newest observation dates the table; a stale pair keeps its own rate.
+        table.Date.ShouldBe(new DateOnly(2026, 11, 13));
+        table.Rates.Keys.ShouldBe(["USD", "GBP", "JPY", "NPR"], ignoreOrder: true);
+        table.Convert(220m, "USD", "NPR").ShouldBe(29240m);
+        Should.Throw<FormatException>(() => CurrencyRates.Parse("[]"));
+    }
+
+    [Fact]
     public void The_ecb_document_parses_to_a_dated_table()
     {
         var table = CurrencyRates.Parse(new FakeRatesHttp().Xml);

@@ -156,8 +156,8 @@ export `INFISICAL_TOKEN` for the one command. Do not leave a token on the host.
 | `MICROSOFT365_*`                                                                              | When the provider is Microsoft365: tenant, client id and secret, sender user.               |
 | `GOOGLE_WORKSPACE_*`                                                                          | When the provider is GoogleWorkspace: the impersonated user and the service account JSON.   |
 | `CALENDAR_OAUTH_*`                                                                            | Per-interviewer calendar connections (Google and Microsoft app credentials).                |
-| `CURRENCY_RATES_URL`                                                                          | Where the daily exchange rates come from. Default: the European Central Bank's XML, no key. |
-| `CURRENCY_CACHE_HOURS`                                                                        | How long a fetched rate table is used before a new fetch. Default `6`.                      |
+| `CURRENCY_RATES_URL`                                                                          | Where the daily exchange rates come from. Default: Frankfurter v2, every currency, no key.  |
+| `CURRENCY_CACHE_HOURS`                                                                        | How long a fetched rate table is used before a new fetch. Default `24` (rates are daily).   |
 | `CURRENCY_CONVERSION`                                                                         | `false` turns conversion off: amounts stay as entered and nothing is fetched. Default `true`. |
 | `SEED_ENVIRONMENT`                                                                            | `staging` or `production`: which seed sets this host may take. The seed workflow sets it.   |
 | `SEED_PRIVATE_PATH`                                                                           | A SQL file with the company's private seed, run after the sets when the file exists.        |

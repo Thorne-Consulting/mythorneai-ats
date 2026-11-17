@@ -20,8 +20,9 @@ public sealed record RateTable(
 }
 
 /// <summary>
-/// The daily reference rates: fetched from a public source that needs no key (the European Central
-/// Bank by default), kept in memory for <c>Currency:CacheHours</c> and in the database for ever,
+/// The daily reference rates: fetched from a public source that needs no key (Frankfurter by
+/// default, which blends 112 central banks and covers every currency in the catalog), kept in
+/// memory for <c>Currency:CacheHours</c> (a day) and in the database for ever,
 /// so a restart or an outage keeps the last good table. Nothing here throws at a caller who only
 /// wants to show an amount: with no table, <see cref="GetAsync"/> is null and the amount stays as it is.
 /// </summary>
@@ -34,13 +35,12 @@ public sealed class CurrencyRates(
 )
 {
     public const string HttpClientName = "currency-rates";
-    public const string DefaultUrl =
-        "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml";
+    public const string DefaultUrl = "https://api.frankfurter.dev/v2/rates?base=EUR";
     private const string CacheKey = "currency-rates";
 
     public bool ConversionEnabled => configuration.GetValue("Currency:ConversionEnabled", true);
     public TimeSpan CacheWindow =>
-        TimeSpan.FromHours(Math.Max(1, configuration.GetValue("Currency:CacheHours", 6)));
+        TimeSpan.FromHours(Math.Max(1, configuration.GetValue("Currency:CacheHours", 24)));
     public string SourceUrl =>
         configuration["Currency:RatesUrl"] is { Length: > 0 } u ? u : DefaultUrl;
 
@@ -67,8 +67,8 @@ public sealed class CurrencyRates(
         try
         {
             using var client = http.CreateClient(HttpClientName);
-            var xml = await client.GetStringAsync(SourceUrl, ct);
-            var table = Parse(xml);
+            var body = await client.GetStringAsync(SourceUrl, ct);
+            var table = Parse(body);
             var row = await db.ExchangeRateTables.FirstOrDefaultAsync(ct);
             if (row is null)
                 db.ExchangeRateTables.Add(row = new ExchangeRateTable { RatesJson = "{}" });
@@ -109,8 +109,45 @@ public sealed class CurrencyRates(
         return new RateTable(row.Base, row.RatesDate, rates, row.FetchedAt);
     }
 
+    /// <summary>
+    /// Reads a rate document in either shape: Frankfurter v2 (a JSON array of
+    /// <c>{date, base, quote, rate}</c>, one base) or the ECB XML envelope (EUR base). The table's
+    /// date is the newest observation in it; only codes that look like a currency are kept.
+    /// </summary>
+    public static RateTable Parse(string body, DateTimeOffset? fetchedAt = null)
+    {
+        var text = body.TrimStart();
+        return text.StartsWith('[') || text.StartsWith('{')
+            ? ParseFrankfurter(text, fetchedAt ?? DateTimeOffset.UtcNow)
+            : ParseEcb(text, fetchedAt ?? DateTimeOffset.UtcNow);
+    }
+
+    private sealed record FrankfurterRate(string Date, string Base, string Quote, decimal Rate);
+
+    private static RateTable ParseFrankfurter(string json, DateTimeOffset fetchedAt)
+    {
+        var rows =
+            JsonSerializer.Deserialize<List<FrankfurterRate>>(
+                json,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            ) ?? throw new FormatException("The rates document is empty.");
+        var bases = rows.Select(x => x.Base.ToUpperInvariant()).Distinct().ToList();
+        if (bases.Count != 1)
+            throw new FormatException("The rates document should have one base currency.");
+        var rates = rows.Where(x => Currencies.LooksLikeCode(x.Quote) && x.Rate > 0)
+            .GroupBy(x => x.Quote.ToUpperInvariant())
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Date).First().Rate);
+        rates.Remove(bases[0]);
+        if (rates.Count == 0)
+            throw new FormatException("The rates document has no rates.");
+        var newest = rows.Max(x => x.Date);
+        if (!DateOnly.TryParseExact(newest, "yyyy-MM-dd", out var date))
+            throw new FormatException("The rates document has no date.");
+        return new RateTable(bases[0], date, rates, fetchedAt);
+    }
+
     /// <summary>The ECB envelope: one Cube with a time, then one Cube per currency with a rate. EUR is the base.</summary>
-    public static RateTable Parse(string xml, DateTimeOffset? fetchedAt = null)
+    private static RateTable ParseEcb(string xml, DateTimeOffset fetchedAt)
     {
         var doc = XDocument.Parse(xml);
         var cubes = doc.Descendants().Where(x => x.Name.LocalName == "Cube").ToList();
@@ -132,6 +169,6 @@ public sealed class CurrencyRates(
             );
         if (rates.Count == 0)
             throw new FormatException("The rates document has no rates.");
-        return new RateTable("EUR", date, rates, fetchedAt ?? DateTimeOffset.UtcNow);
+        return new RateTable("EUR", date, rates, fetchedAt);
     }
 }

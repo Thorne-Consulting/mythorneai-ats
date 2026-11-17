@@ -40,8 +40,8 @@ services:
       OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
       OpenAI__EmbeddingModel: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       OpenAI__TranscriptionModel: ${OPENAI_TRANSCRIPTION_MODEL:-whisper-1}
-      Currency__RatesUrl: ${CURRENCY_RATES_URL:-https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml}
-      Currency__CacheHours: ${CURRENCY_CACHE_HOURS:-6}
+      Currency__RatesUrl: ${CURRENCY_RATES_URL:-https://api.frankfurter.dev/v2/rates?base=EUR}
+      Currency__CacheHours: ${CURRENCY_CACHE_HOURS:-24}
       Currency__ConversionEnabled: ${CURRENCY_CONVERSION:-true}
       Seed__Environment: ${SEED_ENVIRONMENT:-}
       Seed__PrivatePath: ${SEED_PRIVATE_PATH:-}

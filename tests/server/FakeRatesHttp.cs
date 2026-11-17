@@ -10,6 +10,17 @@ public sealed class FakeRatesHttp : IHttpClientFactory
     public bool Fail { get; set; }
     public string Day { get; set; } = "2026-11-13";
 
+    /// <summary>The Frankfurter v2 shape the default source answers with.</summary>
+    public string Json =>
+        $$"""
+            [{"date":"{{Day}}","base":"EUR","quote":"EUR","rate":1.0},
+             {"date":"{{Day}}","base":"EUR","quote":"USD","rate":1.1},
+             {"date":"{{Day}}","base":"EUR","quote":"GBP","rate":0.85},
+             {"date":"2026-11-12","base":"EUR","quote":"JPY","rate":165.0},
+             {"date":"{{Day}}","base":"EUR","quote":"NPR","rate":146.2}]
+            """;
+
+    /// <summary>The ECB envelope, the other shape the parser reads.</summary>
     public string Xml =>
         $"""
             <?xml version="1.0" encoding="UTF-8"?>
@@ -40,7 +51,7 @@ public sealed class FakeRatesHttp : IHttpClientFactory
             return Task.FromResult(
                 new HttpResponseMessage(HttpStatusCode.OK)
                 {
-                    Content = new StringContent(owner.Xml),
+                    Content = new StringContent(owner.Json),
                 }
             );
         }

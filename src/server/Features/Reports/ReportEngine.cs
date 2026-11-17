@@ -20,6 +20,12 @@ public sealed class ReportContext
     public required Dictionary<string, string> Names { get; init; }
     public DateTimeOffset Now { get; init; }
 
+    /// <summary>
+    /// Whether the viewer may see offer terms (base salaries): hiring staff and hiring managers,
+    /// the same rule as the compare page. Off for emailed digests and everyone else.
+    /// </summary>
+    public bool ShowPay { get; init; }
+
     /// <summary>Several jobs combine their stages by type; one job keeps its own stage names.</summary>
     public bool ByType => Query.RequisitionId is null;
 
@@ -186,7 +192,8 @@ public static partial class ReportEngine
         ReportQuery query,
         ReportDateField field,
         DateTimeOffset now,
-        CancellationToken ct
+        CancellationToken ct,
+        bool showPay = false
     )
     {
         var organization =
@@ -321,6 +328,7 @@ public static partial class ReportEngine
             Organization = organization,
             Names = await NamesAsync(db, facts.Select(x => x.Recruiter), ct),
             Now = now,
+            ShowPay = showPay,
         };
     }
 
@@ -496,6 +504,57 @@ public static partial class ReportEngine
         return new(keys, last);
     }
 
+    /// <summary>
+    /// Where people went: each stage flows on to the next, out to "Left" for those who ended
+    /// there, and the last stage flows to "Hired". Rows are [from, to, applications].
+    /// </summary>
+    private static ReportChart FlowChart(
+        List<string> keys,
+        List<int> reached,
+        List<AppFact> facts,
+        int hired
+    )
+    {
+        var rows = new List<object?[]>();
+        for (var i = 0; i < keys.Count; i++)
+        {
+            // Everyone whose furthest stage is this one and who ended.
+            var shapeLeft = facts.Count(f => Ended(f) && FurthestIs(f, i));
+            if (i + 1 < keys.Count && reached[i + 1] > 0)
+                rows.Add([keys[i], keys[i + 1], reached[i + 1]]);
+            if (shapeLeft > 0)
+                rows.Add([keys[i], "Left", shapeLeft]);
+        }
+        // The last stage is often "Hired" itself; a node never flows into itself.
+        if (hired > 0 && keys[^1] != "Hired")
+            rows.Add([keys[^1], "Hired", hired]);
+        // Still in progress at a stage: reached it, did not move on, did not end.
+        for (var i = 0; i < keys.Count; i++)
+        {
+            var open =
+                reached[i]
+                - (i + 1 < keys.Count ? reached[i + 1] : hired)
+                - facts.Count(f => Ended(f) && FurthestIs(f, i));
+            if (open > 0)
+                rows.Add([keys[i], "Still in progress", open]);
+        }
+        return new ReportChart(
+            "sankey",
+            "Where applications went",
+            ["From", "To", "Applications"],
+            rows,
+            "Each band is the number of applications that took that path."
+        );
+    }
+
+    // ponytail: the funnel's "furthest stage" lookup is rebuilt per call from the stage list the
+    // caller already has; FunnelAsync sets it before drawing the flow.
+    [ThreadStatic]
+    private static Dictionary<Guid, int>? _furthest;
+
+    private static bool FurthestIs(AppFact f, int index) =>
+        _furthest is not null && _furthest.TryGetValue(f.Id, out var last) && last == index;
+
     public static bool Ended(AppFact f) =>
         f.Status is ApplicationStatus.Rejected or ApplicationStatus.Withdrawn;
 
@@ -507,6 +566,7 @@ public static partial class ReportEngine
     {
         var facts = c.Facts;
         var shape = await FunnelOfAsync(c.Db, facts, c.ByType, ct);
+        _furthest = shape.Last;
         var reached = shape.Keys.Select((_, i) => facts.Count(f => shape.Last[f.Id] >= i)).ToList();
         var rows = new List<object?[]>();
         var drill = new List<ReportDrill?>();
@@ -617,7 +677,7 @@ public static partial class ReportEngine
                         .ToList(),
                 },
                 new(
-                    "line",
+                    "area",
                     "Applications over time",
                     [unit, "Applications"],
                     perPeriod,
@@ -626,6 +686,9 @@ public static partial class ReportEngine
                 {
                     Drill = periodDrill,
                 },
+                .. by is null && facts.Count > 0
+                    ? new[] { FlowChart(shape.Keys, reached, facts, hired) }
+                    : [],
             ]
         )
         {
@@ -1000,7 +1063,7 @@ public static partial class ReportEngine
             ],
             [
                 new(
-                    "bar",
+                    "treemap",
                     "Reasons",
                     ["Reason", "Applications"],
                     reasons.Select(g => new object?[] { g.Key, g.Count() }).ToList()
@@ -1036,7 +1099,7 @@ public static partial class ReportEngine
                         .ToList(),
                 },
                 new(
-                    "line",
+                    "area",
                     "Applications ended over time",
                     [unit, "Ended"],
                     perPeriod,
@@ -1220,7 +1283,7 @@ public static partial class ReportEngine
                     )
                 ),
                 new(
-                    "line",
+                    "area",
                     "Median days to hire by month",
                     ["Month", "Median days"],
                     months
@@ -1367,7 +1430,7 @@ public static partial class ReportEngine
                     Drill = groups.Select(g => (ReportDrill?)g.Drill).ToList(),
                 },
                 new(
-                    "bar",
+                    "radar",
                     "How far each source's candidates get",
                     ["Source", "Reached interview (%)", "Reached offer (%)", "Hired (%)"],
                     rows.Select(x => new[] { x[0], x[2], x[3], x[4] }).ToList(),
@@ -1534,7 +1597,7 @@ public static partial class ReportEngine
                             .ToList(),
                     },
                     new(
-                        "bar",
+                        "radial",
                         "Hire rate by fit score",
                         ["AI fit score", "Hire rate (%)"],
                         rows.Select(x => new[] { x[0], x[5] }).ToList()
@@ -1954,8 +2017,9 @@ public static partial class ReportEngine
         var table = await CurrencyRates.StoredAsync(c.Db, ct);
         decimal? InBase(OfferFact o) =>
             o.BaseSalary is { } amount && o.PayPeriod == "Year"
-                ? o.Currency.Equals(money.Base, StringComparison.OrdinalIgnoreCase) ? amount
-                : table?.Convert(amount, o.Currency, money.Base)
+                ? o.Currency.Equals(money.Base, StringComparison.OrdinalIgnoreCase)
+                    ? amount
+                    : table?.Convert(amount, o.Currency, money.Base)
                 : null;
         var yearly = offers.Select(InBase).OfType<decimal>().ToList();
         var leftOut = offers.Count(o => o.BaseSalary is not null) - yearly.Count;
@@ -1979,21 +2043,23 @@ public static partial class ReportEngine
             "Days to answer",
             "Reason for declining",
             "Revised offer",
-            $"Base salary ({money.Base} a year)",
+            .. c.ShowPay ? new[] { $"Base salary ({money.Base} a year)" } : [],
         ];
         var rows = offers
             .Select(o =>
-                new object?[]
-                {
-                    facts[o.ApplicationId].Candidate,
-                    facts[o.ApplicationId].Job,
-                    o.SentAt,
-                    ResultLabel(o.Result(today)),
-                    o.DaysToAnswer is { } days ? Math.Round(days, 1) : null,
-                    o.Status == OfferStatus.Declined ? ReasonOf(o.DeclineReason) : null,
-                    o.Revision ? "Yes" : null,
-                    InBase(o) is { } pay ? Math.Round(pay) : null,
-                }
+                (object?[])
+                    [
+                        facts[o.ApplicationId].Candidate,
+                        facts[o.ApplicationId].Job,
+                        o.SentAt,
+                        ResultLabel(o.Result(today)),
+                        o.DaysToAnswer is { } days ? Math.Round(days, 1) : null,
+                        o.Status == OfferStatus.Declined ? ReasonOf(o.DeclineReason) : null,
+                        o.Revision ? "Yes" : null,
+                        .. c.ShowPay
+                            ? new object?[] { InBase(o) is { } pay ? Math.Round(pay) : null }
+                            : [],
+                    ]
             )
             .ToList();
         var drill = offers
@@ -2117,7 +2183,7 @@ public static partial class ReportEngine
                 Tones = results.Select(x => x.Tone).ToArray(),
             },
             new(
-                "line",
+                "area",
                 "Offers sent and accepted",
                 [unit, "Sent", "Accepted"],
                 offers.Count == 0
@@ -2174,58 +2240,72 @@ public static partial class ReportEngine
                 ? "No offers were sent within these filters. Offers count from the day they are sent, and their answers from the application's offer."
                 : null,
             [
-                new(
-                    "Offers sent",
-                    ReportFormat.Count(offers.Count),
-                    $"Sent {c.Phrase}"
-                        + (
-                            revised > 0
-                                ? $", {ReportFormat.Count(revised)} of them {(revised == 1 ? "a revised offer" : "revised offers")}"
-                            : candidates < offers.Count
-                                ? $", to {ReportFormat.Count(candidates)} candidates"
-                            : ""
+                .. (ReportStat[])
+                    [
+                        new(
+                            "Offers sent",
+                            ReportFormat.Count(offers.Count),
+                            $"Sent {c.Phrase}"
+                                + (
+                                    revised > 0
+                                        ? $", {ReportFormat.Count(revised)} of them {(revised == 1 ? "a revised offer" : "revised offers")}"
+                                    : candidates < offers.Count
+                                        ? $", to {ReportFormat.Count(candidates)} candidates"
+                                    : ""
+                                ),
+                            offers.Count,
+                            ReportDrill.Of(("offer", "sent"))
                         ),
-                    offers.Count,
-                    ReportDrill.Of(("offer", "sent"))
-                ),
-                new(
-                    "Acceptance rate",
-                    Pct(AcceptanceRate(offers)),
-                    answered == 0
-                        ? "Nobody has answered yet"
-                        : $"{ReportFormat.Count(accepted)} of {ReportFormat.Count(answered)} answers were yes",
-                    AcceptanceRate(offers),
-                    ReportDrill.Of(("offer", "accepted"))
-                ),
-                new(
-                    "Median days to answer",
-                    Days(MedianDays(offers)),
-                    "From sending the offer to their answer",
-                    MedianDays(offers),
-                    LowerIsBetter: true
-                ),
-                new(
-                    "Waiting for an answer",
-                    ReportFormat.Count(waiting),
-                    expired > 0
-                        ? $"And {ReportFormat.Count(expired)} past the last day to accept"
-                        : "Sent, with no answer yet",
-                    waiting,
-                    ReportDrill.Of(("offer", "waiting"))
-                ),
-                new(
-                    $"Average base salary ({money.Base})",
-                    yearly.Count == 0
-                        ? "–"
-                        : Currencies.Format(Math.Round(yearly.Average()), money.Base),
-                    yearly.Count == 0 ? "No yearly base salaries to average"
-                    : (
-                        table is null
-                            ? "Amounts in other currencies are not converted: no rate table yet"
-                            : $"Other currencies converted at rates from {table.Date:MMMM d, yyyy}"
-                    ) + (leftOut > 0 ? $"; {ReportFormat.Count(leftOut)} left out" : ""),
-                    (double)(yearly.Count == 0 ? 0 : yearly.Average())
-                ),
+                        new(
+                            "Acceptance rate",
+                            Pct(AcceptanceRate(offers)),
+                            answered == 0
+                                ? "Nobody has answered yet"
+                                : $"{ReportFormat.Count(accepted)} of {ReportFormat.Count(answered)} answers were yes",
+                            AcceptanceRate(offers),
+                            ReportDrill.Of(("offer", "accepted"))
+                        ),
+                        new(
+                            "Median days to answer",
+                            Days(MedianDays(offers)),
+                            "From sending the offer to their answer",
+                            MedianDays(offers),
+                            LowerIsBetter: true
+                        ),
+                        new(
+                            "Waiting for an answer",
+                            ReportFormat.Count(waiting),
+                            expired > 0
+                                ? $"And {ReportFormat.Count(expired)} past the last day to accept"
+                                : "Sent, with no answer yet",
+                            waiting,
+                            ReportDrill.Of(("offer", "waiting"))
+                        ),
+                    ],
+                .. c.ShowPay
+                    ? new ReportStat[]
+                    {
+                        new(
+                            $"Average base salary ({money.Base})",
+                            yearly.Count == 0
+                                ? "–"
+                                : Currencies.Format(Math.Round(yearly.Average()), money.Base),
+                            yearly.Count == 0
+                                ? "No yearly base salaries to average"
+                                : (
+                                    table is null
+                                        ? "Amounts in other currencies are not converted: no rate table yet"
+                                        : $"Other currencies converted at rates from {table.Date:MMMM d, yyyy}"
+                                )
+                                    + (
+                                        leftOut > 0
+                                            ? $"; {ReportFormat.Count(leftOut)} left out"
+                                            : ""
+                                    ),
+                            (double)(yearly.Count == 0 ? 0 : yearly.Average())
+                        ),
+                    }
+                    : [],
             ],
             [.. charts]
         )
@@ -2353,7 +2433,7 @@ public static partial class ReportEngine
             ],
             [
                 new(
-                    "line",
+                    "area",
                     "Hires over time",
                     [unit, "Hires"],
                     perPeriod,
@@ -2363,7 +2443,7 @@ public static partial class ReportEngine
                     Drill = periodDrill,
                 },
                 new(
-                    "donut",
+                    "pie",
                     "Hires by department",
                     ["Department", "Hires"],
                     departments.Select(g => new object?[] { g.Label, g.Items.Count }).ToList()
@@ -2375,6 +2455,18 @@ public static partial class ReportEngine
                         )
                         .ToList(),
                 },
+                new(
+                    "sunburst",
+                    "Hires by department and job",
+                    ["Department", "Job", "Hires"],
+                    departments
+                        .SelectMany(g =>
+                            g.Items.GroupBy(f => f.Job)
+                                .Select(j => new object?[] { g.Label, j.Key, j.Count() })
+                        )
+                        .ToList(),
+                    "The inner ring is the department, the outer ring each job in it."
+                ),
             ]
         )
         {
