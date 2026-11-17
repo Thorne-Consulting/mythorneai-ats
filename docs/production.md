@@ -41,7 +41,7 @@ or minor updates merge by themselves once `ok` passes.
 | Piece    | File                               | What it is                                                                                                                         |
 | -------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Images   | `Dockerfile`, `src/web/Dockerfile` | Built by `release.yml`, published to GHCR. The API image has the Infisical CLI and fetches its own settings when it starts.        |
-| Stack    | `deploy/compose.prod.yaml`         | One file, no scripts: the secrets fetch, the database, the object store, the API, the web app, and Caddy behind the `edge` profile. |
+| Stack    | `deploy/compose.prod.yaml`         | One file, no scripts: the secrets fetch, the database, the object store, the API, the web app, and Caddy. |
 | Secrets  | Infisical                          | Every setting. The host keeps only the Infisical login (below).                                                                     |
 | Network  | Netbird, on the host               | The host joins Netbird once, outside the stack, so it reaches Infisical and staff reach it.                                       |
 | CI       | `.github/workflows/release.yml`    | Builds and publishes the images. It does not deploy: the host pulls.                                                               |
@@ -124,7 +124,7 @@ an app secret:
 | `INFISICAL_PROJECT_ID`    | The Infisical project of this app.                                                                 |
 | `INFISICAL_ENV`           | `staging` or `prod`: the one Infisical environment this host reads.                                |
 | `IMAGE_TAG`               | `staging`, `latest`, or a `sha-<commit>` to pin one build.                                         |
-| `BIND_ADDRESS`, `APP_PORT` | Optional, with `edge`: where the staff door listens. Set `BIND_ADDRESS` to the host's Netbird address. Defaults: `127.0.0.1`, `8080`. |
+| `BIND_ADDRESS`, `APP_PORT` | Optional: where the staff door listens directly. Set `BIND_ADDRESS` to the host's Netbird address. Defaults: `127.0.0.1`, `8080`. |
 
 ### How the settings reach the containers
 
@@ -185,7 +185,6 @@ Put these keys in each Infisical environment. Required ones first.
 | `SEED_PRIVATE_PATH`                                                                           | A SQL file with the company's private seed, run after the sets when the file exists.        |
 | `S3_SECRET_KEY`, `S3_ACCESS_KEY`                                                              | Required. The keys of the object store, where uploads live. Access key defaults to `ats`.   |
 | `S3_BUCKET`, `S3_REGION`                                                                      | The bucket and region. Defaults: `ats-files`, `us-east-1`.                                  |
-| `COMPOSE_PROFILES`                                                                            | The optional pieces: `edge` (Caddy), `netbird`. Default in `.env.example`: both.            |
 
 The database name and user are fixed in the compose file (`internal_ats`, `ats`).
 `ASPNETCORE_ENVIRONMENT` is `Production` on both hosts; staging is production code with
@@ -285,8 +284,7 @@ makes an admin account for it, so the sample accounts do not lock you out.
 
 ## Two doors: public and staff
 
-With the `edge` profile, Caddy fronts the web app with two doors. Its Caddyfile is inside the
-compose file.
+Caddy fronts the web app with two doors. Its Caddyfile is inside the compose file.
 
 - **The public door**, port 80 inside the stack. On Dokploy, Traefik owns ports 80 and 443 on
   the host: give the public domain to the `caddy` service, port 80, and Traefik gets the
@@ -294,12 +292,39 @@ compose file.
   `/candidate-portal`, `/book`, `/public` (the apply form, the portal API and the Resend
   webhook), `/docs`, `/openapi`, `/health` and the page assets. Every other path answers 404,
   so the staff app never shows on the internet.
-- **The staff door**, port `APP_PORT` bound to `BIND_ADDRESS`. Set `BIND_ADDRESS` to the
-  host's Netbird address, and staff reach everything at `http://<netbird address>:8080`.
-  Sign-in redirects (`WORKOS_REDIRECT_URI`, `CALENDAR_OAUTH_REDIRECT_URI`) use that address:
-  the browser follows them, so the provider never needs to reach the host.
+- **The staff door**, port 8080 inside the stack. It answers only Netbird
+  addresses (`100.64.0.0/10`, edited in the Caddyfile if your range differs) and this host, and
+  gives everyone else a 403. It has two
+  ways in:
+  - Port `APP_PORT` bound to `BIND_ADDRESS`, the host's Netbird address, at
+    `http://<netbird address>:8080`. This is plain HTTP, so it is for checking the host. Sign-in
+    does not work here: the sign-in cookie is `Secure`, and `WORKOS_REDIRECT_URI` must be an
+    `https` URL (the API refuses to start otherwise).
+  - A name with HTTPS, for sign-in and for daily use. See below.
 
 Both doors pass WebSocket upgrades, so the inbox hub works.
+
+### The staff name (HTTPS) on Dokploy
+
+Sign-in needs `https`, so the staff app gets a name, for example `jobs.mythorneai.com`.
+Traefik, which Dokploy runs, gets the certificate. The name is only reachable from the private
+network, because the staff door checks the client address:
+
+1. **Public DNS:** an `A` record for the name, pointing to the server's public address. Let's
+   Encrypt needs it to issue the certificate. Anyone who reaches that address still gets a 403.
+2. **Netbird DNS:** a zone or record that sends the same name to the server's Netbird address
+   (`100.x.x.x`), for the group that uses the staff app, the way `secrets.mythorneai.com` is
+   done. Staff then reach Traefik over Netbird, and the staff door sees their Netbird address.
+3. **Dokploy, the compose service, Domains:** add the name with the service `caddy`, port
+   `8080`, HTTPS on, certificate Let's Encrypt.
+4. **Infisical:** `WORKOS_REDIRECT_URI=https://<the name>/auth/callback`, and add the same URL in
+   the WorkOS dashboard under Redirects. Set `CALENDAR_OAUTH_REDIRECT_URI` the same way when
+   calendar connections are used.
+
+Behind Traefik, Caddy trusts the address Traefik forwards (`X-Forwarded-For`, strictly: the
+rightmost address the proxy chain vouches for), so a caller cannot fake a Netbird address.
+Two checks: from a laptop on Netbird, `https://<the name>` loads the sign-in page; from a
+network off Netbird, the same name answers 403.
 
 ## Files
 
