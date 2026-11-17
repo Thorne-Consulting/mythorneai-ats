@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS server-build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS server-build
 WORKDIR /source
 COPY global.json Directory.Packages.props ./
 COPY src/server/MyThorneAI.Ats.Api.csproj src/server/
