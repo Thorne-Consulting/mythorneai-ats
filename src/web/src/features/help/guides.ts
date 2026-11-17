@@ -328,6 +328,20 @@ export const GUIDES: Guide[] = [
     allowed: (a) => a.can('update', 'Job'),
   },
   {
+    key: 'currencies',
+    task: 'Offers',
+    title: 'Set currencies',
+    steps: [
+      'Open Settings, then Currencies.',
+      'Choose the base currency. Reports and totals convert to it.',
+      'Tick the currencies people may choose on a job or an offer, then save.',
+      "Choose Refresh rates now to fetch today's exchange rates. Each converted amount says which day its rates are from.",
+    ],
+    href: '/settings/currencies',
+    link: 'Open currencies',
+    allowed: (a) => a.can('manage', 'Workspace'),
+  },
+  {
     key: 'offer-letters',
     task: 'Offers',
     title: 'Write an offer letter template',

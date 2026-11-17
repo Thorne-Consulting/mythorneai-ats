@@ -87,7 +87,8 @@ Each host (staging, production) needs:
   Register it as **ephemeral** (`config.sh --ephemeral`, under a service that re-registers
   it), so each job gets a clean runner. The repository is public, so also keep "require
   approval for all external contributors" on (the rules script sets it), and if the
-  organization has runner groups, put these runners in a group limited to `release.yml`.
+  organization has runner groups, put these runners in a group limited to `release.yml` and
+  `seed.yml`.
 - A copy of the `deploy/` folder, or a checkout of the repository.
 
 Then set the repository variable `DEPLOY_RUNNERS` to `true`. Until it is set, `release.yml` skips
@@ -155,11 +156,87 @@ export `INFISICAL_TOKEN` for the one command. Do not leave a token on the host.
 | `MICROSOFT365_*`                                                                              | When the provider is Microsoft365: tenant, client id and secret, sender user.               |
 | `GOOGLE_WORKSPACE_*`                                                                          | When the provider is GoogleWorkspace: the impersonated user and the service account JSON.   |
 | `CALENDAR_OAUTH_*`                                                                            | Per-interviewer calendar connections (Google and Microsoft app credentials).                |
+| `CURRENCY_RATES_URL`                                                                          | Where the daily exchange rates come from. Default: the European Central Bank's XML, no key. |
+| `CURRENCY_CACHE_HOURS`                                                                        | How long a fetched rate table is used before a new fetch. Default `6`.                      |
+| `CURRENCY_CONVERSION`                                                                         | `false` turns conversion off: amounts stay as entered and nothing is fetched. Default `true`. |
+| `SEED_ENVIRONMENT`                                                                            | `staging` or `production`: which seed sets this host may take. The seed workflow sets it.   |
+| `SEED_PRIVATE_PATH`                                                                           | A SQL file with the company's private seed, run after the sets when the file exists.        |
 | `APP_PORT`                                                                                    | The host port the web app listens on. Default `8080`.                                       |
 | `BIND_ADDRESS`                                                                                | The address it listens on. Default `127.0.0.1`: only the proxy or the mesh peer reaches it. |
 
 `ASPNETCORE_ENVIRONMENT` stays `Production` on both hosts; staging is production code with
 staging data.
+
+The base currency and the list of supported currencies are workspace settings, not variables:
+an admin sets them under Settings, then Currencies. The three `CURRENCY_*` variables are the
+server's part: where the rates come from, how long they are kept, and an off switch.
+
+## Seeding
+
+The database is seeded on purpose, by set. A set says what the rows are, not where they go:
+
+| Set        | What it holds                                                                                                                                                                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseline` | What every workspace needs: pipeline templates, rejection reasons, candidate sources, saved replies, posting templates for common job families, candidate fields, offer letter templates and the currency catalog. Worded for every kind of work. |
+| `catalog`  | Pick-lists: departments, locations and employment types (full time, part time, contract, temporary, internship, seasonal, apprenticeship).                                                                                                      |
+| `demo`     | Sample jobs, candidates, applications, interviews, messages and offers, the development accounts (`admin@example.test` and the others) and the `@local.dev` portal candidates.                                                                  |
+
+Roles, notification kinds and the automatic emails live in code and need no rows. Interview
+kits, library questions, scorecard templates, compensation packages and pay bands are the
+company's own and are **not** in any set in this public repository: enter them by hand, or put
+them in the private seed file (below).
+
+The environment map:
+
+| Environment   | Sets                          |
+| ------------- | ----------------------------- |
+| `development` | `baseline`, `catalog`, `demo` |
+| `staging`     | `baseline`, `catalog`, `demo` |
+| `production`  | `baseline`, `catalog`         |
+
+The code refuses `demo` on production (`Seeding.Plan`), whatever a person types. Jobs,
+candidates, applications and anything that looks like hiring data never reach production this
+way.
+
+Seeding is safe to repeat. Each seeded row has a marker (`SeedRecords`) with a fingerprint of
+the content as seeded. A later run adds rows that are new, rewrites a row only while it still
+matches what the seed wrote, leaves a row an admin edited alone, and never brings back a row an
+admin deleted. A row that already exists by name (from an older version of the app) is adopted,
+not duplicated.
+
+**In development** the API seeds every set when it starts. To run it by hand:
+
+```bash
+tools/seed.sh baseline,catalog
+```
+
+**On a host**, run the `seed` workflow on GitHub (Actions, then seed, then Run workflow). Pick
+the environment and type the sets. The job runs on that host's own runner, signs in to
+Infisical with the GitHub token the same way a deploy does, pulls the deployed API image and runs
+one short-lived container with the `seed` command. Production waits for its reviewer first. By
+hand on the host, from the `deploy/` folder:
+
+```bash
+SEED_ENVIRONMENT=staging SEED_SETS=baseline,catalog,demo INFISICAL_ENV=staging INFISICAL_PROJECT_ID=<id> ./seed.sh
+```
+
+The command itself, inside the image or from a checkout, is:
+
+```bash
+dotnet run --project src/server/MyThorneAI.Ats.Api.csproj -- seed --sets baseline,demo
+```
+
+It runs the migrations first, prints what it seeded, and exits with code 2 when a set is refused
+for the environment. `SEED_ENVIRONMENT` names the environment; without it, a Development host is
+`development` and every other host is `production`.
+
+**The private seed file.** Set `SEED_PRIVATE_PATH` to a SQL file on the host (mount it into the
+API container). It runs after the sets, in one transaction, only when the file exists. Write its
+statements so they can run twice (`INSERT ... ON CONFLICT DO NOTHING`). Keep the file out of the
+repository.
+
+Before you seed `demo` on staging, set `BOOTSTRAP_ADMIN_EMAIL` to your own address: the demo set
+makes an admin account for it, so the sample accounts do not lock you out.
 
 ## Running the images somewhere else
 
@@ -183,7 +260,7 @@ images need from the platform:
 ## Locked down by default
 
 - Every workflow starts with no permissions and each job asks for what it needs: the test jobs
-  read the code; the image job writes packages; the deploy job reads packages.
+  read the code; the image job writes packages; the deploy and seed jobs read packages.
 - Every action is pinned to a commit SHA, with its version in a comment. Dependabot moves them,
   14 days after a release.
 - The images carry provenance and a software bill of materials. The hosts deploy `sha-<commit>`
