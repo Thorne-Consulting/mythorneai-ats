@@ -1,0 +1,101 @@
+# Builds the two images and publishes them to GHCR when staging or main moves, then deploys.
+# The tests already ran on the pull request, so this does not run them again.
+#
+#   staging -> ghcr.io/<owner>/mythorneai-ats-{api,web}:staging  -> the staging host
+#   main    -> ...:latest and :main                              -> production, after approval
+#   v1.2.3  -> ...:1.2.3 and :1.2                                -> nothing (a tag is a label)
+name: release
+
+on:
+  push:
+    branches: [staging, main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# One release at a time per branch; a newer push waits for the one in progress.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+# Nothing by default; each job asks for what it needs.
+permissions: {}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/${{ github.repository }}
+
+jobs:
+  images:
+    name: image (${{ matrix.image.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: api, context: ., file: Dockerfile }
+          - { name: web, context: ./src/web, file: src/web/Dockerfile }
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_BASE }}-${{ matrix.image.name }}
+          tags: |
+            type=ref,event=branch
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.file }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.image.name }}
+          cache-to: type=gha,scope=${{ matrix.image.name }},mode=max
+          # Provenance and a software bill of materials travel with the image.
+          provenance: mode=max
+          sbom: true
+
+  deploy:
+    # Runs on a self-hosted runner on the target host, inside the Netbird mesh, where Infisical
+    # and Docker are reachable. Turned on by the repository variable DEPLOY_RUNNERS=true, so a
+    # push does not sit waiting for a runner that does not exist yet.
+    name: deploy (${{ github.ref_name }})
+    needs: images
+    if: vars.DEPLOY_RUNNERS == 'true' && (github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/main')
+    runs-on:
+      [self-hosted, ats, "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"]
+    # The production environment asks a reviewer before this job starts (set in GitHub).
+    environment:
+      name: "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: deploy
+      - name: pull and restart
+        working-directory: deploy
+        env:
+          IMAGE_TAG: ${{ github.ref == 'refs/heads/main' && 'latest' || 'staging' }}
+          INFISICAL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./deploy.sh

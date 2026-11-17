@@ -1,18 +1,40 @@
 version: 2
 updates:
+  # Every update waits 14 days after its release (the supply-chain rule), goes to staging, and
+  # patch or minor updates merge by themselves once ci passes (dependabot-auto-merge.yml).
   - package-ecosystem: nuget
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      nuget:
+        patterns: ['*']
+        update-types: [minor, patch]
   - package-ecosystem: npm
     directory: /src/web
+    target-branch: staging
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
+    groups:
+      npm:
+        patterns: ['*']
+        update-types: [minor, patch]
   - package-ecosystem: docker
-    directory: /
+    directories: [/, /src/web]
+    target-branch: staging
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
   - package-ecosystem: github-actions
     directory: /
+    target-branch: staging
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 14
