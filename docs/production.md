@@ -126,8 +126,9 @@ Set it up once:
    staging identity and `...:environment:production` for the production one. Give each read
    access to its environment only.
 2. In GitHub, set the repository variables `INFISICAL_API_URL` (the Infisical address on the
-   mesh), `INFISICAL_PROJECT_ID`, and `INFISICAL_IDENTITY_ID` (one identity can serve both
-   environments if its bound subject allows both; else make it an environment variable).
+   mesh) and `INFISICAL_PROJECT_ID`. Then set `INFISICAL_IDENTITY_ID` as a variable **on each
+   GitHub environment** (`staging` and `production`), each with its own identity from step 1.
+   A job can only reach the variable of the environment it runs in.
 3. Infisical must be able to fetch GitHub's signing keys from
    `https://token.actions.githubusercontent.com/.well-known/jwks`, which means outbound
    internet from the Infisical host. Nothing needs inbound access to Infisical from GitHub.

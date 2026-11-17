@@ -115,6 +115,7 @@ jobs:
           IMAGE_TAG: sha-${{ github.sha }}
           INFISICAL_ENV: ${{ github.ref == 'refs/heads/main' && 'prod' || 'staging' }}
           INFISICAL_OIDC_JWT: ${{ steps.oidc.outputs.jwt }}
+          # An environment variable: each GitHub environment names its own Infisical identity.
           INFISICAL_IDENTITY_ID: ${{ vars.INFISICAL_IDENTITY_ID }}
           INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
           INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL }}

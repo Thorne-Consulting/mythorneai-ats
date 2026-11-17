@@ -15,15 +15,19 @@ cd "$(dirname "$0")"
 : "${INFISICAL_ENV:=prod}"
 : "${INFISICAL_PROJECT_ID:?set INFISICAL_PROJECT_ID (the Infisical project for this app)}"
 
+# The GitHub token lives for minutes and only this identity accepts it. The Infisical token it
+# buys is used for the one export below and nowhere else.
+token="${INFISICAL_TOKEN:-}"
 if [ -n "${INFISICAL_OIDC_JWT:-}" ]; then
   : "${INFISICAL_IDENTITY_ID:?set INFISICAL_IDENTITY_ID (the machine identity with GitHub OIDC auth)}"
-  INFISICAL_TOKEN=$(infisical login --method=oidc-auth --machine-identity-id="$INFISICAL_IDENTITY_ID" --oidc-jwt="$INFISICAL_OIDC_JWT" --plain --silent)
-  export INFISICAL_TOKEN
+  token=$(infisical login --method=oidc-auth --machine-identity-id="$INFISICAL_IDENTITY_ID" --oidc-jwt="$INFISICAL_OIDC_JWT" --plain --silent)
+  unset INFISICAL_OIDC_JWT
 fi
 
 # 1. Settings. The file is only readable by this user; compose reads it on the next line.
 umask 077
-infisical export --env="$INFISICAL_ENV" --projectId="$INFISICAL_PROJECT_ID" --format=dotenv > .env
+INFISICAL_TOKEN="$token" infisical export --env="$INFISICAL_ENV" --projectId="$INFISICAL_PROJECT_ID" --format=dotenv > .env
+unset token INFISICAL_TOKEN
 echo "IMAGE_TAG=$IMAGE_TAG" >> .env
 
 # 2. Images. GHCR_USER and GHCR_TOKEN come from the workflow; by hand, `docker login ghcr.io` first.
