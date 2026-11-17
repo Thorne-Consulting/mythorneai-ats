@@ -83,6 +83,11 @@ builder.Services.AddAssessments();
 builder.Services
     .AddHttpClient("webhooks", client => client.Timeout = TimeSpan.FromSeconds(10))
     .ConfigurePrimaryHttpMessageHandler(() => SsrfGuard.Handler(allowLoopback: builder.Environment.IsDevelopment()));
+// Exchange rates come from a public address an admin may change, so the same guard applies.
+builder.Services
+    .AddHttpClient(CurrencyRates.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15))
+    .ConfigurePrimaryHttpMessageHandler(() => SsrfGuard.Handler(allowLoopback: builder.Environment.IsDevelopment()));
+builder.Services.AddScoped<CurrencyRates>();
 builder.Services.AddWorkplaceIntegrations(builder.Configuration);
 builder.Services.AddHttpClient<IEmailSender, ResendEmailSender>(client =>
     client.BaseAddress = new Uri("https://api.resend.com/"));
@@ -167,6 +172,7 @@ app.MapPublicEndpoints();
 app.MapPublicAssessments();
 app.MapPublicOffers();
 app.MapPublicMedia();
+app.MapGroup("/public").RequireRateLimiting("public-candidate").MapPublicCurrencies();
 // Long polls end before the Next proxy's 30-second timeout, so the fallback works through it too.
 app.MapHub<InboxHub>(InboxHub.Path, options => options.LongPolling.PollTimeout = TimeSpan.FromSeconds(20));
 app.MapCalendarConnections();
@@ -192,13 +198,34 @@ api.MapNotifications();
 api.MapTeamChannel();
 api.MapEmailSettings();
 api.MapMedia();
+api.MapCurrencies();
 
+// `dotnet MyThorneAI.Ats.Api.dll seed --sets baseline,demo`: migrate, seed the named sets for the
+// seed environment (SEED_ENVIRONMENT, else this host's), and exit. See docs/production.md, Seeding.
+var seedCommand = args.Length > 0 && args[0] == "seed";
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AtsDbContext>();
     var files = scope.ServiceProvider.GetRequiredService<LocalFileStore>();
     await db.Database.MigrateAsync();
-    await SeedData.InitializeAsync(db, app.Environment, app.Configuration, files);
+    var seedEnvironment = Seeding.Environment(app.Configuration, app.Environment);
+    if (seedCommand)
+    {
+        var setsArg = Array.IndexOf(args, "--sets") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
+        var sets = setsArg is null ? Seeding.Plan(seedEnvironment) : Seeding.ParseSets(setsArg);
+        var refused = Seeding.Refused(seedEnvironment, sets);
+        if (refused.Length > 0)
+        {
+            Console.Error.WriteLine($"Refused: the {seedEnvironment} environment does not take the {string.Join(", ", refused)} seed set.");
+            return 2;
+        }
+        await Seeding.RunAsync(db, files, app.Configuration, seedEnvironment, sets, app.Logger);
+        Console.WriteLine($"Seeded {string.Join(", ", sets)} for {seedEnvironment}.");
+        return 0;
+    }
+    // Development seeds itself at start. Every other environment is seeded on purpose (above).
+    if (app.Environment.IsDevelopment())
+        await Seeding.RunAsync(db, files, app.Configuration, seedEnvironment, Seeding.Plan(seedEnvironment), app.Logger);
     // The old per-role switches become custom roles, once.
     await AtsEndpoints.CarryOverRoleSwitchesAsync(db);
     // Stage types and job teams for rows from before them; both skip rows already done.
@@ -216,5 +243,6 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 await app.RunAsync();
+return 0;
 
 public partial class Program;

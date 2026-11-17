@@ -1,0 +1,64 @@
+# Seeds a host's database on purpose: a person picks the environment and the sets. The job runs
+# on that host's own runner, the same way release.yml deploys, and runs the published API image
+# with the `seed` command. The code refuses `demo` on production whatever is typed here.
+name: seed
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which host to seed
+        type: choice
+        required: true
+        options: [staging, production]
+      sets:
+        description: Seed sets, separated by commas (baseline, catalog, demo)
+        type: string
+        required: true
+        default: baseline,catalog
+
+# One seed at a time per host.
+concurrency:
+  group: seed-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  seed:
+    name: seed (${{ inputs.environment }}, ${{ inputs.sets }})
+    if: vars.DEPLOY_RUNNERS == 'true'
+    runs-on: [self-hosted, ats, "${{ inputs.environment }}"]
+    # The production environment asks a reviewer before this job starts (set in GitHub).
+    environment:
+      name: ${{ inputs.environment }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: read
+      # The short-lived token that signs this job in to Infisical, bound to the environment.
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: deploy
+      - id: oidc
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const jwt = await core.getIDToken('infisical');
+            core.setSecret(jwt);
+            core.setOutput('jwt', jwt);
+      - name: seed
+        working-directory: deploy
+        env:
+          SEED_ENVIRONMENT: ${{ inputs.environment }}
+          SEED_SETS: ${{ inputs.sets }}
+          INFISICAL_ENV: ${{ inputs.environment == 'production' && 'prod' || 'staging' }}
+          INFISICAL_OIDC_JWT: ${{ steps.oidc.outputs.jwt }}
+          INFISICAL_IDENTITY_ID: ${{ vars.INFISICAL_IDENTITY_ID }}
+          INFISICAL_PROJECT_ID: ${{ vars.INFISICAL_PROJECT_ID }}
+          INFISICAL_API_URL: ${{ vars.INFISICAL_API_URL }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./seed.sh

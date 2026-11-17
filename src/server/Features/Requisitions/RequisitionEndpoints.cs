@@ -258,7 +258,8 @@ public static partial class AtsEndpoints
                         errors["members"] = ["Choose a hiring manager."];
                     if (picked is not null && picked.Count != request.Members!.Length)
                         errors["members"] = ["Choose people who have an account, one role each."];
-                    ValidatePlaceAndSalary(request.Place, request.Salary, errors);
+                    var money = await CurrencyEndpoints.PolicyAsync(db, ct);
+                    ValidatePlaceAndSalary(request.Place, request.Salary, errors, money.Supported);
                     var (questionList, questionErrors) = ApplicationQuestions.Normalize(
                         request.Questions
                     );
@@ -332,7 +333,7 @@ public static partial class AtsEndpoints
                         PostingTemplateVersion = template?.Version,
                         TargetStartDate = request.TargetStartDate,
                     };
-                    ApplyPlaceAndSalary(requisition, request.Place, request.Salary);
+                    ApplyPlaceAndSalary(requisition, request.Place, request.Salary, money.Base);
                     // Questions sent by the wizard, else the template's defaults.
                     var questions =
                         request.Questions is not null ? questionList
@@ -463,14 +464,15 @@ public static partial class AtsEndpoints
                         request.RecruiterEmail,
                         request.Openings
                     );
-                    ValidatePlaceAndSalary(request.Place, request.Salary, errors);
+                    var money = await CurrencyEndpoints.PolicyAsync(db, ct);
+                    ValidatePlaceAndSalary(request.Place, request.Salary, errors, money.Supported);
                     if (MediaEndpoints.HasImageWithoutAlt(request.Description))
                         errors["description"] = [MediaEndpoints.AltRequired];
                     if (errors.Count > 0)
                         return Results.ValidationProblem(errors);
 
                     // Left out (older callers), the place and pay stay as they are.
-                    ApplyPlaceAndSalary(requisition, request.Place, request.Salary);
+                    ApplyPlaceAndSalary(requisition, request.Place, request.Salary, money.Base);
                     requisition.Title = request.Title!.Trim();
                     requisition.Department = request.Department!.Trim();
                     requisition.Location = request.Location!.Trim();
@@ -919,14 +921,26 @@ public static partial class AtsEndpoints
                     var approvalRequired = await db
                         .Organizations.Select(x => x.RequireRequisitionApproval)
                         .FirstOrDefaultAsync(ct);
+                    // The catalog seed's pick-lists, ahead of the values jobs already use.
+                    var picks = await db
+                        .PickListItems.AsNoTracking()
+                        .OrderBy(x => x.SortOrder)
+                        .ToListAsync(ct);
+                    string[] Picks(string kind) =>
+                        picks.Where(x => x.Kind == kind).Select(x => x.Value).ToArray();
+                    var employmentTypes = Picks(CatalogSeed.EmploymentType);
                     return Results.Ok(
                         new
                         {
                             ApprovalRequired = approvalRequired,
-                            Departments = rows.Select(x => x.Department.Trim())
+                            Departments = Picks(CatalogSeed.Department)
+                                .Concat(rows.Select(x => x.Department.Trim()))
                                 .Where(x => x.Length > 0)
                                 .Distinct(StringComparer.OrdinalIgnoreCase)
                                 .Order(),
+                            EmploymentTypes = employmentTypes.Length > 0
+                                ? employmentTypes
+                                : ["Full time", "Part time", "Contract", "Internship", "Temporary"],
                             Locations = rows.Where(x => x.Location.Trim().Length > 0)
                                 .GroupBy(x => x.Location.Trim(), StringComparer.OrdinalIgnoreCase)
                                 // The most complete spelling of each place.
@@ -973,7 +987,8 @@ public static partial class AtsEndpoints
     private static void ValidatePlaceAndSalary(
         PlaceInput? place,
         SalaryInput? salary,
-        Dictionary<string, string[]> errors
+        Dictionary<string, string[]> errors,
+        HashSet<string> supportedCurrencies
     )
     {
         if (place is not null)
@@ -994,9 +1009,12 @@ public static partial class AtsEndpoints
                 errors["salary"] = ["The lowest pay should not be more than the highest."];
             if (
                 salary.Currency is { } currency
-                && (currency.Trim().Length != 3 || !currency.Trim().All(char.IsAsciiLetter))
+                && (
+                    !Currencies.LooksLikeCode(currency.Trim())
+                    || !supportedCurrencies.Contains(currency.Trim())
+                )
             )
-                errors["salary.currency"] = ["Choose a currency."];
+                errors["salary.currency"] = ["Choose one of the supported currencies (Settings, then Currencies)."];
             if (
                 salary.Period is { } period
                 && !SalaryPeriods.Contains(period, StringComparer.OrdinalIgnoreCase)
@@ -1010,9 +1028,12 @@ public static partial class AtsEndpoints
     private static void ApplyPlaceAndSalary(
         Requisition requisition,
         PlaceInput? place,
-        SalaryInput? salary
+        SalaryInput? salary,
+        string baseCurrency
     )
     {
+        if (requisition.SalaryCurrency.Length == 0)
+            requisition.SalaryCurrency = baseCurrency;
         if (place is not null)
         {
             requisition.LocationCity = Clean(place.City);
@@ -1031,7 +1052,7 @@ public static partial class AtsEndpoints
             requisition.SalaryMin = salary.Min;
             requisition.SalaryMax = salary.Max;
             requisition.SalaryCurrency =
-                Clean(salary.Currency)?.ToUpperInvariant() ?? requisition.SalaryCurrency;
+                Clean(salary.Currency)?.ToUpperInvariant() ?? baseCurrency;
             requisition.SalaryPeriod =
                 SalaryPeriods.FirstOrDefault(x =>
                     x.Equals(salary.Period, StringComparison.OrdinalIgnoreCase)

@@ -56,6 +56,11 @@ public static class LocalDotEnvConfiguration
             ["OpenAI:ResumeModel"] = Get(values, "OPENAI_RESUME_MODEL"),
             ["OpenAI:EmbeddingModel"] = Get(values, "OPENAI_EMBEDDING_MODEL"),
             ["OpenAI:TranscriptionModel"] = Get(values, "OPENAI_TRANSCRIPTION_MODEL"),
+            ["Currency:RatesUrl"] = Get(values, "CURRENCY_RATES_URL"),
+            ["Currency:CacheHours"] = Get(values, "CURRENCY_CACHE_HOURS"),
+            ["Currency:ConversionEnabled"] = Get(values, "CURRENCY_CONVERSION"),
+            ["Seed:Environment"] = Get(values, "SEED_ENVIRONMENT"),
+            ["Seed:PrivatePath"] = Get(values, "SEED_PRIVATE_PATH"),
             ["Resend:WebhookSecret"] = Get(values, "RESEND_WEBHOOK_SECRET"),
             ["Resend:InboundDomain"] = Get(values, "RESEND_INBOUND_DOMAIN"),
         };
