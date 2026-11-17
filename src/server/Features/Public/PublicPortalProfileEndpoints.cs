@@ -345,7 +345,7 @@ public static partial class PublicEndpoints
                 return attachment is null
                     ? Results.NotFound()
                     : Results.File(
-                        files.OpenRead(attachment.StoredFileName),
+                        await files.OpenReadAsync(attachment.StoredFileName, ct),
                         attachment.ContentType,
                         attachment.OriginalFileName
                     );

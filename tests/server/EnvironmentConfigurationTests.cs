@@ -23,6 +23,22 @@ public sealed class EnvironmentConfigurationTests
                 "Host=database;Port=5432;Database=internal_ats;Username=ats;Password=env-test-pw",
                 configuration.GetConnectionString("AtsDatabase")
             );
+
+            // Read once, then gone: a tool the API starts does not inherit the secrets.
+            Assert.Null(Environment.GetEnvironmentVariable("S3_SECRET_KEY"));
+            using var child = System.Diagnostics.Process.Start(
+                new System.Diagnostics.ProcessStartInfo("sh")
+                {
+                    ArgumentList =
+                    {
+                        "-c",
+                        "printf '%s|%s' \"${S3_SECRET_KEY-gone}\" \"${POSTGRES_PASSWORD-gone}\"",
+                    },
+                    RedirectStandardOutput = true,
+                }
+            )!;
+            Assert.Equal("gone|gone", child.StandardOutput.ReadToEnd());
+            child.WaitForExit();
         }
         finally
         {

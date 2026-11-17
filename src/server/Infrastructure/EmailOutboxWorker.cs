@@ -142,7 +142,7 @@ public sealed class EmailOutboxWorker(
             attached = [];
             foreach (var file in stored)
             {
-                await using var stream = files.OpenRead(file.StoredFileName);
+                await using var stream = await files.OpenReadAsync(file.StoredFileName, ct);
                 using var buffer = new MemoryStream();
                 await stream.CopyToAsync(buffer, ct);
                 attached.Add(new EmailFile(file.OriginalFileName, buffer.ToArray()));

@@ -35,10 +35,11 @@ x-infisical: &infisical
   INFISICAL_ENV: ${INFISICAL_ENV:?set INFISICAL_ENV (staging or prod)}
 
 services:
-  # Fetches the database password and the object store keys into the memory volume
-  # ats-secrets, one file each, then sleeps. It must stay up: Docker drops a memory volume's
-  # contents when no running container has it mounted, so if this exited, the database and the
-  # object store would find an empty folder. It holds no token after the fetch.
+  # Fetches the database password and the object store keys into memory volumes, one file each,
+  # then sleeps. Each of the two consumers mounts only its own volume, so the database cannot
+  # read the store's keys nor the store the database's password. It must stay up: Docker drops a
+  # memory volume's contents when no running container has it mounted, so if this exited, they
+  # would find an empty folder. It holds no token after the fetch.
   secrets:
     image: infisical/cli:0.44.12
     extra_hosts: *infisical-host
@@ -50,20 +51,28 @@ services:
       - |
         set -e
         token=$$(infisical login --method=universal-auth --client-id="$$INFISICAL_CLIENT_ID" --client-secret="$$INFISICAL_CLIENT_SECRET" --plain --silent)
+        unset INFISICAL_CLIENT_ID INFISICAL_CLIENT_SECRET
+        # Readable inside its own volume only; the object store runs as its own user.
         umask 022
-        for key in POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY; do
-          infisical secrets get "$$key" --token="$$token" --env="$$INFISICAL_ENV" --projectId="$$INFISICAL_PROJECT_ID" --plain --silent > "/run/ats/$$key"
-          test -s "/run/ats/$$key" || { echo "$$key is not set in Infisical ($$INFISICAL_ENV)"; exit 1; }
-        done
+        fetch() {
+          infisical secrets get "$$1" --token="$$token" --env="$$INFISICAL_ENV" --projectId="$$INFISICAL_PROJECT_ID" --plain --silent > "$$2/$$1"
+          test -s "$$2/$$1" || { echo "$$1 is not set in Infisical ($$INFISICAL_ENV)"; exit 1; }
+        }
+        fetch POSTGRES_PASSWORD /run/ats/database
+        fetch S3_ACCESS_KEY /run/ats/objects
+        fetch S3_SECRET_KEY /run/ats/objects
         unset token
         echo "ok: database and object store keys fetched"
         exec sleep infinity
     volumes:
-      - ats-secrets:/run/ats
+      - ats-secrets-database:/run/ats/database
+      - ats-secrets-objects:/run/ats/objects
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
     healthcheck:
-      test: ['CMD', 'test', '-s', '/run/ats/S3_SECRET_KEY']
+      test: ['CMD-SHELL', 'test -s /run/ats/database/POSTGRES_PASSWORD && test -s /run/ats/objects/S3_SECRET_KEY']
       interval: 3s
       timeout: 3s
       retries: 100
@@ -83,7 +92,7 @@ services:
     # Not published: only the api on the compose network reaches it.
     volumes:
       - ats-database:/var/lib/postgresql
-      - ats-secrets:/run/ats:ro
+      - ats-secrets-database:/run/ats:ro
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -107,7 +116,7 @@ services:
       RUSTFS_CONSOLE_ENABLE: 'false'
     volumes:
       - ats-objects:/data
-      - ats-secrets:/run/ats:ro
+      - ats-secrets-objects:/run/ats:ro
     security_opt:
       - no-new-privileges:true
     healthcheck:
@@ -237,8 +246,14 @@ volumes:
   ats-data-protection:
   ats-caddy-data:
   ats-caddy-config:
-  # The database and object store keys: memory only, gone when the stack stops.
-  ats-secrets:
+  # The database password and the object store keys, one memory volume each: memory only, gone
+  # when the stack stops.
+  ats-secrets-database:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,mode=0755
+  ats-secrets-objects:
     driver_opts:
       type: tmpfs
       device: tmpfs

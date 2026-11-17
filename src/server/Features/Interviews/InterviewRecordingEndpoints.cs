@@ -108,10 +108,10 @@ public static partial class AtsEndpoints
                             && allowedApplicationIds.Contains(x.Interview!.ApplicationId),
                         ct
                     );
-                return recording is null || !File.Exists(files.FullPath(recording.StoredFileName))
+                return recording is null || !await files.ExistsAsync(recording.StoredFileName, ct)
                     ? Results.NotFound()
                     : Results.File(
-                        files.OpenRead(recording.StoredFileName),
+                        await files.OpenReadAsync(recording.StoredFileName, ct),
                         recording.ContentType,
                         enableRangeProcessing: true
                     );

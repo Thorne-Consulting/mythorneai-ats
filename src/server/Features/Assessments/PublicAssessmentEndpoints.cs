@@ -346,7 +346,7 @@ public static class PublicAssessmentEndpoints
                 var stored = $"{Guid.NewGuid():N}{extension}";
                 await using (
                     var output = new FileStream(
-                        files.FullPath(stored),
+                        files.NewPath(stored),
                         FileMode.CreateNew,
                         FileAccess.Write,
                         FileShare.None,

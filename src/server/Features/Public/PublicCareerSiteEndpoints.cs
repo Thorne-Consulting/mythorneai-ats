@@ -124,7 +124,7 @@ public static partial class PublicEndpoints
                         ? "public, max-age=300"
                         : "public, max-age=31536000, immutable";
                     return Results.File(
-                        files.OpenRead(file),
+                        await files.OpenReadAsync(file, ct),
                         file.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
                             ? "image/png"
                             : "image/jpeg"
