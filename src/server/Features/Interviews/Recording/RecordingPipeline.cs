@@ -213,7 +213,10 @@ public static class RecordingPipeline
                         ct
                     )
                 )
+                {
                     recording.AudioStoredFileName = audio;
+                    await files.UploadAsync(audio, ct);
+                }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -224,6 +227,8 @@ public static class RecordingPipeline
                     recording.Id
                 );
             }
+        // The final file, remuxed or not, goes to the bucket once; a no-op on a developer machine.
+        await files.UploadAsync(recording.StoredFileName, ct);
         recording.Status = RecordingStatus.Ready;
         recording.TranscriptStatus = RecordingStatus.TranscriptQueued;
         await db.SaveChangesAsync(ct);

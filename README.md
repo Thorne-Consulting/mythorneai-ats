@@ -116,7 +116,7 @@ The same checks run on every pull request (`.github/workflows/ci.yml`).
 
 Code goes feature branch, then `staging`, then `main`. Each merge publishes images to GHCR and
 deploys them to the matching host; production waits for a reviewer. Secrets come from a
-self-hosted Infisical over a Netbird mesh. All of it, step by step, is in
+self-hosted Infisical over a private network. All of it, step by step, is in
 [docs/production.md](docs/production.md).
 
 ## The public API

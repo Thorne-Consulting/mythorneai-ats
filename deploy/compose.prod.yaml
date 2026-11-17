@@ -1,74 +1,149 @@
-# Staging and production: the images release.yml published to GHCR, nothing built here.
-# Settings come from .env, which deploy.sh writes from Infisical. Only the web app listens, on
-# the loopback address, for the reverse proxy or the Netbird peer in front of it. Every container
-# runs as its own unprivileged user, drops every capability, cannot gain new ones, and the two
-# app containers have a read-only root file system.
+# The whole production stack in one file, for Dokploy (paste it as a Raw compose service) or
+# plain `docker compose up -d`. No repository and no scripts on the host: only images.
 #
-#   IMAGE_TAG=staging docker compose -f compose.prod.yaml up -d
+# Secrets never sit in a file on the host. The host's .env (or Dokploy's environment) holds
+# only the Infisical login and non-secret switches:
+#
+#   INFISICAL_API_URL, INFISICAL_HOSTNAME, INFISICAL_IP, INFISICAL_CLIENT_ID,
+#   INFISICAL_CLIENT_SECRET, INFISICAL_PROJECT_ID, INFISICAL_ENV, IMAGE_TAG, COMPOSE_PROFILES
+#
+# Every other setting lives in Infisical (docs/production.md lists them):
+#   - The api fetches its own at start: its image has the Infisical CLI (see the Dockerfile).
+#   - Postgres and RustFS have no CLI. The secrets service fetches their three keys into a
+#     memory-only volume they read as files.
+#
+# The host must already be on the Netbird network, so Infisical is reachable.
+#
+# COMPOSE_PROFILES=edge adds Caddy, the two doors (below). Leave it off when the platform's
+# own proxy fronts the service "web" on port 3000.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: '20m', max-file: '5' }
+
+# Infisical answers only on Netbird. Public DNS can send its name to a public address, and
+# containers do not see Netbird's DNS, so the containers that sign in resolve INFISICAL_HOSTNAME
+# (the host in INFISICAL_API_URL) to INFISICAL_IP, Infisical's Netbird address.
+x-infisical-host: &infisical-host
+  - '${INFISICAL_HOSTNAME:?set INFISICAL_HOSTNAME, the host in INFISICAL_API_URL}:${INFISICAL_IP:?set INFISICAL_IP, the Netbird address of Infisical}'
+
+x-infisical: &infisical
+  INFISICAL_API_URL: ${INFISICAL_API_URL:?set INFISICAL_API_URL, e.g. https://secrets.mythorneai.com}
+  INFISICAL_CLIENT_ID: ${INFISICAL_CLIENT_ID:?set INFISICAL_CLIENT_ID}
+  INFISICAL_CLIENT_SECRET: ${INFISICAL_CLIENT_SECRET:?set INFISICAL_CLIENT_SECRET}
+  INFISICAL_PROJECT_ID: ${INFISICAL_PROJECT_ID:?set INFISICAL_PROJECT_ID}
+  INFISICAL_ENV: ${INFISICAL_ENV:?set INFISICAL_ENV (staging or prod)}
+
 services:
+  # Fetches the database password and the object store keys into the memory volume
+  # ats-secrets, one file each, then sleeps. It must stay up: Docker drops a memory volume's
+  # contents when no running container has it mounted, so if this exited, the database and the
+  # object store would find an empty folder. It holds no token after the fetch.
+  secrets:
+    image: infisical/cli:0.44.12
+    extra_hosts: *infisical-host
+    environment:
+      <<: *infisical
+      INFISICAL_DISABLE_TELEMETRY: '1'
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        set -e
+        token=$$(infisical login --method=universal-auth --client-id="$$INFISICAL_CLIENT_ID" --client-secret="$$INFISICAL_CLIENT_SECRET" --plain --silent)
+        umask 022
+        for key in POSTGRES_PASSWORD S3_ACCESS_KEY S3_SECRET_KEY; do
+          infisical secrets get "$$key" --token="$$token" --env="$$INFISICAL_ENV" --projectId="$$INFISICAL_PROJECT_ID" --plain --silent > "/run/ats/$$key"
+          test -s "/run/ats/$$key" || { echo "$$key is not set in Infisical ($$INFISICAL_ENV)"; exit 1; }
+        done
+        unset token
+        echo "ok: database and object store keys fetched"
+        exec sleep infinity
+    volumes:
+      - ats-secrets:/run/ats
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD', 'test', '-s', '/run/ats/S3_SECRET_KEY']
+      interval: 3s
+      timeout: 3s
+      retries: 100
+    # Until the host reaches Infisical (Netbird down, a wrong login), this fails and retries.
+    restart: unless-stopped
+    logging: *logging
+
+  database:
+    image: postgres:18-alpine
+    depends_on:
+      secrets:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: internal_ats
+      POSTGRES_USER: ats
+      POSTGRES_PASSWORD_FILE: /run/ats/POSTGRES_PASSWORD
+    # Not published: only the api on the compose network reaches it.
+    volumes:
+      - ats-database:/var/lib/postgresql
+      - ats-secrets:/run/ats:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -h localhost']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    logging: *logging
+
+  # The object store, where uploads live (RustFS, S3-compatible). Its root keys are the API's
+  # S3_ACCESS_KEY and S3_SECRET_KEY. Not published: only the api reaches it.
+  objects:
+    image: rustfs/rustfs:1.0.4
+    depends_on:
+      secrets:
+        condition: service_healthy
+    environment:
+      RUSTFS_ACCESS_KEY_FILE: /run/ats/S3_ACCESS_KEY
+      RUSTFS_SECRET_KEY_FILE: /run/ats/S3_SECRET_KEY
+      RUSTFS_CONSOLE_ENABLE: 'false'
+    volumes:
+      - ats-objects:/data
+      - ats-secrets:/run/ats:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9000/health || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    restart: unless-stopped
+    logging: *logging
+
+  # The API. Only the Infisical login comes from here; the image's entrypoint fetches every
+  # other setting (AUTH_MODE, POSTGRES_PASSWORD, S3_*...) into the process at start. It runs
+  # its migrations and the SEED_SETS seed sets at every start.
   api:
     image: ghcr.io/thorne-consulting/mythorneai-ats-api:${IMAGE_TAG:-latest}
-    environment:
-      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__AtsDatabase: Host=database;Port=5432;Database=${POSTGRES_DB:-internal_ats};Username=${POSTGRES_USER:-ats};Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-      Auth__Mode: ${AUTH_MODE:-WorkOS}
-      Auth__Authority: ${AUTH_AUTHORITY:-}
-      Auth__ClientId: ${AUTH_CLIENT_ID:-}
-      Auth__ClientSecret: ${AUTH_CLIENT_SECRET:-}
-      Auth__WorkOS__ApiKey: ${WORKOS_API_KEY:-}
-      Auth__WorkOS__ClientId: ${WORKOS_CLIENT_ID:-}
-      Auth__WorkOS__RedirectUri: ${WORKOS_REDIRECT_URI:-}
-      Auth__AllowedEmailDomains: ${AUTH_ALLOWED_EMAIL_DOMAINS:-}
-      Bootstrap__AdminEmail: ${BOOTSTRAP_ADMIN_EMAIL:-}
-      Bootstrap__AdminName: ${BOOTSTRAP_ADMIN_NAME:-ATS administrator}
-      Integrations__Provider: ${INTEGRATIONS_PROVIDER:-None}
-      Integrations__Microsoft365__TenantId: ${MICROSOFT365_TENANT_ID:-}
-      Integrations__Microsoft365__ClientId: ${MICROSOFT365_CLIENT_ID:-}
-      Integrations__Microsoft365__ClientSecret: ${MICROSOFT365_CLIENT_SECRET:-}
-      Integrations__Microsoft365__SenderUserId: ${MICROSOFT365_SENDER_USER_ID:-}
-      Integrations__Microsoft365__CreateOnlineMeetings: ${MICROSOFT365_CREATE_ONLINE_MEETINGS:-true}
-      Integrations__CalendarOAuth__GoogleClientId: ${CALENDAR_OAUTH_GOOGLE_CLIENT_ID:-}
-      Integrations__CalendarOAuth__GoogleClientSecret: ${CALENDAR_OAUTH_GOOGLE_CLIENT_SECRET:-}
-      Integrations__CalendarOAuth__MicrosoftClientId: ${CALENDAR_OAUTH_MICROSOFT_CLIENT_ID:-}
-      Integrations__CalendarOAuth__MicrosoftClientSecret: ${CALENDAR_OAUTH_MICROSOFT_CLIENT_SECRET:-}
-      Integrations__CalendarOAuth__MicrosoftTenantId: ${CALENDAR_OAUTH_MICROSOFT_TENANT_ID:-common}
-      Integrations__CalendarOAuth__RedirectUri: ${CALENDAR_OAUTH_REDIRECT_URI:-}
-      Integrations__GoogleWorkspace__ImpersonatedUser: ${GOOGLE_WORKSPACE_IMPERSONATED_USER:-}
-      Integrations__GoogleWorkspace__CalendarId: ${GOOGLE_WORKSPACE_CALENDAR_ID:-primary}
-      Integrations__GoogleWorkspace__ServiceAccountJsonPath: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_PATH:-}
-      Integrations__GoogleWorkspace__ServiceAccountJsonBase64: ${GOOGLE_WORKSPACE_SERVICE_ACCOUNT_JSON_BASE64:-}
-      Integrations__GoogleWorkspace__CreateOnlineMeetings: ${GOOGLE_WORKSPACE_CREATE_ONLINE_MEETINGS:-true}
-      Resend__ApiKey: ${RESEND_API_KEY:-}
-      Resend__From: ${RESEND_FROM:-}
-      Resend__WebhookSecret: ${RESEND_WEBHOOK_SECRET:-}
-      Resend__InboundDomain: ${RESEND_INBOUND_DOMAIN:-}
-      OpenAI__ApiKey: ${OPENAI_API_KEY:-}
-      OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
-      OpenAI__ResumeModel: ${OPENAI_RESUME_MODEL:-}
-      OpenAI__EmbeddingModel: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
-      OpenAI__TranscriptionModel: ${OPENAI_TRANSCRIPTION_MODEL:-whisper-1}
-      Currency__RatesUrl: ${CURRENCY_RATES_URL:-https://api.frankfurter.dev/v2/rates?base=EUR}
-      Currency__CacheHours: ${CURRENCY_CACHE_HOURS:-24}
-      Currency__ConversionEnabled: ${CURRENCY_CONVERSION:-true}
-      Seed__Environment: ${SEED_ENVIRONMENT:-}
-      Seed__PrivatePath: ${SEED_PRIVATE_PATH:-}
-      DataProtection__KeyPath: /app/data-protection-keys
-      FileStorage__RootPath: /app/uploads
-    expose:
-      - '8080'
+    pull_policy: always
     depends_on:
       database:
         condition: service_healthy
+      objects:
+        condition: service_healthy
+    environment: *infisical
+    extra_hosts: *infisical-host
+    expose:
+      - '8080'
     volumes:
       - ats-data-protection:/app/data-protection-keys
-      - ats-uploads:/app/uploads
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     read_only: true
+    # No files on disk: uploads live in the object store. /tmp is memory, scratch for ffmpeg
+    # and OCR while they run (2 GB fits the largest recording), and HOME for the Infisical CLI.
     tmpfs:
-      - /tmp:size=512m
+      - /tmp:size=2g
     healthcheck:
       test: ['CMD-SHELL', 'curl -fsS http://localhost:8080/health || exit 1']
       interval: 15s
@@ -76,17 +151,17 @@ services:
       retries: 6
       start_period: 30s
     restart: unless-stopped
-    logging:
-      driver: json-file
-      options: { max-size: '20m', max-file: '5' }
+    logging: *logging
 
+  # The web app. Holds no secrets; it talks to the api by name.
   web:
     image: ghcr.io/thorne-consulting/mythorneai-ats-web:${IMAGE_TAG:-latest}
-    ports:
-      - '${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8080}:3000'
+    pull_policy: always
     depends_on:
       api:
         condition: service_healthy
+    expose:
+      - '3000'
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -96,29 +171,75 @@ services:
       - /tmp:size=64m
       - /app/.next/cache:size=256m
     restart: unless-stopped
-    logging:
-      driver: json-file
-      options: { max-size: '20m', max-file: '5' }
+    logging: *logging
 
-  database:
-    image: postgres:18-alpine
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-internal_ats}
-      POSTGRES_USER: ${POSTGRES_USER:-ats}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
-    # Not published: only the api on the compose network reaches it.
+  # Profile edge. Two doors into the web app (the Caddyfile is below):
+  #   - Public, port 80 inside the stack. On Dokploy, Traefik owns 80 and 443 on the host: point
+  #     the public domain at this service, port 80, and Traefik does the certificate. Only the
+  #     careers site, the candidate portal and the webhooks pass; every other path is 404.
+  #   - Staff, everything, published on BIND_ADDRESS:APP_PORT. Set BIND_ADDRESS to the host's
+  #     Netbird address so only people on the VPN reach it (default: this host only).
+  caddy:
+    profiles: [edge]
+    image: caddy:2.11.7
+    depends_on:
+      web:
+        condition: service_started
+    ports:
+      - '${BIND_ADDRESS:-127.0.0.1}:${APP_PORT:-8080}:8080'
+    expose:
+      - '80'
+    configs:
+      - source: caddyfile
+        target: /etc/caddy/Caddyfile
+    volumes:
+      - ats-caddy-data:/data
+      - ats-caddy-config:/config
     security_opt:
       - no-new-privileges:true
-    volumes:
-      - ats-database:/var/lib/postgresql
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}']
-      interval: 5s
-      timeout: 5s
-      retries: 12
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
     restart: unless-stopped
+    logging: *logging
+
+configs:
+  caddyfile:
+    content: |
+      {
+      	auto_https off
+      }
+
+      # The public door: only what candidates and outside services need.
+      :80 {
+      	@public {
+      		path /careers /careers/* /candidate-portal /candidate-portal/* /book /book/*
+      		path /public/* /docs /docs/* /openapi/* /health
+      		path /_next/* /favicon.ico /favicon.svg /icon* /apple-icon* /robots.txt /sitemap.xml
+      	}
+      	handle @public {
+      		reverse_proxy web:3000
+      	}
+      	handle {
+      		respond 404
+      	}
+      }
+
+      # The staff door: everything. Passes WebSocket upgrades, so the inbox hub works.
+      :8080 {
+      	reverse_proxy web:3000
+      }
 
 volumes:
   ats-database:
+  ats-objects:
   ats-data-protection:
-  ats-uploads:
+  ats-caddy-data:
+  ats-caddy-config:
+  # The database and object store keys: memory only, gone when the stack stops.
+  ats-secrets:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=1m,mode=0755

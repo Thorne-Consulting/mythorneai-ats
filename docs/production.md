@@ -11,9 +11,9 @@ feature branch ──PR──▶ staging ──PR──▶ main
                          │               │
                       ci.yml          ci.yml          (tests run once, on the PR)
                          │               │
-                    release.yml     release.yml       (images to GHCR, then deploy)
+                    release.yml     release.yml       (images to GHCR)
                          │               │
-                  staging host    production host     (production waits for a reviewer)
+                  staging host    production host     (each host pulls its tag)
 ```
 
 1. **Work on a branch** named `<you>/<kind>/<what>`, for example `sirshak/feat/ci-cd`.
@@ -24,17 +24,36 @@ feature branch ──PR──▶ staging ──PR──▶ main
    GHCR with the tag `staging`, and the staging host pulls them.
 4. **Open a pull request from `staging` into `main`** when staging looks right. `ci.yml` runs
    again on that PR, because the branch rules ask for it. One approval is needed.
-5. **Merging into `main`** publishes the images with the tags `latest` and `main`, then waits
-   for a reviewer on the `production` environment before the production host pulls them.
+5. **Merging into `main`** publishes the images with the tags `latest` and `main`. The
+   production host pulls them on its next deploy.
 6. **A tag `v1.2.3` on `main`** publishes the images as `1.2.3` and `1.2`, for a known
    rollback point. It deploys nothing. Only an admin can make a `v*` tag (the tags ruleset).
 
-Every build also gets `sha-<commit>`, and that is what the hosts deploy: the exact image the
-run built, never a moving tag. `staging`, `main` and `latest` are for people.
+Every build also gets `sha-<commit>`, a tag that never moves. Set `IMAGE_TAG` to it on a host
+to pin one exact image; `staging`, `main` and `latest` move with each merge.
 
 Nothing runs twice. A push to a feature branch runs nothing: the PR is where checks happen.
 Dependabot opens its PRs against `staging`, only for versions at least 14 days old, and patch
 or minor updates merge by themselves once `ok` passes.
+
+## The pieces
+
+| Piece    | File                               | What it is                                                                                                                         |
+| -------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Images   | `Dockerfile`, `src/web/Dockerfile` | Built by `release.yml`, published to GHCR. The API image has the Infisical CLI and fetches its own settings when it starts.        |
+| Stack    | `deploy/compose.prod.yaml`         | One file, no scripts: the secrets fetch, the database, the object store, the API, the web app, and Caddy behind the `edge` profile. |
+| Secrets  | Infisical                          | Every setting. The host keeps only the Infisical login (below).                                                                     |
+| Network  | Netbird, on the host               | The host joins Netbird once, outside the stack, so it reaches Infisical and staff reach it.                                       |
+| CI       | `.github/workflows/release.yml`    | Builds and publishes the images. It does not deploy: the host pulls.                                                               |
+
+On Dokploy, make a **Compose** service of type **Raw**, paste `deploy/compose.prod.yaml`, add a
+registry login for `ghcr.io` with a token that has `read:packages`, and put the host keys
+(below) in its environment. The repository is not needed there. By hand on any host with
+Docker, put the same keys in a `.env` beside the file and run:
+
+```bash
+docker compose -f compose.prod.yaml up -d
+```
 
 ## Branch rules
 
@@ -52,8 +71,9 @@ It sets:
 - **`main`:** a pull request with one approval, the `ok` check up to date with `main`, every
   review thread resolved, linear history. No force pushes, no deletion.
 - **Tags `v*`:** only an admin can create, move or delete one.
-- **Environments:** `staging` deploys at once. `production` waits for the reviewer the script
-  names, and only from `main`.
+- **Environments:** `staging` and `production`, usable only from protected branches, with a
+  reviewer on `production`. No workflow deploys through them today (the hosts pull); they are
+  there for a deploy job later.
 
 The repository already has a ruleset named "Main Branch Protection Rules". It asks for signed
 commits and 70% code coverage. Signed commits are fine: GitHub signs squash merges. The coverage
@@ -78,71 +98,68 @@ release. A host pulls them with a token that has `read:packages`; the workflow u
 Each host (staging, production) needs:
 
 - Docker with the compose plugin.
-- [Netbird](https://netbird.io), joined to the mesh that holds Infisical and the people who use
-  the app.
-- The [Infisical CLI](https://infisical.com/docs/cli/overview), signed in with a machine
-  identity (below).
-- A GitHub Actions self-hosted runner with the labels `self-hosted`, `ats` and `staging` or
-  `production`. The runner is what lets GitHub reach a host that is not on the internet.
-  Register it as **ephemeral** (`config.sh --ephemeral`, under a service that re-registers
-  it), so each job gets a clean runner. The repository is public, so also keep "require
-  approval for all external contributors" on (the rules script sets it), and if the
-  organization has runner groups, put these runners in a group limited to `release.yml` and
-  `seed.yml`.
-- A copy of the `deploy/` folder, or a checkout of the repository.
+- **Netbird, installed on the host** and joined once with a setup key (`netbird up
+  --setup-key <key>`). It reconnects by itself after a restart. Infisical is only reachable
+  over Netbird, so the stack cannot start without it. Public DNS sends
+  `secrets.mythorneai.com` to its public address and containers do not see Netbird's DNS, so
+  the `secrets` and `api` containers resolve `INFISICAL_HOSTNAME` to `INFISICAL_IP` (host
+  keys, below).
+- A Netbird policy that lets this host reach Infisical on port 443, and lets staff reach this
+  host on `APP_PORT`.
+- A public name pointing at the host, when candidates must reach the careers site and the
+  portal from the internet. Staff never use it.
 
-Then set the repository variable `DEPLOY_RUNNERS` to `true`. Until it is set, `release.yml` skips
-the deploy job instead of waiting for a runner that does not exist.
+### The host keys
 
-To deploy by hand from the `deploy/` folder:
+The host (Dokploy's environment, or a `.env` beside the compose file) holds only these. None is
+an app secret:
 
-```bash
-IMAGE_TAG=staging INFISICAL_ENV=staging INFISICAL_PROJECT_ID=<id> ./deploy.sh
-```
+| Key                       | What it is                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| `INFISICAL_API_URL`       | `https://secrets.mythorneai.com`. The CLI adds `/api` itself.                                      |
+| `INFISICAL_HOSTNAME`      | The host in `INFISICAL_API_URL`: `secrets.mythorneai.com`.                                         |
+| `INFISICAL_IP`            | Infisical's Netbird address, for example `100.84.9.92`. The containers reach Infisical there.      |
+| `INFISICAL_CLIENT_ID`     | This host's machine identity, universal auth.                                                       |
+| `INFISICAL_CLIENT_SECRET` | Its client secret.                                                                                 |
+| `INFISICAL_PROJECT_ID`    | The Infisical project of this app.                                                                 |
+| `INFISICAL_ENV`           | `staging` or `prod`: the one Infisical environment this host reads.                                |
+| `IMAGE_TAG`               | `staging`, `latest`, or a `sha-<commit>` to pin one build.                                         |
+| `BIND_ADDRESS`, `APP_PORT` | Optional, with `edge`: where the staff door listens. Set `BIND_ADDRESS` to the host's Netbird address. Defaults: `127.0.0.1`, `8080`. |
 
-`deploy.sh` writes `.env` from Infisical, pulls the images, restarts what changed, and checks
-`/health`. The API runs its database migrations when it starts.
+### How the settings reach the containers
 
-## Settings and secrets: Infisical over Netbird
+- **The API** fetches its own. Its image runs `infisical login` with the host's identity, then
+  `infisical run --env=$INFISICAL_ENV --projectId=$INFISICAL_PROJECT_ID -- dotnet
+  MyThorneAI.Ats.Api.dll`. Every secret is in the API process only, never in a file. The API
+  reads the plain names (`AUTH_MODE`, `POSTGRES_PASSWORD`, `S3_SECRET_KEY` and the rest) from
+  its environment. Without `INFISICAL_CLIENT_ID` the image starts the API directly, with
+  whatever environment it was given.
+- **Postgres and RustFS** have no Infisical CLI. The `secrets` service fetches
+  `POSTGRES_PASSWORD`, `S3_ACCESS_KEY` and `S3_SECRET_KEY` into the memory volume
+  `ats-secrets`, one file each. Postgres reads `POSTGRES_PASSWORD_FILE`; RustFS reads
+  `RUSTFS_ACCESS_KEY_FILE` and `RUSTFS_SECRET_KEY_FILE`. The service then sleeps: Docker empties
+  a memory volume when no running container has it mounted, so it must stay up.
 
-Secrets live in your self-hosted Infisical, in one project with the environments `staging` and
-`prod`. The hosts read them at deploy time with `infisical export`. Nothing is copied into
-GitHub, and GitHub never needs to reach Infisical.
+### Infisical, once
 
-Why not the Infisical GitHub integration: it copies secrets into GitHub Actions secrets, which
-only helps when GitHub itself needs them. Here GitHub only builds images, and the images hold no
-secrets. The hosts are the ones that need the values, and they are on the mesh with Infisical.
-So the mesh is the convenient path, and no GitHub app or sync is needed.
+1. One project with the environments `staging` and `prod`.
+2. One **machine identity per host**, with **universal auth**, and read access to that host's
+   environment only. A stolen login then opens one environment, not all of them.
+3. On each identity, set **trusted IPs** for the client secret and the access token to that
+   host's Netbird address. The login then works from that host only, so a copy of the host
+   keys is useless anywhere else.
+4. Keep the **access token TTL** short (10 minutes is plenty). The token is used only at start.
 
-The job signs in to Infisical with a short-lived token from GitHub (OIDC), bound to the GitHub
-environment it runs in. The `production` environment only hands that token to a job a reviewer
-let through, so the approval gate is what decides who reads production secrets. The host keeps
-no Infisical credential at all.
+Whoever controls a host, or Dokploy itself, can read what runs on it; that is true of any
+platform. What this setup keeps apart is the hosts: one host's login cannot read another
+host's environment.
 
-Set it up once:
-
-1. In Infisical, make a **machine identity** with **GitHub OIDC** auth: issuer
-   `https://token.actions.githubusercontent.com`, audience `infisical`, and a bound subject
-   per environment, `repo:Thorne-Consulting/mythorneai-ats:environment:staging` for the
-   staging identity and `...:environment:production` for the production one. Give each read
-   access to its environment only.
-2. In GitHub, set the repository variables `INFISICAL_API_URL` (the Infisical address on the
-   mesh) and `INFISICAL_PROJECT_ID`. Then set `INFISICAL_IDENTITY_ID` as a variable **on each
-   GitHub environment** (`staging` and `production`), each with its own identity from step 1.
-   A job can only reach the variable of the environment it runs in.
-3. Infisical must be able to fetch GitHub's signing keys from
-   `https://token.actions.githubusercontent.com/.well-known/jwks`, which means outbound
-   internet from the Infisical host. Nothing needs inbound access to Infisical from GitHub.
-
-To deploy by hand, sign the CLI in as yourself (`infisical login`) in that shell only, or
-export `INFISICAL_TOKEN` for the one command. Do not leave a token on the host.
-
-3. Put these keys in the Infisical environment. Required ones first.
+Put these keys in each Infisical environment. Required ones first.
 
 | Key                                                                                           | What it is                                                                                  |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `POSTGRES_PASSWORD`                                                                           | Required. The database password; the database runs in the same compose stack.               |
-| `POSTGRES_DB`, `POSTGRES_USER`                                                                | Database name and user. Defaults: `internal_ats`, `ats`.                                    |
+| `S3_ENDPOINT`                                                                                 | Required: `http://objects:9000`, the object store in the stack, or another S3-compatible store. |
 | `AUTH_MODE`                                                                                   | `WorkOS` for real sign-in. `Development` only on a developer machine.                       |
 | `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_REDIRECT_URI`                                   | WorkOS AuthKit. The redirect is `https://<app>/auth/callback`.                              |
 | `AUTH_ALLOWED_EMAIL_DOMAINS`                                                                  | Company email domains that may sign in, separated by commas.                                |
@@ -159,12 +176,15 @@ export `INFISICAL_TOKEN` for the one command. Do not leave a token on the host.
 | `CURRENCY_RATES_URL`                                                                          | Where the daily exchange rates come from. Default: Frankfurter v2, every currency, no key.  |
 | `CURRENCY_CACHE_HOURS`                                                                        | How long a fetched rate table is used before a new fetch. Default `24` (rates are daily).   |
 | `CURRENCY_CONVERSION`                                                                         | `false` turns conversion off: amounts stay as entered and nothing is fetched. Default `true`. |
-| `SEED_ENVIRONMENT`                                                                            | `staging` or `production`: which seed sets this host may take. The seed workflow sets it.   |
+| `SEED_ENVIRONMENT`                                                                            | `staging` or `production`: which seed sets this host may take.                              |
+| `SEED_SETS`                                                                                   | The seed sets the API keeps in place at every start, for example `baseline,catalog`.        |
 | `SEED_PRIVATE_PATH`                                                                           | A SQL file with the company's private seed, run after the sets when the file exists.        |
-| `APP_PORT`                                                                                    | The host port the web app listens on. Default `8080`.                                       |
-| `BIND_ADDRESS`                                                                                | The address it listens on. Default `127.0.0.1`: only the proxy or the mesh peer reaches it. |
+| `S3_SECRET_KEY`, `S3_ACCESS_KEY`                                                              | Required. The keys of the object store, where uploads live. Access key defaults to `ats`.   |
+| `S3_BUCKET`, `S3_REGION`                                                                      | The bucket and region. Defaults: `ats-files`, `us-east-1`.                                  |
+| `COMPOSE_PROFILES`                                                                            | The optional pieces: `edge` (Caddy), `netbird`. Default in `.env.example`: both.            |
 
-`ASPNETCORE_ENVIRONMENT` stays `Production` on both hosts; staging is production code with
+The database name and user are fixed in the compose file (`internal_ats`, `ats`).
+`ASPNETCORE_ENVIRONMENT` is `Production` on both hosts; staging is production code with
 staging data.
 
 The base currency and the list of supported currencies are workspace settings, not variables:
@@ -210,14 +230,14 @@ not duplicated.
 tools/seed.sh baseline,catalog
 ```
 
-**On a host**, run the `seed` workflow on GitHub (Actions, then seed, then Run workflow). Pick
-the environment and type the sets. The job runs on that host's own runner, signs in to
-Infisical with the GitHub token the same way a deploy does, pulls the deployed API image and runs
-one short-lived container with the `seed` command. Production waits for its reviewer first. By
-hand on the host, from the `deploy/` folder:
+**On a host**, set `SEED_SETS` in that host's Infisical environment, for example
+`baseline,catalog,demo` on staging and `baseline,catalog` on production. The API seeds those
+sets every time it starts, after its migrations. Repeating is safe (above), so a restart
+changes nothing. A set the environment refuses (`demo` on production) stops the API from
+starting, with the reason in its log. To run the command once by hand on a host instead:
 
 ```bash
-SEED_ENVIRONMENT=staging SEED_SETS=baseline,catalog,demo INFISICAL_ENV=staging INFISICAL_PROJECT_ID=<id> ./seed.sh
+docker compose -f compose.prod.yaml run --rm --no-deps api seed --sets baseline,catalog
 ```
 
 The command itself, inside the image or from a checkout, is:
@@ -238,52 +258,60 @@ repository.
 Before you seed `demo` on staging, set `BOOTSTRAP_ADMIN_EMAIL` to your own address: the demo set
 makes an admin account for it, so the sample accounts do not lock you out.
 
-## Running the images somewhere else
-
-The compose file is for a host you own. The same two images also run on a platform (DigitalOcean
-App Platform, Dokploy, Cloud Run and the like) that does its own routing and TLS. What the
-images need from the platform:
-
-- **The API** listens on port 8080 and gets its settings as environment variables, the same
-  names as in `deploy/compose.prod.yaml` (`ConnectionStrings__AtsDatabase`, `Auth__Mode` and so
-  on). It needs two persistent disks: `/app/data-protection-keys` and `/app/uploads`. Do not
-  give it a public address.
-- **The web app** listens on port 3000 and is the only thing the outside reaches. It proxies
-  `/api`, `/public`, `/auth`, `/docs`, `/openapi` and `/health` to the API. Where the API lives
-  is baked in when the image is built, from the build argument `API_ORIGIN`, and the published
-  image uses `http://api:8080`. So either name the API service `api` on port 8080, which is what
-  Dokploy and App Platform give a component with that name, or build the web image yourself with
-  `--build-arg API_ORIGIN=http://<your api host>:8080`.
-- **PostgreSQL 18** with a persistent disk, reachable only from the API.
-- The proxy or platform in front of the web app must pass WebSocket upgrades for `/api/hubs/*`.
-
 ## Locked down by default
 
 - Every workflow starts with no permissions and each job asks for what it needs: the test jobs
-  read the code; the image job writes packages; the deploy and seed jobs read packages.
+  read the code; the image job writes packages.
 - Every action is pinned to a commit SHA, with its version in a comment. Dependabot moves them,
   14 days after a release.
-- The images carry provenance and a software bill of materials. The hosts deploy `sha-<commit>`
-  tags, which never move; `staging`, `main` and `latest` are labels for people. A manual run
-  publishes only from the two protected branches, and only an admin can make a `v*` tag.
+- The images carry provenance and a software bill of materials. `sha-<commit>` tags never
+  move, so `IMAGE_TAG` can pin one build. A manual run publishes only from the two protected
+  branches, and only an admin can make a `v*` tag.
 - In compose, every container runs as its own unprivileged user, drops every capability, cannot
-  gain new ones, and the API and web containers have a read-only root file system with a small
-  `tmpfs` for scratch. If the API ever logs a write error on the first staging deploy, that is
-  where to look.
-- The database and the API publish no ports. The web app binds to the loopback address.
-- The deploy host holds no standing credential. The job signs in to Infisical with a
-  short-lived GitHub token bound to the environment, and writes a `.env` that one user can
-  read, fresh on each deploy. Nothing is copied into GitHub.
+  gain new ones, and the API and web containers have a read-only root file system with a
+  `tmpfs` for scratch. The API keeps no files on disk: uploads live in the object store.
+- The database, the API, the web app and the object store publish no ports. Caddy is the only
+  door, and the staff door binds to the host's private address.
+- No secret is written to the host's disk. The host keeps only an Infisical login that reads
+  one environment and works from that host's Netbird address only. The API holds its settings
+  in its process; the database and store keys live in a memory volume. Nothing is copied into
+  GitHub.
 - The API already limits public requests per address, checks CSRF on every change, and keeps
   webhooks away from private addresses.
 
-## In front of the app
+## Two doors: public and staff
 
-Whatever sits in front, a reverse proxy on the host or the platform's router, points at the web
-app alone (`127.0.0.1:${APP_PORT}` in compose, port 3000 on a platform) and passes WebSocket
-upgrades for `/api/hubs/*`. For an internal-only app, expose it only on the Netbird address or
-the platform's private network. If the careers site must be public, forward only `/careers`,
-`/public`, `/docs`, `/openapi`, `/candidate-portal` and `/book` from a public address.
+With the `edge` profile, Caddy fronts the web app with two doors. Its Caddyfile is inside the
+compose file.
+
+- **The public door**, port 80 inside the stack. On Dokploy, Traefik owns ports 80 and 443 on
+  the host: give the public domain to the `caddy` service, port 80, and Traefik gets the
+  certificate. It passes only what candidates and outside services need: `/careers`,
+  `/candidate-portal`, `/book`, `/public` (the apply form, the portal API and the Resend
+  webhook), `/docs`, `/openapi`, `/health` and the page assets. Every other path answers 404,
+  so the staff app never shows on the internet.
+- **The staff door**, port `APP_PORT` bound to `BIND_ADDRESS`. Set `BIND_ADDRESS` to the
+  host's Netbird address, and staff reach everything at `http://<netbird address>:8080`.
+  Sign-in redirects (`WORKOS_REDIRECT_URI`, `CALENDAR_OAUTH_REDIRECT_URI`) use that address:
+  the browser follows them, so the provider never needs to reach the host.
+
+Both doors pass WebSocket upgrades, so the inbox hub works.
+
+## Files
+
+In production, uploads (resumes, pictures, recordings, assessment files) live only in a
+bucket: in the compose stack, the object store that runs beside the API (the `objects` service,
+RustFS, S3-compatible). Nothing is written to disk. Uploads stream into the bucket and reads
+stream out of it. Tools that need a path, such as ffmpeg and OCR, get a scratch copy in the
+container's `/tmp`, which is memory, and the copy goes once the result is uploaded or the read
+ends. A developer machine, with no `S3_ENDPOINT`, keeps files in a local folder instead.
+
+The store keeps its data in the `ats-objects` volume and publishes no port. `S3_ACCESS_KEY`
+and `S3_SECRET_KEY` are its root keys and the keys the API signs with. To use another
+S3-compatible store instead (Backblaze B2, Cloudflare R2, AWS S3), set `S3_ENDPOINT` and that
+store's keys and, if it is not `ats-files`, `S3_BUCKET`, all in Infisical; the `objects`
+service then sits idle.
+The API makes the bucket when it is missing.
 
 ## The public API
 
@@ -295,8 +323,7 @@ document with the staff API, `/openapi/v1.json`, exists only in Development.
 
 - Run `tools/github-rules.sh` as an admin, and look at the coverage rule (above).
 - Make the `staging` branch (the script does it) and change the open PR to target it.
-- Install `ffmpeg` on the API image if long recordings matter (`Dockerfile`, next to `ocrmypdf`).
 - Set the Candidate portal address and the Careers site address in Settings after sign-in, so
   emails link to the right place.
-- Back up the `ats-database` and `ats-uploads` volumes. The data protection keys volume
+- Back up the `ats-database` and `ats-objects` volumes. The data protection keys volume
   (`ats-data-protection`) must survive restarts, or every booking link and session breaks.

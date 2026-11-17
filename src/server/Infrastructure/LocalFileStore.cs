@@ -1,7 +1,16 @@
 using System.IO.Compression;
+using Amazon.S3;
+using Amazon.S3.Model;
 
 namespace MyThorneAI.Ats.Api.Infrastructure;
 
+/// <summary>
+/// Where uploaded files live. Without <c>FileStorage:S3:Endpoint</c>, the local folder
+/// (<c>FileStorage:RootPath</c>) is the store: a developer machine. With it, the bucket is the
+/// only store: uploads stream into it, reads stream out of it, and nothing stays on disk. Tools
+/// that need a path (ffmpeg) get a scratch copy in the temp folder, which is removed once the
+/// result is uploaded or the stream is closed, and emptied at every start.
+/// </summary>
 public sealed class LocalFileStore
 {
     private static readonly HashSet<string> AllowedExtensions = new(
@@ -21,14 +30,126 @@ public sealed class LocalFileStore
         ".jpeg",
     };
     private readonly string _rootPath;
+    private readonly IAmazonS3? _s3;
+    private readonly string _bucket;
+    private readonly ILogger<LocalFileStore> _logger;
 
-    public LocalFileStore(IConfiguration configuration, IHostEnvironment environment)
+    public LocalFileStore(
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        ILogger<LocalFileStore> logger
+    )
     {
-        _rootPath = Path.GetFullPath(
-            configuration["FileStorage:RootPath"]
-                ?? Path.Combine(environment.ContentRootPath, "uploads")
-        );
+        _logger = logger;
+        var endpoint = configuration["FileStorage:S3:Endpoint"];
+        // With a bucket, the folder is scratch space in the temp folder (tmpfs in the stack).
+        _rootPath = string.IsNullOrWhiteSpace(endpoint)
+            ? Path.GetFullPath(
+                configuration["FileStorage:RootPath"]
+                    ?? Path.Combine(environment.ContentRootPath, "uploads")
+            )
+            : Path.Combine(Path.GetTempPath(), "ats-scratch");
+        if (!string.IsNullOrWhiteSpace(endpoint) && Directory.Exists(_rootPath))
+            Directory.Delete(_rootPath, recursive: true);
         Directory.CreateDirectory(_rootPath);
+        _bucket = configuration["FileStorage:S3:Bucket"] ?? "ats-files";
+        if (!string.IsNullOrWhiteSpace(endpoint))
+            _s3 = new AmazonS3Client(
+                configuration["FileStorage:S3:AccessKey"],
+                configuration["FileStorage:S3:SecretKey"],
+                new AmazonS3Config
+                {
+                    ServiceURL = endpoint,
+                    // MinIO and most self-hosted stores address the bucket by path, not by host name.
+                    ForcePathStyle = true,
+                    AuthenticationRegion = configuration["FileStorage:S3:Region"] ?? "us-east-1",
+                }
+            );
+    }
+
+    /// <summary>True when files also go to a bucket.</summary>
+    public bool HasBucket => _s3 is not null;
+
+    /// <summary>Makes the bucket when it is missing. Called once at start; a missing store fails loudly there.</summary>
+    public async Task EnsureBucketAsync(CancellationToken ct = default)
+    {
+        if (_s3 is null)
+            return;
+        try
+        {
+            await _s3.GetBucketLocationAsync(_bucket, ct);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            await _s3.PutBucketAsync(_bucket, ct);
+            _logger.LogInformation("Made the file bucket {Bucket}", _bucket);
+        }
+    }
+
+    /// <summary>
+    /// Moves a file that was written to its scratch path (<see cref="FullPath"/>) into the bucket
+    /// and removes the scratch copy. Nothing happens without a bucket.
+    /// </summary>
+    public async Task UploadAsync(string storedName, CancellationToken ct = default)
+    {
+        if (_s3 is null)
+            return;
+        var path = SafePath(storedName);
+        if (!File.Exists(path))
+            return;
+        await _s3.PutObjectAsync(
+            new PutObjectRequest
+            {
+                BucketName = _bucket,
+                Key = storedName,
+                FilePath = path,
+            },
+            ct
+        );
+        File.Delete(path);
+    }
+
+    private async Task PutAsync(
+        string storedName,
+        Stream input,
+        string contentType,
+        CancellationToken ct
+    )
+    {
+        input.Position = 0;
+        await _s3!.PutObjectAsync(
+            new PutObjectRequest
+            {
+                BucketName = _bucket,
+                Key = storedName,
+                InputStream = input,
+                AutoCloseStream = false,
+                ContentType = contentType,
+            },
+            ct
+        );
+    }
+
+    /// <summary>Brings a file from the bucket to the scratch folder when it is not there. Nothing happens without a bucket.</summary>
+    private void EnsureLocal(string storedName)
+    {
+        var path = SafePath(storedName);
+        if (_s3 is null || File.Exists(path))
+            return;
+        try
+        {
+            // ponytail: synchronous, because FullPath and OpenRead are synchronous for their callers;
+            // a miss happens once per file per host.
+            using var response = _s3.GetObjectAsync(_bucket, storedName).GetAwaiter().GetResult();
+            response
+                .WriteResponseStreamToFileAsync(path, false, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // Not in the bucket either: the caller sees the usual missing-file result.
+        }
     }
 
     public async Task<(string StoredName, string ContentType)> SaveValidatedAsync(
@@ -76,16 +197,6 @@ public sealed class LocalFileStore
         input.Position = 0;
 
         var storedName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
-        var path = SafePath(storedName);
-        await using var output = new FileStream(
-            path,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            64 * 1024,
-            FileOptions.Asynchronous
-        );
-        await input.CopyToAsync(output, cancellationToken);
         var contentType = extension.ToLowerInvariant() switch
         {
             ".pdf" => "application/pdf",
@@ -95,6 +206,20 @@ public sealed class LocalFileStore
             ".jpg" or ".jpeg" => "image/jpeg",
             _ => "application/octet-stream",
         };
+        if (_s3 is not null)
+        {
+            await PutAsync(storedName, input, contentType, cancellationToken);
+            return (storedName, contentType);
+        }
+        await using var output = new FileStream(
+            SafePath(storedName),
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.None,
+            64 * 1024,
+            FileOptions.Asynchronous
+        );
+        await input.CopyToAsync(output, cancellationToken);
         return (storedName, contentType);
     }
 
@@ -120,6 +245,12 @@ public sealed class LocalFileStore
             throw new InvalidDataException("The recording content does not match its extension.");
         input.Position = 0;
         var storedName = $"{Guid.NewGuid():N}{extension}";
+        var contentType = extension == ".webm" ? "video/webm" : "video/mp4";
+        if (_s3 is not null)
+        {
+            await PutAsync(storedName, input, contentType, cancellationToken);
+            return (storedName, contentType);
+        }
         await using var output = new FileStream(
             SafePath(storedName),
             FileMode.CreateNew,
@@ -129,21 +260,35 @@ public sealed class LocalFileStore
             FileOptions.Asynchronous
         );
         await input.CopyToAsync(output, cancellationToken);
-        return (storedName, extension == ".webm" ? "video/webm" : "video/mp4");
+        return (storedName, contentType);
     }
 
-    public Stream OpenRead(string storedName) =>
-        new FileStream(
+    public Stream OpenRead(string storedName)
+    {
+        EnsureLocal(storedName);
+        // From a bucket, the scratch copy is unlinked when this stream closes; another reader
+        // that still has it open keeps its handle, and a later reader fetches it again.
+        var scratch = _s3 is not null ? FileOptions.DeleteOnClose : FileOptions.None;
+        return new FileStream(
             SafePath(storedName),
             FileMode.Open,
             FileAccess.Read,
-            FileShare.Read,
+            FileShare.Read | FileShare.Delete,
             64 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan
+            FileOptions.Asynchronous | FileOptions.SequentialScan | scratch
         );
+    }
 
-    /// <summary>The file's place on disk, for tools that need a path (ffmpeg). The name is checked.</summary>
-    public string FullPath(string storedName) => SafePath(storedName);
+    /// <summary>
+    /// The file's place on disk, for tools that need a path (ffmpeg) and for writes. The name is
+    /// checked. With a bucket this is a scratch copy, fetched first when the bucket has it; call
+    /// <see cref="UploadAsync"/> after a write, which also removes the scratch copy.
+    /// </summary>
+    public string FullPath(string storedName)
+    {
+        EnsureLocal(storedName);
+        return SafePath(storedName);
+    }
 
     /// <summary>Stored files whose names start with <paramref name="prefix"/>.</summary>
     public IEnumerable<FileInfo> Files(string prefix) =>
@@ -154,6 +299,15 @@ public sealed class LocalFileStore
         var path = SafePath(storedName);
         if (File.Exists(path))
             File.Delete(path);
+        if (_s3 is not null)
+            try
+            {
+                _s3.DeleteObjectAsync(_bucket, storedName).GetAwaiter().GetResult();
+            }
+            catch (AmazonS3Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not delete {Name} from the bucket", storedName);
+            }
     }
 
     private string SafePath(string storedName)
