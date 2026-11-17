@@ -6,7 +6,7 @@ RUN dotnet restore src/server/MyThorneAI.Ats.Api.csproj
 COPY src/server/ src/server/
 RUN dotnet publish src/server/MyThorneAI.Ats.Api.csproj --no-restore --configuration Release --output /app/publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS runtime
 USER root
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends curl ffmpeg libgssapi-krb5-2 ocrmypdf \
