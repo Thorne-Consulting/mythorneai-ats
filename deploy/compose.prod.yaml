@@ -169,6 +169,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    environment:
+      # Where the web server reaches the API for its own calls (who is signed in, the careers pages).
+      API_ORIGIN: http://api:8080
     expose:
       - '3000'
     security_opt:
