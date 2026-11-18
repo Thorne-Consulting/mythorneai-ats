@@ -288,10 +288,11 @@ Caddy fronts the web app with two doors. Its Caddyfile is inside the compose fil
 
 - **The public door**, port 80 inside the stack. On Dokploy, Traefik owns ports 80 and 443 on
   the host: give the public domain to the `caddy` service, port 80, and Traefik gets the
-  certificate. It passes only what candidates and outside services need: `/careers`,
-  `/candidate-portal`, `/book`, `/public` (the apply form, the portal API and the Resend
-  webhook), `/docs`, `/openapi`, `/health` and the page assets. Every other path answers 404,
-  so the staff app never shows on the internet.
+  certificate. It passes only what candidates, approvers and outside services need:
+  `/careers`, `/candidate-portal`, `/book` and `/approve` (the links in emails, each with its
+  own token), `/public` (the apply form, the portal API and the Resend webhook), `/docs`,
+  `/openapi`, `/health`, the logo under `/brand` and the page assets. The bare address goes to
+  `/careers`. Every other path answers 404, so the staff app never shows on the internet.
 - **The staff door**, port 8080 inside the stack. It answers only Netbird
   addresses (`100.64.0.0/10`, edited in the Caddyfile if your range differs) and this host, and
   gives everyone else a 403. It has two
@@ -320,6 +321,19 @@ network, because the staff door checks the client address:
 4. **Infisical:** `WORKOS_REDIRECT_URI=https://<the name>/auth/callback`, and add the same URL in
    the WorkOS dashboard under Redirects. Set `CALENDAR_OAUTH_REDIRECT_URI` the same way when
    calendar connections are used.
+
+### The careers site (the public name)
+
+Candidates and approvers use a second name, for example `careers.mythorneai.com`:
+
+1. **Public DNS:** an `A` record for the name, pointing to the server's public address.
+2. **Dokploy, the compose service, Domains:** add the name with the service `caddy`, port
+   `80`, HTTPS on, certificate Let's Encrypt. Redeploy.
+3. **In the app, Settings, General, "Web address of this app":** `https://careers.mythorneai.com`,
+   with no path. Every link in a candidate's or approver's email starts with this address, so it
+   must be the public name, not the staff name.
+4. **Check from a network off Netbird:** `https://<name>/careers` shows the jobs, and
+   `https://<name>/settings` answers 404.
 
 Behind Traefik, Caddy trusts the address Traefik forwards (`X-Forwarded-For`, strictly: the
 rightmost address the proxy chain vouches for), so a caller cannot fake a Netbird address.
