@@ -11,6 +11,12 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     user = await serverApiGet<User>('/api/auth/me');
   } catch (error) {
     if (error instanceof ServerApiError && error.status === 401) return <LoginPage />;
+    // The page only says "not working right now"; the reason goes to the server log. The cookie
+    // is never part of it.
+    console.error(
+      'Sign-in check failed: GET /api/auth/me',
+      error instanceof ServerApiError ? `the API answered ${error.status}` : error,
+    );
     return <LoginPage unavailable />;
   }
 

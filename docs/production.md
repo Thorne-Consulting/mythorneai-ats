@@ -163,7 +163,7 @@ Put these keys in each Infisical environment. Required ones first.
 | Key                                                                                           | What it is                                                                                  |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `POSTGRES_PASSWORD`                                                                           | Required. The database password; the database runs in the same compose stack.               |
-| `S3_ENDPOINT`                                                                                 | Required: `http://objects:9000`, the object store in the stack, or another S3-compatible store. |
+| `S3_ENDPOINT`                                                                                 | Required: `http://objects:9000`, the object store in the stack, or the address of another S3-compatible store, with no bucket name or path in it. |
 | `AUTH_MODE`                                                                                   | `WorkOS` for real sign-in. `Development` only on a developer machine.                       |
 | `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_REDIRECT_URI`                                   | WorkOS AuthKit. The redirect is `https://<app>/auth/callback`.                              |
 | `AUTH_ALLOWED_EMAIL_DOMAINS`                                                                  | Company email domains that may sign in, separated by commas.                                |
@@ -184,7 +184,7 @@ Put these keys in each Infisical environment. Required ones first.
 | `SEED_SETS`                                                                                   | The seed sets the API keeps in place at every start, for example `baseline,catalog`.        |
 | `SEED_PRIVATE_PATH`                                                                           | A SQL file with the company's private seed, run after the sets when the file exists.        |
 | `S3_SECRET_KEY`, `S3_ACCESS_KEY`                                                              | Required. The keys of the object store, where uploads live. Access key defaults to `ats`.   |
-| `S3_BUCKET`, `S3_REGION`                                                                      | The bucket and region. Defaults: `ats-files`, `us-east-1`.                                  |
+| `S3_BUCKET`, `S3_REGION`                                                                      | The bucket and region. Defaults: `ats-files`, `us-east-1`. For Cloudflare R2: the bucket's name, and `auto`. |
 
 The database name and user are fixed in the compose file (`internal_ats`, `ats`).
 `ASPNETCORE_ENVIRONMENT` is `Production` on both hosts; staging is production code with
@@ -288,10 +288,11 @@ Caddy fronts the web app with two doors. Its Caddyfile is inside the compose fil
 
 - **The public door**, port 80 inside the stack. On Dokploy, Traefik owns ports 80 and 443 on
   the host: give the public domain to the `caddy` service, port 80, and Traefik gets the
-  certificate. It passes only what candidates and outside services need: `/careers`,
-  `/candidate-portal`, `/book`, `/public` (the apply form, the portal API and the Resend
-  webhook), `/docs`, `/openapi`, `/health` and the page assets. Every other path answers 404,
-  so the staff app never shows on the internet.
+  certificate. It passes only what candidates, approvers and outside services need:
+  `/careers`, `/candidate-portal`, `/book` and `/approve` (the links in emails, each with its
+  own token), `/public` (the apply form, the portal API and the Resend webhook), `/docs`,
+  `/openapi`, `/health`, the logo under `/brand` and the page assets. The bare address goes to
+  `/careers`. Every other path answers 404, so the staff app never shows on the internet.
 - **The staff door**, port 8080 inside the stack. It answers only Netbird
   addresses (`100.64.0.0/10`, edited in the Caddyfile if your range differs) and this host, and
   gives everyone else a 403. It has two
@@ -321,6 +322,19 @@ network, because the staff door checks the client address:
    the WorkOS dashboard under Redirects. Set `CALENDAR_OAUTH_REDIRECT_URI` the same way when
    calendar connections are used.
 
+### The careers site (the public name)
+
+Candidates and approvers use a second name, for example `careers.mythorneai.com`:
+
+1. **Public DNS:** an `A` record for the name, pointing to the server's public address.
+2. **Dokploy, the compose service, Domains:** add the name with the service `caddy`, port
+   `80`, HTTPS on, certificate Let's Encrypt. Redeploy.
+3. **In the app, Settings, General, "Web address of this app":** `https://careers.mythorneai.com`,
+   with no path. Every link in a candidate's or approver's email starts with this address, so it
+   must be the public name, not the staff name.
+4. **Check from a network off Netbird:** `https://<name>/careers` shows the jobs, and
+   `https://<name>/settings` answers 404.
+
 Behind Traefik, Caddy trusts the address Traefik forwards (`X-Forwarded-For`, strictly: the
 rightmost address the proxy chain vouches for), so a caller cannot fake a Netbird address.
 Two checks: from a laptop on Netbird, `https://<the name>` loads the sign-in page; from a
@@ -341,6 +355,14 @@ S3-compatible store instead (Backblaze B2, Cloudflare R2, AWS S3), set `S3_ENDPO
 store's keys and, if it is not `ats-files`, `S3_BUCKET`, all in Infisical; the `objects`
 service then sits idle.
 The API makes the bucket when it is missing.
+
+Cloudflare R2 needs three values: `S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com`
+(the address only: the bucket is not part of it), `S3_BUCKET=<the bucket's name>` and
+`S3_REGION=auto`, with an R2 API token's keys in `S3_ACCESS_KEY` and `S3_SECRET_KEY`. The API
+uploads in the plain signed form that R2 accepts, and adds no checksum trailers, so no
+`AWS_*` setting is needed. Its start-up check of the bucket may be refused by a token that only
+covers objects; the API logs a warning and goes on. If `S3_ENDPOINT` has a path, the API warns
+at start, because the bucket name would then be added after it.
 
 ## The public API
 
