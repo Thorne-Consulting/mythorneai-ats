@@ -1,12 +1,22 @@
 import type { Metadata } from 'next';
-import { Roboto } from 'next/font/google';
+import localFont from 'next/font/local';
 import '../styles.css';
 import { themeScript } from '@/lib/theme';
 import { Providers } from './providers';
 
-const roboto = Roboto({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+// Roboto from the npm package, so a build never fetches from Google and works offline.
+const roboto = localFont({
+  src: [
+    {
+      path: '../../node_modules/@fontsource-variable/roboto/files/roboto-latin-wght-normal.woff2',
+      style: 'normal',
+    },
+    {
+      path: '../../node_modules/@fontsource-variable/roboto/files/roboto-latin-wght-italic.woff2',
+      style: 'italic',
+    },
+  ],
+  weight: '100 900',
   display: 'swap',
   variable: '--font-roboto',
 });
