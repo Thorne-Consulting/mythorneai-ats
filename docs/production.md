@@ -163,7 +163,7 @@ Put these keys in each Infisical environment. Required ones first.
 | Key                                                                                           | What it is                                                                                  |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `POSTGRES_PASSWORD`                                                                           | Required. The database password; the database runs in the same compose stack.               |
-| `S3_ENDPOINT`                                                                                 | Required: `http://objects:9000`, the object store in the stack, or another S3-compatible store. |
+| `S3_ENDPOINT`                                                                                 | Required: `http://objects:9000`, the object store in the stack, or the address of another S3-compatible store, with no bucket name or path in it. |
 | `AUTH_MODE`                                                                                   | `WorkOS` for real sign-in. `Development` only on a developer machine.                       |
 | `WORKOS_API_KEY`, `WORKOS_CLIENT_ID`, `WORKOS_REDIRECT_URI`                                   | WorkOS AuthKit. The redirect is `https://<app>/auth/callback`.                              |
 | `AUTH_ALLOWED_EMAIL_DOMAINS`                                                                  | Company email domains that may sign in, separated by commas.                                |
@@ -184,7 +184,7 @@ Put these keys in each Infisical environment. Required ones first.
 | `SEED_SETS`                                                                                   | The seed sets the API keeps in place at every start, for example `baseline,catalog`.        |
 | `SEED_PRIVATE_PATH`                                                                           | A SQL file with the company's private seed, run after the sets when the file exists.        |
 | `S3_SECRET_KEY`, `S3_ACCESS_KEY`                                                              | Required. The keys of the object store, where uploads live. Access key defaults to `ats`.   |
-| `S3_BUCKET`, `S3_REGION`                                                                      | The bucket and region. Defaults: `ats-files`, `us-east-1`.                                  |
+| `S3_BUCKET`, `S3_REGION`                                                                      | The bucket and region. Defaults: `ats-files`, `us-east-1`. For Cloudflare R2: the bucket's name, and `auto`. |
 
 The database name and user are fixed in the compose file (`internal_ats`, `ats`).
 `ASPNETCORE_ENVIRONMENT` is `Production` on both hosts; staging is production code with
@@ -355,6 +355,14 @@ S3-compatible store instead (Backblaze B2, Cloudflare R2, AWS S3), set `S3_ENDPO
 store's keys and, if it is not `ats-files`, `S3_BUCKET`, all in Infisical; the `objects`
 service then sits idle.
 The API makes the bucket when it is missing.
+
+Cloudflare R2 needs three values: `S3_ENDPOINT=https://<account id>.r2.cloudflarestorage.com`
+(the address only: the bucket is not part of it), `S3_BUCKET=<the bucket's name>` and
+`S3_REGION=auto`, with an R2 API token's keys in `S3_ACCESS_KEY` and `S3_SECRET_KEY`. The API
+uploads in the plain signed form that R2 accepts, and adds no checksum trailers, so no
+`AWS_*` setting is needed. Its start-up check of the bucket may be refused by a token that only
+covers objects; the API logs a warning and goes on. If `S3_ENDPOINT` has a path, the API warns
+at start, because the bucket name would then be added after it.
 
 ## The public API
 
