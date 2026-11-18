@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO.Compression;
+using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
 
@@ -56,6 +57,15 @@ public sealed class LocalFileStore
         Directory.CreateDirectory(_rootPath);
         _bucket = configuration["FileStorage:S3:Bucket"] ?? "ats-files";
         if (!string.IsNullOrWhiteSpace(endpoint))
+        {
+            if (
+                Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
+                && uri.AbsolutePath.Trim('/').Length > 0
+            )
+                logger.LogWarning(
+                    "S3_ENDPOINT has a path ({Path}). It should be the address only, with the bucket in S3_BUCKET: the library appends the bucket after it",
+                    uri.AbsolutePath
+                );
             _s3 = new AmazonS3Client(
                 configuration["FileStorage:S3:AccessKey"],
                 configuration["FileStorage:S3:SecretKey"],
@@ -65,8 +75,13 @@ public sealed class LocalFileStore
                     // MinIO and most self-hosted stores address the bucket by path, not by host name.
                     ForcePathStyle = true,
                     AuthenticationRegion = configuration["FileStorage:S3:Region"] ?? "us-east-1",
+                    // Version 4 of the library adds a checksum to every request by default. Cloudflare R2,
+                    // MinIO and others reject that, so add one only where the store requires it.
+                    RequestChecksumCalculation = RequestChecksumCalculation.WHEN_REQUIRED,
+                    ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
                 }
             );
+        }
     }
 
     /// <summary>True when files also go to a bucket.</summary>
@@ -85,6 +100,16 @@ public sealed class LocalFileStore
         {
             await _s3.PutBucketAsync(_bucket, ct);
             _logger.LogInformation("Made the file bucket {Bucket}", _bucket);
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.Forbidden)
+        {
+            // An object-only key (Cloudflare R2, for one) cannot ask about the bucket. Go on: a real
+            // problem with the key or the bucket shows at the first upload, with the store's reason.
+            _logger.LogWarning(
+                "The store refused the bucket check for {Bucket} ({Code}); going on without it",
+                _bucket,
+                ex.ErrorCode
+            );
         }
     }
 
@@ -105,6 +130,7 @@ public sealed class LocalFileStore
                 BucketName = _bucket,
                 Key = storedName,
                 FilePath = path,
+                UseChunkEncoding = false,
             },
             ct
         );
@@ -127,6 +153,9 @@ public sealed class LocalFileStore
                 InputStream = input,
                 AutoCloseStream = false,
                 ContentType = contentType,
+                // The aws-chunked streaming format is refused by Cloudflare R2 and others. The stream
+                // is seekable, so the library signs the payload in the ordinary way instead.
+                UseChunkEncoding = false,
             },
             ct
         );
