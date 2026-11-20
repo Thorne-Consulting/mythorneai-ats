@@ -111,9 +111,12 @@ import {
   candidateParams,
   clearChip,
   customFilters,
+  EMPLOYMENT_LABELS,
+  FIELD_LABELS,
   filterChips,
   filterParsers,
   filterUrlKeys,
+  LANGUAGE_LEVEL_LABELS,
   listParsers,
   routeFilters,
   sameFilters,
@@ -154,7 +157,41 @@ const SORT_OPTIONS = [
   { value: 'name', label: 'Name' },
   { value: 'experience', label: 'Most experience' },
   { value: 'rating', label: 'Highest rating' },
+  { value: 'fit', label: 'Best AI fit' },
+  { value: 'applied', label: 'Latest application' },
+  { value: 'idle', label: 'Waiting longest' },
 ];
+const asOptions = (labels: Record<string, string>) =>
+  Object.entries(labels).map(([value, label]) => ({ value, label }));
+const IDLE_OPTIONS = [3, 7, 14, 30].map((days) => ({
+  value: String(days),
+  label: `${days} days or more`,
+}));
+const FIT_OPTIONS = [50, 60, 70, 80, 90].map((score) => ({
+  value: String(score),
+  label: `${score}% or more`,
+}));
+
+/** A text filter that applies when you leave the box or press Enter, not on every key. */
+function TextFilter({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string;
+  value: string;
+  onCommit: (value: string) => void;
+}) {
+  return (
+    <Input
+      label={label}
+      defaultValue={value}
+      key={`${label}-${value}`}
+      onBlur={(event) => onCommit(event.currentTarget.value.trim())}
+      onKeyDown={(event) => event.key === 'Enter' && onCommit(event.currentTarget.value.trim())}
+    />
+  );
+}
 
 type RankedCandidate = {
   candidateId: string;
@@ -164,6 +201,8 @@ type RankedCandidate = {
   currentTitle?: string | null;
   skills: string[];
   experienceYears?: number | null;
+  /** Does the resume reach the job's minimum years? Null when either is unknown. */
+  yearsMet?: boolean | null;
   /** The one match number: 40 percent requirements met, 60 percent closeness in meaning. */
   score: number;
   keywordScore?: number | null;
@@ -191,14 +230,32 @@ type RankResponse = {
 type AiFilters = {
   q?: string;
   skills: string[];
+  excludeSkills?: string[];
   skillMode: 'any' | 'all';
+  minSkillYears?: number;
   title?: string;
   location?: string;
+  country?: string;
+  region?: string;
+  city?: string;
+  openToRemote?: boolean;
+  willingToRelocate?: boolean;
   minYears?: number;
+  minManagementYears?: number;
   seniority?: string;
   minDegree?: string;
+  field?: string;
+  employmentType?: string;
+  language?: string;
+  languageLevel?: string;
+  certification?: string;
   company?: string;
   school?: string;
+  tags?: string[];
+  source?: string;
+  minRating?: number;
+  idleDays?: number;
+  sort?: string;
 };
 
 /** A segment or saved view of the list: what the server fetched, and the filters it starts from. */
@@ -327,6 +384,13 @@ function MatchCell({
                 ))}
               </ul>
             </div>
+          )}
+          {item.experienceYears != null && (
+            <p className="text-fg-muted">
+              {item.experienceYears} {item.experienceYears === 1 ? 'year' : 'years'} of experience
+              {item.yearsMet === true && ', enough for this job'}
+              {item.yearsMet === false && ', less than this job asks for'}
+            </p>
           )}
           <p className="text-fg-muted">
             {item.semanticScore != null
@@ -490,6 +554,24 @@ export function CandidatesList({
         minDegree: result.minDegree ?? null,
         company: result.company ?? '',
         school: result.school ?? '',
+        excludeSkills: result.excludeSkills ?? [],
+        minSkillYears: result.minSkillYears ?? null,
+        country: result.country ?? '',
+        region: result.region ?? '',
+        city: result.city ?? '',
+        openToRemote: result.openToRemote ?? false,
+        willingToRelocate: result.willingToRelocate ?? false,
+        minManagementYears: result.minManagementYears ?? null,
+        field: result.field ?? null,
+        employmentType: result.employmentType ?? null,
+        language: result.language ?? '',
+        languageLevel: result.languageLevel ?? null,
+        certification: result.certification ?? '',
+        tags: result.tags ?? [],
+        source: result.source ?? null,
+        minRating: result.minRating ? String(result.minRating) : null,
+        idleDays: result.idleDays ?? null,
+        sort: result.sort ?? filters.sort,
       });
     },
     onError: (error: Error) => toast.error('AI could not set the filters', error.message),
@@ -526,12 +608,24 @@ export function CandidatesList({
     enabled: !rankJobId,
   });
   const [includeDismissed, setIncludeDismissed] = useState(false);
+  // Ranked view only: hide low matches, and order by something other than the match number.
+  const [minScore, setMinScore] = useState<string | null>(null);
+  const [rankSort, setRankSort] = useState<string | null>(null);
   // Every list filter narrows who is ranked; the job being ranked for is not one of them.
   const rankFilter = candidateParams({ ...filters, jobId: null, stageId: null, minRating: null });
   for (const key of ['page', 'pageSize', 'sort']) rankFilter.delete(key);
   const rankFilterText = rankFilter.toString();
   const rank = useQuery({
-    queryKey: ['talent-rank', rankJobId, url.ask, rankFilterText, includeDismissed, page],
+    queryKey: [
+      'talent-rank',
+      rankJobId,
+      url.ask,
+      rankFilterText,
+      includeDismissed,
+      minScore,
+      rankSort,
+      page,
+    ],
     enabled: Boolean(rankJobId),
     placeholderData: (previous) => previous,
     queryFn: () =>
@@ -540,6 +634,8 @@ export function CandidatesList({
         query: url.ask || null,
         filter: rankFilterText,
         includeDismissed,
+        minScore: minScore ? Number(minScore) : null,
+        sort: rankSort,
         page,
         pageSize: 25,
       }),
@@ -830,6 +926,24 @@ export function CandidatesList({
               />
             )}
           </div>
+          {filters.skills.length > 0 && (
+            <NumberInput
+              label="Years each skill has been used"
+              min={0}
+              max={30}
+              value={filters.minSkillYears ?? ''}
+              onValueChange={(value) => setFilters({ minSkillYears: value === '' ? null : value })}
+            />
+          )}
+          <TagsInput
+            className="sm:col-span-2"
+            label="Leave out these skills"
+            placeholder="Type a skill and press Enter"
+            value={filters.excludeSkills}
+            onChange={(value) =>
+              setFilters({ excludeSkills: value.map((item) => item.toLowerCase()) })
+            }
+          />
           {canManage && (
             <TagsInput
               className="sm:col-span-2"
@@ -838,6 +952,18 @@ export function CandidatesList({
               data={tagOptions.data?.map((item) => item.tag) ?? []}
               value={filters.tags}
               onChange={(value) => setFilters({ tags: value.map((item) => item.toLowerCase()) })}
+            />
+          )}
+          {canManage && (
+            <TagsInput
+              className="sm:col-span-2"
+              label="Leave out these tags"
+              placeholder="Choose tags"
+              data={tagOptions.data?.map((item) => item.tag) ?? []}
+              value={filters.excludeTags}
+              onChange={(value) =>
+                setFilters({ excludeTags: value.map((item) => item.toLowerCase()) })
+              }
             />
           )}
           <Input
@@ -955,6 +1081,188 @@ export function CandidatesList({
               />
             );
           })}
+          <section
+            aria-label="Where they are"
+            className="flex flex-col gap-3 border-t border-border-subtle pt-4 sm:col-span-2"
+          >
+            <p className="text-sm font-medium text-fg">Where they are</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <TextFilter
+                label="City"
+                value={filters.city}
+                onCommit={(city) => setFilters({ city })}
+              />
+              <TextFilter
+                label="State or region"
+                value={filters.region}
+                onCommit={(region) => setFilters({ region })}
+              />
+              <TextFilter
+                label="Country"
+                value={filters.country}
+                onCommit={(country) => setFilters({ country })}
+              />
+            </div>
+            <Checkbox
+              label="Open to remote work"
+              checked={filters.openToRemote}
+              onCheckedChange={(checked) => setFilters({ openToRemote: checked })}
+            />
+            <Checkbox
+              label="Willing to relocate"
+              checked={filters.willingToRelocate}
+              onCheckedChange={(checked) => setFilters({ willingToRelocate: checked })}
+            />
+          </section>
+          <section
+            aria-label="More from the resume"
+            className="flex flex-col gap-3 border-t border-border-subtle pt-4 sm:col-span-2"
+          >
+            <p className="text-sm font-medium text-fg">More from the resume</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <TextFilter
+                label="Certification or issuer"
+                value={filters.certification}
+                onCommit={(certification) => setFilters({ certification })}
+              />
+              <Select
+                label="Studied"
+                clearable
+                placeholder="Any field"
+                data={asOptions(FIELD_LABELS)}
+                value={filters.field}
+                onChange={(value) => setFilters({ field: value })}
+              />
+              <TextFilter
+                label="Speaks"
+                value={filters.language}
+                onCommit={(language) => setFilters({ language })}
+              />
+              <Select
+                label="Language level"
+                clearable
+                placeholder="Any level"
+                data={asOptions(LANGUAGE_LEVEL_LABELS)}
+                value={filters.languageLevel}
+                onChange={(value) => setFilters({ languageLevel: value })}
+              />
+              <Select
+                label="Has worked as"
+                clearable
+                placeholder="Any kind of work"
+                data={asOptions(EMPLOYMENT_LABELS)}
+                value={filters.employmentType}
+                onChange={(value) => setFilters({ employmentType: value })}
+              />
+              <NumberInput
+                label="Years managing people"
+                min={0}
+                max={40}
+                value={filters.minManagementYears ?? ''}
+                onValueChange={(value) =>
+                  setFilters({ minManagementYears: value === '' ? null : value })
+                }
+              />
+            </div>
+          </section>
+          <section
+            aria-label="Their applications"
+            className="flex flex-col gap-3 border-t border-border-subtle pt-4 sm:col-span-2"
+          >
+            <p className="text-sm font-medium text-fg">Their applications</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                type="date"
+                label="Applied from"
+                value={filters.appliedFrom ?? ''}
+                onChange={(event) => setFilters({ appliedFrom: event.currentTarget.value || null })}
+              />
+              <Input
+                type="date"
+                label="Applied until"
+                value={filters.appliedTo ?? ''}
+                onChange={(event) => setFilters({ appliedTo: event.currentTarget.value || null })}
+              />
+              <Input
+                type="date"
+                label="Last active from"
+                value={filters.activityFrom ?? ''}
+                onChange={(event) =>
+                  setFilters({ activityFrom: event.currentTarget.value || null })
+                }
+              />
+              <Input
+                type="date"
+                label="Last active until"
+                value={filters.activityTo ?? ''}
+                onChange={(event) => setFilters({ activityTo: event.currentTarget.value || null })}
+              />
+              <Select
+                label="No activity for"
+                clearable
+                placeholder="Any"
+                data={IDLE_OPTIONS}
+                value={filters.idleDays === null ? null : String(filters.idleDays)}
+                onChange={(value) => setFilters({ idleDays: value ? Number(value) : null })}
+              />
+              <Select
+                label="AI fit check"
+                clearable
+                placeholder="Any"
+                data={FIT_OPTIONS}
+                value={filters.minFit === null ? null : String(filters.minFit)}
+                onChange={(value) => setFilters({ minFit: value ? Number(value) : null })}
+              />
+              <Select
+                label="Applied through"
+                clearable
+                placeholder="Any source"
+                data={sourceOptions(sources.data, filters.applicationSource)}
+                value={filters.applicationSource}
+                onChange={(value) => setFilters({ applicationSource: value })}
+              />
+              <TextFilter
+                label="Assigned to (email)"
+                value={filters.assignee ?? ''}
+                onCommit={(assignee) => setFilters({ assignee: assignee || null })}
+              />
+              <TextFilter
+                label="Reason it ended"
+                value={filters.reason ?? ''}
+                onCommit={(reason) => setFilters({ reason: reason || null })}
+              />
+            </div>
+            <Checkbox
+              label="Has unread messages"
+              checked={filters.unread}
+              onCheckedChange={(checked) => setFilters({ unread: checked })}
+            />
+            <Checkbox
+              label="Waiting on interview feedback"
+              checked={filters.feedbackOwed}
+              onCheckedChange={(checked) => setFilters({ feedbackOwed: checked })}
+            />
+          </section>
+          <section
+            aria-label="When they were added"
+            className="flex flex-col gap-3 border-t border-border-subtle pt-4 sm:col-span-2"
+          >
+            <p className="text-sm font-medium text-fg">When they were added</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Input
+                type="date"
+                label="Added from"
+                value={filters.addedFrom ?? ''}
+                onChange={(event) => setFilters({ addedFrom: event.currentTarget.value || null })}
+              />
+              <Input
+                type="date"
+                label="Added until"
+                value={filters.addedTo ?? ''}
+                onChange={(event) => setFilters({ addedTo: event.currentTarget.value || null })}
+              />
+            </div>
+          </section>
           <section
             aria-label="Application answers"
             className="flex flex-col gap-3 border-t border-border-subtle pt-4 sm:col-span-2"
@@ -1145,6 +1453,32 @@ export function CandidatesList({
             label={`Show dismissed${rank.data?.dismissed ? ` (${rank.data.dismissed})` : ''}`}
             checked={includeDismissed}
             onCheckedChange={setIncludeDismissed}
+          />
+          <FilterSelect
+            aria-label="Minimum match"
+            allLabel="Any match"
+            data={['40', '50', '60', '70', '80'].map((value) => ({
+              value,
+              label: `${value}% or more`,
+            }))}
+            value={minScore}
+            onChange={(value) => {
+              setMinScore(value);
+              void setUrl({ page: null });
+            }}
+          />
+          <FilterSelect
+            aria-label="Order ranked people by"
+            allLabel="Best match first"
+            data={[
+              { value: 'experience', label: 'Most experience first' },
+              { value: 'fit', label: 'Best AI fit first' },
+            ]}
+            value={rankSort}
+            onChange={(value) => {
+              setRankSort(value);
+              void setUrl({ page: null });
+            }}
           />
           {aiOn && rank.data && !rank.data.note?.startsWith('Confirm') && (
             <Button

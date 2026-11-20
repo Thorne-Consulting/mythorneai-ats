@@ -839,6 +839,15 @@ public static partial class AtsEndpoints
                                         a.Candidate.Email,
                                         YearsExperience = a.Candidate.ResumeYearsExperience,
                                         Skills = a.Candidate.ResumeSkills,
+                                        a.Candidate.Tags,
+                                        // The AI fit check of this job, when it was run.
+                                        FitScore = db
+                                            .JobFits.Where(f =>
+                                                f.RequisitionId == a.RequisitionId
+                                                && f.CandidateId == a.CandidateId
+                                            )
+                                            .Select(f => (int?)f.Score)
+                                            .FirstOrDefault(),
                                         NextInterviewAt = a
                                             .Interviews.Where(i =>
                                                 i.Status == InterviewStatus.Scheduled

@@ -55,6 +55,9 @@ import {
   averageDaysInStage,
   cardSorts,
   matchesApplicant,
+  matchesFilters,
+  NO_FILTERS,
+  type PipelineFilters,
   sortCards,
   timeInStage,
   type BoardCard,
@@ -125,6 +128,7 @@ export function PipelineBoard({
   initialData,
   canManage,
   search = '',
+  filters = NO_FILTERS,
   stageIds,
   compact,
   selected,
@@ -140,6 +144,8 @@ export function PipelineBoard({
   initialData?: BoardData;
   canManage: boolean;
   search?: string;
+  /** The job's other filters (source, rating, years, fit, and so on). */
+  filters?: PipelineFilters;
   /** Only these stages' columns; all when empty or missing. */
   stageIds?: string[];
   /** Name-only cards, so more fit on screen. */
@@ -233,7 +239,9 @@ export function PipelineBoard({
       <Board>
         {visible.map((stage, columnIndex) => {
           const cards = sortCards(
-            stage.applications.filter((a) => matchesApplicant(a, search)),
+            stage.applications.filter(
+              (a) => matchesApplicant(a, search) && matchesFilters(a, filters),
+            ),
             sort,
           );
           const average = averageDaysInStage(cards);

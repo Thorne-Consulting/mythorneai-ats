@@ -11,7 +11,7 @@ using Xunit;
 namespace MyThorneAI.Ats.Api.Tests;
 
 // Scores the real model against hand-checked answers for the seeded sample resumes
-// (src/server/Data/Seed/Resumes). Needs OPENAI_API_KEY in the environment and skips without it,
+// (src/server/Data/Seed/Resumes). Costs money, so it runs only with RUN_LIVE_AI_TESTS=1 and OPENAI_API_KEY in the environment,
 // so it never runs in CI by accident. Run it whenever the prompt, the form or the model changes:
 // the baseline is the score today, and the test fails if any field drops below it. When the score
 // goes up, raise the baseline to lock the gain in.
@@ -178,6 +178,9 @@ public sealed class ResumeParsingQualityTests
     public async Task Model_scores_at_least_the_baseline_on_the_seed_resumes()
     {
         var ct = TestContext.Current.CancellationToken;
+        // Calls the real model and costs money, so a key in the environment is not enough: ask for it.
+        if (Environment.GetEnvironmentVariable("RUN_LIVE_AI_TESTS") != "1")
+            Assert.Skip("Calls OpenAI and costs money. Set RUN_LIVE_AI_TESTS=1 (and OPENAI_API_KEY) to run it.");
         var apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (string.IsNullOrWhiteSpace(apiKey))
             Assert.Skip("Needs OPENAI_API_KEY; the quality test runs against the real model.");

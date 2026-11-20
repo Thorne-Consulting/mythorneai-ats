@@ -43,7 +43,14 @@ import { PipelineBoard, type ArchivedCard } from './PipelineBoard';
 import { StageEditor } from './StageEditor';
 import { StageStrip } from './StageStrip';
 import { MoveDialog, usePipelineMoves } from './pipeline-moves';
-import { matchesApplicant, type BoardCard } from './pipeline-stats';
+import { PipelineFilterButton } from './PipelineFilters';
+import {
+  matchesApplicant,
+  matchesFilters,
+  NO_FILTERS,
+  type BoardCard,
+  type PipelineFilters,
+} from './pipeline-stats';
 
 /**
  * One job's pipeline with its controls: search, stage chips (counts and filter), Board or List,
@@ -67,6 +74,7 @@ export function PipelineView({
   const board = useBoard(requisitionId, initialData);
   const [search, setSearch] = useState('');
   const [stageIds, setStageIds] = useState<string[]>([]);
+  const [filters, setFilters] = useState<PipelineFilters>(NO_FILTERS);
   const [layout, setLayout] = useLocalStorageState('ats-pipeline-layout', 'board');
   const [compact, setCompact] = useLocalStorageState('ats-pipeline-compact', false);
   const [showArchived, setShowArchived] = useLocalStorageState('ats-pipeline-archived', false);
@@ -89,7 +97,15 @@ export function PipelineView({
     queryFn: () => api.get<ArchivedCard[]>(`/api/requisitions/${requisitionId}/archived`),
     enabled: showArchived && layout === 'board',
   });
-  const stages = board.data?.stages ?? [];
+  const allStages = board.data?.stages ?? [];
+  // Filters narrow everything below: the cards, the stage counts and what a bulk action touches.
+  const stages = allStages.map((s) => ({
+    ...s,
+    applications: s.applications.filter((a) => matchesFilters(a, filters)),
+  }));
+  const sources = [
+    ...new Set(allStages.flatMap((s) => s.applications.map((a) => a.source))),
+  ].sort();
   const cards = stages.flatMap((s) => s.applications);
   const cardsOf = (ids: string[]) => cards.filter((c) => ids.includes(c.id));
   // People who left the board (moved by someone else, rejected) drop out of the selection.
@@ -191,6 +207,7 @@ export function PipelineView({
           placeholder="Search name, title or skill"
           className="w-full sm:w-64"
         />
+        <PipelineFilterButton filters={filters} onChange={setFilters} sources={sources} />
         <div className="flex flex-wrap items-center gap-1.5 sm:ml-auto">
           {layout === 'board' && (
             <>
@@ -270,6 +287,7 @@ export function PipelineView({
                 initialData={initialData}
                 canManage={canManage}
                 search={search}
+                filters={filters}
                 stageIds={stageIds}
                 compact={compact}
                 selected={liveSelected}

@@ -434,6 +434,9 @@ export interface BoardData {
         email?: string;
         yearsExperience?: number;
         skills: string[];
+        tags?: string[];
+        /** The AI fit check of this job (0 to 100), once it was run. */
+        fitScore?: number | null;
         nextInterviewAt?: string;
       }>;
     }

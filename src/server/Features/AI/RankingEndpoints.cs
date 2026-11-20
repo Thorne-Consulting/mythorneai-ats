@@ -117,7 +117,11 @@ public sealed record RankRequest(
     bool IncludeDismissed = false,
     int Page = 1,
     int PageSize = 25,
-    string? Filter = null
+    string? Filter = null,
+    // Hide everyone below this match number (0 to 100).
+    int? MinScore = null,
+    // score (the default), experience, or fit (the AI check of the chosen job).
+    string? Sort = null
 );
 
 public sealed record FitBatchRequest(Guid[]? CandidateIds);
@@ -275,9 +279,45 @@ public static partial class AtsEndpoints
                         pool = pool.Where(x => !dismissedIds.Contains(x.Id));
 
                     var ranked = await RankAsync(db, ai, principal, requisition, query, pool, ct);
+                    var kept = ranked
+                        .Rows.Where(x => request.MinScore is not { } cutoff || x.Score >= cutoff)
+                        .ToList();
+                    if (request.Sort is "experience" or "fit")
+                    {
+                        var keptIds = kept.Select(x => x.Id).ToList();
+                        var order = request.Sort == "experience"
+                            ? await db
+                                .Candidates.AsNoTracking()
+                                .Where(x => keptIds.Contains(x.Id))
+                                .ToDictionaryAsync(
+                                    x => x.Id,
+                                    x => (decimal?)x.ResumeYearsExperience,
+                                    ct
+                                )
+                            : requisition is null
+                                ? []
+                                : await db
+                                    .JobFits.AsNoTracking()
+                                    .Where(x =>
+                                        x.RequisitionId == requisition.Id
+                                        && keptIds.Contains(x.CandidateId)
+                                    )
+                                    .ToDictionaryAsync(
+                                        x => x.CandidateId,
+                                        x => (decimal?)x.Score,
+                                        ct
+                                    );
+                        // People with no value (no years read, no fit check yet) go last.
+                        kept = kept
+                            .OrderByDescending(x => order.GetValueOrDefault(x.Id) ?? -1)
+                            .ThenByDescending(x => x.Score)
+                            .ThenBy(x => x.Name)
+                            .ThenBy(x => x.Id)
+                            .ToList();
+                    }
                     var page = Math.Max(request.Page, 1);
                     var pageSize = Math.Clamp(request.PageSize, 10, 100);
-                    var rows = ranked.Rows.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+                    var rows = kept.Skip((page - 1) * pageSize).Take(pageSize).ToList();
                     var ids = rows.Select(x => x.Id).ToList();
                     var people = await db
                         .Candidates.AsNoTracking()
@@ -338,6 +378,11 @@ public static partial class AtsEndpoints
                                         .Take(8)
                                         .ToArray(),
                                     ExperienceYears = person.ResumeYearsExperience,
+                                    // Does the resume reach the job's minimum years? Unknown when either is missing.
+                                    YearsMet = requirements.MinYears is { } need
+                                        && person.ResumeYearsExperience is { } have
+                                            ? have >= need
+                                            : (bool?)null,
                                     row.Score,
                                     row.KeywordScore,
                                     row.SemanticScore,
@@ -350,7 +395,7 @@ public static partial class AtsEndpoints
                                     row.HasEmbedding,
                                 };
                             }),
-                            Total = ranked.Rows.Count,
+                            Total = kept.Count,
                             Page = page,
                             PageSize = pageSize,
                             ranked.Semantic,
@@ -358,7 +403,7 @@ public static partial class AtsEndpoints
                             ranked.Pending,
                             Dismissed = await dismissedIds.CountAsync(ct),
                             // The ids in order, so "Check fit for the top 25" and bulk actions need no second call.
-                            TopIds = ranked.Rows.Take(50).Select(x => x.Id),
+                            TopIds = kept.Take(50).Select(x => x.Id),
                         }
                     );
                 }

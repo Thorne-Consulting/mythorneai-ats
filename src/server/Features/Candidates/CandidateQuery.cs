@@ -144,6 +144,55 @@ public static partial class AtsEndpoints
             .ToArray();
         var flagged = bool.TryParse(query["flagged"], out var flaggedValue) && flaggedValue;
 
+        // More about the person: where they live, what the resume says, what to leave out.
+        var city = query["city"].ToString().Trim();
+        var region = query["region"].ToString().Trim();
+        var country = query["country"].ToString().Trim();
+        var openToRemote = bool.TryParse(query["openToRemote"], out var remoteValue) && remoteValue;
+        var willingToRelocate =
+            bool.TryParse(query["willingToRelocate"], out var relocateValue) && relocateValue;
+        var excludeSkills = ListParam(query, "excludeSkills");
+        var excludeTags = ListParam(query, "excludeTags");
+        var certification = query["certification"].ToString().Trim();
+        var language = query["language"].ToString().Trim();
+        var languageLevel =
+            Enum.TryParse<LanguageProficiency>(query["languageLevel"], true, out var levelValue)
+            && levelValue != LanguageProficiency.Unknown
+                ? levelValue
+                : (LanguageProficiency?)null;
+        var field =
+            Enum.TryParse<FieldOfStudy>(query["field"], true, out var fieldValue)
+            && fieldValue != FieldOfStudy.Unknown
+                ? fieldValue
+                : (FieldOfStudy?)null;
+        var employmentType =
+            Enum.TryParse<EmploymentType>(query["employmentType"], true, out var employmentValue)
+            && employmentValue != EmploymentType.Unknown
+                ? employmentValue
+                : (EmploymentType?)null;
+        var minManagementYears = Decimal(query["minManagementYears"]);
+        var minSkillYears = Decimal(query["minSkillYears"]);
+        var addedFrom = Day(query["addedFrom"]);
+        var addedTo = Day(query["addedTo"])?.AddDays(1);
+
+        // More about their applications. Like the rest, these must all hold on one application.
+        var appliedFrom = Day(query["appliedFrom"]);
+        var appliedTo = Day(query["appliedTo"])?.AddDays(1);
+        var activityFrom = Day(query["activityFrom"]);
+        var activityTo = Day(query["activityTo"])?.AddDays(1);
+        var idleDays = int.TryParse(query["idleDays"], out var idleValue)
+            ? Math.Clamp(idleValue, 1, 365)
+            : (int?)null;
+        var minFit = int.TryParse(query["minFit"], out var fitValue)
+            ? Math.Clamp(fitValue, 0, 100)
+            : (int?)null;
+        var assignee = query["assignee"].ToString().Trim().ToLowerInvariant();
+        var reason = query["reason"].ToString().Trim();
+        var applicationSource = query["applicationSource"].ToString().Trim();
+        var unread = bool.TryParse(query["unread"], out var unreadValue) && unreadValue;
+        var feedbackOwed =
+            bool.TryParse(query["feedbackOwed"], out var owedValue) && owedValue;
+
         var scopedApplications = ScopeApplications(db.Applications.AsNoTracking(), principal);
         var canSeeEveryone = principal.IsHiringStaff();
         var candidates = db
@@ -162,6 +211,17 @@ public static partial class AtsEndpoints
             || openJobs
             || questionId is not null
             || flagged
+            || appliedFrom is not null
+            || appliedTo is not null
+            || activityFrom is not null
+            || activityTo is not null
+            || idleDays is not null
+            || minFit is not null
+            || assignee.Length > 0
+            || reason.Length > 0
+            || applicationSource.Length > 0
+            || unread
+            || feedbackOwed
         )
         {
             var matching = scopedApplications;
@@ -186,6 +246,58 @@ public static partial class AtsEndpoints
                 matching = matching.Where(x => x.Status == status);
             if (minRating is not null)
                 matching = matching.Where(x => x.Rating >= minRating);
+            if (appliedFrom is not null)
+                matching = matching.Where(x => x.AppliedAt >= appliedFrom);
+            if (appliedTo is not null)
+                matching = matching.Where(x => x.AppliedAt < appliedTo);
+            if (activityFrom is not null)
+                matching = matching.Where(x => x.LastActivityAt >= activityFrom);
+            if (activityTo is not null)
+                matching = matching.Where(x => x.LastActivityAt < activityTo);
+            // "No movement for a while": still in play, and untouched for this many days.
+            if (idleDays is { } days)
+            {
+                var idleBefore = DateTimeOffset.UtcNow.AddDays(-days);
+                matching = matching.Where(x =>
+                    x.Status == ApplicationStatus.Active
+                    && !x.PipelineStage!.IsTerminal
+                    && x.LastActivityAt < idleBefore
+                );
+            }
+            if (minFit is not null)
+                matching = matching.Where(x =>
+                    db.JobFits.Any(f =>
+                        f.RequisitionId == x.RequisitionId
+                        && f.CandidateId == x.CandidateId
+                        && f.Score >= minFit
+                    )
+                );
+            if (assignee.Length > 0)
+                matching = matching.Where(x =>
+                    x.AssigneeEmail != null && x.AssigneeEmail.ToLower() == assignee
+                );
+            if (reason.Length > 0)
+                matching = matching.Where(x => x.DispositionReason == reason);
+            if (applicationSource.Length > 0)
+                matching = matching.Where(x => x.Source == applicationSource);
+            if (unread)
+                matching = matching.Where(x =>
+                    x.Messages.Any(m => m.FromCandidate && m.ReadAt == null)
+                );
+            // Scorecards still missing from interviews that have happened.
+            if (feedbackOwed)
+            {
+                var now = DateTimeOffset.UtcNow;
+                matching = matching.Where(x =>
+                    x.Interviews.Any(i =>
+                        (
+                            i.Status == InterviewStatus.Completed
+                            || (i.Status == InterviewStatus.Scheduled && i.EndsAt < now)
+                        )
+                        && i.InterviewerEmails.Length > i.Scorecards.Count
+                    )
+                );
+            }
             var matchingIds = matching.Select(x => x.CandidateId);
             candidates = candidates.Where(candidate => matchingIds.Contains(candidate.Id));
         }
@@ -207,6 +319,63 @@ public static partial class AtsEndpoints
                 candidate.Location != null
                 && EF.Functions.ILike(candidate.Location, $"%{location}%")
             );
+        if (city.Length > 0)
+            candidates = candidates.Where(candidate =>
+                candidate.City != null && EF.Functions.ILike(candidate.City, $"%{city}%")
+            );
+        if (region.Length > 0)
+            candidates = candidates.Where(candidate =>
+                candidate.Region != null && EF.Functions.ILike(candidate.Region, $"%{region}%")
+            );
+        // Older records have only the free-text location, so a country matches there too.
+        if (country.Length > 0)
+            candidates = candidates.Where(candidate =>
+                (candidate.Country != null && EF.Functions.ILike(candidate.Country, $"%{country}%"))
+                || (
+                    candidate.Location != null
+                    && EF.Functions.ILike(candidate.Location, $"%{country}%")
+                )
+            );
+        if (openToRemote)
+            candidates = candidates.Where(candidate => candidate.OpenToRemote == true);
+        if (willingToRelocate)
+            candidates = candidates.Where(candidate => candidate.WillingToRelocate == true);
+        if (certification.Length > 0)
+            candidates = candidates.Where(candidate =>
+                candidate.Certifications.Any(entry =>
+                    EF.Functions.ILike(entry.Name, $"%{certification}%")
+                    || (entry.Issuer != null && EF.Functions.ILike(entry.Issuer, $"%{certification}%"))
+                )
+            );
+        if (language.Length > 0 || languageLevel is not null)
+        {
+            // Proficiency is declared in order, so "Fluent" means Fluent or Native.
+            var levels = Enum.GetValues<LanguageProficiency>()
+                .Where(level => languageLevel is null || level >= languageLevel)
+                .ToArray();
+            candidates = candidates.Where(candidate =>
+                candidate.Languages.Any(entry =>
+                    (language.Length == 0 || EF.Functions.ILike(entry.Language, $"%{language}%"))
+                    && levels.Contains(entry.Proficiency)
+                )
+            );
+        }
+        if (field is not null)
+            candidates = candidates.Where(candidate =>
+                candidate.Educations.Any(entry => entry.FieldNormalized == field)
+            );
+        if (employmentType is not null)
+            candidates = candidates.Where(candidate =>
+                candidate.WorkExperiences.Any(role => role.EmploymentType == employmentType)
+            );
+        if (minManagementYears is not null)
+            candidates = candidates.Where(candidate =>
+                candidate.YearsManagement >= minManagementYears
+            );
+        if (addedFrom is not null)
+            candidates = candidates.Where(candidate => candidate.CreatedAt >= addedFrom);
+        if (addedTo is not null)
+            candidates = candidates.Where(candidate => candidate.CreatedAt < addedTo);
         if (title.Length > 0)
             candidates = candidates.Where(candidate =>
                 (
@@ -256,21 +425,24 @@ public static partial class AtsEndpoints
                 candidate.ResumeYearsExperience >= minYears.Value
             );
         // Skills come from the resume only; tags are a recruiter's labels and filter on their own.
+        // A skill matches by its name or any alias ("reactjs" finds "react"), and can need years of use.
         if (skills.Length > 0)
         {
             if (allSkills)
                 foreach (var skill in skills)
-                    candidates = candidates.Where(candidate =>
-                        candidate.ResumeSkills.Contains(skill)
-                    );
+                    candidates = candidates.Where(HasAnySkill([skill], minSkillYears));
             else
-                candidates = candidates.Where(candidate =>
-                    candidate.ResumeSkills.Any(value => skills.Contains(value))
-                );
+                candidates = candidates.Where(HasAnySkill(skills, minSkillYears));
         }
+        if (excludeSkills.Length > 0)
+            candidates = candidates.Where(Negate(HasAnySkill(excludeSkills, null)));
         if (tags.Length > 0)
             candidates = candidates.Where(candidate =>
                 candidate.Tags.Any(value => tags.Contains(value))
+            );
+        if (excludeTags.Length > 0)
+            candidates = candidates.Where(candidate =>
+                !candidate.Tags.Any(value => excludeTags.Contains(value))
             );
 
         candidates = ApplyCustomFieldFilters(candidates, query["cf"]);
@@ -279,6 +451,45 @@ public static partial class AtsEndpoints
         candidates = ApplySearch(candidates, search);
         return (candidates, scopedApplications, search);
     }
+
+    /// <summary>Has any of these skills, by the resume's list or by a shared skill's name or alias; with years, only the shared skills count.</summary>
+    private static Expression<Func<Candidate, bool>> HasAnySkill(string[] terms, decimal? years)
+    {
+        if (years is { } least)
+            return candidate =>
+                candidate.Skills.Any(entry =>
+                    (
+                        terms.Contains(entry.Skill!.NormalizedName)
+                        || entry.Skill.Aliases.Any(alias => terms.Contains(alias))
+                    )
+                    && entry.YearsUsed >= least
+                );
+        return candidate =>
+            candidate.ResumeSkills.Any(value => terms.Contains(value))
+            || candidate.Skills.Any(entry =>
+                terms.Contains(entry.Skill!.NormalizedName)
+                || entry.Skill.Aliases.Any(alias => terms.Contains(alias))
+            );
+    }
+
+    private static Expression<Func<Candidate, bool>> Negate(Expression<Func<Candidate, bool>> test) =>
+        Expression.Lambda<Func<Candidate, bool>>(Expression.Not(test.Body), test.Parameters);
+
+    private static decimal? Decimal(string? text) =>
+        decimal.TryParse(text, NumberStyles.Number, CultureInfo.InvariantCulture, out var value)
+            ? value
+            : null;
+
+    /// <summary>A date as "2026-11-19", from the start of that day (UTC).</summary>
+    private static DateTimeOffset? Day(string? text) =>
+        DateTimeOffset.TryParse(
+            text,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var value
+        )
+            ? new DateTimeOffset(value.UtcDateTime.Date, TimeSpan.Zero)
+            : null;
 
     private static readonly Expression<Func<Candidate, string, bool>> HasCustomValue = (c, json) =>
         EF.Functions.JsonContains(
