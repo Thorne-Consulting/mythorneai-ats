@@ -61,30 +61,33 @@ public static class AiEndpoints
             }
             try
             {
-                var result = await assistant.CompleteAsync(
-                    "Turn the recruiter request into JSON only. Use exactly these keys: q, skills, skillMode, title, location, minYears, seniority, minDegree, company, school. skills is an array of short strings, skillMode is any or all, minYears is a number or null, seniority is one of Intern, Junior, Mid, Senior, Lead, Manager, Director, Executive or null, minDegree is one of HighSchool, Associate, Bachelor, Master, Doctorate or null, company and school are strings or null. q is only for words that fit no other key. Do not rank candidates or make hiring decisions.",
+                var found = await assistant.CompleteAsync<SearchFilters>(
+                    "Turn the recruiter request into search filters. skills are short strings, skillMode is any or all, minYears is a number or null, seniority is one of Intern, Junior, Mid, Senior, Lead, Manager, Director, Executive or null, minDegree is one of HighSchool, Associate, Bachelor, Master, Doctorate or null, company and school are strings or null. q is only for words that fit no other field. Leave a field null or empty when the request doesn't say. Do not rank candidates or make hiring decisions.",
                     $"{jobContext}\nRecruiter request: {request.Query}",
                     ct,
-                    new AiContext("search-filters", principal.Email(), "Requisition", request.RequisitionId?.ToString()),
-                    json: true);
-                using var json = JsonDocument.Parse(result);
+                    new AiContext("search-filters", principal.Email(), "Requisition", request.RequisitionId?.ToString()));
                 return Results.Ok(new
                 {
-                    q = StringValue(json.RootElement, "q"),
-                    skills = ArrayValue(json.RootElement, "skills"),
-                    skillMode = StringValue(json.RootElement, "skillMode") is "all" ? "all" : "any",
-                    title = StringValue(json.RootElement, "title"),
-                    location = StringValue(json.RootElement, "location"),
-                    minYears = NumberValue(json.RootElement, "minYears"),
-                    seniority = StringValue(json.RootElement, "seniority"),
-                    minDegree = StringValue(json.RootElement, "minDegree"),
-                    company = StringValue(json.RootElement, "company"),
-                    school = StringValue(json.RootElement, "school"),
+                    q = Clean(found.Q),
+                    skills = (found.Skills ?? []).Select(x => x.Trim()).Where(x => x.Length > 0)
+                        .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray(),
+                    skillMode = Clean(found.SkillMode) is "all" ? "all" : "any",
+                    title = Clean(found.Title),
+                    location = Clean(found.Location),
+                    minYears = found.MinYears is { } years ? Math.Clamp(years, 0, 50) : (decimal?)null,
+                    seniority = Clean(found.Seniority),
+                    minDegree = Clean(found.MinDegree),
+                    company = Clean(found.Company),
+                    school = Clean(found.School),
                 });
             }
             catch (JsonException)
             {
                 return Results.Problem("The search assistant returned an invalid filter set.", statusCode: StatusCodes.Status502BadGateway);
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem("The AI service didn't respond. Try again in a moment.", statusCode: StatusCodes.Status502BadGateway);
             }
             catch (AiUnavailableException exception)
             {
@@ -143,20 +146,19 @@ public static class AiEndpoints
     private static bool CanManage(Domain.Requisition requisition, ClaimsPrincipal principal) =>
         AtsEndpoints.CanManage(requisition, principal);
 
-    private static string? StringValue(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()?.Trim()
-            : null;
-
-    private static string[] ArrayValue(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
-            ? value.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String)
-                .Select(item => item.GetString()!.Trim())
-                .Where(item => item.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray()
-            : [];
-
-    private static decimal? NumberValue(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
-            && value.TryGetDecimal(out var number) ? Math.Clamp(number, 0, 50) : null;
+    private static string? Clean(string? value) => value?.Trim();
 }
+
+/// <summary>What the model fills in for a natural-language candidate search.</summary>
+public sealed record SearchFilters(
+    string? Q,
+    string[]? Skills,
+    string? SkillMode,
+    string? Title,
+    string? Location,
+    decimal? MinYears,
+    string? Seniority,
+    string? MinDegree,
+    string? Company,
+    string? School
+);

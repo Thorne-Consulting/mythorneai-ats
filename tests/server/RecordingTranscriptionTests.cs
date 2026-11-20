@@ -26,8 +26,7 @@ public sealed class FakeTranscriptionAi : IAiAssistant
         string instruction,
         string input,
         CancellationToken ct,
-        AiContext? context = null,
-        bool json = false
+        AiContext? context = null
     )
     {
         Inputs.Enqueue(input);
@@ -40,6 +39,9 @@ public sealed class FakeTranscriptionAi : IAiAssistant
                 : "## Overview\nNo transcript."
         );
     }
+
+    public Task<T> CompleteAsync<T>(string instruction, string input, CancellationToken ct, AiContext? context = null) =>
+        throw new AiUnavailableException("Not in this test.");
 
     public Task<float[]> EmbedAsync(string text, CancellationToken ct, AiContext? context = null) =>
         throw new AiUnavailableException("Not in this test.");

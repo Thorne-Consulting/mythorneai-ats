@@ -63,7 +63,8 @@ builder.Services.AddSingleton<ResumeTextExtractor>();
 builder.Services.AddScoped<ResumeExtractor>();
 builder.Services.AddMemoryCache();
 
-// The resume parser's model, through Microsoft.Extensions.AI so the provider is a config change.
+// Every chat model call goes through Microsoft.Extensions.AI on the OpenAI Responses API, so the model
+// (OpenAI:Model, or the organization's setting) and even the provider are configuration, not code.
 builder.Services.AddSingleton<IChatClient>(services =>
 {
     var configuration = services.GetRequiredService<IConfiguration>();
@@ -71,8 +72,8 @@ builder.Services.AddSingleton<IChatClient>(services =>
     return string.IsNullOrWhiteSpace(apiKey)
         ? new UnconfiguredChatClient()
         : new OpenAIClient(apiKey)
-            .GetChatClient(ResumeExtractor.ModelName(configuration))
-            .AsIChatClient();
+            .GetResponsesClient()
+            .AsIChatClient(ResumeExtractor.ModelName(configuration));
 });
 builder.Services.AddHostedService<ResumeParseWorker>();
 builder.Services.AddHostedService<EmailOutboxWorker>();

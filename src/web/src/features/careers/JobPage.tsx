@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui';
-import { JobPostingView } from '@/components/careers/JobPostingView';
+import { JobFacts, JobPostingView } from '@/components/careers/JobPostingView';
 import { jobPath, metaParts, postedText } from './jobs';
 import type { PublicJob } from './public-api';
 import { typeLabel } from './questions';
@@ -42,7 +42,7 @@ export function JobPage({
       </div>
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-10">
-          <JobPostingView job={job} pay={job.salary?.text} />
+          <JobPostingView job={job} pay={job.salary?.text} factsInSidebar />
           {job.salary && <PayTerms salary={job.salary} currencies={currencies} />}
           {questions.length > 0 && (
             <section aria-labelledby="job-questions" className="max-w-[68ch] space-y-3">
@@ -91,8 +91,11 @@ export function JobPage({
         <aside className="hidden lg:block">
           <div className="space-y-4 lg:sticky lg:top-6">
             <Card>
-              <CardBody className="pt-5">
-                <ApplyCard title={job.title} applyHref={applyHref} posted={posted} />
+              <CardBody className="space-y-5 pt-5">
+                <JobFacts job={job} pay={job.salary?.text} />
+                <div className="border-t border-border-subtle pt-5">
+                  <ApplyCard title={job.title} applyHref={applyHref} posted={posted} />
+                </div>
               </CardBody>
             </Card>
             <Link

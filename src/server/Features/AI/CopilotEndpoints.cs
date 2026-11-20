@@ -43,22 +43,22 @@ public static partial class AtsEndpoints
                 var requirements = JobRequirements.Parse(application.Requisition.RequirementsJson);
                 return await AiCallAsync(async () =>
                 {
-                    var output = await ai.CompleteAsync(
-                        "You help an interviewer prepare. Suggest specific interview questions tailored to this candidate's resume and the role. Respond with JSON only: {\"questions\": [{\"criterion\": string (exactly one of the kit criterion names given, or 'General' only if none fits), \"question\": string, \"why\": string (one sentence tying it to the resume or the role)}]}. Give 5 to 8 questions and cover every kit criterion at least once. Probe gaps and verify claims the resume actually makes; don't just restate the resume. If no resume text is given, write questions from the role and the kit criteria alone and say nothing about the candidate's history, gaps or past employers. Do not make a hiring decision.",
+                    var set = await ai.CompleteAsync<InterviewQuestionSet>(
+                        "You help an interviewer prepare. Suggest specific interview questions tailored to this candidate's resume and the role. Each question's criterion is exactly one of the kit criterion names given, or 'General' only if none fits, and why is one sentence tying it to the resume or the role. Give 5 to 8 questions and cover every kit criterion at least once. Probe gaps and verify claims the resume actually makes; don't just restate the resume. If no resume text is given, write questions from the role and the kit criteria alone and say nothing about the candidate's history, gaps or past employers. Do not make a hiring decision.",
                         $"Role: {application.Requisition.Title}\nRequired: {string.Join("; ", requirements.Required)}\nPreferred: {string.Join("; ", requirements.Preferred)}\nKit criteria:\n{criteria}\n\nCandidate title: {candidate.CurrentTitle}\nSkills: {string.Join(", ", candidate.ResumeSkills)}\nExperience: {candidate.ResumeYearsExperience} years\nSummary: {candidate.ResumeSummary}\nResume:\n{(string.IsNullOrWhiteSpace(candidate.ResumeText) ? "No resume text is on file." : candidate.ResumeText[..Math.Min(candidate.ResumeText.Length, 8000)])}",
                         ct,
-                        new AiContext("interview-questions", principal.Email(), "Application", application.Id.ToString()),
-                        json: true
+                        new AiContext("interview-questions", principal.Email(), "Application", application.Id.ToString())
                     );
-                    using var document = JsonDocument.Parse(output);
-                    var questions = document.RootElement.TryGetProperty("questions", out var list) && list.ValueKind == JsonValueKind.Array
-                        ? list.EnumerateArray().Select(x => new
+                    var questions = (set.Questions ?? [])
+                        .Select(x => new
                         {
-                            criterion = x.TryGetProperty("criterion", out var c) ? c.GetString() ?? "General" : "General",
-                            question = x.TryGetProperty("question", out var q) ? q.GetString() ?? "" : "",
-                            why = x.TryGetProperty("why", out var w) ? w.GetString() ?? "" : "",
-                        }).Where(x => x.question.Length > 0).Take(10).ToArray()
-                        : [];
+                            criterion = string.IsNullOrWhiteSpace(x.Criterion) ? "General" : x.Criterion,
+                            question = x.Question ?? "",
+                            why = x.Why ?? "",
+                        })
+                        .Where(x => x.question.Length > 0)
+                        .Take(10)
+                        .ToArray();
                     return Results.Ok(new { questions });
                 });
             }
@@ -94,3 +94,8 @@ public static partial class AtsEndpoints
 
     }
 }
+
+/// <summary>What the model fills in when asked for interview questions.</summary>
+public sealed record InterviewQuestionSet(InterviewQuestion[] Questions);
+
+public sealed record InterviewQuestion(string Criterion, string Question, string Why);

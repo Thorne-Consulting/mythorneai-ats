@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
+    <!-- The OpenAI Responses client is still flagged experimental in the SDK. -->
+    <NoWarn>$(NoWarn);OPENAI001</NoWarn>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

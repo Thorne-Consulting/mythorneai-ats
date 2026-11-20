@@ -301,14 +301,13 @@ public static partial class AtsEndpoints
         );
         if (cached is not null && cached.InputHash == hash && !refresh)
             return (cached, true, null);
-        var output = await ai.CompleteAsync(
-            "You assess how well a resume evidences each job requirement. Respond with JSON only: {\"summary\": string (two or three plain sentences), \"requirements\": [{\"requirement\": string, \"kind\": \"required\" or \"preferred\", \"status\": \"met\" or \"partial\" or \"missing\" or \"unknown\", \"evidence\": string}], \"concerns\": [string]}. Include every listed requirement exactly once, using the given wording. evidence is a short quote or close paraphrase from the resume, or an empty string. Use unknown when the resume doesn't say either way and never guess. Judge only evidence of skills and experience; ignore name, gender, age, nationality and other personal attributes. Do not make a hiring decision.",
+        var check = await ai.CompleteAsync<FitCheck>(
+            "You assess how well a resume evidences each job requirement. summary is two or three plain sentences. Each requirement has kind required or preferred and status met, partial, missing or unknown. Include every listed requirement exactly once, using the given wording. evidence is a short quote or close paraphrase from the resume, or an empty string. Use unknown when the resume doesn't say either way and never guess. Judge only evidence of skills and experience; ignore name, gender, age, nationality and other personal attributes. Do not make a hiring decision.",
             $"Job: {requisition.Title}\nRequired:\n- {string.Join("\n- ", requirements.Required)}\nPreferred:\n- {string.Join("\n- ", requirements.Preferred)}\nMinimum years: {requirements.MinYears?.ToString() ?? "none stated"}\nLocation rule: {(requirements.Location.Length == 0 ? "none" : requirements.Location)}\n\nResume:\n{candidate.ResumeText[..Math.Min(candidate.ResumeText.Length, 12000)]}",
             ct,
-            new AiContext("job-fit", actorEmail, "Candidate", candidate.Id.ToString()),
-            json: true
+            new AiContext("job-fit", actorEmail, "Candidate", candidate.Id.ToString())
         );
-        var result = ShapeFit(output, requirements);
+        var result = ShapeFit(check, requirements);
         if (cached is null)
         {
             cached = new JobFit

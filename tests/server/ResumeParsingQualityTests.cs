@@ -182,7 +182,7 @@ public sealed class ResumeParsingQualityTests
         if (string.IsNullOrWhiteSpace(apiKey))
             Assert.Skip("Needs OPENAI_API_KEY; the quality test runs against the real model.");
         var model = Environment.GetEnvironmentVariable("OPENAI_RESUME_MODEL") ?? "gpt-5-mini";
-        IChatClient chat = new OpenAIClient(apiKey).GetChatClient(model).AsIChatClient();
+        IChatClient chat = new OpenAIClient(apiKey).GetResponsesClient().AsIChatClient(model);
 
         var assembly = typeof(SeedData).Assembly;
         var resources = assembly.GetManifestResourceNames()

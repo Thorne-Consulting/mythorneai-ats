@@ -88,6 +88,19 @@ public sealed record JobRequirements(
             : [];
 }
 
+/// <summary>What the model fills in when it reads a job description.</summary>
+public sealed record RequirementsDraft(
+    string[]? Required,
+    string[]? Preferred,
+    decimal? MinYears,
+    string? Location
+);
+
+/// <summary>What the model fills in when it checks a resume against a job's requirements.</summary>
+public sealed record FitCheck(string Summary, FitRequirement[] Requirements, string[] Concerns);
+
+public sealed record FitRequirement(string Requirement, string Kind, string Status, string Evidence);
+
 public sealed record SaveRequirementsRequest(
     string[]? Required,
     string[]? Preferred,
@@ -132,8 +145,8 @@ public static partial class AtsEndpoints
                         return Results.NotFound();
                     return await AiCallAsync(async () =>
                     {
-                        var output = await ai.CompleteAsync(
-                            "Read the job description and list what the role needs. Respond with JSON only, with exactly these keys: required (array of short requirement strings that are clearly must-haves), preferred (array of nice-to-haves), minYears (number of years of experience stated as a minimum, or null), location (a short location or work-mode rule, or empty string). Keep each requirement under 12 words and do not invent requirements the text doesn't state.",
+                        var draft = await ai.CompleteAsync<RequirementsDraft>(
+                            "Read the job description and list what the role needs. required is an array of short requirement strings that are clearly must-haves, preferred is an array of nice-to-haves, minYears is the number of years of experience stated as a minimum or null, location is a short location or work-mode rule or an empty string. Keep each requirement under 12 words and do not invent requirements the text doesn't state.",
                             $"Job title: {requisition.Title}\nLocation: {requisition.Location} ({requisition.WorkMode})\n\n{requisition.Description}",
                             ct,
                             new AiContext(
@@ -141,10 +154,14 @@ public static partial class AtsEndpoints
                                 principal.Email(),
                                 "Requisition",
                                 id.ToString()
-                            ),
-                            json: true
+                            )
                         );
-                        var parsed = JobRequirements.Parse(output);
+                        var parsed = JobRequirements.Normalize(
+                            draft.Required,
+                            draft.Preferred,
+                            draft.MinYears,
+                            draft.Location
+                        );
                         return Results.Ok(
                             new
                             {
@@ -648,7 +665,7 @@ public static partial class AtsEndpoints
                             Configured = ai.IsConfigured,
                             Enabled = organization?.AiEnabled ?? true,
                             Model = string.IsNullOrWhiteSpace(organization?.AiModel)
-                                ? configuration["OpenAI:Model"] ?? "gpt-4o-mini"
+                                ? OpenAiAssistant.ModelName(configuration)
                                 : organization.AiModel,
                             EmbeddingModel = configuration["OpenAI:EmbeddingModel"]
                                 ?? "text-embedding-3-small",
@@ -743,30 +760,21 @@ public static partial class AtsEndpoints
         }
     }
 
-    private static (string Json, int Score) ShapeFit(string output, JobRequirements requirements)
+    private static (string Json, int Score) ShapeFit(FitCheck check, JobRequirements requirements)
     {
-        using var document = JsonDocument.Parse(output);
-        var root = document.RootElement;
         var byRequirement = new Dictionary<string, (string Status, string Evidence)>(
             StringComparer.OrdinalIgnoreCase
         );
-        if (
-            root.TryGetProperty("requirements", out var list)
-            && list.ValueKind == JsonValueKind.Array
-        )
-            foreach (var item in list.EnumerateArray())
-            {
-                var name = item.TryGetProperty("requirement", out var n) ? n.GetString() : null;
-                if (name is null)
-                    continue;
-                var status = item.TryGetProperty("status", out var s)
-                    ? s.GetString()?.ToLowerInvariant()
-                    : null;
-                byRequirement[name.Trim()] = (
-                    status is "met" or "partial" or "missing" ? status : "unknown",
-                    item.TryGetProperty("evidence", out var e) ? e.GetString() ?? "" : ""
-                );
-            }
+        foreach (var item in check.Requirements ?? [])
+        {
+            if (item.Requirement is null)
+                continue;
+            var status = item.Status?.ToLowerInvariant();
+            byRequirement[item.Requirement.Trim()] = (
+                status is "met" or "partial" or "missing" ? status : "unknown",
+                item.Evidence ?? ""
+            );
+        }
         var rows = requirements
             .Required.Select(x => (Text: x, Kind: "required", Weight: 2.0))
             .Concat(requirements.Preferred.Select(x => (Text: x, Kind: "preferred", Weight: 1.0)))
@@ -793,18 +801,10 @@ public static partial class AtsEndpoints
             )
         );
         var score = total == 0 ? 0 : (int)Math.Round(100 * earned / total);
-        var concerns =
-            root.TryGetProperty("concerns", out var c) && c.ValueKind == JsonValueKind.Array
-                ? c.EnumerateArray()
-                    .Where(x => x.ValueKind == JsonValueKind.String)
-                    .Select(x => x.GetString()!)
-                    .Take(8)
-                    .ToArray()
-                : [];
         var json = JsonSerializer.Serialize(
             new
             {
-                summary = root.TryGetProperty("summary", out var sum) ? sum.GetString() ?? "" : "",
+                summary = check.Summary ?? "",
                 requirements = rows.Select(x => new
                 {
                     requirement = x.Text,
@@ -812,7 +812,7 @@ public static partial class AtsEndpoints
                     status = x.Item1,
                     evidence = x.Item2,
                 }),
-                concerns,
+                concerns = (check.Concerns ?? []).Take(8).ToArray(),
             }
         );
         return (json, score);
