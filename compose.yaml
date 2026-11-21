@@ -37,7 +37,7 @@ services:
       Resend__WebhookSecret: ${RESEND_WEBHOOK_SECRET:-}
       Resend__InboundDomain: ${RESEND_INBOUND_DOMAIN:-}
       OpenAI__ApiKey: ${OPENAI_API_KEY:-}
-      OpenAI__Model: ${OPENAI_MODEL:-gpt-4o-mini}
+      OpenAI__Model: ${OPENAI_MODEL:-gpt-6-luna}
       OpenAI__EmbeddingModel: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
       OpenAI__TranscriptionModel: ${OPENAI_TRANSCRIPTION_MODEL:-whisper-1}
       Currency__RatesUrl: ${CURRENCY_RATES_URL:-https://api.frankfurter.dev/v2/rates?base=EUR}

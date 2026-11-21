@@ -61,30 +61,65 @@ public static class AiEndpoints
             }
             try
             {
-                var result = await assistant.CompleteAsync(
-                    "Turn the recruiter request into JSON only. Use exactly these keys: q, skills, skillMode, title, location, minYears, seniority, minDegree, company, school. skills is an array of short strings, skillMode is any or all, minYears is a number or null, seniority is one of Intern, Junior, Mid, Senior, Lead, Manager, Director, Executive or null, minDegree is one of HighSchool, Associate, Bachelor, Master, Doctorate or null, company and school are strings or null. q is only for words that fit no other key. Do not rank candidates or make hiring decisions.",
+                // Tags and sources are your own words, so the model is told which exist and nothing else is kept.
+                var knownTags = await db.Candidates.AsNoTracking().SelectMany(x => x.Tags)
+                    .GroupBy(tag => tag).OrderByDescending(group => group.Count()).Select(group => group.Key)
+                    .Take(60).ToListAsync(ct);
+                var knownSources = await db.Sources.AsNoTracking().OrderBy(x => x.Name).Select(x => x.Name).Take(40).ToListAsync(ct);
+                var found = await assistant.CompleteAsync<SearchFilters>(
+                    "Turn the recruiter request into search filters. Leave a field null or empty when the request doesn't say. "
+                    + "q is only for words that fit no other field. skills are short strings; excludeSkills are skills the person must NOT have. skillMode is any or all. "
+                    + "minSkillYears is the years of use each listed skill needs, or null. minYears is the total experience or null; minManagementYears is years managing people or null. "
+                    + "seniority is one of Intern, Junior, Mid, Senior, Lead, Manager, Director, Executive or null. minDegree is one of HighSchool, Associate, Bachelor, Master, Doctorate or null. "
+                    + "field is one of Engineering, ComputerScience, Business, Health, Education, Arts, Sciences, Law, SocialSciences or null. employmentType is one of FullTime, PartTime, Contract, Internship, Freelance, Volunteer or null. "
+                    + "language is a spoken language and languageLevel is one of Basic, Conversational, Professional, Fluent, Native or null. certification is a certificate or its issuer. "
+                    + "country, city, region, location, company, school and title are strings or null. openToRemote and willingToRelocate are true only when the request says so. "
+                    + "minRating is 1 to 5 or null. idleDays is a number of days with no activity, or null. "
+                    + $"tags must come from this list only: [{string.Join(", ", knownTags)}]. source must be one of: [{string.Join(", ", knownSources)}]. "
+                    + "sort is one of recent, created, name, experience, rating, fit, applied, idle, or null. Do not rank candidates or make hiring decisions.",
                     $"{jobContext}\nRecruiter request: {request.Query}",
                     ct,
-                    new AiContext("search-filters", principal.Email(), "Requisition", request.RequisitionId?.ToString()),
-                    json: true);
-                using var json = JsonDocument.Parse(result);
+                    new AiContext("search-filters", principal.Email(), "Requisition", request.RequisitionId?.ToString()));
                 return Results.Ok(new
                 {
-                    q = StringValue(json.RootElement, "q"),
-                    skills = ArrayValue(json.RootElement, "skills"),
-                    skillMode = StringValue(json.RootElement, "skillMode") is "all" ? "all" : "any",
-                    title = StringValue(json.RootElement, "title"),
-                    location = StringValue(json.RootElement, "location"),
-                    minYears = NumberValue(json.RootElement, "minYears"),
-                    seniority = StringValue(json.RootElement, "seniority"),
-                    minDegree = StringValue(json.RootElement, "minDegree"),
-                    company = StringValue(json.RootElement, "company"),
-                    school = StringValue(json.RootElement, "school"),
+                    q = Clean(found.Q),
+                    skills = Clean(found.Skills),
+                    excludeSkills = Clean(found.ExcludeSkills),
+                    skillMode = Clean(found.SkillMode) is "all" ? "all" : "any",
+                    minSkillYears = Years(found.MinSkillYears),
+                    title = Clean(found.Title),
+                    location = Clean(found.Location),
+                    country = Clean(found.Country),
+                    region = Clean(found.Region),
+                    city = Clean(found.City),
+                    openToRemote = found.OpenToRemote == true ? true : (bool?)null,
+                    willingToRelocate = found.WillingToRelocate == true ? true : (bool?)null,
+                    minYears = Years(found.MinYears),
+                    minManagementYears = Years(found.MinManagementYears),
+                    seniority = OneOf(found.Seniority, "Intern", "Junior", "Mid", "Senior", "Lead", "Manager", "Director", "Executive"),
+                    minDegree = OneOf(found.MinDegree, "HighSchool", "Associate", "Bachelor", "Master", "Doctorate"),
+                    field = OneOf(found.Field, "Engineering", "ComputerScience", "Business", "Health", "Education", "Arts", "Sciences", "Law", "SocialSciences"),
+                    employmentType = OneOf(found.EmploymentType, "FullTime", "PartTime", "Contract", "Internship", "Freelance", "Volunteer"),
+                    language = Clean(found.Language),
+                    languageLevel = OneOf(found.LanguageLevel, "Basic", "Conversational", "Professional", "Fluent", "Native"),
+                    certification = Clean(found.Certification),
+                    company = Clean(found.Company),
+                    school = Clean(found.School),
+                    tags = (found.Tags ?? []).Select(x => x.Trim().ToLowerInvariant())
+                        .Where(x => knownTags.Contains(x, StringComparer.OrdinalIgnoreCase)).Distinct().ToArray(),
+                    source = knownSources.FirstOrDefault(x => string.Equals(x, found.Source?.Trim(), StringComparison.OrdinalIgnoreCase)),
+                    minRating = found.MinRating is >= 1 and <= 5 ? found.MinRating : null,
+                    idleDays = found.IdleDays is >= 1 and <= 365 ? found.IdleDays : null,
+                    sort = OneOf(found.Sort, "recent", "created", "name", "experience", "rating", "fit", "applied", "idle"),
                 });
             }
             catch (JsonException)
             {
                 return Results.Problem("The search assistant returned an invalid filter set.", statusCode: StatusCodes.Status502BadGateway);
+            }
+            catch (HttpRequestException)
+            {
+                return Results.Problem("The AI service didn't respond. Try again in a moment.", statusCode: StatusCodes.Status502BadGateway);
             }
             catch (AiUnavailableException exception)
             {
@@ -143,20 +178,47 @@ public static class AiEndpoints
     private static bool CanManage(Domain.Requisition requisition, ClaimsPrincipal principal) =>
         AtsEndpoints.CanManage(requisition, principal);
 
-    private static string? StringValue(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
-            ? value.GetString()?.Trim()
-            : null;
+    private static string? Clean(string? value) => value?.Trim();
 
-    private static string[] ArrayValue(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
-            ? value.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String)
-                .Select(item => item.GetString()!.Trim())
-                .Where(item => item.Length > 0)
-                .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray()
-            : [];
+    private static string[] Clean(string[]? values) =>
+        (values ?? []).Select(x => x.Trim()).Where(x => x.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(20).ToArray();
 
-    private static decimal? NumberValue(JsonElement root, string name) =>
-        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Number
-            && value.TryGetDecimal(out var number) ? Math.Clamp(number, 0, 50) : null;
+    private static decimal? Years(decimal? value) => value is { } years ? Math.Clamp(years, 0, 50) : null;
+
+    /// <summary>The model's word, only if it is one of the allowed ones (in their spelling).</summary>
+    private static string? OneOf(string? value, params string[] allowed) =>
+        allowed.FirstOrDefault(x => string.Equals(x, value?.Trim(), StringComparison.OrdinalIgnoreCase));
 }
+
+/// <summary>What the model fills in for a natural-language candidate search.</summary>
+public sealed record SearchFilters(
+    string? Q,
+    string[]? Skills,
+    string[]? ExcludeSkills,
+    string? SkillMode,
+    decimal? MinSkillYears,
+    string? Title,
+    string? Location,
+    string? Country,
+    string? Region,
+    string? City,
+    bool? OpenToRemote,
+    bool? WillingToRelocate,
+    decimal? MinYears,
+    decimal? MinManagementYears,
+    string? Seniority,
+    string? MinDegree,
+    string? Field,
+    string? EmploymentType,
+    string? Language,
+    string? LanguageLevel,
+    string? Certification,
+    string? Company,
+    string? School,
+    string[]? Tags,
+    string? Source,
+    int? MinRating,
+    int? IdleDays,
+    string? Sort
+);

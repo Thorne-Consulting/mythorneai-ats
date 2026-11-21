@@ -46,6 +46,9 @@ public static partial class AtsEndpoints
                 var poolId = Guid.TryParse(query["poolId"], out var poolValue)
                     ? poolValue
                     : (Guid?)null;
+                var jobId = Guid.TryParse(query["requisitionId"], out var jobValue)
+                    ? jobValue
+                    : (Guid?)null;
                 var ordered = sort switch
                 {
                     // In a talent pool: the people added last first.
@@ -54,6 +57,34 @@ public static partial class AtsEndpoints
                             .Max(m => (DateTimeOffset?)m.AddedAt)
                     ),
                     "name" => candidates.OrderBy(x => x.LastName).ThenBy(x => x.FirstName),
+                    // The best AI fit among the jobs you can see (or the chosen job); people not checked yet go last.
+                    "fit" => candidates.OrderByDescending(x =>
+                        db.JobFits.Where(f =>
+                                f.CandidateId == x.Id
+                                && (jobId == null || f.RequisitionId == jobId)
+                                && scopedApplications.Any(a =>
+                                    a.CandidateId == f.CandidateId
+                                    && a.RequisitionId == f.RequisitionId
+                                )
+                            )
+                            .Max(f => (int?)f.Score)
+                        ?? -1
+                    ),
+                    // Latest application first; people who never applied go last (Postgres puts nulls first on a descending sort).
+                    "applied" => candidates
+                        .OrderByDescending(x => scopedApplications.Any(a => a.CandidateId == x.Id))
+                        .ThenByDescending(x =>
+                            scopedApplications
+                                .Where(a => a.CandidateId == x.Id)
+                                .Max(a => (DateTimeOffset?)a.AppliedAt)
+                        ),
+                    // Waiting longest first, so nobody is forgotten.
+                    "idle" => candidates.OrderBy(x =>
+                        scopedApplications
+                            .Where(a => a.CandidateId == x.Id)
+                            .Max(a => (DateTimeOffset?)a.LastActivityAt)
+                        ?? x.UpdatedAt
+                    ),
                     "experience" => candidates.OrderByDescending(x => x.ResumeYearsExperience ?? 0),
                     "created" => candidates.OrderByDescending(x => x.CreatedAt),
                     "rating" => candidates

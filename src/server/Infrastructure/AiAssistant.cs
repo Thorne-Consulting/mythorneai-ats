@@ -1,8 +1,12 @@
+using System.ClientModel;
 using System.Diagnostics;
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.AI;
+using OpenAI.Responses;
 using MyThorneAI.Ats.Api.Data;
 using MyThorneAI.Ats.Api.Domain;
 
@@ -30,8 +34,15 @@ public interface IAiAssistant
         string instruction,
         string input,
         CancellationToken ct,
-        AiContext? context = null,
-        bool json = false
+        AiContext? context = null
+    );
+
+    /// <summary>The model answers in the shape of T (a strict JSON schema), so callers read fields instead of parsing JSON.</summary>
+    Task<T> CompleteAsync<T>(
+        string instruction,
+        string input,
+        CancellationToken ct,
+        AiContext? context = null
     );
 
     Task<float[]> EmbedAsync(string text, CancellationToken ct, AiContext? context = null);
@@ -53,59 +64,98 @@ public interface IAiAssistant
 }
 
 public sealed class OpenAiAssistant(
+    IChatClient chat,
     HttpClient http,
     IConfiguration configuration,
     IServiceScopeFactory scopes,
     ILogger<OpenAiAssistant> logger
 ) : IAiAssistant
 {
+    /// <summary>What OpenAI names as the replacement for gpt-4o-mini. Set OpenAI:Model (OPENAI_MODEL) to use another.</summary>
+    public const string DefaultModel = "gpt-6-luna";
+
+    public static string ModelName(IConfiguration configuration) =>
+        configuration["OpenAI:Model"] ?? DefaultModel;
+
+    /// <summary>
+    /// Options for one call: the model, and no copy kept at OpenAI. The Responses API stores every response
+    /// for 30 days unless told not to, and these prompts hold resumes and interview notes.
+    /// No temperature: current models reject anything but the default.
+    /// </summary>
+    public static ChatOptions Options(string model) =>
+        new()
+        {
+            ModelId = model,
+            RawRepresentationFactory = _ => new CreateResponseOptions { StoredOutputEnabled = false },
+        };
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(configuration["OpenAI:ApiKey"]);
 
-    public async Task<string> CompleteAsync(
+    public Task<string> CompleteAsync(
         string instruction,
         string input,
         CancellationToken ct,
-        AiContext? context = null,
-        bool json = false
+        AiContext? context = null
+    ) =>
+        RunAsync(
+            instruction,
+            input,
+            context,
+            ct,
+            async (messages, model) =>
+            {
+                var response = await chat.GetResponseAsync(messages, Options(model), ct);
+                return (response.Text, response.Text, response.Usage);
+            }
+        );
+
+    public Task<T> CompleteAsync<T>(
+        string instruction,
+        string input,
+        CancellationToken ct,
+        AiContext? context = null
+    ) =>
+        RunAsync(
+            instruction,
+            input,
+            context,
+            ct,
+            async (messages, model) =>
+            {
+                var response = await chat.GetResponseAsync<T>(messages, Options(model), cancellationToken: ct);
+                return response.TryGetResult(out var result)
+                    ? (result, response.Text, response.Usage)
+                    : throw new JsonException("The model's answer did not fit the requested shape.");
+            }
+        );
+
+    // One place for the model lookup, the call log and the error mapping.
+    private async Task<T> RunAsync<T>(
+        string instruction,
+        string input,
+        AiContext? context,
+        CancellationToken ct,
+        Func<ChatMessage[], string, Task<(T Value, string Output, UsageDetails? Usage)>> call
     )
     {
         var model = await ModelAsync(ct);
-        using var request = Post("chat/completions");
-        request.Content = JsonContent.Create(
-            new
-            {
-                model,
-                temperature = 0.2,
-                response_format = json ? new { type = "json_object" } : null,
-                messages = new[]
-                {
-                    new { role = "system", content = instruction },
-                    new { role = "user", content = input },
-                },
-            }
-        );
         var clock = Stopwatch.StartNew();
-        string output = "";
-        int prompt = 0,
-            completion = 0;
         try
         {
-            using var response = await http.SendAsync(request, ct);
-            response.EnsureSuccessStatusCode();
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(ct));
-            var root = document.RootElement;
-            output = root.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "";
-            if (root.TryGetProperty("usage", out var usage))
-            {
-                prompt = usage.GetProperty("prompt_tokens").GetInt32();
-                completion = usage.GetProperty("completion_tokens").GetInt32();
-            }
-            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, instruction + "\n\n" + input, output, prompt, completion, clock, null);
-            return output;
+            var (value, output, usage) = await call(
+                [new(ChatRole.System, instruction), new(ChatRole.User, input)],
+                model
+            );
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, instruction + "\n\n" + input, output, (int)(usage?.InputTokenCount ?? 0), (int)(usage?.OutputTokenCount ?? 0), clock, null);
+            return value;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, instruction + "\n\n" + input, output, prompt, completion, clock, exception.Message);
+            // The SDK's message carries OpenAI's own error text (which field it rejected), so the log says why.
+            await AiCallLogWriter.WriteAsync(scopes, logger, context, model, instruction + "\n\n" + input, "", 0, 0, clock, exception.Message);
+            // Callers already turn HttpRequestException into a 502; the SDK throws its own type instead.
+            if (exception is ClientResultException failed)
+                throw new HttpRequestException(failed.Message, failed, (HttpStatusCode)failed.Status);
             throw;
         }
     }
@@ -254,7 +304,7 @@ public sealed class OpenAiAssistant(
         if (organization is { AiEnabled: false })
             throw new AiUnavailableException("AI assistance is turned off in settings.");
         return string.IsNullOrWhiteSpace(organization?.AiModel)
-            ? configuration["OpenAI:Model"] ?? "gpt-4o-mini"
+            ? ModelName(configuration)
             : organization.AiModel;
     }
 

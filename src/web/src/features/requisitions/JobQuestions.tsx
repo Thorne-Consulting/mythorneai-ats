@@ -89,11 +89,8 @@ export function JobQuestions({ id, canManage }: { id: string; canManage: boolean
         ) : (
           <ol className="divide-y divide-border-subtle">
             {list.map((q, i) => (
-              <li
-                key={q.id}
-                className="flex flex-wrap items-start gap-x-3 gap-y-1 py-3 first:pt-0 last:pb-0"
-              >
-                <span className="w-5 text-right text-sm text-fg-subtle tnum">{i + 1}</span>
+              <li key={q.id} className="flex items-start gap-x-3 py-3 first:pt-0 last:pb-0">
+                <span className="w-5 shrink-0 text-right text-sm text-fg-subtle tnum">{i + 1}</span>
                 <div className="min-w-0 flex-1">
                   <p className="text-base text-fg">
                     {q.label}
@@ -102,15 +99,17 @@ export function JobQuestions({ id, canManage }: { id: string; canManage: boolean
                   {q.options.length > 0 && (
                     <p className="mt-0.5 text-sm text-fg-muted">{q.options.join(' · ')}</p>
                   )}
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <Badge tone="gray">{typeLabel(q.type)}</Badge>
+                  {/* Not a Badge: a badge never wraps, and a long answer ran out of the card. */}
                   {q.knockoutAnswers.length > 0 && (
-                    <Badge tone="red" icon={<Flag />}>
-                      Flags “{q.knockoutAnswers.join('”, “')}”
-                    </Badge>
+                    <p className="mt-1.5 flex items-start gap-1.5 text-sm text-tone-red-fg">
+                      <Flag className="mt-0.5 size-3.5 shrink-0" />
+                      <span className="min-w-0">
+                        Flags {q.knockoutAnswers.map((answer) => `“${answer}”`).join(', ')}
+                      </span>
+                    </p>
                   )}
                 </div>
+                <Badge tone="gray">{typeLabel(q.type)}</Badge>
               </li>
             ))}
           </ol>

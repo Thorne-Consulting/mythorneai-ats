@@ -39,6 +39,41 @@ export const filterParsers = {
   answers: parseAsArrayOf(parseAsString, '|').withDefault([]),
   /** Only applications with an answer flagged for review. */
   flagged: parseAsBoolean.withDefault(false),
+  /** Skills the person must NOT have, tags to leave out. */
+  excludeSkills: parseAsArrayOf(parseAsString).withDefault([]),
+  excludeTags: parseAsArrayOf(parseAsString).withDefault([]),
+  /** Years each chosen skill has been used (from the resume). */
+  minSkillYears: parseAsInteger,
+  /** Where they live, down to the part, and what work they are open to. */
+  city: parseAsString.withDefault(''),
+  region: parseAsString.withDefault(''),
+  country: parseAsString.withDefault(''),
+  openToRemote: parseAsBoolean.withDefault(false),
+  willingToRelocate: parseAsBoolean.withDefault(false),
+  /** More from the resume. */
+  certification: parseAsString.withDefault(''),
+  language: parseAsString.withDefault(''),
+  languageLevel: parseAsString,
+  field: parseAsString,
+  employmentType: parseAsString,
+  minManagementYears: parseAsInteger,
+  /** When the person was added: dates as 2026-11-19. */
+  addedFrom: parseAsString,
+  addedTo: parseAsString,
+  /** Their applications, which must all hold on one application. */
+  appliedFrom: parseAsString,
+  appliedTo: parseAsString,
+  activityFrom: parseAsString,
+  activityTo: parseAsString,
+  /** Still in play, with no movement for this many days. */
+  idleDays: parseAsInteger,
+  /** The AI fit check, 0 to 100. */
+  minFit: parseAsInteger,
+  assignee: parseAsString,
+  reason: parseAsString,
+  applicationSource: parseAsString,
+  unread: parseAsBoolean.withDefault(false),
+  feedbackOwed: parseAsBoolean.withDefault(false),
   sort: parseAsString.withDefault('recent'),
 };
 /** Short names in the address bar. */
@@ -108,6 +143,33 @@ export const BLANK: Filters = {
   questionId: null,
   answers: [],
   flagged: false,
+  excludeSkills: [],
+  excludeTags: [],
+  minSkillYears: null,
+  city: '',
+  region: '',
+  country: '',
+  openToRemote: false,
+  willingToRelocate: false,
+  certification: '',
+  language: '',
+  languageLevel: null,
+  field: null,
+  employmentType: null,
+  minManagementYears: null,
+  addedFrom: null,
+  addedTo: null,
+  appliedFrom: null,
+  appliedTo: null,
+  activityFrom: null,
+  activityTo: null,
+  idleDays: null,
+  minFit: null,
+  assignee: null,
+  reason: null,
+  applicationSource: null,
+  unread: false,
+  feedbackOwed: false,
   sort: 'recent',
 };
 
@@ -145,6 +207,34 @@ export function candidateParams(filters: Filters, page = 1) {
     for (const answer of filters.answers) params.append('answer', answer);
   }
   if (filters.flagged) params.set('flagged', 'true');
+  if (filters.excludeSkills.length) params.set('excludeSkills', filters.excludeSkills.join(','));
+  if (filters.excludeTags.length) params.set('excludeTags', filters.excludeTags.join(','));
+  if (filters.minSkillYears !== null) params.set('minSkillYears', String(filters.minSkillYears));
+  for (const key of ['city', 'region', 'country', 'certification', 'language'] as const)
+    if (filters[key]) params.set(key, filters[key]);
+  if (filters.openToRemote) params.set('openToRemote', 'true');
+  if (filters.willingToRelocate) params.set('willingToRelocate', 'true');
+  if (filters.minManagementYears !== null)
+    params.set('minManagementYears', String(filters.minManagementYears));
+  if (filters.minFit !== null) params.set('minFit', String(filters.minFit));
+  if (filters.idleDays !== null) params.set('idleDays', String(filters.idleDays));
+  for (const key of [
+    'languageLevel',
+    'field',
+    'employmentType',
+    'addedFrom',
+    'addedTo',
+    'appliedFrom',
+    'appliedTo',
+    'activityFrom',
+    'activityTo',
+    'assignee',
+    'reason',
+    'applicationSource',
+  ] as const)
+    if (filters[key]) params.set(key, filters[key]);
+  if (filters.unread) params.set('unread', 'true');
+  if (filters.feedbackOwed) params.set('feedbackOwed', 'true');
   return params;
 }
 
@@ -189,6 +279,33 @@ export const CHIP_KEYS = [
   'openJobs',
   'questionId',
   'flagged',
+  'excludeSkills',
+  'excludeTags',
+  'minSkillYears',
+  'city',
+  'region',
+  'country',
+  'openToRemote',
+  'willingToRelocate',
+  'certification',
+  'language',
+  'languageLevel',
+  'field',
+  'employmentType',
+  'minManagementYears',
+  'addedFrom',
+  'addedTo',
+  'appliedFrom',
+  'appliedTo',
+  'activityFrom',
+  'activityTo',
+  'idleDays',
+  'minFit',
+  'assignee',
+  'reason',
+  'applicationSource',
+  'unread',
+  'feedbackOwed',
 ] as const;
 export type ChipKey = (typeof CHIP_KEYS)[number] | `custom:${string}`;
 
@@ -209,6 +326,46 @@ const DEGREES: Record<string, string> = {
   Master: "Master's or above",
   Doctorate: 'Doctorate',
 };
+
+export const FIELD_LABELS: Record<string, string> = {
+  Engineering: 'Engineering',
+  ComputerScience: 'Computer science',
+  Business: 'Business',
+  Health: 'Health',
+  Education: 'Education',
+  Arts: 'Arts',
+  Sciences: 'Sciences',
+  Law: 'Law',
+  SocialSciences: 'Social sciences',
+  Other: 'Other',
+};
+export const EMPLOYMENT_LABELS: Record<string, string> = {
+  FullTime: 'Full time',
+  PartTime: 'Part time',
+  Contract: 'Contract',
+  Internship: 'Internship',
+  Freelance: 'Freelance',
+  Volunteer: 'Volunteer',
+};
+export const LANGUAGE_LEVEL_LABELS: Record<string, string> = {
+  Basic: 'Basic',
+  Conversational: 'Conversational',
+  Professional: 'Professional',
+  Fluent: 'Fluent',
+  Native: 'Native',
+};
+
+/** The date range chips read "Applied 1 Nov 2026 to 15 Nov 2026". */
+function range(from: string | null, to: string | null) {
+  const show = (value: string) =>
+    new Date(`${value}T00:00:00`).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  if (from && to) return `${show(from)} to ${show(to)}`;
+  return from ? `from ${show(from)}` : `up to ${show(to!)}`;
+}
 
 /** What each stage type is called on the dashboard and in filters. */
 export const STAGE_TYPE_LABELS: Record<string, string> = {
@@ -258,6 +415,49 @@ export function filterChips(
       `${questionLabel ?? 'Answer'}${filters.answers.length ? `: ${filters.answers.join(' or ')}` : ''}`,
     );
   if (filters.flagged) add('flagged', 'Flagged answers only');
+  if (filters.excludeSkills.length)
+    add('excludeSkills', `Without skills: ${filters.excludeSkills.join(', ')}`);
+  if (filters.excludeTags.length)
+    add('excludeTags', `Without tags: ${filters.excludeTags.join(', ')}`);
+  if (filters.minSkillYears !== null)
+    add('minSkillYears', `Each skill used ${filters.minSkillYears}+ years`);
+  if (filters.city) add('city', `City: ${filters.city}`);
+  if (filters.region) add('region', `State or region: ${filters.region}`);
+  if (filters.country) add('country', `Country: ${filters.country}`);
+  if (filters.openToRemote) add('openToRemote', 'Open to remote work');
+  if (filters.willingToRelocate) add('willingToRelocate', 'Willing to relocate');
+  if (filters.certification) add('certification', `Certification: ${filters.certification}`);
+  if (filters.language || filters.languageLevel)
+    add(
+      'language',
+      `Speaks ${filters.language || 'a language'}${
+        filters.languageLevel
+          ? `, ${(LANGUAGE_LEVEL_LABELS[filters.languageLevel] ?? filters.languageLevel).toLowerCase()} or better`
+          : ''
+      }`,
+    );
+  if (filters.field) add('field', `Studied ${FIELD_LABELS[filters.field] ?? filters.field}`);
+  if (filters.employmentType)
+    add(
+      'employmentType',
+      `Has worked: ${EMPLOYMENT_LABELS[filters.employmentType] ?? filters.employmentType}`,
+    );
+  if (filters.minManagementYears !== null)
+    add('minManagementYears', `${filters.minManagementYears}+ years managing people`);
+  if (filters.addedFrom || filters.addedTo)
+    add('addedFrom', `Added ${range(filters.addedFrom, filters.addedTo)}`);
+  if (filters.appliedFrom || filters.appliedTo)
+    add('appliedFrom', `Applied ${range(filters.appliedFrom, filters.appliedTo)}`);
+  if (filters.activityFrom || filters.activityTo)
+    add('activityFrom', `Active ${range(filters.activityFrom, filters.activityTo)}`);
+  if (filters.idleDays !== null) add('idleDays', `No activity for ${filters.idleDays}+ days`);
+  if (filters.minFit !== null) add('minFit', `AI fit ${filters.minFit}% or more`);
+  if (filters.assignee) add('assignee', `Assigned to ${filters.assignee}`);
+  if (filters.reason) add('reason', `Reason: ${filters.reason}`);
+  if (filters.applicationSource)
+    add('applicationSource', `Applied through ${filters.applicationSource}`);
+  if (filters.unread) add('unread', 'Unread messages');
+  if (filters.feedbackOwed) add('feedbackOwed', 'Waiting on interview feedback');
   for (const [key, values] of Object.entries(customFilters(filters.custom)))
     add(`custom:${key}`, `${fieldLabels[key] ?? key}: ${values.join(' or ')}`);
   return chips;
@@ -271,6 +471,10 @@ export function clearChip(key: ChipKey, filters?: Filters): Partial<Filters> {
   }
   if (key === 'skills') return { skills: [], skillMode: 'any' };
   if (key === 'questionId') return { questionId: null, answers: [] };
+  if (key === 'language') return { language: '', languageLevel: null };
+  if (key === 'addedFrom') return { addedFrom: null, addedTo: null };
+  if (key === 'appliedFrom') return { appliedFrom: null, appliedTo: null };
+  if (key === 'activityFrom') return { activityFrom: null, activityTo: null };
   const plain = key as (typeof CHIP_KEYS)[number];
   return { [plain]: BLANK[plain] };
 }
@@ -283,6 +487,8 @@ export function sameFilters(a: Filters, b: Filters) {
         ...f,
         skills: [...f.skills].sort(),
         tags: [...f.tags].sort(),
+        excludeSkills: [...(f.excludeSkills ?? [])].sort(),
+        excludeTags: [...(f.excludeTags ?? [])].sort(),
         custom: [...(f.custom ?? [])].sort(),
         answers: [...(f.answers ?? [])].sort(),
       }).sort(([x], [y]) => x.localeCompare(y)),
@@ -350,6 +556,8 @@ export function viewState(paramsJson: string): { filters: Filters; describe: str
         tags: (saved.filters.tags as string[] | undefined) ?? [],
         custom: (saved.filters.custom as string[] | undefined) ?? [],
         answers: (saved.filters.answers as string[] | undefined) ?? [],
+        excludeSkills: (saved.filters.excludeSkills as string[] | undefined) ?? [],
+        excludeTags: (saved.filters.excludeTags as string[] | undefined) ?? [],
         minYears: years(saved.filters.minYears),
         hasApplications: null,
         poolId: null,

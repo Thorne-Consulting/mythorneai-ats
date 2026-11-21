@@ -45,7 +45,7 @@ public sealed class ResumeExtractor(
         """;
 
     public static string ModelName(IConfiguration configuration) =>
-        configuration["OpenAI:ResumeModel"] ?? configuration["OpenAI:Model"] ?? "gpt-5-mini";
+        configuration["OpenAI:ResumeModel"] ?? OpenAiAssistant.ModelName(configuration);
 
     public bool IsConfigured => chat is not UnconfiguredChatClient;
 
@@ -86,12 +86,7 @@ public sealed class ResumeExtractor(
         CancellationToken ct
     )
     {
-        var options = new ChatOptions
-        {
-            // ponytail: reasoning models (gpt-5*, o*) reject any temperature but the default.
-            Temperature = model.StartsWith("gpt-5", StringComparison.OrdinalIgnoreCase) || model.StartsWith('o') ? null : 0,
-            Seed = 7,
-        };
+        var options = OpenAiAssistant.Options(model);
         var messages = new[]
         {
             new ChatMessage(ChatRole.System, Instructions),
