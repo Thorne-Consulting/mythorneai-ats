@@ -42,13 +42,12 @@ export default async function Page({ params, searchParams }: Props) {
   // A closed, confidential or missing job is a real 404, so search engines drop it.
   if (!job) notFound();
   const path = jobPath(job);
-  if (decodeURIComponent(param) !== path.slice('/careers/'.length)) {
-    // Old links by id move to the readable address, keeping ?src= and other tags.
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(await searchParams))
-      for (const v of Array.isArray(value) ? value : value ? [value] : []) query.append(key, v);
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(await searchParams))
+    for (const v of Array.isArray(value) ? value : value ? [value] : []) query.append(key, v);
+  // Old links by id move to the readable address, keeping ?src= and other tags.
+  if (decodeURIComponent(param) !== path.slice('/careers/'.length))
     permanentRedirect(query.size ? `${path}?${query}` : path);
-  }
   const [organization, origin, sameTeam, facets, currencies] = await Promise.all([
     getOrganization(),
     siteOrigin(),
@@ -66,6 +65,7 @@ export default async function Page({ params, searchParams }: Props) {
         related={sameTeam.items.filter((j) => j.id !== job.id).slice(0, 3)}
         totalOpen={facets.total}
         currencies={currencies}
+        search={`?${query}`}
       />
     </>
   );

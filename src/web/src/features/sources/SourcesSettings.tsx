@@ -146,7 +146,7 @@ export function SourcesSettings() {
       <Card className="mt-5">
         <CardHeader
           title="Sources from links"
-          description="Add ?src= and a link code to a job link you share, for example …/jobs/123?src=linkedin. People who apply from that link get the source. Links with utm_source work the same way. Other careers site visits get Career site."
+          description="Add ?src= and a link code to a job link you share, for example …/careers/123?src=linkedin. People who apply from that link get the source, for 30 days after their first visit. Links with utm_source work the same way. Other careers site visits get Career site. On a job's Posting tab, Copy link for… gives you these links ready to share."
         />
       </Card>
 

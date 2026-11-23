@@ -8,6 +8,7 @@ import { typeLabel } from './questions';
 import { ApplyBar, ApplyCard } from './ShareActions';
 import { PayTerms } from './PayTerms';
 import type { PublicCurrencies } from './server';
+import { sourceQuery } from './source';
 
 /**
  * A job as applicants see it, rendered on the server: the posting, what the form will ask, a few
@@ -18,15 +19,18 @@ export function JobPage({
   related,
   totalOpen,
   currencies,
+  search = '',
 }: {
   job: PublicJob;
   /** Other open jobs in the same department. */
   related: PublicJob[];
   totalOpen: number;
   currencies: PublicCurrencies;
+  /** The page's query string, so the Apply link keeps ?src= and utm_* tags. */
+  search?: string;
 }) {
   const questions = job.questions ?? [];
-  const applyHref = `${jobPath(job)}/apply`;
+  const applyHref = `${jobPath(job)}/apply${sourceQuery(search)}`;
   const posted = postedText(job.postedAt);
 
   return (

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, Pencil, UserPlus, X } from 'lucide-react';
+import { ChevronDown, ExternalLink, Pencil, UserPlus, X } from 'lucide-react';
 import { api } from '@/api';
 import {
   Alert,
@@ -15,6 +15,10 @@ import {
   ConfirmDialog,
   CopyButton,
   IconButton,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
   RadioGroup,
   SearchSelect,
   Select,
@@ -26,6 +30,7 @@ import { imageProblem } from '@/components/editor/images';
 import { PlateMarkdownEditor } from '@/components/editor/PlateMarkdownEditor';
 import { asJob, useAbility } from '@/lib/ability';
 import type { RequisitionMember } from '@/types';
+import { useSources } from '../sources/sources-data';
 import { useRequisition, useUpdateJob, useUpdateJobSettings } from './requisition-data';
 import { JobQuestions } from './JobQuestions';
 import { RequisitionRequirements } from './RequisitionRequirements';
@@ -312,6 +317,39 @@ export function JobTeam({ id }: { id: string }) {
 }
 
 /**
+ * "Copy link for…": the job link with `?src=<code>` for each source that has a link code, so an
+ * applicant from that link gets that source. Hidden until a source has a code.
+ */
+function CopyTaggedLink({ url }: { url: string }) {
+  const sources = (useSources().data ?? []).filter((s) => s.active && s.codes.length > 0);
+  if (!sources.length) return null;
+  async function copy(name: string, code: string) {
+    try {
+      await navigator.clipboard.writeText(`${url}?src=${encodeURIComponent(code)}`);
+      toast.success(`Link for ${name} copied`);
+    } catch {
+      toast.error('Could not copy the link');
+    }
+  }
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <Button variant="quiet" size="sm" rightIcon={<ChevronDown />}>
+          Copy link for…
+        </Button>
+      </MenuTrigger>
+      <MenuContent>
+        {sources.map((s) => (
+          <MenuItem key={s.id} onSelect={() => copy(s.name, s.codes[0])}>
+            {s.name}
+          </MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
+  );
+}
+
+/**
  * The careers page as applicants see it, the link to share, and the place to write the posting.
  * Title, team, location and the other facts come from Settings.
  */
@@ -338,6 +376,7 @@ export function JobPosting({ id }: { id: string }) {
           <div className="flex items-center gap-2 rounded-md border border-input bg-muted px-3 py-2">
             <code className="min-w-0 flex-1 truncate text-sm text-fg">{origin + path}</code>
             <CopyButton value={origin + path} label="Copy link" />
+            <CopyTaggedLink url={origin + path} />
             {isPublic && (
               <Button asChild variant="quiet" size="sm">
                 <a href={path} target="_blank" rel="noreferrer">
