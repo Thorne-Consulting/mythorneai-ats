@@ -359,11 +359,18 @@ export function JobPosting({ id }: { id: string }) {
   const save = useUpdateJob(id);
   const [draft, setDraft] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  // The origin is only known in the browser; render the path first to keep hydration stable.
+  // The public link starts with "Web address of this app" (Settings, General), the careers host,
+  // not the staff host this page runs on. Until it is set, fall back to this browser's origin,
+  // which is only known in the browser; render the path first to keep hydration stable.
+  const organization = useQuery({
+    queryKey: ['organization'],
+    queryFn: () => api.get<{ publicUrl?: string | null }>('/api/organization'),
+  });
   const [origin, setOrigin] = useState('');
   useEffect(() => setOrigin(window.location.origin), []);
   if (!details.data) return <Loading />;
   const job = details.data;
+  const base = organization.data?.publicUrl?.trim().replace(/\/+$/, '') || origin;
   const path = `/careers/${id}`;
   const isPublic = job.status === 'Open';
   const editing = draft !== null;
@@ -374,9 +381,9 @@ export function JobPosting({ id }: { id: string }) {
         <CardHeader title="Public link" description="Share it anywhere you advertise the job." />
         <CardBody className="flex flex-col gap-3">
           <div className="flex items-center gap-2 rounded-md border border-input bg-muted px-3 py-2">
-            <code className="min-w-0 flex-1 truncate text-sm text-fg">{origin + path}</code>
-            <CopyButton value={origin + path} label="Copy link" />
-            <CopyTaggedLink url={origin + path} />
+            <code className="min-w-0 flex-1 truncate text-sm text-fg">{base + path}</code>
+            <CopyButton value={base + path} label="Copy link" />
+            <CopyTaggedLink url={base + path} />
             {isPublic && (
               <Button asChild variant="quiet" size="sm">
                 <a href={path} target="_blank" rel="noreferrer">
