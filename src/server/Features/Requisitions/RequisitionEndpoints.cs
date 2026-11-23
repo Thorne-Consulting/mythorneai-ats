@@ -1023,7 +1023,10 @@ public static partial class AtsEndpoints
                     || !supportedCurrencies.Contains(currency.Trim())
                 )
             )
-                errors["salary.currency"] = ["Choose one of the supported currencies (Settings, then Currencies)."];
+                errors["salary.currency"] =
+                [
+                    "Choose one of the supported currencies (Settings, then Currencies).",
+                ];
             if (
                 salary.Period is { } period
                 && !SalaryPeriods.Contains(period, StringComparer.OrdinalIgnoreCase)
@@ -1060,8 +1063,7 @@ public static partial class AtsEndpoints
         {
             requisition.SalaryMin = salary.Min;
             requisition.SalaryMax = salary.Max;
-            requisition.SalaryCurrency =
-                Clean(salary.Currency)?.ToUpperInvariant() ?? baseCurrency;
+            requisition.SalaryCurrency = Clean(salary.Currency)?.ToUpperInvariant() ?? baseCurrency;
             requisition.SalaryPeriod =
                 SalaryPeriods.FirstOrDefault(x =>
                     x.Equals(salary.Period, StringComparison.OrdinalIgnoreCase)

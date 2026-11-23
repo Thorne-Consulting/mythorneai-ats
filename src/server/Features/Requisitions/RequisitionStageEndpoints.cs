@@ -182,6 +182,99 @@ public static partial class AtsEndpoints
             )
             .RequireAuthorization(AtsPolicies.ManageHiring);
 
+        // Another pipeline for the job: its stages replace the job's open stages. Hired stays, with
+        // its people. Everyone else moves to the new stage chosen for their current one.
+        api.MapPost(
+                "/requisitions/{id:guid}/pipeline",
+                async (
+                    Guid id,
+                    ChangePipelineRequest request,
+                    ClaimsPrincipal principal,
+                    AtsDbContext db,
+                    CancellationToken ct
+                ) =>
+                {
+                    var requisition = await db
+                        .Requisitions.Include(x => x.Stages)
+                        .SingleOrDefaultAsync(x => x.Id == id, ct);
+                    if (requisition is null || !CanManage(requisition, principal))
+                        return Results.NotFound();
+                    var hired = StageRules.Hired(requisition.Stages);
+                    if (hired is null)
+                        return JobProblem("stages", "This job has no Hired stage.");
+                    var template = await db
+                        .PipelineTemplates.AsNoTracking()
+                        .Include(x => x.Stages)
+                        .SingleOrDefaultAsync(x => x.Id == request.PipelineTemplateId, ct);
+                    if (template is null || template.Stages.Count == 0)
+                        return JobProblem("pipelineTemplateId", "Choose a pipeline with stages.");
+                    var fresh = StageRules.FromTemplate(id, template.Stages);
+                    var newHired = fresh[^1];
+                    fresh.RemoveAt(fresh.Count - 1);
+                    var removed = requisition.Stages.Where(x => x.Id != hired.Id).ToList();
+                    var removedIds = removed.Select(x => x.Id).ToArray();
+                    var moving = await db
+                        .Applications.Where(x => removedIds.Contains(x.PipelineStageId))
+                        .ToListAsync(ct);
+                    var moveTo = request.MoveTo ?? [];
+                    foreach (
+                        var stage in removed.Where(s => moving.Any(a => a.PipelineStageId == s.Id))
+                    )
+                        if (
+                            !moveTo.TryGetValue(stage.Id, out var target)
+                            || target < 0
+                            || target >= fresh.Count
+                        )
+                            return JobProblem(
+                                "moveTo",
+                                $"Choose where the people in {stage.Name} go in the new pipeline."
+                            );
+
+                    await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                    // (RequisitionId, SortOrder) is unique, so park the old stages out of the way first.
+                    foreach (var stage in requisition.Stages)
+                        stage.SortOrder += 1000;
+                    await db.SaveChangesAsync(ct);
+                    db.PipelineStages.AddRange(fresh);
+                    hired.SortOrder = newHired.SortOrder;
+                    var now = DateTimeOffset.UtcNow;
+                    foreach (var application in moving)
+                    {
+                        var from = application.PipelineStageId;
+                        application.PipelineStageId = fresh[moveTo[from]].Id;
+                        application.LastActivityAt = now;
+                        PipelineEvents.RecordMove(
+                            db,
+                            application,
+                            from,
+                            application.Status,
+                            principal.Email()
+                        );
+                    }
+                    await db.SaveChangesAsync(ct);
+                    db.PipelineStages.RemoveRange(removed);
+                    requisition.PipelineTemplateId = template.Id;
+                    requisition.UpdatedAt = now;
+                    Audit.Add(
+                        db,
+                        principal,
+                        "Requisition",
+                        id,
+                        "PipelineChanged",
+                        new
+                        {
+                            Pipeline = template.Name,
+                            Stages = fresh.Select(x => x.Name).Append(hired.Name).ToArray(),
+                            Moved = moving.Count,
+                        }
+                    );
+                    await db.SaveChangesAsync(ct);
+                    await transaction.CommitAsync(ct);
+                    return Results.NoContent();
+                }
+            )
+            .RequireAuthorization(AtsPolicies.ManageHiring);
+
         // What the stage email would say to this person, for the move dialog to show before sending.
         api.MapGet(
                 "/applications/{id:guid}/stage-email",

@@ -103,6 +103,15 @@ public sealed record StageInput(
     Guid? AssessmentId = null
 );
 
+/// <summary>
+/// Give a job another pipeline. Its stages replace the job's, except Hired, which stays. MoveTo says
+/// where the people in each current stage go: the position (from 0) of a stage in the new pipeline.
+/// </summary>
+public sealed record ChangePipelineRequest(
+    Guid PipelineTemplateId,
+    Dictionary<Guid, int>? MoveTo = null
+);
+
 /// <summary>A pipeline's stages before Hired, which every job gets at the end.</summary>
 public sealed record SavePipelineRequest(string Name, StageInput[] Stages, bool IsDefault);
 

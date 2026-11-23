@@ -166,6 +166,105 @@ public sealed partial class ApiFlowTests
     }
 
     [Fact]
+    public async Task A_job_can_change_pipeline_and_people_go_to_the_chosen_new_stages()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        using var admin = await LoginAsync("admin@example.test", ct);
+        var jobId = (await OpenJobWithCandidatesAsync(admin, ct)).GetProperty("id").GetGuid();
+        var created = await admin.PostAsJsonAsync(
+            "/api/admin/pipeline-templates",
+            new
+            {
+                name = "Two step",
+                isDefault = false,
+                stages = new object[]
+                {
+                    new
+                    {
+                        name = "Inbox",
+                        type = "Applied",
+                        candidateLabel = "Received",
+                    },
+                    new
+                    {
+                        name = "Chat",
+                        type = "Interview",
+                        candidateLabel = "Interview",
+                    },
+                },
+            },
+            ct
+        );
+        created.StatusCode.ShouldBe(HttpStatusCode.OK, await created.Content.ReadAsStringAsync(ct));
+        var pipelineId = (await created.Content.ReadFromJsonAsync<JsonElement>(ct))
+            .GetProperty("id")
+            .GetGuid();
+
+        var before = (
+            await admin.GetFromJsonAsync<JsonElement>($"/api/requisitions/{jobId}/board", ct)
+        )
+            .GetProperty("stages")
+            .EnumerateArray()
+            .ToList();
+        var crowded = before
+            .Where(x => !x.GetProperty("isTerminal").GetBoolean())
+            .Where(x => x.GetProperty("applications").GetArrayLength() > 0)
+            .ToList();
+        crowded.ShouldNotBeEmpty();
+        var people = crowded.Sum(x => x.GetProperty("applications").GetArrayLength());
+
+        // A stage with people needs a place in the new pipeline; a bad position is refused too.
+        (
+            await admin.PostAsJsonAsync(
+                $"/api/requisitions/{jobId}/pipeline",
+                new { pipelineTemplateId = pipelineId },
+                ct
+            )
+        ).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (
+            await admin.PostAsJsonAsync(
+                $"/api/requisitions/{jobId}/pipeline",
+                new
+                {
+                    pipelineTemplateId = pipelineId,
+                    moveTo = crowded.ToDictionary(x => x.GetProperty("id").GetGuid(), _ => 5),
+                },
+                ct
+            )
+        ).StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+
+        // Everyone goes to Chat, the second new stage.
+        var changed = await admin.PostAsJsonAsync(
+            $"/api/requisitions/{jobId}/pipeline",
+            new
+            {
+                pipelineTemplateId = pipelineId,
+                moveTo = crowded.ToDictionary(x => x.GetProperty("id").GetGuid(), _ => 1),
+            },
+            ct
+        );
+        changed.StatusCode.ShouldBe(
+            HttpStatusCode.NoContent,
+            await changed.Content.ReadAsStringAsync(ct)
+        );
+
+        var after = (
+            await admin.GetFromJsonAsync<JsonElement>($"/api/requisitions/{jobId}/board", ct)
+        )
+            .GetProperty("stages")
+            .EnumerateArray()
+            .ToList();
+        after.Select(x => x.GetProperty("name").GetString()).ShouldBe(["Inbox", "Chat", "Hired"]);
+        after[0].GetProperty("applications").GetArrayLength().ShouldBe(0);
+        after[1].GetProperty("applications").GetArrayLength().ShouldBe(people);
+        after[2].GetProperty("isTerminal").GetBoolean().ShouldBeTrue();
+        (await admin.GetFromJsonAsync<JsonElement>($"/api/requisitions/{jobId}", ct))
+            .GetProperty("pipelineTemplateId")
+            .GetGuid()
+            .ShouldBe(pipelineId);
+    }
+
+    [Fact]
     public async Task A_job_s_stages_can_be_edited_and_people_in_a_removed_stage_are_moved()
     {
         var ct = TestContext.Current.CancellationToken;

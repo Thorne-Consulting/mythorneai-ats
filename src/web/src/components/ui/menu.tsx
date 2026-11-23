@@ -32,7 +32,7 @@ export function MenuContent({
         side={side}
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-[220px] overflow-hidden rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-pop data-[state=open]:animate-in',
+          'z-50 max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[220px] overflow-y-auto rounded-lg border border-border bg-popover p-1.5 text-popover-foreground shadow-pop data-[state=open]:animate-in',
           className,
         )}
       >

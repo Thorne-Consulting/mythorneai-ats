@@ -13,6 +13,7 @@ import {
   Rows3,
   Rows4,
   Settings2,
+  Workflow,
   UserX,
 } from 'lucide-react';
 import { api } from '@/api';
@@ -40,6 +41,7 @@ import type { BoardData } from '@/types';
 import { useBoard } from '@/features/requisitions/requisition-data';
 import { ApplicantsTable } from './ApplicantsTable';
 import { PipelineBoard, type ArchivedCard } from './PipelineBoard';
+import { ChangePipelineModal } from './ChangePipelineModal';
 import { StageEditor } from './StageEditor';
 import { StageStrip } from './StageStrip';
 import { MoveDialog, usePipelineMoves } from './pipeline-moves';
@@ -87,6 +89,7 @@ export function PipelineView({
   const [emailing, setEmailing] = useState(false);
   const canEmail = useAbility().can('send', 'Message');
   const [editingStages, setEditingStages] = useState(false);
+  const [changingPipeline, setChangingPipeline] = useState(false);
   const move = usePipelineMoves(requisitionId);
   // Declared after the stored layout loads, so the address wins.
   useEffect(() => {
@@ -231,11 +234,18 @@ export function PipelineView({
             </>
           )}
           {canManage && (
-            <Tooltip label="Edit stages">
-              <IconButton label="Edit stages" onClick={() => setEditingStages(true)}>
-                <Settings2 />
-              </IconButton>
-            </Tooltip>
+            <>
+              <Tooltip label="Edit stages">
+                <IconButton label="Edit stages" onClick={() => setEditingStages(true)}>
+                  <Settings2 />
+                </IconButton>
+              </Tooltip>
+              <Tooltip label="Change pipeline">
+                <IconButton label="Change pipeline" onClick={() => setChangingPipeline(true)}>
+                  <Workflow />
+                </IconButton>
+              </Tooltip>
+            </>
           )}
           <SegmentedControl
             aria-label="Layout"
@@ -388,6 +398,14 @@ export function PipelineView({
           stages={stages.map((s) => ({ ...s, count: s.applications.length }))}
           opened={editingStages}
           onClose={() => setEditingStages(false)}
+        />
+      )}
+      {changingPipeline && (
+        <ChangePipelineModal
+          requisitionId={requisitionId}
+          stages={stages.map((s) => ({ ...s, count: s.applications.length }))}
+          opened={changingPipeline}
+          onClose={() => setChangingPipeline(false)}
         />
       )}
     </div>
